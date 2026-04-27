@@ -12,6 +12,7 @@
   "devDependencies": {
     "jszip": "^3.10.1",
     "prettier": "^3.8.1",
+    "sharp": "^0.34.5",
     "typescript": "~5.9.2"
   }
 }

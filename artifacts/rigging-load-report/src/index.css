@@ -65,10 +65,6 @@ body {
   height: 56px;
   width: auto;
   display: block;
-  background: white;
-  padding: 8px 12px;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   object-fit: contain;
 }
 .header-left h1 {
@@ -1128,9 +1124,7 @@ input:focus {
     margin-bottom: 5px;
   }
   .header-logo-img {
-    background: white !important;
-    box-shadow: none;
-    border: 1px solid #ddd;
+    filter: brightness(0);
   }
   .header-left h1 {
     border-left-color: #ccc;

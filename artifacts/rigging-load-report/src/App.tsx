@@ -2,11 +2,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "./index.css";
 import ehsLogo from "./assets/ehs-logo.png";
 
+type DmxMode = {
+  name: string;
+  channels: number;
+};
+
 type InventoryItem = {
   name: string;
   weight: number;
   wattage: number;
   area: number;
+  /** Optional list of factory DMX modes for this fixture. Sourced from
+   *  manufacturer documentation. The first entry is treated as the default
+   *  when the fixture is first linked into the Lighting Plan. */
+  dmxModes?: DmxMode[];
 };
 
 type Category = "Truss" | "Fixtures" | "LED Screen";
@@ -30,28 +39,234 @@ const inventory: Record<Category, InventoryItem[]> = {
     { name: "Eurotruss FD32 - 0.5m (3.1kg)", weight: 3.1, wattage: 0, area: 0 },
   ],
   Fixtures: [
-    { name: "Clay Paky Mythos 2 (32.0kg)", weight: 32.0, wattage: 800, area: 0 },
-    { name: "Elation DTW Blinder 350 IP (11.0kg)", weight: 11.0, wattage: 310, area: 0 },
+    {
+      name: "Clay Paky Mythos 2 (32.0kg)",
+      weight: 32.0,
+      wattage: 800,
+      area: 0,
+      dmxModes: [
+        { name: "Standard", channels: 30 },
+        { name: "Vector / Extended", channels: 34 },
+      ],
+    },
+    {
+      name: "Elation DTW Blinder 350 IP (11.0kg)",
+      weight: 11.0,
+      wattage: 310,
+      area: 0,
+      dmxModes: [
+        { name: "1 Channel", channels: 1 },
+        { name: "2 Channel", channels: 2 },
+        { name: "4 Channel", channels: 4 },
+        { name: "Full / 9 Channel", channels: 9 },
+      ],
+    },
     { name: "Martin PowerPort 1500", weight: 0, wattage: 1100, area: 0 },
-    { name: "MDG ATMe Haze", weight: 0, wattage: 715, area: 0 },
-    { name: "Stage Fan / AF-1", weight: 0, wattage: 120, area: 0 },
-    { name: "Astera Titan Tube (1.35kg)", weight: 1.35, wattage: 72, area: 0 },
-    { name: "Astera AX2 1m PixelBar (7.4kg)", weight: 7.4, wattage: 80, area: 0 },
-    { name: "Astera AX5 TriplePAR (3.4kg)", weight: 3.4, wattage: 45, area: 0 },
-    { name: "Astera AX9 PowerPar (5.66kg)", weight: 5.66, wattage: 110, area: 0 },
-    { name: "Astera Pixel Brick (1.12kg)", weight: 1.12, wattage: 20, area: 0 },
-    { name: "Martin MAC Aura (6.6kg)", weight: 6.6, wattage: 260, area: 0 },
-    { name: "Martin MAC Aura XB (7.5kg)", weight: 7.5, wattage: 260, area: 0 },
-    { name: "Martin MAC Aura XIP (10.0kg)", weight: 10.0, wattage: 340, area: 0 },
-    { name: "Martin MAC Aura PXL (15.6kg)", weight: 15.6, wattage: 560, area: 0 },
-    { name: "Martin MAC One (5.4kg)", weight: 5.4, wattage: 160, area: 0 },
-    { name: "Martin MAC Viper XIP (37.8kg)", weight: 37.8, wattage: 1040, area: 0 },
-    { name: "Martin MAC Viper AirFX (36.7kg)", weight: 36.7, wattage: 1225, area: 0 },
-    { name: "SnowARC Pro Quad 40 mkII (10.5kg)", weight: 10.5, wattage: 390, area: 0 },
-    { name: "DTS NICK NRG 1201 (12.9kg)", weight: 12.9, wattage: 340, area: 0 },
-    { name: "Elation Pulse Panel FX (14.4kg)", weight: 14.4, wattage: 900, area: 0 },
-    { name: "Chauvet Color STRIKE M (13.1kg)", weight: 13.1, wattage: 740, area: 0 },
-    { name: "Martin RUSH MH 7 Hybrid (25.0kg)", weight: 25.0, wattage: 450, area: 0 },
+    {
+      name: "MDG ATMe Haze",
+      weight: 0,
+      wattage: 715,
+      area: 0,
+      dmxModes: [{ name: "Standard", channels: 3 }],
+    },
+    {
+      name: "Stage Fan / AF-1",
+      weight: 0,
+      wattage: 120,
+      area: 0,
+      dmxModes: [{ name: "Speed", channels: 1 }],
+    },
+    {
+      name: "Astera Titan Tube (1.35kg)",
+      weight: 1.35,
+      wattage: 72,
+      area: 0,
+      dmxModes: [
+        { name: "Single 5ch", channels: 5 },
+        { name: "Single 8ch", channels: 8 },
+        { name: "Single 11ch", channels: 11 },
+        { name: "Pixel 16 (28ch)", channels: 28 },
+      ],
+    },
+    {
+      name: "Astera AX2 1m PixelBar (7.4kg)",
+      weight: 7.4,
+      wattage: 80,
+      area: 0,
+      dmxModes: [
+        { name: "Single 5ch", channels: 5 },
+        { name: "Single 8ch", channels: 8 },
+        { name: "Single 11ch", channels: 11 },
+        { name: "Pixel 16 (28ch)", channels: 28 },
+      ],
+    },
+    {
+      name: "Astera AX5 TriplePAR (3.4kg)",
+      weight: 3.4,
+      wattage: 45,
+      area: 0,
+      dmxModes: [
+        { name: "Single 5ch", channels: 5 },
+        { name: "Single 8ch", channels: 8 },
+        { name: "Single 11ch", channels: 11 },
+        { name: "Pixel 3 (15ch)", channels: 15 },
+      ],
+    },
+    {
+      name: "Astera AX9 PowerPar (5.66kg)",
+      weight: 5.66,
+      wattage: 110,
+      area: 0,
+      dmxModes: [
+        { name: "Single 5ch", channels: 5 },
+        { name: "Single 8ch", channels: 8 },
+        { name: "Single 11ch", channels: 11 },
+      ],
+    },
+    {
+      name: "Astera Pixel Brick (1.12kg)",
+      weight: 1.12,
+      wattage: 20,
+      area: 0,
+      dmxModes: [
+        { name: "Single 5ch", channels: 5 },
+        { name: "Single 8ch", channels: 8 },
+        { name: "Single 11ch", channels: 11 },
+      ],
+    },
+    {
+      name: "Martin MAC Aura (6.6kg)",
+      weight: 6.6,
+      wattage: 260,
+      area: 0,
+      dmxModes: [
+        { name: "Standard", channels: 14 },
+        { name: "Extended", channels: 25 },
+      ],
+    },
+    {
+      name: "Martin MAC Aura XB (7.5kg)",
+      weight: 7.5,
+      wattage: 260,
+      area: 0,
+      dmxModes: [
+        { name: "Standard", channels: 14 },
+        { name: "Extended", channels: 25 },
+      ],
+    },
+    {
+      name: "Martin MAC Aura XIP (10.0kg)",
+      weight: 10.0,
+      wattage: 340,
+      area: 0,
+      dmxModes: [
+        { name: "Compact", channels: 20 },
+        { name: "Basic", channels: 36 },
+        { name: "Extended", channels: 57 },
+        { name: "Ludicrous", channels: 93 },
+        { name: "XB Standard", channels: 14 },
+        { name: "XB Extended", channels: 25 },
+      ],
+    },
+    {
+      name: "Martin MAC Aura PXL (15.6kg)",
+      weight: 15.6,
+      wattage: 560,
+      area: 0,
+      dmxModes: [
+        { name: "Compact", channels: 17 },
+        { name: "Basic", channels: 32 },
+        { name: "Extended", channels: 89 },
+        { name: "Ludicrous", channels: 512 },
+      ],
+    },
+    {
+      name: "Martin MAC One (5.4kg)",
+      weight: 5.4,
+      wattage: 160,
+      area: 0,
+      dmxModes: [
+        { name: "Compact", channels: 20 },
+        { name: "Basic", channels: 36 },
+        { name: "Ludicrous", channels: 108 },
+        { name: "Compact Direct", channels: 20 },
+      ],
+    },
+    {
+      name: "Martin MAC Viper XIP (37.8kg)",
+      weight: 37.8,
+      wattage: 1040,
+      area: 0,
+      dmxModes: [
+        { name: "Basic", channels: 54 },
+        { name: "Extended", channels: 64 },
+        { name: "Ludicrous", channels: 70 },
+      ],
+    },
+    {
+      name: "Martin MAC Viper AirFX (36.7kg)",
+      weight: 36.7,
+      wattage: 1225,
+      area: 0,
+      dmxModes: [
+        { name: "Basic", channels: 20 },
+        { name: "Extended", channels: 28 },
+      ],
+    },
+    {
+      name: "SnowARC Pro Quad 40 mkII (10.5kg)",
+      weight: 10.5,
+      wattage: 390,
+      area: 0,
+      dmxModes: [
+        { name: "Snow only (1ch)", channels: 1 },
+        { name: "Snow + RGBW (6ch)", channels: 6 },
+      ],
+    },
+    {
+      name: "DTS NICK NRG 1201 (12.9kg)",
+      weight: 12.9,
+      wattage: 340,
+      area: 0,
+      dmxModes: [{ name: "Standard", channels: 20 }],
+    },
+    {
+      name: "Elation Pulse Panel FX (14.4kg)",
+      weight: 14.4,
+      wattage: 900,
+      area: 0,
+      dmxModes: [
+        { name: "8 Channel", channels: 8 },
+        { name: "16 Channel", channels: 16 },
+        { name: "29 Channel", channels: 29 },
+        { name: "52 Channel", channels: 52 },
+        { name: "62 Channel", channels: 62 },
+        { name: "65 Channel", channels: 65 },
+      ],
+    },
+    {
+      name: "Chauvet Color STRIKE M (13.1kg)",
+      weight: 13.1,
+      wattage: 740,
+      area: 0,
+      dmxModes: [
+        { name: "8 Channel", channels: 8 },
+        { name: "11 Channel", channels: 11 },
+        { name: "13 Channel", channels: 13 },
+        { name: "24 Channel", channels: 24 },
+        { name: "30 Channel", channels: 30 },
+        { name: "47 Channel", channels: 47 },
+        { name: "74 Channel", channels: 74 },
+        { name: "97 Channel", channels: 97 },
+      ],
+    },
+    {
+      name: "Martin RUSH MH 7 Hybrid (25.0kg)",
+      weight: 25.0,
+      wattage: 450,
+      area: 0,
+      dmxModes: [{ name: "Standard", channels: 21 }],
+    },
   ],
   "LED Screen": [
     { name: "Uniview UR Pro 1x0.5m (10.8kg)", weight: 10.8, wattage: 350, area: 0.5 },
@@ -164,11 +379,20 @@ type ShowFixture = {
   linked?: boolean;
   /** For linked rows, the source rigging Row id used for meta lookup. */
   sourceRowId?: string;
+  /** Selected DMX mode index from the inventory item's dmxModes list, or
+   *  null when the user has chosen "Custom..." and is entering channels
+   *  manually. Only set on linked rows whose inventory item provides modes. */
+  dmxModeIndex?: number | null;
+  /** Available DMX modes for the underlying inventory item (linked rows). */
+  availableDmxModes?: DmxMode[];
 };
 
 /** Lighting-plan-only fields layered on top of a rigging fixture row. */
 type LinkedMeta = {
   dmxChannels: number;
+  /** Selected mode index, or null if user picked "Custom..." (use stored
+   *  dmxChannels). Index 0 is the default for items that have dmxModes. */
+  dmxModeIndex?: number | null;
   beamAngle: number;
   position: number;
   circuit: string;
@@ -180,6 +404,7 @@ type LinkedMeta = {
 function defaultLinkedMeta(): LinkedMeta {
   return {
     dmxChannels: 0,
+    dmxModeIndex: 0,
     beamAngle: 0,
     position: 0,
     circuit: "",
@@ -485,7 +710,41 @@ function App() {
       for (const row of sys.fixtureRows) {
         const item = getRowItem(row);
         if (!item) continue;
-        const meta = linkedMeta[row.id] ?? defaultLinkedMeta();
+        const stored = linkedMeta[row.id];
+        const meta = stored ?? defaultLinkedMeta();
+
+        // Resolve DMX mode + channel count.
+        // - Item has modes + meta.dmxModeIndex is a valid index → use mode's channels
+        // - Item has modes + meta.dmxModeIndex === null → "Custom" override (use stored channels)
+        // - Item has modes + no stored meta → default to first mode
+        // - Item has no modes → use stored channels (free entry)
+        const modes = item.dmxModes;
+        let resolvedModeIndex: number | null | undefined;
+        let resolvedChannels: number;
+        if (modes && modes.length > 0) {
+          if (!stored || meta.dmxModeIndex === undefined) {
+            // No stored meta OR legacy meta from before dmxModes existed
+            // (no dmxModeIndex field) → default to first mode. This avoids
+            // dropping channels to 0 for users upgrading from older saves.
+            resolvedModeIndex = 0;
+            resolvedChannels = modes[0].channels;
+          } else if (
+            meta.dmxModeIndex !== null &&
+            meta.dmxModeIndex >= 0 &&
+            meta.dmxModeIndex < modes.length
+          ) {
+            resolvedModeIndex = meta.dmxModeIndex;
+            resolvedChannels = modes[meta.dmxModeIndex].channels;
+          } else {
+            // null (explicit Custom) or out-of-range → custom entry
+            resolvedModeIndex = null;
+            resolvedChannels = meta.dmxChannels;
+          }
+        } else {
+          resolvedModeIndex = undefined;
+          resolvedChannels = meta.dmxChannels;
+        }
+
         out.push({
           id: `linked-${row.id}`,
           name: item.name,
@@ -495,7 +754,9 @@ function App() {
           systemId: sys.id,
           linked: true,
           sourceRowId: row.id,
-          dmxChannels: meta.dmxChannels,
+          dmxChannels: resolvedChannels,
+          dmxModeIndex: resolvedModeIndex,
+          availableDmxModes: modes,
           beamAngle: meta.beamAngle,
           position: meta.position,
           circuit: meta.circuit,
@@ -529,6 +790,9 @@ function App() {
           ...(patch.dmxChannels !== undefined && {
             dmxChannels: patch.dmxChannels,
           }),
+          ...(patch.dmxModeIndex !== undefined && {
+            dmxModeIndex: patch.dmxModeIndex,
+          }),
           ...(patch.beamAngle !== undefined && { beamAngle: patch.beamAngle }),
           ...(patch.position !== undefined && { position: patch.position }),
           ...(patch.circuit !== undefined && { circuit: patch.circuit }),
@@ -554,6 +818,10 @@ function App() {
 
   const duplicateShowFixture = (id: string) => {
     // Duplicating a linked row creates a standalone editable copy.
+    // Strip mode metadata so the standalone copy gets the plain numeric
+    // DMX input (modes are inventory-driven and not meaningful once
+    // detached from the rigging row); preserve the resolved channel count
+    // as the starting numeric value.
     const source = allLightingFixtures.find((f) => f.id === id);
     if (!source) return;
     const copy: ShowFixture = {
@@ -561,6 +829,8 @@ function App() {
       id: newId("fx"),
       linked: false,
       sourceRowId: undefined,
+      dmxModeIndex: undefined,
+      availableDmxModes: undefined,
     };
     setShowFixtures((all) => [...all, copy]);
   };
@@ -2003,22 +2273,83 @@ function LightingPlanView({
                         )}
                       </td>
                       <td>
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          value={f.dmxChannels}
-                          onChange={(e) =>
-                            onUpdate(f.id, {
-                              dmxChannels: Math.max(
-                                0,
-                                Math.floor(Number(e.target.value) || 0),
-                              ),
-                            })
-                          }
-                          className="fx-input fx-input-num"
-                          aria-label="DMX channels per fixture"
-                        />
+                        {f.availableDmxModes &&
+                        f.availableDmxModes.length > 0 ? (
+                          <div className="fx-mode-cell">
+                            <select
+                              value={
+                                f.dmxModeIndex === null ||
+                                f.dmxModeIndex === undefined
+                                  ? -1
+                                  : f.dmxModeIndex
+                              }
+                              onChange={(e) => {
+                                const v = Number(e.target.value);
+                                if (v === -1) {
+                                  // Switch to Custom — keep current channel
+                                  // count as the starting custom value.
+                                  onUpdate(f.id, {
+                                    dmxModeIndex: null,
+                                    dmxChannels: f.dmxChannels,
+                                  });
+                                } else {
+                                  onUpdate(f.id, { dmxModeIndex: v });
+                                }
+                              }}
+                              className="fx-input fx-input-select fx-mode-select"
+                              aria-label="DMX mode"
+                            >
+                              {f.availableDmxModes.map((m, i) => (
+                                <option key={i} value={i}>
+                                  {m.name} ({m.channels}ch)
+                                </option>
+                              ))}
+                              <option value={-1}>Custom…</option>
+                            </select>
+                            {f.dmxModeIndex === null ? (
+                              <input
+                                type="number"
+                                min={0}
+                                step={1}
+                                value={f.dmxChannels}
+                                onChange={(e) =>
+                                  onUpdate(f.id, {
+                                    dmxChannels: Math.max(
+                                      0,
+                                      Math.floor(Number(e.target.value) || 0),
+                                    ),
+                                  })
+                                }
+                                className="fx-input fx-input-num fx-mode-custom"
+                                aria-label="DMX channels per fixture (custom)"
+                              />
+                            ) : (
+                              <span
+                                className="fx-mode-channels"
+                                aria-label="DMX channels per fixture"
+                              >
+                                {f.dmxChannels}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={f.dmxChannels}
+                            onChange={(e) =>
+                              onUpdate(f.id, {
+                                dmxChannels: Math.max(
+                                  0,
+                                  Math.floor(Number(e.target.value) || 0),
+                                ),
+                              })
+                            }
+                            className="fx-input fx-input-num"
+                            aria-label="DMX channels per fixture"
+                          />
+                        )}
                       </td>
                       <td>
                         <input

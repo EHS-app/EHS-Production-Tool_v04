@@ -43,7 +43,7 @@ function saveTheme(theme: ThemeMode) {
   } catch {}
 }
 
-const EHS_ORANGE = "#f97316";
+const EHS_ORANGE = "#f88000";
 
 const PALETTE = {
   light: {

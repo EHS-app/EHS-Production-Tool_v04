@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./index.css";
 
 type InventoryItem = {
@@ -92,7 +92,7 @@ type Row = {
 };
 
 let rowIdCounter = 0;
-const newId = () => `row-${++rowIdCounter}-${Date.now()}`;
+const newId = () => `row-${++rowIdCounter}-${Math.random().toString(36).slice(2, 8)}`;
 
 function makeRow(category: Category, qty = 1): Row {
   return { id: newId(), category, selectedIndex: 0, qty };
@@ -108,18 +108,55 @@ function getRowItem(row: Row): InventoryItem | undefined {
   return inventory[row.category as Category][row.selectedIndex];
 }
 
-function App() {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [systemName, setSystemName] = useState("");
-  const [pointCount, setPointCount] = useState(3);
-  const [dynamicFactor, setDynamicFactor] = useState(1.25);
-  const [hoistIndex, setHoistIndex] = useState(0);
+const STORAGE_KEY = "ehs-rigging-report-v1";
 
-  const [riggingRows, setRiggingRows] = useState<Row[]>(() => [
-    makeRow("Truss", 4),
-  ]);
-  const [fixtureRows, setFixtureRows] = useState<Row[]>([]);
-  const [ledRows, setLedRows] = useState<Row[]>([]);
+type PersistedState = {
+  theme: "light" | "dark";
+  systemName: string;
+  venue: string;
+  reportDate: string;
+  engineer: string;
+  pointCount: number;
+  dynamicFactor: number;
+  hoistIndex: number;
+  riggingRows: Row[];
+  fixtureRows: Row[];
+  ledRows: Row[];
+};
+
+function loadPersisted(): Partial<PersistedState> | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as Partial<PersistedState>;
+  } catch {
+    return null;
+  }
+}
+
+function App() {
+  const persisted = useRef<Partial<PersistedState> | null>(loadPersisted()).current;
+
+  const [theme, setTheme] = useState<"light" | "dark">(persisted?.theme ?? "light");
+  const [systemName, setSystemName] = useState(persisted?.systemName ?? "");
+  const [venue, setVenue] = useState(persisted?.venue ?? "");
+  const [reportDate, setReportDate] = useState(
+    persisted?.reportDate ?? new Date().toISOString().slice(0, 10),
+  );
+  const [engineer, setEngineer] = useState(persisted?.engineer ?? "");
+  const [pointCount, setPointCount] = useState<number>(persisted?.pointCount ?? 3);
+  const [dynamicFactor, setDynamicFactor] = useState<number>(
+    persisted?.dynamicFactor ?? 1.25,
+  );
+  const [hoistIndex, setHoistIndex] = useState<number>(persisted?.hoistIndex ?? 0);
+
+  const [riggingRows, setRiggingRows] = useState<Row[]>(
+    persisted?.riggingRows ?? [makeRow("Truss", 4)],
+  );
+  const [fixtureRows, setFixtureRows] = useState<Row[]>(
+    persisted?.fixtureRows ?? [],
+  );
+  const [ledRows, setLedRows] = useState<Row[]>(persisted?.ledRows ?? []);
 
   const [modalTarget, setModalTarget] = useState<Category | null>(null);
   const [custName, setCustName] = useState("");
@@ -127,25 +164,69 @@ function App() {
   const [custWatt, setCustWatt] = useState("");
   const [custArea, setCustArea] = useState("");
 
+  const [savedAt, setSavedAt] = useState<string>("");
+
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
+  // Auto-save to localStorage
+  useEffect(() => {
+    const data: PersistedState = {
+      theme,
+      systemName,
+      venue,
+      reportDate,
+      engineer,
+      pointCount,
+      dynamicFactor,
+      hoistIndex,
+      riggingRows,
+      fixtureRows,
+      ledRows,
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      const now = new Date();
+      setSavedAt(
+        now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      );
+    } catch {
+      /* ignore quota errors */
+    }
+  }, [
+    theme,
+    systemName,
+    venue,
+    reportDate,
+    engineer,
+    pointCount,
+    dynamicFactor,
+    hoistIndex,
+    riggingRows,
+    fixtureRows,
+    ledRows,
+  ]);
+
   const hoist = hoistModels[hoistIndex];
 
-  const { totalPayload, totalPower, totalArea } = useMemo(() => {
+  const { totalPayload, totalPower, totalArea, allRows } = useMemo(() => {
     let payload = 0,
       power = 0,
       area = 0;
-    const all = [...riggingRows, ...fixtureRows, ...ledRows];
-    for (const row of all) {
+    const all = [
+      ...riggingRows.map((r) => ({ row: r, section: "Motors & Support" as const })),
+      ...fixtureRows.map((r) => ({ row: r, section: "Lighting Fixtures" as const })),
+      ...ledRows.map((r) => ({ row: r, section: "LED & Other" as const })),
+    ];
+    for (const { row } of all) {
       const item = getRowItem(row);
       if (!item) continue;
       payload += item.weight * row.qty;
       power += item.wattage * row.qty;
       area += item.area * row.qty;
     }
-    return { totalPayload: payload, totalPower: power, totalArea: area };
+    return { totalPayload: payload, totalPower: power, totalArea: area, allRows: all };
   }, [riggingRows, fixtureRows, ledRows]);
 
   const totalMotorPower = hoist.watt * pointCount;
@@ -157,15 +238,15 @@ function App() {
   const staticPointLoads = factors.map((f) => totalStaticWeight * f);
   const maxVal = Math.max(...dynamicPointLoads);
   const swl = hoist.swl;
+  const peakUtil = swl > 0 ? maxVal / swl : 0;
+  const headroom = swl - maxVal;
 
   const updateRow = (
     setter: React.Dispatch<React.SetStateAction<Row[]>>,
     id: string,
     updates: Partial<Row>,
   ) => {
-    setter((rows) =>
-      rows.map((r) => (r.id === id ? { ...r, ...updates } : r)),
-    );
+    setter((rows) => rows.map((r) => (r.id === id ? { ...r, ...updates } : r)));
   };
 
   const removeRow = (
@@ -210,6 +291,20 @@ function App() {
     closeModal();
   };
 
+  const resetAll = () => {
+    if (!confirm("Reset the entire report? This will clear all gear and project info.")) return;
+    setSystemName("");
+    setVenue("");
+    setReportDate(new Date().toISOString().slice(0, 10));
+    setEngineer("");
+    setPointCount(3);
+    setDynamicFactor(1.25);
+    setHoistIndex(0);
+    setRiggingRows([makeRow("Truss", 4)]);
+    setFixtureRows([]);
+    setLedRows([]);
+  };
+
   const renderItemRow = (
     row: Row,
     setter: React.Dispatch<React.SetStateAction<Row[]>>,
@@ -217,6 +312,9 @@ function App() {
     const items: InventoryItem[] = row.custom
       ? [row.custom]
       : inventory[row.category as Category];
+    const item = getRowItem(row);
+    const subtotal = item ? item.weight * row.qty : 0;
+
     return (
       <div className="item-row" key={row.id}>
         <select
@@ -240,6 +338,10 @@ function App() {
             updateRow(setter, row.id, { qty: Number(e.target.value) || 0 })
           }
         />
+        <div className="row-subtotal" title="Row total weight">
+          {subtotal.toFixed(1)}
+          <span>kg</span>
+        </div>
         <button
           className="btn btn-del"
           onClick={() => removeRow(setter, row.id)}
@@ -251,7 +353,16 @@ function App() {
     );
   };
 
+  const sectionTotal = (rows: Row[]) =>
+    rows.reduce((sum, r) => {
+      const it = getRowItem(r);
+      return sum + (it ? it.weight * r.qty : 0);
+    }, 0);
+
   const peakColor = maxVal > swl ? "var(--danger)" : "var(--secondary)";
+  const utilPct = Math.min(100, peakUtil * 100);
+  const utilBarColor =
+    peakUtil > 1 ? "var(--danger)" : peakUtil > 0.85 ? "var(--warning)" : "var(--primary)";
 
   return (
     <div className="container">
@@ -261,6 +372,12 @@ function App() {
           <h1>Rigging Load Report</h1>
         </div>
         <div className="header-actions">
+          <span className="autosave-pill" title="Saved locally in your browser">
+            ● Saved {savedAt}
+          </span>
+          <button className="btn btn-reset" onClick={resetAll} title="Clear report">
+            Reset
+          </button>
           <button
             className="btn btn-theme"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
@@ -275,13 +392,43 @@ function App() {
       </div>
 
       <div className="system-identity">
-        <label>Rigging Reference ID:</label>
-        <input
-          type="text"
-          value={systemName}
-          onChange={(e) => setSystemName(e.target.value)}
-          placeholder="e.g. LX1, LX2, VX1"
-        />
+        <div className="sys-id-main">
+          <label>Rigging Reference ID:</label>
+          <input
+            type="text"
+            value={systemName}
+            onChange={(e) => setSystemName(e.target.value)}
+            placeholder="e.g. LX1, LX2, VX1"
+          />
+        </div>
+        <div className="project-meta">
+          <div className="meta-field">
+            <label>Venue / Project</label>
+            <input
+              type="text"
+              value={venue}
+              onChange={(e) => setVenue(e.target.value)}
+              placeholder="e.g. Sentrum Scene"
+            />
+          </div>
+          <div className="meta-field">
+            <label>Date</label>
+            <input
+              type="date"
+              value={reportDate}
+              onChange={(e) => setReportDate(e.target.value)}
+            />
+          </div>
+          <div className="meta-field">
+            <label>Engineer</label>
+            <input
+              type="text"
+              value={engineer}
+              onChange={(e) => setEngineer(e.target.value)}
+              placeholder="Name"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="dashboard">
@@ -293,6 +440,13 @@ function App() {
         <div className="dash-item">
           <span>Peak Load</span>
           <strong style={{ color: peakColor }}>{maxVal.toFixed(1)}</strong>
+          <small>kg</small>
+        </div>
+        <div className="dash-item">
+          <span>SWL Headroom</span>
+          <strong style={{ color: headroom < 0 ? "var(--danger)" : "var(--text-main)" }}>
+            {headroom >= 0 ? headroom.toFixed(0) : `−${Math.abs(headroom).toFixed(0)}`}
+          </strong>
           <small>kg</small>
         </div>
         <div className="dash-item">
@@ -312,9 +466,32 @@ function App() {
         </div>
       </div>
 
+      <div className="util-bar-wrap">
+        <div className="util-bar-label">
+          <span>Peak SWL Utilization</span>
+          <strong style={{ color: utilBarColor }}>{(peakUtil * 100).toFixed(1)}%</strong>
+        </div>
+        <div className="util-bar-track">
+          <div
+            className="util-bar-fill"
+            style={{ width: `${utilPct}%`, background: utilBarColor }}
+          />
+          <div className="util-bar-marker" style={{ left: "85%" }} title="85% caution" />
+          <div className="util-bar-marker util-marker-danger" style={{ left: "100%" }} title="100% SWL" />
+        </div>
+        <div className="util-bar-legend">
+          <span>0 kg</span>
+          <span>Caution 85%</span>
+          <span>SWL {swl} kg</span>
+        </div>
+      </div>
+
       <div className="main-grid">
         <div className="card">
-          <h2>1. Motors &amp; Support</h2>
+          <h2>
+            1. Motors &amp; Support
+            <span className="card-total">{sectionTotal(riggingRows).toFixed(1)} kg</span>
+          </h2>
           <div className="motor-config">
             <div className="motor-config-grid">
               <div>
@@ -343,10 +520,7 @@ function App() {
                 </select>
               </div>
             </div>
-            <label
-              className="field-label"
-              style={{ marginTop: 10 }}
-            >
+            <label className="field-label" style={{ marginTop: 10 }}>
               Motor Type
             </label>
             <select
@@ -361,6 +535,9 @@ function App() {
             </select>
           </div>
           <div>{riggingRows.map((r) => renderItemRow(r, setRiggingRows))}</div>
+          {riggingRows.length === 0 && (
+            <div className="empty-row">No truss added yet</div>
+          )}
           <button
             className="btn btn-add"
             onClick={() => addRowTo(setRiggingRows, "Truss")}
@@ -370,8 +547,14 @@ function App() {
         </div>
 
         <div className="card">
-          <h2>2. Lighting Fixtures</h2>
+          <h2>
+            2. Lighting Fixtures
+            <span className="card-total">{sectionTotal(fixtureRows).toFixed(1)} kg</span>
+          </h2>
           <div>{fixtureRows.map((r) => renderItemRow(r, setFixtureRows))}</div>
+          {fixtureRows.length === 0 && (
+            <div className="empty-row">No fixtures added yet</div>
+          )}
           <button
             className="btn btn-add"
             onClick={() => addRowTo(setFixtureRows, "Fixtures")}
@@ -387,8 +570,14 @@ function App() {
         </div>
 
         <div className="card">
-          <h2>3. LED &amp; Other Equipment</h2>
+          <h2>
+            3. LED &amp; Other Equipment
+            <span className="card-total">{sectionTotal(ledRows).toFixed(1)} kg</span>
+          </h2>
           <div>{ledRows.map((r) => renderItemRow(r, setLedRows))}</div>
+          {ledRows.length === 0 && (
+            <div className="empty-row">No LED or other equipment added yet</div>
+          )}
           <button
             className="btn btn-add"
             onClick={() => addRowTo(setLedRows, "LED Screen")}
@@ -411,15 +600,22 @@ function App() {
                 const sLoad = staticPointLoads[i];
                 const dLoad = dynamicPointLoads[i];
                 const pct = Math.round(f * 100);
+                const util = swl > 0 ? dLoad / swl : 0;
                 const isDanger = dLoad > swl;
+                const isWarning = !isDanger && util > 0.85;
                 return (
                   <div
-                    className={`point-box ${isDanger ? "is-danger" : ""}`}
+                    className={`point-box ${isDanger ? "is-danger" : isWarning ? "is-warning" : ""}`}
                     key={i}
                   >
                     {isDanger && (
                       <div className="overload-badge">
                         <span>⚠</span> OVERLOAD
+                      </div>
+                    )}
+                    {isWarning && (
+                      <div className="overload-badge warning-badge">
+                        <span>⚠</span> CAUTION
                       </div>
                     )}
                     <span className="point-label">
@@ -429,14 +625,39 @@ function App() {
                       {dLoad.toFixed(1)}
                       <small>kg</small>
                     </span>
-                    <span className="p-dyn">
-                      Static: {sLoad.toFixed(0)}kg
+                    <span className="p-dyn">Static: {sLoad.toFixed(0)}kg</span>
+                    <div className="point-util-bar">
+                      <div
+                        className="point-util-fill"
+                        style={{
+                          width: `${Math.min(100, util * 100)}%`,
+                          background: isDanger
+                            ? "white"
+                            : isWarning
+                              ? "var(--warning)"
+                              : "var(--primary)",
+                        }}
+                      />
+                    </div>
+                    <span className="p-util-text">
+                      {(util * 100).toFixed(0)}% of SWL
                     </span>
                   </div>
                 );
               })}
             </div>
             <div className="chart-section">
+              <div className="chart-legend">
+                <span>
+                  <i style={{ background: "var(--static-bar)" }} /> Static
+                </span>
+                <span>
+                  <i style={{ background: "var(--secondary)" }} /> Dynamic ({dynamicFactor}x)
+                </span>
+                <span>
+                  <i style={{ background: "var(--danger)" }} /> Over SWL
+                </span>
+              </div>
               <div className="bar-chart">
                 {factors.map((_, i) => {
                   const sLoad = staticPointLoads[i];
@@ -466,6 +687,15 @@ function App() {
                     </div>
                   );
                 })}
+                <div
+                  className="swl-line"
+                  style={{
+                    bottom: `${(swl / (Math.max(maxVal, swl) || 1)) * 240}px`,
+                  }}
+                  title={`SWL ${swl}kg`}
+                >
+                  <span>SWL {swl}kg</span>
+                </div>
               </div>
               <div className="vis-container">
                 {factors.map((f, i) => (
@@ -478,6 +708,61 @@ function App() {
               </div>
             </div>
           </div>
+
+          <div className="print-only print-table-wrap">
+            <h3>Equipment Manifest</h3>
+            <table className="print-table">
+              <thead>
+                <tr>
+                  <th>Section</th>
+                  <th>Item</th>
+                  <th>Qty</th>
+                  <th>Unit Wt</th>
+                  <th>Total Wt</th>
+                  <th>Power</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allRows.map(({ row, section }) => {
+                  const it = getRowItem(row);
+                  if (!it) return null;
+                  return (
+                    <tr key={row.id}>
+                      <td>{section}</td>
+                      <td>{it.name}</td>
+                      <td>{row.qty}</td>
+                      <td>{it.weight.toFixed(2)} kg</td>
+                      <td>{(it.weight * row.qty).toFixed(2)} kg</td>
+                      <td>{(it.wattage * row.qty).toLocaleString()} W</td>
+                    </tr>
+                  );
+                })}
+                <tr className="print-table-total">
+                  <td colSpan={4}>Payload total</td>
+                  <td>{totalPayload.toFixed(2)} kg</td>
+                  <td>{totalPower.toLocaleString()} W</td>
+                </tr>
+                <tr className="print-table-total">
+                  <td colSpan={4}>
+                    + {pointCount} × hoist ({hoist.weight} kg)
+                  </td>
+                  <td>{(pointCount * hoist.weight).toFixed(2)} kg</td>
+                  <td>{totalMotorPower.toLocaleString()} W</td>
+                </tr>
+                <tr className="print-table-grand">
+                  <td colSpan={4}>Static load</td>
+                  <td>{totalStaticWeight.toFixed(2)} kg</td>
+                  <td>—</td>
+                </tr>
+                <tr className="print-table-grand">
+                  <td colSpan={4}>Dynamic load ({dynamicFactor}x)</td>
+                  <td>{totalDynamicWeight.toFixed(2)} kg</td>
+                  <td>—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
           <div className="footer">
             <div className="footer-company">EHS AS</div>
             <div className="footer-address">

@@ -400,34 +400,60 @@ function StageSvg({
             )}
           </g>
         ))}
-        {/* Leg dots. In both modes, dots are drawn at the actual deck-
-            corner positions (where Nivtec legs physically sit). In
-            "shared" mode we deduplicate so each shared corner shows
-            one dot. In "perDeck" mode every deck contributes its own
-            4 corner dots (some will overlap at shared corners — that
-            matches reality, since each deck has its own 4 legs). */}
+        {/* Leg dots. In both modes the dots are drawn slightly INSIDE
+            the deck (inset from the corner) so they're visually
+            separated from the deck outline.
+            - "perDeck": every deck draws its own 4 inset dots, so
+              shared corners show one dot per deck (overlapping
+              clusters).
+            - "shared" (Nivtec 4-2-2-1): we draw exactly one inset dot
+              per unique shared corner — the dot is inset toward the
+              centre of one of the decks that actually owns this
+              corner. */}
         {stage.legMode === "perDeck"
           ? calc.decks.flatMap((p, i) => {
-              const x1 = PAD + p.x * scale;
-              const y1 = PAD + p.y * scale;
-              const x2 = PAD + (p.x + p.w) * scale;
-              const y2 = PAD + (p.y + p.d) * scale;
+              const inset = Math.min(p.w, p.d) * 0.12 * scale;
+              const x1 = PAD + p.x * scale + inset;
+              const y1 = PAD + p.y * scale + inset;
+              const x2 = PAD + (p.x + p.w) * scale - inset;
+              const y2 = PAD + (p.y + p.d) * scale - inset;
               return [
-                <circle key={`${i}-tl`} cx={x1} cy={y1} r={4} fill="#0f172a" />,
-                <circle key={`${i}-tr`} cx={x2} cy={y1} r={4} fill="#0f172a" />,
-                <circle key={`${i}-bl`} cx={x1} cy={y2} r={4} fill="#0f172a" />,
-                <circle key={`${i}-br`} cx={x2} cy={y2} r={4} fill="#0f172a" />,
+                <circle key={`${i}-tl`} cx={x1} cy={y1} r={3} fill="#0f172a" />,
+                <circle key={`${i}-tr`} cx={x2} cy={y1} r={3} fill="#0f172a" />,
+                <circle key={`${i}-bl`} cx={x1} cy={y2} r={3} fill="#0f172a" />,
+                <circle key={`${i}-br`} cx={x2} cy={y2} r={3} fill="#0f172a" />,
               ];
             })
-          : calc.legPositions.map((pos, i) => (
-              <circle
-                key={i}
-                cx={PAD + pos.x * scale}
-                cy={PAD + pos.y * scale}
-                r={4}
-                fill="#0f172a"
-              />
-            ))}
+          : calc.legPositions.map((pos, i) => {
+              const owner = calc.decks.find(
+                (d) =>
+                  (d.x === pos.x || d.x + d.w === pos.x) &&
+                  (d.y === pos.y || d.y + d.d === pos.y),
+              );
+              if (!owner) {
+                return (
+                  <circle
+                    key={i}
+                    cx={PAD + pos.x * scale}
+                    cy={PAD + pos.y * scale}
+                    r={3}
+                    fill="#0f172a"
+                  />
+                );
+              }
+              const insetM = Math.min(owner.w, owner.d) * 0.12;
+              const dx = owner.x + owner.w / 2 > pos.x ? insetM : -insetM;
+              const dy = owner.y + owner.d / 2 > pos.y ? insetM : -insetM;
+              return (
+                <circle
+                  key={i}
+                  cx={PAD + (pos.x + dx) * scale}
+                  cy={PAD + (pos.y + dy) * scale}
+                  r={3}
+                  fill="#0f172a"
+                />
+              );
+            })}
         {/* Rail strokes — front bottom, back top, left/right sides */}
         {stage.rails.front && (
           <line

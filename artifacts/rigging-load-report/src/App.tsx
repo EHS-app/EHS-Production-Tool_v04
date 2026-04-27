@@ -159,7 +159,35 @@ type ShowFixture = {
   universe: number;
   startAddress: number;
   notes: string;
+  /** When true, base info (name/qty/weight/watts/systemId) comes from a
+   *  rigging fixtureRow and is read-only on the lighting plan. */
+  linked?: boolean;
+  /** For linked rows, the source rigging Row id used for meta lookup. */
+  sourceRowId?: string;
 };
+
+/** Lighting-plan-only fields layered on top of a rigging fixture row. */
+type LinkedMeta = {
+  dmxChannels: number;
+  beamAngle: number;
+  position: number;
+  circuit: string;
+  universe: number;
+  startAddress: number;
+  notes: string;
+};
+
+function defaultLinkedMeta(): LinkedMeta {
+  return {
+    dmxChannels: 0,
+    beamAngle: 0,
+    position: 0,
+    circuit: "",
+    universe: 1,
+    startAddress: 1,
+    notes: "",
+  };
+}
 
 function makeShowFixture(): ShowFixture {
   return {
@@ -188,6 +216,9 @@ type PersistedV2 = {
   activeSystemId: string;
   showFixtures?: ShowFixture[];
   mainView?: MainView;
+  /** DMX/position overlays for fixtures linked from the rigging report,
+   *  keyed by the source rigging Row id. */
+  linkedMeta?: Record<string, LinkedMeta>;
 };
 
 function loadPersisted(): Partial<PersistedV2> | null {
@@ -307,6 +338,9 @@ function App() {
   const [showFixtures, setShowFixtures] = useState<ShowFixture[]>(
     persisted?.showFixtures ?? [],
   );
+  const [linkedMeta, setLinkedMeta] = useState<Record<string, LinkedMeta>>(
+    persisted?.linkedMeta ?? {},
+  );
 
   const [modalTarget, setModalTarget] = useState<Category | null>(null);
   const [custName, setCustName] = useState("");
@@ -330,6 +364,7 @@ function App() {
       activeSystemId,
       showFixtures,
       mainView,
+      linkedMeta,
     };
     try {
       localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(data));
@@ -342,7 +377,17 @@ function App() {
     } catch {
       /* ignore quota errors */
     }
-  }, [theme, venue, reportDate, engineer, systems, activeSystemId, showFixtures, mainView]);
+  }, [
+    theme,
+    venue,
+    reportDate,
+    engineer,
+    systems,
+    activeSystemId,
+    showFixtures,
+    mainView,
+    linkedMeta,
+  ]);
 
   const activeSystem =
     systems.find((s) => s.id === activeSystemId) ?? systems[0];
@@ -414,43 +459,130 @@ function App() {
   const closeModal = () => setModalTarget(null);
 
   // ── Show Fixtures (Lighting Plan) ───────────────────────────────────────
+
+  // Garbage-collect linkedMeta entries whose source rigging row no longer
+  // exists (system or fixtureRow was deleted). Keeps localStorage tidy.
+  useEffect(() => {
+    const liveIds = new Set<string>();
+    for (const sys of systems)
+      for (const row of sys.fixtureRows) liveIds.add(row.id);
+    setLinkedMeta((all) => {
+      const keys = Object.keys(all);
+      const orphans = keys.filter((k) => !liveIds.has(k));
+      if (orphans.length === 0) return all;
+      const next: Record<string, LinkedMeta> = {};
+      for (const k of keys) if (liveIds.has(k)) next[k] = all[k];
+      return next;
+    });
+  }, [systems]);
+
+  /** Fixtures auto-derived from each rigging system's fixtureRows. Read-only
+   *  base info (name/qty/weight/watts/systemId); DMX/position overlays come
+   *  from `linkedMeta` keyed by the source rigging Row id. */
+  const linkedFixtures = useMemo<ShowFixture[]>(() => {
+    const out: ShowFixture[] = [];
+    for (const sys of systems) {
+      for (const row of sys.fixtureRows) {
+        const item = getRowItem(row);
+        if (!item) continue;
+        const meta = linkedMeta[row.id] ?? defaultLinkedMeta();
+        out.push({
+          id: `linked-${row.id}`,
+          name: item.name,
+          qty: row.qty,
+          weight: item.weight,
+          watts: item.wattage,
+          systemId: sys.id,
+          linked: true,
+          sourceRowId: row.id,
+          dmxChannels: meta.dmxChannels,
+          beamAngle: meta.beamAngle,
+          position: meta.position,
+          circuit: meta.circuit,
+          universe: meta.universe,
+          startAddress: meta.startAddress,
+          notes: meta.notes,
+        });
+      }
+    }
+    return out;
+  }, [systems, linkedMeta]);
+
+  const allLightingFixtures = useMemo<ShowFixture[]>(
+    () => [...linkedFixtures, ...showFixtures],
+    [linkedFixtures, showFixtures],
+  );
+
   const addShowFixture = () =>
     setShowFixtures((all) => [...all, makeShowFixture()]);
 
-  const updateShowFixture = (id: string, patch: Partial<ShowFixture>) =>
+  const updateShowFixture = (id: string, patch: Partial<ShowFixture>) => {
+    // Linked rows: route DMX/position overlay fields into linkedMeta.
+    // Base fields (name/qty/weight/watts/systemId) ignored — must be
+    // edited on the rigging report.
+    if (id.startsWith("linked-")) {
+      const sourceRowId = id.slice("linked-".length);
+      setLinkedMeta((all) => {
+        const prev = all[sourceRowId] ?? defaultLinkedMeta();
+        const next: LinkedMeta = {
+          ...prev,
+          ...(patch.dmxChannels !== undefined && {
+            dmxChannels: patch.dmxChannels,
+          }),
+          ...(patch.beamAngle !== undefined && { beamAngle: patch.beamAngle }),
+          ...(patch.position !== undefined && { position: patch.position }),
+          ...(patch.circuit !== undefined && { circuit: patch.circuit }),
+          ...(patch.universe !== undefined && { universe: patch.universe }),
+          ...(patch.startAddress !== undefined && {
+            startAddress: patch.startAddress,
+          }),
+          ...(patch.notes !== undefined && { notes: patch.notes }),
+        };
+        return { ...all, [sourceRowId]: next };
+      });
+      return;
+    }
     setShowFixtures((all) =>
       all.map((f) => (f.id === id ? { ...f, ...patch } : f)),
     );
+  };
 
-  const removeShowFixture = (id: string) =>
+  const removeShowFixture = (id: string) => {
+    if (id.startsWith("linked-")) return; // can't remove linked rows here
     setShowFixtures((all) => all.filter((f) => f.id !== id));
+  };
 
-  const duplicateShowFixture = (id: string) =>
-    setShowFixtures((all) => {
-      const idx = all.findIndex((f) => f.id === id);
-      if (idx < 0) return all;
-      const copy = { ...all[idx], id: newId("fx") };
-      const next = all.slice();
-      next.splice(idx + 1, 0, copy);
-      return next;
-    });
+  const duplicateShowFixture = (id: string) => {
+    // Duplicating a linked row creates a standalone editable copy.
+    const source = allLightingFixtures.find((f) => f.id === id);
+    if (!source) return;
+    const copy: ShowFixture = {
+      ...source,
+      id: newId("fx"),
+      linked: false,
+      sourceRowId: undefined,
+    };
+    setShowFixtures((all) => [...all, copy]);
+  };
 
   const lightingTotals = useMemo(() => {
     let qty = 0,
       weight = 0,
       watts = 0,
       channels = 0;
-    for (const f of showFixtures) {
+    for (const f of allLightingFixtures) {
       qty += f.qty;
       weight += f.weight * f.qty;
       watts += f.watts * f.qty;
       channels += f.dmxChannels * f.qty;
     }
     const universesUsed = new Set(
-      showFixtures.filter((f) => f.dmxChannels > 0).map((f) => f.universe),
+      allLightingFixtures
+        .filter((f) => f.dmxChannels > 0)
+        .map((f) => f.universe),
     ).size;
     return { qty, weight, watts, channels, universesUsed };
-  }, [showFixtures]);
+  }, [allLightingFixtures]);
 
   const submitCustom = () => {
     if (!modalTarget) return;
@@ -661,6 +793,7 @@ function App() {
     setSystems([fresh]);
     setActiveSystemId(fresh.id);
     setShowFixtures([]);
+    setLinkedMeta({});
     setMainView("rigging");
   };
 
@@ -875,8 +1008,10 @@ function App() {
           onClick={() => setMainView("lighting")}
         >
           Lighting Plan
-          {showFixtures.length > 0 && (
-            <span className="view-tab-badge">{showFixtures.length}</span>
+          {allLightingFixtures.length > 0 && (
+            <span className="view-tab-badge">
+              {allLightingFixtures.length}
+            </span>
           )}
         </button>
       </div>
@@ -1565,13 +1700,16 @@ function App() {
 
       {mainView === "lighting" && (
         <LightingPlanView
-          showFixtures={showFixtures}
+          fixtures={allLightingFixtures}
+          linkedCount={linkedFixtures.length}
+          standaloneCount={showFixtures.length}
           systems={systems}
           totals={lightingTotals}
           onAdd={addShowFixture}
           onUpdate={updateShowFixture}
           onRemove={removeShowFixture}
           onDuplicate={duplicateShowFixture}
+          onJumpToRigging={() => setMainView("rigging")}
         />
       )}
 
@@ -1620,7 +1758,9 @@ function App() {
 }
 
 type LightingPlanViewProps = {
-  showFixtures: ShowFixture[];
+  fixtures: ShowFixture[];
+  linkedCount: number;
+  standaloneCount: number;
   systems: System[];
   totals: {
     qty: number;
@@ -1633,17 +1773,22 @@ type LightingPlanViewProps = {
   onUpdate: (id: string, patch: Partial<ShowFixture>) => void;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
+  onJumpToRigging: () => void;
 };
 
 function LightingPlanView({
-  showFixtures,
+  fixtures,
+  linkedCount,
+  standaloneCount,
   systems,
   totals,
   onAdd,
   onUpdate,
   onRemove,
   onDuplicate,
+  onJumpToRigging,
 }: LightingPlanViewProps) {
+  const systemNameById = new Map(systems.map((s) => [s.id, s.name]));
   return (
     <>
       <div className="dashboard project-summary">
@@ -1674,7 +1819,7 @@ function LightingPlanView({
         </div>
         <div className="dash-item">
           <span>Lines</span>
-          <strong>{showFixtures.length}</strong>
+          <strong>{fixtures.length}</strong>
           <small>entries</small>
         </div>
       </div>
@@ -1683,24 +1828,46 @@ function LightingPlanView({
         <h2>
           Show Fixture List
           <span className="card-total">
-            {showFixtures.length} {showFixtures.length === 1 ? "line" : "lines"}
+            {fixtures.length} {fixtures.length === 1 ? "line" : "lines"}
+            {linkedCount > 0 && (
+              <span className="fx-source-tally">
+                {" "}
+                · {linkedCount} from rigging · {standaloneCount} extra
+              </span>
+            )}
           </span>
         </h2>
         <div className="lighting-help">
-          Build your fixture list once. Weight feeds the rigging totals later;
-          DMX feeds the patch sheet; positions feed the visual plot.
+          Fixtures you add to the rigging report appear here automatically.
+          Add DMX address, position and circuit on this view; everything else
+          stays in sync with rigging.{" "}
+          <button
+            type="button"
+            className="link-btn"
+            onClick={onJumpToRigging}
+          >
+            Open Rigging Report
+          </button>
         </div>
-        {showFixtures.length === 0 ? (
+        {fixtures.length === 0 ? (
           <div className="lighting-empty">
-            No fixtures yet. Click <strong>+ Add Fixture</strong> to start your
-            list.
+            No fixtures yet. Add some on the{" "}
+            <button
+              type="button"
+              className="link-btn"
+              onClick={onJumpToRigging}
+            >
+              Rigging Report
+            </button>{" "}
+            (they will sync here automatically), or click{" "}
+            <strong>+ Add Extra Fixture</strong> below for one-off entries.
           </div>
         ) : (
           <div className="fx-table-wrap">
             <table className="fx-table">
               <thead>
                 <tr>
-                  <th style={{ minWidth: 180 }}>Fixture</th>
+                  <th style={{ minWidth: 200 }}>Fixture</th>
                   <th>Qty</th>
                   <th>Weight (kg)</th>
                   <th>Power (W)</th>
@@ -1718,7 +1885,7 @@ function LightingPlanView({
                 </tr>
               </thead>
               <tbody>
-                {showFixtures.map((f) => {
+                {fixtures.map((f) => {
                   const totalChans = f.dmxChannels * f.qty;
                   const endAddr =
                     totalChans > 0
@@ -1727,66 +1894,113 @@ function LightingPlanView({
                   const overflow = endAddr > 512;
                   const totalWt = f.weight * f.qty;
                   const totalW = f.watts * f.qty;
+                  const linkedSysName = f.linked
+                    ? systemNameById.get(f.systemId) ?? "—"
+                    : "";
                   return (
-                    <tr key={f.id}>
+                    <tr
+                      key={f.id}
+                      className={f.linked ? "fx-row-linked" : undefined}
+                    >
                       <td>
-                        <input
-                          type="text"
-                          value={f.name}
-                          onChange={(e) =>
-                            onUpdate(f.id, { name: e.target.value })
-                          }
-                          placeholder="e.g. Martin MAC Aura PXL"
-                          className="fx-input fx-input-name"
-                          aria-label="Fixture name"
-                        />
+                        {f.linked ? (
+                          <div className="fx-linked-cell">
+                            <span
+                              className="fx-link-badge"
+                              title={`From rigging system ${linkedSysName}`}
+                            >
+                              {linkedSysName}
+                            </span>
+                            <span
+                              className="fx-linked-name"
+                              title={f.name}
+                            >
+                              {f.name}
+                            </span>
+                          </div>
+                        ) : (
+                          <input
+                            type="text"
+                            value={f.name}
+                            onChange={(e) =>
+                              onUpdate(f.id, { name: e.target.value })
+                            }
+                            placeholder="e.g. Martin MAC Aura PXL"
+                            className="fx-input fx-input-name"
+                            aria-label="Fixture name"
+                          />
+                        )}
                       </td>
                       <td>
-                        <input
-                          type="number"
-                          min={1}
-                          step={1}
-                          value={f.qty}
-                          onChange={(e) =>
-                            onUpdate(f.id, {
-                              qty: Math.max(
-                                1,
-                                Math.floor(Number(e.target.value) || 1),
-                              ),
-                            })
-                          }
-                          className="fx-input fx-input-num"
-                          aria-label="Quantity"
-                        />
+                        {f.linked ? (
+                          <span className="fx-readonly fx-readonly-num">
+                            {f.qty}
+                          </span>
+                        ) : (
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={f.qty}
+                            onChange={(e) =>
+                              onUpdate(f.id, {
+                                qty: Math.max(
+                                  1,
+                                  Math.floor(Number(e.target.value) || 1),
+                                ),
+                              })
+                            }
+                            className="fx-input fx-input-num"
+                            aria-label="Quantity"
+                          />
+                        )}
                       </td>
                       <td>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min={0}
-                          value={f.weight}
-                          onChange={(e) =>
-                            onUpdate(f.id, {
-                              weight: Math.max(0, Number(e.target.value) || 0),
-                            })
-                          }
-                          className="fx-input fx-input-num"
-                          aria-label="Weight per fixture in kilograms"
-                        />
+                        {f.linked ? (
+                          <span className="fx-readonly fx-readonly-num">
+                            {f.weight.toFixed(1)}
+                          </span>
+                        ) : (
+                          <input
+                            type="number"
+                            step="0.1"
+                            min={0}
+                            value={f.weight}
+                            onChange={(e) =>
+                              onUpdate(f.id, {
+                                weight: Math.max(
+                                  0,
+                                  Number(e.target.value) || 0,
+                                ),
+                              })
+                            }
+                            className="fx-input fx-input-num"
+                            aria-label="Weight per fixture in kilograms"
+                          />
+                        )}
                       </td>
                       <td>
-                        <input
-                          type="number"
-                          min={0}
-                          value={f.watts}
-                          onChange={(e) =>
-                            onUpdate(f.id, {
-                              watts: Math.max(0, Number(e.target.value) || 0),
-                            })
-                          }
-                          className="fx-input fx-input-num"
-                          aria-label="Power per fixture in watts"
-                        />
+                        {f.linked ? (
+                          <span className="fx-readonly fx-readonly-num">
+                            {f.watts}
+                          </span>
+                        ) : (
+                          <input
+                            type="number"
+                            min={0}
+                            value={f.watts}
+                            onChange={(e) =>
+                              onUpdate(f.id, {
+                                watts: Math.max(
+                                  0,
+                                  Number(e.target.value) || 0,
+                                ),
+                              })
+                            }
+                            className="fx-input fx-input-num"
+                            aria-label="Power per fixture in watts"
+                          />
+                        )}
                       </td>
                       <td>
                         <input
@@ -1825,21 +2039,25 @@ function LightingPlanView({
                         />
                       </td>
                       <td>
-                        <select
-                          value={f.systemId}
-                          onChange={(e) =>
-                            onUpdate(f.id, { systemId: e.target.value })
-                          }
-                          className="fx-input fx-input-select"
-                          aria-label="Truss assignment"
-                        >
-                          <option value="">—</option>
-                          {systems.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.name}
-                            </option>
-                          ))}
-                        </select>
+                        {f.linked ? (
+                          <span className="fx-readonly">{linkedSysName}</span>
+                        ) : (
+                          <select
+                            value={f.systemId}
+                            onChange={(e) =>
+                              onUpdate(f.id, { systemId: e.target.value })
+                            }
+                            className="fx-input fx-input-select"
+                            aria-label="Truss assignment"
+                          >
+                            <option value="">—</option>
+                            {systems.map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </td>
                       <td>
                         <input
@@ -1924,25 +2142,44 @@ function LightingPlanView({
                         <button
                           className="fx-row-btn"
                           onClick={() => onDuplicate(f.id)}
-                          title="Duplicate row"
-                          aria-label="Duplicate row"
+                          title={
+                            f.linked
+                              ? "Copy as a standalone editable row"
+                              : "Duplicate row"
+                          }
+                          aria-label={
+                            f.linked
+                              ? "Copy as standalone row"
+                              : "Duplicate row"
+                          }
                         >
                           ⎘
                         </button>
-                        <button
-                          className="fx-row-btn fx-row-btn-del"
-                          onClick={() => onRemove(f.id)}
-                          title="Delete row"
-                          aria-label="Delete row"
-                        >
-                          ×
-                        </button>
+                        {f.linked ? (
+                          <button
+                            className="fx-row-btn fx-row-btn-jump"
+                            onClick={onJumpToRigging}
+                            title="Edit qty/weight on the Rigging Report"
+                            aria-label="Edit on Rigging Report"
+                          >
+                            ↗
+                          </button>
+                        ) : (
+                          <button
+                            className="fx-row-btn fx-row-btn-del"
+                            onClick={() => onRemove(f.id)}
+                            title="Delete row"
+                            aria-label="Delete row"
+                          >
+                            ×
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
-              {showFixtures.length > 0 && (
+              {fixtures.length > 0 && (
                 <tfoot>
                   <tr>
                     <td colSpan={12} style={{ textAlign: "right" }}>
@@ -1961,8 +2198,11 @@ function LightingPlanView({
         )}
         <div style={{ marginTop: 12 }}>
           <button className="btn btn-export" onClick={onAdd}>
-            + Add Fixture
+            + Add Extra Fixture
           </button>
+          <span className="lighting-help" style={{ marginLeft: 12 }}>
+            Use this for one-off fixtures that aren't on the rigging report.
+          </span>
         </div>
       </div>
     </>

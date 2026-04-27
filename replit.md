@@ -30,5 +30,9 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 
 - **rigging-load-report** (`artifacts/rigging-load-report`) — EHS Rigging Load Report. A single-page React + Vite stage-tech tool with a top-level view switcher:
   - **Rigging Report view** — multi-system rigging calculator (mirrors the user-supplied HTML): inventory of trusses / fixtures / LED gear, motor selection (EXE Rise D8+), dynamic load factor, multi-point distribution (2–8 points), per-point load calculation with SWL overload detection, side-by-side static/dynamic bar chart, project-wide dashboard, dark/light mode, CSV download and print/export.
-  - **Lighting Plan view** — editable show fixture list (name, qty, weight, watts, DMX channels/universe/start address with auto-computed end address and overflow warning, beam angle, truss assignment, position, circuit) with totals dashboard. Persists to localStorage v2 (key `ehs-rigging-report-v2`, additive/back-compat with v1). Reset clears both views together.
+  - **Lighting Plan view** — fixture list with two layers:
+    - Linked rows auto-derived from each system's `fixtureRows`. Base info (name/qty/weight/watts/truss) is read-only on this view (edit on rigging side); DMX/position/circuit overlays are stored in `linkedMeta: Record<rigRowId, LinkedMeta>` and persist independently. Orphan meta entries are garbage-collected when the source row/system is deleted.
+    - Standalone "extra" rows added via `+ Add Extra Fixture`, fully editable.
+    - Totals dashboard sums both layers. Auto-computed DMX end address (`start + ch*qty − 1`) with >512 overflow warning.
+    - Persists to localStorage v2 (key `ehs-rigging-report-v2`, additive/back-compat with v1). Reset clears both views together (incl. linkedMeta).
   - No backend. Single-file `App.tsx`. Top-level state migrates v1 → v2 transparently. Build accepts `BASE_PATH` env for GitHub Pages deploy via `.github/workflows/deploy-pages.yml`.

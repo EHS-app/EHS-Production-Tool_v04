@@ -1426,3 +1426,90 @@ input:focus {
 [data-theme="dark"] .fx-row-btn-del:hover {
   background: rgba(220, 38, 38, 0.1);
 }
+
+/* ── Linked rows (auto-synced from rigging report) ───────────────────── */
+.fx-row-linked {
+  background: rgba(37, 99, 235, 0.04);
+}
+[data-theme="dark"] .fx-row-linked {
+  background: rgba(96, 165, 250, 0.05);
+}
+.fx-row-linked:hover {
+  background: rgba(37, 99, 235, 0.08) !important;
+}
+[data-theme="dark"] .fx-row-linked:hover {
+  background: rgba(96, 165, 250, 0.10) !important;
+}
+.fx-linked-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  min-width: 0;
+}
+.fx-link-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--primary, #2563eb);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+[data-theme="dark"] .fx-link-badge {
+  background: rgba(96, 165, 250, 0.18);
+  color: #93c5fd;
+}
+.fx-linked-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.fx-readonly {
+  display: inline-block;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  color: var(--text-soft, #6b7280);
+}
+.fx-readonly-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  width: 100%;
+}
+.fx-row-btn-jump:hover {
+  border-color: var(--primary, #2563eb);
+  color: var(--primary, #2563eb);
+  background: rgba(37, 99, 235, 0.08);
+}
+[data-theme="dark"] .fx-row-btn-jump:hover {
+  background: rgba(96, 165, 250, 0.12);
+}
+
+/* Inline link-style button used inside help text */
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: var(--primary, #2563eb);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link-btn:hover {
+  color: var(--primary-dark, #1d4ed8);
+}
+
+.fx-source-tally {
+  font-weight: 500;
+  color: var(--text-soft, #6b7280);
+  font-size: 0.85em;
+}

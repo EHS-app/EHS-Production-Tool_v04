@@ -388,6 +388,180 @@ function App() {
     closeModal();
   };
 
+  const downloadCsv = () => {
+    const esc = (v: string | number) => {
+      const s = String(v ?? "");
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows: string[] = [];
+    rows.push(
+      [
+        "Project Venue",
+        "Project Date",
+        "Engineer",
+        "System",
+        "Section",
+        "Item",
+        "Qty",
+        "Unit Weight (kg)",
+        "Total Weight (kg)",
+        "Unit Power (W)",
+        "Total Power (W)",
+        "Unit Area (m^2)",
+        "Total Area (m^2)",
+        "System Points",
+        "System Dynamic Factor",
+        "Hoist",
+        "Hoist SWL (kg)",
+      ]
+        .map(esc)
+        .join(","),
+    );
+
+    for (const sys of systems) {
+      const hoist = hoistModels[sys.hoistIndex] ?? hoistModels[0];
+      const lines: { row: Row; section: string }[] = [
+        ...sys.riggingRows.map((r) => ({ row: r, section: "Motors & Support" })),
+        ...sys.fixtureRows.map((r) => ({ row: r, section: "Lighting Fixtures" })),
+        ...sys.ledRows.map((r) => ({ row: r, section: "LED & Other" })),
+      ];
+
+      // Hoist row(s) — record the hoist contribution itself
+      rows.push(
+        [
+          venue,
+          reportDate,
+          engineer,
+          sys.name,
+          "Motors & Support",
+          hoist.label,
+          sys.pointCount,
+          hoist.weight,
+          (hoist.weight * sys.pointCount).toFixed(2),
+          hoist.watt,
+          hoist.watt * sys.pointCount,
+          0,
+          0,
+          sys.pointCount,
+          sys.dynamicFactor,
+          hoist.label,
+          hoist.swl,
+        ]
+          .map(esc)
+          .join(","),
+      );
+
+      for (const { row, section } of lines) {
+        const it = getRowItem(row);
+        if (!it) continue;
+        rows.push(
+          [
+            venue,
+            reportDate,
+            engineer,
+            sys.name,
+            section,
+            it.name,
+            row.qty,
+            it.weight.toFixed(2),
+            (it.weight * row.qty).toFixed(2),
+            it.wattage,
+            it.wattage * row.qty,
+            it.area,
+            (it.area * row.qty).toFixed(2),
+            sys.pointCount,
+            sys.dynamicFactor,
+            hoist.label,
+            hoist.swl,
+          ]
+            .map(esc)
+            .join(","),
+        );
+      }
+    }
+
+    // Per-system totals + per-point loads as a separate block
+    rows.push("");
+    rows.push(
+      [
+        "System",
+        "Hoist",
+        "Points",
+        "Dynamic Factor",
+        "Static Total (kg)",
+        "Dynamic Total (kg)",
+        "Peak Point (kg)",
+        "SWL (kg)",
+        "Headroom (kg)",
+        "Status",
+      ]
+        .map(esc)
+        .join(","),
+    );
+    for (const { system, metrics } of allMetrics) {
+      const over = metrics.peak > metrics.swl;
+      rows.push(
+        [
+          system.name,
+          hoistModels[system.hoistIndex]?.label ?? "",
+          system.pointCount,
+          system.dynamicFactor,
+          metrics.static.toFixed(2),
+          metrics.dynamic.toFixed(2),
+          metrics.peak.toFixed(2),
+          metrics.swl,
+          metrics.headroom.toFixed(2),
+          over ? "OVERLOAD" : metrics.peak / metrics.swl > 0.85 ? "Caution" : "OK",
+        ]
+          .map(esc)
+          .join(","),
+      );
+    }
+
+    rows.push("");
+    rows.push(
+      ["System", "Point", "Distribution %", "Static (kg)", "Dynamic (kg)", "SWL Util %", "Status"]
+        .map(esc)
+        .join(","),
+    );
+    for (const { system, metrics } of allMetrics) {
+      metrics.factors.forEach((f, i) => {
+        const dLoad = metrics.dynamicPointLoads[i];
+        const sLoad = metrics.staticPointLoads[i];
+        const util = metrics.swl > 0 ? (dLoad / metrics.swl) * 100 : 0;
+        const over = dLoad > metrics.swl;
+        rows.push(
+          [
+            system.name,
+            `P${i + 1}`,
+            (f * 100).toFixed(1),
+            sLoad.toFixed(2),
+            dLoad.toFixed(2),
+            util.toFixed(1),
+            over ? "OVERLOAD" : util > 85 ? "Caution" : "OK",
+          ]
+            .map(esc)
+            .join(","),
+        );
+      });
+    }
+
+    const csv = "\uFEFF" + rows.join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeVenue = (venue || "rigging-report")
+      .replace(/[^a-z0-9_-]+/gi, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 40);
+    a.href = url;
+    a.download = `${safeVenue || "rigging-report"}-${reportDate}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const resetAll = () => {
     if (
       !confirm(
@@ -542,6 +716,9 @@ function App() {
           >
             <span>{theme === "dark" ? "☀" : "☾"}</span>{" "}
             <span>{theme === "dark" ? "Light" : "Dark"}</span>
+          </button>
+          <button className="btn btn-csv" onClick={downloadCsv} title="Download CSV">
+            CSV
           </button>
           <button className="btn btn-export" onClick={() => window.print()}>
             Export Report

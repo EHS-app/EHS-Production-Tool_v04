@@ -73,14 +73,16 @@ This project is a pnpm workspace monorepo using TypeScript, designed to be an in
     - Dual panel color picker and curated presets.
     - Panel pattern selector (`checker` or `columns`).
     - Dashboard displaying screens, panels, pixels, area, weight, power, and outputs.
-- **Stage Report View**:
-    - Nivtec deck calculator.
-    - User-defined rectangular stages with 0.5 m snapping.
-    - Greedy tiling algorithm for optimal deck placement.
-    - Leg configuration per stage: "shared" (counts unique deck corners) or "perDeck" (4 legs per deck).
-    - Configurable leg heights (20-140 cm) with load capacity derating.
-    - Load capacity calculation (`StageCalc.loadCapacityKg`, `effectiveSwlPerM2`).
-    - Optional handrails per side.
+- **Stage Report View** — Nivtec deck calculator, sourced from the official Nivtec 2024 catalogue, set-up rules, and assembly manual:
+    - Standard Nivtec deck sizes only: 2×1 m (33 kg), 1×1 m (19.5 kg), 0.5×2 m (22 kg), 0.5×1 m (11 kg). All decks rated 750 kg/m² SWL.
+    - Leg heights 20–140 cm with official Nivtec weights (1.7 / 2.6 / 3.5 / 4.4 kg for fixed alu legs at 20/40/60/80; 5.5 / 6.5 / 7.5 kg estimated for the 100/120/140 cm extension/adjustable legs).
+    - Bracing requirement note shown beneath the leg-height field per the Nivtec set-up rules: diagonal bracing required from 80 cm; additional horizontal bracing above 140 cm. (`nivtecBracingNote()` in `lib/stage.ts`.)
+    - User-defined rectangular stages with 0.5 m snapping; greedy tiler places decks (rotates non-square decks for awkward edges).
+    - Leg configuration per stage:
+        - **Nivtec 4-2-2-1 (shared corner legs)** — implements the official Nivtec assembly principle: adjacent decks share their corner legs (4 legs for the first deck, +2 for each adjacent deck, +1 to close a 2×2 block), reducing leg count by up to 60% vs 4-per-deck.
+        - **4 legs per deck** — every deck gets its own 4 legs (no sharing).
+    - Load capacity calculation (`StageCalc.loadCapacityKg`, `effectiveSwlPerM2`) derates SWL for leg height (1.0 ≤60 cm, 0.85 @80, 0.70 @100, 0.55 @120, 0.45 @140).
+    - Optional handrails per side (1 m + 2 m greedy fill).
     - Top-down SVG visualization of stage layout, deck colours, leg dots, and rail strokes.
 - **Persistence**: All three views persist their state to `localStorage` v2 (key `ehs-rigging-report-v2`), with transparent migration from v1. A reset function clears all view states.
 - **Frontend**: Single-page application using React and Vite.

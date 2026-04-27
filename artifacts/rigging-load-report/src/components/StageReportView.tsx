@@ -5,6 +5,7 @@ import {
   STAGE_LEGS,
   computeStage,
   computeStageTotals,
+  nivtecBracingNote,
   snapHalfMetre,
   type Stage,
   type StageDeckKey,
@@ -230,6 +231,18 @@ function StageCard({
                 </option>
               ))}
             </select>
+            {nivtecBracingNote(stage.legHeightCm) && (
+              <small
+                style={{
+                  color: "#b45309",
+                  fontSize: 11,
+                  marginTop: 4,
+                  lineHeight: 1.3,
+                }}
+              >
+                Note: {nivtecBracingNote(stage.legHeightCm)}
+              </small>
+            )}
           </label>
 
           <label className="stage-field">
@@ -240,7 +253,9 @@ function StageCard({
                 onUpdate({ legMode: e.target.value as StageLegMode })
               }
             >
-              <option value="shared">Shared corners (4, 2, 2…)</option>
+              <option value="shared">
+                Nivtec 4-2-2-1 (shared corner legs)
+              </option>
               <option value="perDeck">4 legs per deck</option>
             </select>
           </label>

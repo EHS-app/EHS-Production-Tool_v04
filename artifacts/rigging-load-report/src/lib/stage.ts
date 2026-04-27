@@ -1,16 +1,29 @@
 /**
- * Stage Report — Nivtec-style staging calculator.
+ * Stage Report — Nivtec staging calculator.
  *
  * Computes deck breakdown, leg count and (optional) handrail breakdown for a
  * rectangular stage of a given Width × Depth × Height.
  *
- * The four standard Nivtec deck sizes are used (and only these):
- *   - 2.0 × 1.0 m
- *   - 1.0 × 1.0 m
- *   - 0.5 × 2.0 m
- *   - 0.5 × 1.0 m
+ * Numbers below come from the official Nivtec sources:
+ *   - Nivtec 2024 catalogue (https://nivtec.com/.../09.-Catalogues_EN.pdf)
+ *   - Nivtec set-up rules     (https://nivtec.com/.../02.-Set-up-rules_EN.pdf)
+ *   - Nivtec assembly manual  (rental.imersis.ch / NIVTEC_Manual.pdf)
  *
- * Leg heights available (cm): 20, 40, 60, 80, 100, 120, 140.
+ * Standard Nivtec deck sizes used (and only these):
+ *   - 2.0 × 1.0 m  (200 × 100 cm)  — 33 kg / 750 kg/m²
+ *   - 1.0 × 1.0 m  (100 × 100 cm)  — 19.5 kg / 750 kg/m²
+ *   - 0.5 × 2.0 m  (200 ×  50 cm)  — 22 kg / 750 kg/m² (catalogue uses
+ *     two 100×50 panels stacked — modelled here as one combined deck for
+ *     tiling convenience).
+ *   - 0.5 × 1.0 m  (100 ×  50 cm)  — 11 kg / 750 kg/m²
+ *
+ * Leg heights available (cm) per Nivtec catalogue:
+ *   - Fixed alu legs with swivel base plate: 20 / 40 / 60 / 80 cm
+ *   - Adjustable / extension legs:           100 / 120 / 140 cm
+ *
+ * Bracing requirements per the Nivtec set-up rules:
+ *   - From a stage height of 80 cm   → diagonal bracing required.
+ *   - Above 140 cm                   → additional horizontal bracing.
  *
  * Handrail lengths available: 1 m and 2 m (greedy fill per enabled side).
  *
@@ -18,9 +31,11 @@
  * works on a half-metre integer grid so a 6 × 4 m stage becomes a 12 × 8
  * cell grid (each cell = 0.5 m × 0.5 m).
  *
- * Weights for decks/legs/rails are approximate "typical aluminium" values
- * for the Nivtec system and are exposed in the catalog so they are easy to
- * tweak if the user provides exact figures from a datasheet.
+ * The "shared" leg mode implements Nivtec's official "4-2-2-1 assembly
+ * principle": adjacent decks share their corner legs, so the first deck
+ * uses 4 legs, the second 2 more, the third 2 more, and a fourth deck
+ * closing a 2×2 block adds only 1 — reducing leg count by up to 60% vs
+ * 4-per-deck.
  */
 
 export type StageDeckKey = "2x1" | "1x1" | "0.5x2" | "0.5x1";
@@ -53,7 +68,7 @@ export const STAGE_DECKS: readonly StageDeck[] = [
     label: "Nivtec 1 × 1 m",
     width: 1.0,
     depth: 1.0,
-    weight: 17,
+    weight: 19.5,
     swl: 750,
   },
   {
@@ -61,7 +76,7 @@ export const STAGE_DECKS: readonly StageDeck[] = [
     label: "Nivtec 0.5 × 2 m",
     width: 0.5,
     depth: 2.0,
-    weight: 17,
+    weight: 22,
     swl: 750,
   },
   {
@@ -69,7 +84,7 @@ export const STAGE_DECKS: readonly StageDeck[] = [
     label: "Nivtec 0.5 × 1 m",
     width: 0.5,
     depth: 1.0,
-    weight: 9,
+    weight: 11,
     swl: 750,
   },
 ];
@@ -82,14 +97,27 @@ export type StageLeg = {
 };
 
 export const STAGE_LEGS: readonly StageLeg[] = [
-  { heightCm: 20, weight: 0.6 },
-  { heightCm: 40, weight: 1.0 },
-  { heightCm: 60, weight: 1.4 },
-  { heightCm: 80, weight: 1.8 },
-  { heightCm: 100, weight: 2.2 },
-  { heightCm: 120, weight: 2.6 },
-  { heightCm: 140, weight: 3.0 },
+  { heightCm: 20, weight: 1.7 },
+  { heightCm: 40, weight: 2.6 },
+  { heightCm: 60, weight: 3.5 },
+  { heightCm: 80, weight: 4.4 },
+  { heightCm: 100, weight: 5.5 },
+  { heightCm: 120, weight: 6.5 },
+  { heightCm: 140, weight: 7.5 },
 ];
+
+/** Bracing requirement triggered by a stage / leg height, per the Nivtec
+ *  set-up rules. Returned as a short user-facing string the UI can render
+ *  next to the leg-height field, or `null` if no bracing is required. */
+export function nivtecBracingNote(heightCm: number): string | null {
+  if (heightCm > 140) {
+    return "Diagonal AND additional horizontal bracing required (Nivtec set-up rules, > 140 cm).";
+  }
+  if (heightCm >= 80) {
+    return "Diagonal bracing required from 80 cm (Nivtec set-up rules).";
+  }
+  return null;
+}
 
 export type StageRail = {
   /** Length in metres. */

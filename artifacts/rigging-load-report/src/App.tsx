@@ -1192,9 +1192,9 @@ function App() {
         <div className="header-left">
           <img src={ehsLogo} alt="EHS Logo" className="header-logo-img" />
           <div className="header-title">
-            <span className="header-eyebrow">Production · Rigging</span>
+            <span className="header-eyebrow">EHS</span>
             <h1>
-              Rigging Load <span className="header-title-accent">Report</span>
+              Tool for <span className="header-title-accent">Production</span>
             </h1>
           </div>
         </div>

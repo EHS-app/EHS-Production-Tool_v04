@@ -42,6 +42,11 @@ export type LedLinkedMeta = {
   outputIndex: number | null;
   notes: string;
   customPanel?: LedCustomPanel;
+  /** Optional user-typed display name for a linked screen. When present it
+   *  overrides the auto-generated "<system> · <item>" label so the user can
+   *  rename a linked screen to "Main", "IMAG", etc. Empty/undefined means
+   *  fall back to the auto-generated name. */
+  nameOverride?: string;
 };
 
 export type LedWirePath = "linear" | "serpentine";

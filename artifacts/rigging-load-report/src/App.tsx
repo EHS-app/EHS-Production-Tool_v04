@@ -906,9 +906,14 @@ function App() {
           color: LED_SCREEN_COLORS[colorIdx % LED_SCREEN_COLORS.length],
         };
         colorIdx++;
+        const autoName = `${sys.name} · ${item.name}`;
+        const displayName =
+          meta.nameOverride && meta.nameOverride.trim().length > 0
+            ? meta.nameOverride
+            : autoName;
         out.push({
           id: `led-linked-${row.id}`,
-          name: `${sys.name} · ${item.name}`,
+          name: displayName,
           panelKey: meta.panelKey,
           panelsWide: meta.panelsWide,
           panelsTall: meta.panelsTall,
@@ -977,6 +982,11 @@ function App() {
           ...("notes" in patch ? { notes: patch.notes ?? "" } : {}),
           ...("customPanel" in patch
             ? { customPanel: patch.customPanel }
+            : {}),
+          // Persist a user-typed display name for a linked screen. Empty
+          // string clears the override and restores the auto-generated name.
+          ...("name" in patch
+            ? { nameOverride: patch.name ?? "" }
             : {}),
         };
         return { ...all, [sourceRowId]: next };

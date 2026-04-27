@@ -246,7 +246,7 @@ function Root() {
         signIn: {
           start: {
             title: "Sign in to Production Tool",
-            subtitle: "EHS internal tool — invitation only",
+            subtitle: "EHS internal tool",
           },
         },
       }}

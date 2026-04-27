@@ -44,14 +44,42 @@ export type LedLinkedMeta = {
   customPanel?: LedCustomPanel;
 };
 
+export type LedWirePath = "linear" | "serpentine";
+export type LedOutputMode = "per-screen" | "per-row";
+
 export type LedSettings = {
+  /** Pixels per processor output (used in per-screen mode). */
   portLimit: number;
+  /** Show A1, B1… cell labels on both the on-screen pixel map and PNG export. */
   showLabels: boolean;
+  /** Show right-pointing data-flow arrows between cells in the PNG export. */
+  showArrows: boolean;
+  /** Overlay alignment circle + dashed corner X on the PNG export. */
+  showTestPattern: boolean;
+  /** Render the screen name as a centered white pill on the PNG export. */
+  showScreenName: boolean;
+  /** Render the bottom info bar (panel count / resolution / aspect) on PNG. */
+  showInfoBar: boolean;
+  /** Render the EHS logo in the top-right corner of the PNG export. */
+  showLogo: boolean;
+  /** Wiring path drawn by the data-flow arrows. */
+  wirePath: LedWirePath;
+  /** How to assign processor outputs.
+   *  - per-screen: one circle per screen (uses portLimit for capacity calc)
+   *  - per-row: each panel row of each screen is its own output */
+  outputMode: LedOutputMode;
 };
 
 export const DEFAULT_LED_SETTINGS: LedSettings = {
   portLimit: 650000,
   showLabels: true,
+  showArrows: true,
+  showTestPattern: true,
+  showScreenName: true,
+  showInfoBar: true,
+  showLogo: true,
+  wirePath: "linear",
+  outputMode: "per-screen",
 };
 
 export const LED_SCREEN_COLORS = [
@@ -171,9 +199,20 @@ export function normalizeLedSettings(s: unknown): LedSettings {
     Number.isFinite(rawLimit) && rawLimit >= 1000
       ? rawLimit
       : DEFAULT_LED_SETTINGS.portLimit;
+  const wirePath: LedWirePath =
+    obj.wirePath === "serpentine" ? "serpentine" : "linear";
+  const outputMode: LedOutputMode =
+    obj.outputMode === "per-row" ? "per-row" : "per-screen";
   return {
     portLimit,
     showLabels: obj.showLabels !== false,
+    showArrows: obj.showArrows !== false,
+    showTestPattern: obj.showTestPattern !== false,
+    showScreenName: obj.showScreenName !== false,
+    showInfoBar: obj.showInfoBar !== false,
+    showLogo: obj.showLogo !== false,
+    wirePath,
+    outputMode,
   };
 }
 
@@ -240,6 +279,19 @@ export type LedTotals = {
   portsNeeded: number;
 };
 
+export function outputsForScreen(
+  screen: LedScreen,
+  settings: LedSettings,
+  panels: LedPanel[],
+): number {
+  if (settings.outputMode === "per-row") {
+    return Math.max(1, screen.panelsTall);
+  }
+  const m = computeScreenMetrics(screen, panels);
+  const limit = Math.max(1, settings.portLimit);
+  return Math.max(1, Math.ceil(m.pixels / limit));
+}
+
 export function computeLedTotals(
   screens: LedScreen[],
   settings: LedSettings,
@@ -254,7 +306,6 @@ export function computeLedTotals(
     powerW: 0,
     portsNeeded: 0,
   };
-  const limit = Math.max(1, settings.portLimit);
   for (const s of screens) {
     const m = computeScreenMetrics(s, panels);
     t.panels += m.panels;
@@ -262,7 +313,7 @@ export function computeLedTotals(
     t.areaM2 += m.areaM2;
     t.weightKg += m.weightKg;
     t.powerW += m.powerW;
-    t.portsNeeded += Math.max(1, Math.ceil(m.pixels / limit));
+    t.portsNeeded += outputsForScreen(s, settings, panels);
   }
   return t;
 }

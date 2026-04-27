@@ -19,6 +19,7 @@ import {
   type LedScreen,
   type LedSettings,
 } from "./lib/led";
+import { exportScreenAsPng, getLogoDataUrl } from "./lib/ledExport";
 import { LedScreenReportView } from "./components/LedScreenReportView";
 
 type DmxMode = {
@@ -1031,6 +1032,25 @@ function App() {
 
   const updateLedSettings = (patch: Partial<LedSettings>) => {
     setLedSettings((s) => ({ ...s, ...patch }));
+  };
+
+  const exportLedScreen = async (id: string) => {
+    const screen = allLedScreens.find((s) => s.id === id);
+    if (!screen) return;
+    try {
+      const logoDataUrl = await getLogoDataUrl(ehsLogo);
+      await exportScreenAsPng({
+        screen,
+        panels: ledPanels,
+        settings: ledSettings,
+        logoDataUrl,
+      });
+    } catch (err) {
+      console.error("PNG export failed:", err);
+      alert(
+        "Could not generate the PNG. Try a smaller screen or check the console for details.",
+      );
+    }
   };
 
   const addShowFixture = () =>
@@ -2249,6 +2269,7 @@ function App() {
           onRemoveScreen={removeLedScreen}
           onDuplicateScreen={duplicateLedScreen}
           onUpdateSettings={updateLedSettings}
+          onExportScreen={exportLedScreen}
           onJumpToRigging={() => setMainView("rigging")}
         />
       )}

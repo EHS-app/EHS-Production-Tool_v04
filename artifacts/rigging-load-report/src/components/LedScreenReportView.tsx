@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   CUSTOM_PANEL_KEY,
   LED_SCREEN_COLORS,
@@ -26,6 +26,7 @@ type Props = {
   onRemoveScreen: (id: string) => void;
   onDuplicateScreen: (id: string) => void;
   onUpdateSettings: (patch: Partial<LedSettings>) => void;
+  onExportScreen: (id: string) => void | Promise<void>;
   onJumpToRigging: () => void;
 };
 
@@ -47,6 +48,7 @@ export function LedScreenReportView(props: Props) {
     onRemoveScreen,
     onDuplicateScreen,
     onUpdateSettings,
+    onExportScreen,
     onJumpToRigging,
   } = props;
 
@@ -72,34 +74,15 @@ export function LedScreenReportView(props: Props) {
 
       <LedDashboard totals={totals} settings={settings} />
 
+      <ExportOptions
+        settings={settings}
+        onUpdateSettings={onUpdateSettings}
+      />
+
       <section className="led-card">
         <div className="led-card-head">
           <h3>Screens</h3>
           <div className="led-controls">
-            <label className="led-inline-field">
-              <span>Pixels per output</span>
-              <input
-                type="number"
-                min={1000}
-                step={1000}
-                value={settings.portLimit}
-                onChange={(e) =>
-                  onUpdateSettings({
-                    portLimit: Math.max(1000, Number(e.target.value) || 1000),
-                  })
-                }
-              />
-            </label>
-            <label className="led-inline-field led-inline-checkbox">
-              <input
-                type="checkbox"
-                checked={settings.showLabels}
-                onChange={(e) =>
-                  onUpdateSettings({ showLabels: e.target.checked })
-                }
-              />
-              <span>Show panel labels</span>
-            </label>
             <button className="btn btn-primary" onClick={onAddScreen}>
               + Add Screen
             </button>
@@ -141,6 +124,7 @@ export function LedScreenReportView(props: Props) {
                     }
                     onRemove={() => onRemoveScreen(s.id)}
                     onDuplicate={() => onDuplicateScreen(s.id)}
+                    onExport={() => onExportScreen(s.id)}
                   />
                 ))}
               </tbody>
@@ -219,6 +203,7 @@ function ScreenRow({
   onUpdateCustomPanel,
   onRemove,
   onDuplicate,
+  onExport,
 }: {
   screen: LedScreen;
   panels: LedPanel[];
@@ -226,6 +211,7 @@ function ScreenRow({
   onUpdateCustomPanel: (patch: Partial<LedCustomPanel>) => void;
   onRemove: () => void;
   onDuplicate: () => void;
+  onExport: () => void | Promise<void>;
 }) {
   const panel = resolveScreenPanel(screen, panels);
   const m = computeScreenMetrics(screen, panels);
@@ -346,6 +332,13 @@ function ScreenRow({
           />
         </td>
         <td className="led-actions">
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => onExport()}
+            title="Export PNG pixel map"
+          >
+            PNG
+          </button>
           <button
             className="btn btn-soft btn-sm"
             onClick={onDuplicate}
@@ -662,5 +655,155 @@ function ScreenSvg({
         strokeWidth={2}
       />
     </g>
+  );
+}
+
+function ExportOptions({
+  settings,
+  onUpdateSettings,
+}: {
+  settings: LedSettings;
+  onUpdateSettings: (patch: Partial<LedSettings>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="led-card led-export-card">
+      <div className="led-card-head">
+        <h3>
+          <button
+            type="button"
+            className="led-disclosure"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+          >
+            <span className="led-disclosure-arrow">{open ? "▼" : "▶"}</span>
+            Export options (PNG)
+          </button>
+        </h3>
+        <span className="led-hint">
+          Affects what the per-screen <strong>PNG</strong> button renders.
+          The on-screen pixel map below uses these too where applicable.
+        </span>
+      </div>
+
+      {open && (
+        <div className="led-export-grid">
+          <label className="led-inline-field">
+            <span>Output mode</span>
+            <select
+              className="led-input"
+              value={settings.outputMode}
+              onChange={(e) =>
+                onUpdateSettings({
+                  outputMode: e.target.value as LedSettings["outputMode"],
+                })
+              }
+            >
+              <option value="per-screen">One per screen</option>
+              <option value="per-row">One per panel row</option>
+            </select>
+          </label>
+
+          <label className="led-inline-field">
+            <span>Wire path</span>
+            <select
+              className="led-input"
+              value={settings.wirePath}
+              onChange={(e) =>
+                onUpdateSettings({
+                  wirePath: e.target.value as LedSettings["wirePath"],
+                })
+              }
+            >
+              <option value="linear">Linear (rows L→R)</option>
+              <option value="serpentine">Serpentine (alternates)</option>
+            </select>
+          </label>
+
+          <label className="led-inline-field">
+            <span>Pixels per output</span>
+            <input
+              type="number"
+              className="led-input"
+              min={1000}
+              step={1000}
+              disabled={settings.outputMode !== "per-screen"}
+              value={settings.portLimit}
+              onChange={(e) =>
+                onUpdateSettings({
+                  portLimit: Math.max(1000, Number(e.target.value) || 1000),
+                })
+              }
+            />
+          </label>
+
+          <label className="led-inline-field led-inline-checkbox">
+            <input
+              type="checkbox"
+              checked={settings.showLabels}
+              onChange={(e) =>
+                onUpdateSettings({ showLabels: e.target.checked })
+              }
+            />
+            <span>Show panel labels (A1, B1…)</span>
+          </label>
+
+          <label className="led-inline-field led-inline-checkbox">
+            <input
+              type="checkbox"
+              checked={settings.showArrows}
+              onChange={(e) =>
+                onUpdateSettings({ showArrows: e.target.checked })
+              }
+            />
+            <span>Show data-flow arrows</span>
+          </label>
+
+          <label className="led-inline-field led-inline-checkbox">
+            <input
+              type="checkbox"
+              checked={settings.showTestPattern}
+              onChange={(e) =>
+                onUpdateSettings({ showTestPattern: e.target.checked })
+              }
+            />
+            <span>Show alignment circle + corner X</span>
+          </label>
+
+          <label className="led-inline-field led-inline-checkbox">
+            <input
+              type="checkbox"
+              checked={settings.showScreenName}
+              onChange={(e) =>
+                onUpdateSettings({ showScreenName: e.target.checked })
+              }
+            />
+            <span>Show screen name pill</span>
+          </label>
+
+          <label className="led-inline-field led-inline-checkbox">
+            <input
+              type="checkbox"
+              checked={settings.showInfoBar}
+              onChange={(e) =>
+                onUpdateSettings({ showInfoBar: e.target.checked })
+              }
+            />
+            <span>Show bottom info bar</span>
+          </label>
+
+          <label className="led-inline-field led-inline-checkbox">
+            <input
+              type="checkbox"
+              checked={settings.showLogo}
+              onChange={(e) =>
+                onUpdateSettings({ showLogo: e.target.checked })
+              }
+            />
+            <span>Show EHS logo</span>
+          </label>
+        </div>
+      )}
+    </section>
   );
 }

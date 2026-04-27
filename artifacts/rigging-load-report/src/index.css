@@ -1645,6 +1645,41 @@ input:focus {
   cursor: pointer;
 }
 
+.led-export-card .led-card-head {
+  align-items: flex-start;
+}
+.led-disclosure {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.led-disclosure-arrow {
+  font-size: 0.7em;
+  opacity: 0.7;
+  width: 1em;
+}
+.led-export-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px 18px;
+  padding: 12px 0 4px;
+}
+.led-export-grid .led-inline-field select.led-input,
+.led-export-grid .led-inline-field input.led-input,
+.led-export-grid .led-inline-field input[type="number"] {
+  width: 100%;
+}
+.led-export-grid .led-inline-field input[type="number"]:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .led-empty {
   padding: 24px;
   text-align: center;

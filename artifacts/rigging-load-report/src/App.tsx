@@ -1,6 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./index.css";
 import ehsLogo from "./assets/ehs-logo.png";
+import {
+  BUILT_IN_LED_PANELS,
+  DEFAULT_LED_SETTINGS,
+  LED_SCREEN_COLORS,
+  computeLedTotals,
+  defaultLinkedLedMeta,
+  detectPanelKeyFromInventory,
+  isLedPanelInventoryItem,
+  newLedScreen,
+  normalizeLedSettings,
+  type LedCustomPanel,
+  type LedLinkedMeta,
+  type LedScreen,
+  type LedSettings,
+} from "./lib/led";
+import { LedScreenReportView } from "./components/LedScreenReportView";
 
 type DmxMode = {
   name: string;
@@ -444,6 +460,13 @@ type PersistedV2 = {
   /** DMX/position overlays for fixtures linked from the rigging report,
    *  keyed by the source rigging Row id. */
   linkedMeta?: Record<string, LinkedMeta>;
+  /** Manual (non-linked) LED screens added on the LED Screen Report tab. */
+  ledScreens?: LedScreen[];
+  /** Per-screen overlay (panel type, layout, output, color, notes) for LED
+   *  screens linked from a rigging ledRow, keyed by source Row id. */
+  ledLinkedMeta?: Record<string, LedLinkedMeta>;
+  /** LED Screen Report settings (port limit, label visibility). */
+  ledSettings?: LedSettings;
 };
 
 function loadPersisted(): Partial<PersistedV2> | null {
@@ -566,6 +589,15 @@ function App() {
   const [linkedMeta, setLinkedMeta] = useState<Record<string, LinkedMeta>>(
     persisted?.linkedMeta ?? {},
   );
+  const [ledScreens, setLedScreens] = useState<LedScreen[]>(
+    persisted?.ledScreens ?? [],
+  );
+  const [ledLinkedMeta, setLedLinkedMeta] = useState<
+    Record<string, LedLinkedMeta>
+  >(persisted?.ledLinkedMeta ?? {});
+  const [ledSettings, setLedSettings] = useState<LedSettings>(
+    normalizeLedSettings(persisted?.ledSettings),
+  );
 
   const [modalTarget, setModalTarget] = useState<Category | null>(null);
   const [custName, setCustName] = useState("");
@@ -590,6 +622,9 @@ function App() {
       showFixtures,
       mainView,
       linkedMeta,
+      ledScreens,
+      ledLinkedMeta,
+      ledSettings,
     };
     try {
       localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(data));
@@ -612,6 +647,9 @@ function App() {
     showFixtures,
     mainView,
     linkedMeta,
+    ledScreens,
+    ledLinkedMeta,
+    ledSettings,
   ]);
 
   const activeSystem =
@@ -773,6 +811,180 @@ function App() {
     () => [...linkedFixtures, ...showFixtures],
     [linkedFixtures, showFixtures],
   );
+
+  // ── LED Screen Report ──────────────────────────────────────────────────
+
+  // Garbage-collect ledLinkedMeta entries whose source rigging ledRow no
+  // longer exists OR is not an LED panel item (e.g. Molton mask).
+  useEffect(() => {
+    const liveIds = new Set<string>();
+    for (const sys of systems) {
+      for (const row of sys.ledRows) {
+        const item = getRowItem(row);
+        if (item && isLedPanelInventoryItem(item.name)) liveIds.add(row.id);
+      }
+    }
+    setLedLinkedMeta((all) => {
+      const keys = Object.keys(all);
+      const orphans = keys.filter((k) => !liveIds.has(k));
+      if (orphans.length === 0) return all;
+      const next: Record<string, LedLinkedMeta> = {};
+      for (const k of keys) if (liveIds.has(k)) next[k] = all[k];
+      return next;
+    });
+  }, [systems]);
+
+  /** Screens auto-derived from each rigging system's ledRows. Layout
+   *  (panelsWide/Tall, output, color, notes) lives in `ledLinkedMeta`
+   *  keyed by source Row id; qty changes nudge the default layout. */
+  const linkedLedScreens = useMemo<LedScreen[]>(() => {
+    const out: LedScreen[] = [];
+    let colorIdx = 0;
+    for (const sys of systems) {
+      for (const row of sys.ledRows) {
+        const item = getRowItem(row);
+        if (!item) continue;
+        if (!isLedPanelInventoryItem(item.name)) continue;
+        const stored = ledLinkedMeta[row.id];
+        const fallback = defaultLinkedLedMeta(row.qty);
+        const detected =
+          detectPanelKeyFromInventory(item.name) ?? fallback.panelKey;
+        const meta: LedLinkedMeta = stored ?? {
+          ...fallback,
+          panelKey: detected,
+          color: LED_SCREEN_COLORS[colorIdx % LED_SCREEN_COLORS.length],
+        };
+        colorIdx++;
+        out.push({
+          id: `led-linked-${row.id}`,
+          name: `${sys.name} · ${item.name}`,
+          panelKey: meta.panelKey,
+          panelsWide: meta.panelsWide,
+          panelsTall: meta.panelsTall,
+          color: meta.color,
+          outputIndex: meta.outputIndex,
+          notes: meta.notes,
+          customPanel: meta.customPanel,
+          linked: true,
+          sourceRowId: row.id,
+        });
+      }
+    }
+    return out;
+  }, [systems, ledLinkedMeta]);
+
+  const allLedScreens = useMemo<LedScreen[]>(
+    () => [...linkedLedScreens, ...ledScreens],
+    [linkedLedScreens, ledScreens],
+  );
+
+  const ledTotals = useMemo(
+    () => computeLedTotals(allLedScreens, ledSettings),
+    [allLedScreens, ledSettings],
+  );
+
+  const addLedScreen = () => {
+    const idx = ledScreens.length + linkedLedScreens.length;
+    setLedScreens((all) => [
+      ...all,
+      newLedScreen({
+        name: `Screen ${idx + 1}`,
+        color: LED_SCREEN_COLORS[idx % LED_SCREEN_COLORS.length],
+      }),
+    ]);
+  };
+
+  const updateLedScreen = (id: string, patch: Partial<LedScreen>) => {
+    if (id.startsWith("led-linked-")) {
+      const sourceRowId = id.slice("led-linked-".length);
+      // Snapshot the currently-resolved linked screen as the base for the
+      // first edit, so we don't drop the qty-derived default layout when
+      // the user simply changes a single field like color or notes.
+      const current = allLedScreens.find((s) => s.id === id);
+      const seed: LedLinkedMeta = current
+        ? {
+            panelKey: current.panelKey,
+            panelsWide: current.panelsWide,
+            panelsTall: current.panelsTall,
+            color: current.color,
+            outputIndex: current.outputIndex,
+            notes: current.notes,
+            customPanel: current.customPanel,
+          }
+        : defaultLinkedLedMeta(1);
+      setLedLinkedMeta((all) => {
+        const prev = all[sourceRowId] ?? seed;
+        const next: LedLinkedMeta = {
+          ...prev,
+          ...("panelKey" in patch ? { panelKey: patch.panelKey! } : {}),
+          ...("panelsWide" in patch ? { panelsWide: patch.panelsWide! } : {}),
+          ...("panelsTall" in patch ? { panelsTall: patch.panelsTall! } : {}),
+          ...("color" in patch ? { color: patch.color! } : {}),
+          ...("outputIndex" in patch
+            ? { outputIndex: patch.outputIndex ?? null }
+            : {}),
+          ...("notes" in patch ? { notes: patch.notes ?? "" } : {}),
+          ...("customPanel" in patch
+            ? { customPanel: patch.customPanel }
+            : {}),
+        };
+        return { ...all, [sourceRowId]: next };
+      });
+      return;
+    }
+    setLedScreens((all) =>
+      all.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    );
+  };
+
+  const updateLedCustomPanel = (
+    id: string,
+    patch: Partial<LedCustomPanel>,
+  ) => {
+    const screen = allLedScreens.find((s) => s.id === id);
+    if (!screen) return;
+    const base =
+      screen.customPanel ??
+      (() => {
+        const def = BUILT_IN_LED_PANELS.find((p) => p.key === "custom")!;
+        return {
+          pixelWidth: def.pixelWidth,
+          pixelHeight: def.pixelHeight,
+          physicalWidth: def.physicalWidth,
+          physicalHeight: def.physicalHeight,
+          weight: def.weight,
+          power: def.power,
+        } as LedCustomPanel;
+      })();
+    updateLedScreen(id, { customPanel: { ...base, ...patch } });
+  };
+
+  const removeLedScreen = (id: string) => {
+    if (id.startsWith("led-linked-")) return; // linked rows can't be deleted here
+    setLedScreens((all) => all.filter((s) => s.id !== id));
+  };
+
+  const duplicateLedScreen = (id: string) => {
+    const src = allLedScreens.find((s) => s.id === id);
+    if (!src) return;
+    setLedScreens((all) => [
+      ...all,
+      newLedScreen({
+        name: `${src.name} (copy)`,
+        panelKey: src.panelKey,
+        panelsWide: src.panelsWide,
+        panelsTall: src.panelsTall,
+        color: src.color,
+        outputIndex: null,
+        notes: src.notes,
+        customPanel: src.customPanel,
+      }),
+    ]);
+  };
+
+  const updateLedSettings = (patch: Partial<LedSettings>) => {
+    setLedSettings((s) => ({ ...s, ...patch }));
+  };
 
   const addShowFixture = () =>
     setShowFixtures((all) => [...all, makeShowFixture()]);
@@ -1064,6 +1276,9 @@ function App() {
     setActiveSystemId(fresh.id);
     setShowFixtures([]);
     setLinkedMeta({});
+    setLedScreens([]);
+    setLedLinkedMeta({});
+    setLedSettings(DEFAULT_LED_SETTINGS);
     setMainView("rigging");
   };
 
@@ -1974,13 +2189,20 @@ function App() {
       </>}
 
       {mainView === "led" && (
-        <div className="card" style={{ padding: 32, textAlign: "center" }}>
-          <h2 style={{ marginTop: 0 }}>LED Screen Report</h2>
-          <p style={{ color: "var(--text-soft, #6b7280)" }}>
-            This tab is empty for now. Tell me what fields, columns, and totals
-            you want here and I'll build it out.
-          </p>
-        </div>
+        <LedScreenReportView
+          screens={allLedScreens}
+          settings={ledSettings}
+          totals={ledTotals}
+          linkedCount={linkedLedScreens.length}
+          standaloneCount={ledScreens.length}
+          onAddScreen={addLedScreen}
+          onUpdateScreen={updateLedScreen}
+          onUpdateCustomPanel={updateLedCustomPanel}
+          onRemoveScreen={removeLedScreen}
+          onDuplicateScreen={duplicateLedScreen}
+          onUpdateSettings={updateLedSettings}
+          onJumpToRigging={() => setMainView("rigging")}
+        />
       )}
 
       {mainView === "lighting" && (

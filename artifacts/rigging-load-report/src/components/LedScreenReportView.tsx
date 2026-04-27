@@ -5,12 +5,14 @@ import {
   LED_SCREEN_COLORS,
   type LedPanel,
   type LedPanelKey,
+  type LedPanelPattern,
   type LedScreen,
   type LedSettings,
   type LedTotals,
   type LedCustomPanel,
   colLabel,
   computeScreenMetrics,
+  panelCellColor,
   resolveScreenPanel,
 } from "../lib/led";
 
@@ -565,8 +567,13 @@ function ScreenSvg({
     for (let col = 0; col < screen.panelsWide; col++) {
       const cx = x + col * cellW;
       const cy = y + row * cellH;
-      const cellFill =
-        col % 2 === 0 ? settings.panelColorDark : settings.panelColorLight;
+      const cellFill = panelCellColor(
+        col,
+        row,
+        settings.panelPattern,
+        settings.panelColorDark,
+        settings.panelColorLight,
+      );
       cells.push(
         <g key={`${col}-${row}`}>
           <rect
@@ -861,6 +868,24 @@ function ExportOptions({
               }
             />
             <span>Show EHS logo</span>
+          </label>
+
+          <label className="led-inline-field">
+            <span>Panel pattern</span>
+            <select
+              className="led-input"
+              value={settings.panelPattern}
+              onChange={(e) =>
+                onUpdateSettings({
+                  panelPattern: e.target.value as LedPanelPattern,
+                })
+              }
+            >
+              <option value="checker">
+                Checkerboard (every panel visible)
+              </option>
+              <option value="columns">Vertical stripes (columns)</option>
+            </select>
           </label>
 
           <div className="led-inline-field led-color-pair-field">

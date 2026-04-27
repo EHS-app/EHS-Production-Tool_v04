@@ -51,6 +51,15 @@ export type LedLinkedMeta = {
 
 export type LedWirePath = "linear" | "serpentine";
 export type LedOutputMode = "per-screen" | "per-row";
+/** How the two `panelColor*` colors are distributed across the panel grid.
+ *  - "checker" (default): every panel alternates with its neighbours in
+ *    BOTH directions, so each individual panel is always visually
+ *    distinct — important for non-square panels (e.g. Uniview 1×0.5 m)
+ *    where column-only striping would merge a vertical stack of panels
+ *    into a single tall block of one colour.
+ *  - "columns": every column of panels uses one colour, every other
+ *    column uses the other (the original look). */
+export type LedPanelPattern = "checker" | "columns";
 
 export type LedSettings = {
   /** Pixels per processor output (used in per-screen mode). */
@@ -73,10 +82,12 @@ export type LedSettings = {
    *  - per-screen: one circle per screen (uses portLimit for capacity calc)
    *  - per-row: each panel row of each screen is its own output */
   outputMode: LedOutputMode;
-  /** Two colors used for the alternating column shading on the panel grid.
+  /** Two colors used for the alternating shading on the panel grid.
    *  Visible in both the in-app preview and the exported PNG. */
   panelColorDark: string;
   panelColorLight: string;
+  /** How the two colors are tiled across the panel grid. See `LedPanelPattern`. */
+  panelPattern: LedPanelPattern;
 };
 
 export const DEFAULT_LED_SETTINGS: LedSettings = {
@@ -91,6 +102,7 @@ export const DEFAULT_LED_SETTINGS: LedSettings = {
   outputMode: "per-screen",
   panelColorDark: "#1f3b8a",
   panelColorLight: "#5a8edc",
+  panelPattern: "checker",
 };
 
 /** Curated dual-color presets for the panel grid (dark, light). */
@@ -235,6 +247,8 @@ export function normalizeLedSettings(s: unknown): LedSettings {
     obj.wirePath === "serpentine" ? "serpentine" : "linear";
   const outputMode: LedOutputMode =
     obj.outputMode === "per-row" ? "per-row" : "per-screen";
+  const panelPattern: LedPanelPattern =
+    obj.panelPattern === "columns" ? "columns" : "checker";
   return {
     portLimit,
     showLabels: obj.showLabels !== false,
@@ -253,7 +267,23 @@ export function normalizeLedSettings(s: unknown): LedSettings {
       obj.panelColorLight,
       DEFAULT_LED_SETTINGS.panelColorLight,
     ),
+    panelPattern,
   };
+}
+
+/** Pick which of the two panel colours a cell at (col, row) should use,
+ *  given the active pattern. Centralized so the in-app preview and the
+ *  PNG export can never drift out of sync. */
+export function panelCellColor(
+  col: number,
+  row: number,
+  pattern: LedPanelPattern,
+  dark: string,
+  light: string,
+): string {
+  const useDark =
+    pattern === "checker" ? (col + row) % 2 === 0 : col % 2 === 0;
+  return useDark ? dark : light;
 }
 
 /** Resolve a screen's effective panel (using customPanel if panelKey === custom). */

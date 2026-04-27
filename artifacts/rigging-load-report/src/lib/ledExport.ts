@@ -1,6 +1,7 @@
 import {
   colLabel,
   computeScreenMetrics,
+  panelCellColor,
   resolveScreenPanel,
   type LedPanel,
   type LedScreen,
@@ -108,15 +109,16 @@ export function buildScreenSvg(input: BuildSvgInput): string {
   // Background
   parts.push(`<rect width="${W}" height="${H}" fill="${COLOR_BG}"/>`);
 
-  // Panel cells — alternate columns dark/light to match reference image.
+  // Panel cells — colors are picked via `panelCellColor()` so the on-
+  // screen preview and the exported PNG always agree on the pattern
+  // (checker by default; columns optional).
+  const dark = settings.panelColorDark || COLOR_PANEL_DARK;
+  const light = settings.panelColorLight || COLOR_PANEL_LIGHT;
   for (let cy = 0; cy < screen.panelsTall; cy++) {
     for (let cx = 0; cx < screen.panelsWide; cx++) {
       const x = cx * cellW;
       const y = cy * cellH;
-      const fill =
-        cx % 2 === 0
-          ? settings.panelColorDark || COLOR_PANEL_DARK
-          : settings.panelColorLight || COLOR_PANEL_LIGHT;
+      const fill = panelCellColor(cx, cy, settings.panelPattern, dark, light);
       parts.push(
         `<rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" fill="${fill}"/>`,
       );

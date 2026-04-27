@@ -8,6 +8,7 @@ import {
   snapHalfMetre,
   type Stage,
   type StageDeckKey,
+  type StageLegMode,
 } from "../lib/stage";
 
 type Props = {
@@ -101,6 +102,11 @@ export function StageReportView(props: Props) {
           <span>Total weight</span>
           <strong>{fmt(totals.totalWeight, 0)}</strong>
           <small>kg</small>
+        </div>
+        <div className="dash-item">
+          <span>Max load</span>
+          <strong>{fmt(totals.totalLoadCapacityKg, 0)}</strong>
+          <small>kg total</small>
         </div>
       </div>
 
@@ -223,6 +229,19 @@ function StageCard({
                   {h} cm
                 </option>
               ))}
+            </select>
+          </label>
+
+          <label className="stage-field">
+            <span>Leg config</span>
+            <select
+              value={stage.legMode}
+              onChange={(e) =>
+                onUpdate({ legMode: e.target.value as StageLegMode })
+              }
+            >
+              <option value="shared">Shared corners (4, 2, 2…)</option>
+              <option value="perDeck">4 legs per deck</option>
             </select>
           </label>
 
@@ -366,30 +385,33 @@ function StageSvg({
             )}
           </g>
         ))}
-        {/* Leg dots — one per unique deck corner */}
-        {(() => {
-          const corners = new Set<string>();
-          calc.decks.forEach((p) => {
-            corners.add(`${p.x.toFixed(2)},${p.y.toFixed(2)}`);
-            corners.add(`${(p.x + p.w).toFixed(2)},${p.y.toFixed(2)}`);
-            corners.add(`${p.x.toFixed(2)},${(p.y + p.d).toFixed(2)}`);
-            corners.add(
-              `${(p.x + p.w).toFixed(2)},${(p.y + p.d).toFixed(2)}`,
-            );
-          });
-          return [...corners].map((c, i) => {
-            const [x, y] = c.split(",").map(Number);
-            return (
+        {/* Leg dots. In "shared" mode we draw one per unique deck-corner
+            position. In "perDeck" mode we draw 4 inset dots per deck so
+            the user can visually distinguish overlapping legs at shared
+            corners. */}
+        {stage.legMode === "perDeck"
+          ? calc.decks.flatMap((p, i) => {
+              const inset = Math.min(p.w, p.d) * 0.12 * scale;
+              const x1 = PAD + p.x * scale + inset;
+              const y1 = PAD + p.y * scale + inset;
+              const x2 = PAD + (p.x + p.w) * scale - inset;
+              const y2 = PAD + (p.y + p.d) * scale - inset;
+              return [
+                <circle key={`${i}-tl`} cx={x1} cy={y1} r={3} fill="#0f172a" />,
+                <circle key={`${i}-tr`} cx={x2} cy={y1} r={3} fill="#0f172a" />,
+                <circle key={`${i}-bl`} cx={x1} cy={y2} r={3} fill="#0f172a" />,
+                <circle key={`${i}-br`} cx={x2} cy={y2} r={3} fill="#0f172a" />,
+              ];
+            })
+          : calc.legPositions.map((pos, i) => (
               <circle
                 key={i}
-                cx={PAD + x * scale}
-                cy={PAD + y * scale}
+                cx={PAD + pos.x * scale}
+                cy={PAD + pos.y * scale}
                 r={4}
                 fill="#0f172a"
               />
-            );
-          });
-        })()}
+            ))}
         {/* Rail strokes — front bottom, back top, left/right sides */}
         {stage.rails.front && (
           <line
@@ -512,7 +534,13 @@ function StageBreakdown({
         </tbody>
       </table>
 
-      <h4>Legs ({stage.legHeightCm} cm)</h4>
+      <h4>
+        Legs ({stage.legHeightCm} cm
+        {stage.legMode === "perDeck"
+          ? " · 4 per deck"
+          : " · shared corners"}
+        )
+      </h4>
       <table className="stage-table">
         <tbody>
           <tr>
@@ -529,6 +557,31 @@ function StageBreakdown({
           </tr>
         </tbody>
       </table>
+
+      <h4>Load capacity</h4>
+      <table className="stage-table">
+        <tbody>
+          <tr>
+            <td>Distributed load</td>
+            <td>
+              <strong>{fmt(calc.loadCapacityKg, 0)} kg</strong>
+              {!calc.fits && " (placed area only)"}
+            </td>
+          </tr>
+          <tr>
+            <td>Rated SWL</td>
+            <td>
+              {fmt(calc.effectiveSwlPerM2, 0)} kg/m² @ {stage.legHeightCm} cm
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div className="stage-capacity-note">
+        Capacity is derated for leg height (Nivtec aluminium typical:
+        ≤60 cm full rating; 80 cm ~85%; 100 cm ~70%; 120 cm ~55%; 140 cm
+        ~45%). Always confirm against the manufacturer datasheet for your
+        exact configuration.
+      </div>
 
       {calc.railBreakdown.length > 0 && (
         <>

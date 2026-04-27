@@ -120,6 +120,17 @@ export const DEFAULT_RAIL_SIDES: StageRailSides = {
   right: false,
 };
 
+/** How legs are counted across the stage.
+ *  - "shared" (default): adjacent decks share their corner legs, so the
+ *    total is the union of unique deck-corner positions. This produces
+ *    the smallest part count (the classic "4, 2, 2, …" sequence as you
+ *    add decks side-by-side) and matches how a typical Nivtec stage is
+ *    actually built.
+ *  - "perDeck": every single deck gets its own 4 legs, regardless of
+ *    neighbours. Use this when you don't want shared legs (e.g. quick
+ *    de-rig, mixed configurations, or per-deck rigging). */
+export type StageLegMode = "shared" | "perDeck";
+
 export type Stage = {
   id: string;
   name: string;
@@ -129,6 +140,8 @@ export type Stage = {
   depth: number;
   /** Leg height in centimetres. Must match one of STAGE_LEGS heights. */
   legHeightCm: number;
+  /** How legs are counted (see StageLegMode). */
+  legMode: StageLegMode;
   /** Which sides have handrails. */
   rails: StageRailSides;
   notes: string;
@@ -151,8 +164,22 @@ export type StageCalc = {
   decks: DeckPlacement[];
   /** Count by deck key (only keys that occur are present). */
   deckCounts: Record<StageDeckKey, number>;
-  /** Number of legs needed (one per unique deck-corner position). */
+  /** Number of legs needed. In "shared" mode this is the count of unique
+   *  deck-corner positions; in "perDeck" mode this is `decks.length × 4`. */
   legCount: number;
+  /** Unique deck-corner positions (used to draw the leg dots in shared
+   *  mode). Always populated regardless of legMode so the preview can
+   *  illustrate either layout. */
+  legPositions: { x: number; y: number }[];
+  /** Maximum distributed load the stage can carry, in kilograms. Computed
+   *  as `areaM2 × ratedSwlPerM2 × heightFactor`, where the rated SWL is
+   *  the minimum SWL across the deck types actually used (typ. 750 kg/m²
+   *  for Nivtec aluminium decks at low height) and the height factor
+   *  derates capacity for taller leg setups (see `heightSwlFactor`). */
+  loadCapacityKg: number;
+  /** SWL value (kg/m²) actually used after height derating. Surfaced so
+   *  the UI can show "X kg/m² @ <height>cm" alongside the total. */
+  effectiveSwlPerM2: number;
   /** Total weight of decks (kg). */
   deckWeight: number;
   /** Total weight of all legs (kg). */
@@ -276,6 +303,30 @@ function legWeight(heightCm: number): number {
 }
 
 /**
+ * Conservative SWL derating by leg height. Aluminium platform systems
+ * (Nivtec, Litec, Prolyte) all publish height-dependent capacity tables;
+ * the exact numbers vary by brand and bracing configuration, but the
+ * shape is consistent: full rated load at low heights, dropping with
+ * height. We use a simple lookup so the user sees a realistic, safety-
+ * conscious capacity number rather than the optimistic "rated" figure.
+ *
+ *   ≤  60 cm → 1.00 (full rating)
+ *      80 cm → 0.85
+ *     100 cm → 0.70
+ *     120 cm → 0.55
+ *     140 cm → 0.45
+ *
+ * If your manufacturer datasheet says otherwise, use the lower number.
+ */
+function heightSwlFactor(heightCm: number): number {
+  if (heightCm <= 60) return 1.0;
+  if (heightCm <= 80) return 0.85;
+  if (heightCm <= 100) return 0.7;
+  if (heightCm <= 120) return 0.55;
+  return 0.45;
+}
+
+/**
  * Greedy rail breakdown for a single side: prefer 2 m pieces, then fill the
  * remainder with 1 m pieces. Sides whose length isn't a multiple of 1 m
  * (e.g. 1.5 m) round up to the next metre — Nivtec rail kits don't include
@@ -305,7 +356,8 @@ export function computeStage(stage: Stage): StageCalc {
     if (def) deckWeight += def.weight;
   }
 
-  // Leg positions: union of all deck corners.
+  // Leg positions: union of all deck corners. Always computed so the
+  // preview can draw them in shared mode; perDeck mode draws its own.
   const corners = new Set<string>();
   for (const p of placements) {
     const x1 = p.x;
@@ -317,7 +369,12 @@ export function computeStage(stage: Stage): StageCalc {
     corners.add(`${x1.toFixed(2)},${y2.toFixed(2)}`);
     corners.add(`${x2.toFixed(2)},${y2.toFixed(2)}`);
   }
-  const legCount = corners.size;
+  const legPositions = [...corners].map((c) => {
+    const [x, y] = c.split(",").map(Number);
+    return { x, y };
+  });
+  const legCount =
+    stage.legMode === "perDeck" ? placements.length * 4 : corners.size;
   const legW = legWeight(stage.legHeightCm);
   const legWeightTotal = legCount * legW;
 
@@ -346,10 +403,26 @@ export function computeStage(stage: Stage): StageCalc {
       count1m * (STAGE_RAILS.find((r) => r.length === 1)?.weight ?? 0);
   });
 
+  // Load capacity: minimum SWL across used deck types × placed area ×
+  // height factor. We use the SUM OF PLACED DECK AREAS (not the
+  // requested stage W×D) so partial tilings (`fits === false`, e.g. a
+  // 5.5×3.5 m stage with unfillable 0.5×0.5 gaps) don't overstate the
+  // safe load. Falls back to 0 if no decks were placed.
+  const usedSwls = placements
+    .map((p) => STAGE_DECKS.find((d) => d.key === p.key)?.swl ?? 0)
+    .filter((s) => s > 0);
+  const minSwl = usedSwls.length > 0 ? Math.min(...usedSwls) : 0;
+  const factor = heightSwlFactor(stage.legHeightCm);
+  const effectiveSwlPerM2 = Math.round(minSwl * factor);
+  const areaM2 = stage.width * stage.depth;
+  const placedAreaM2 = placements.reduce((sum, p) => sum + p.w * p.d, 0);
+  const loadCapacityKg = Math.round(placedAreaM2 * effectiveSwlPerM2);
+
   return {
     decks: placements,
     deckCounts,
     legCount,
+    legPositions,
     deckWeight,
     legWeight: legWeightTotal,
     railBreakdown,
@@ -358,8 +431,10 @@ export function computeStage(stage: Stage): StageCalc {
     railLengthTotal,
     railWeight,
     totalWeight: deckWeight + legWeightTotal + railWeight,
-    areaM2: stage.width * stage.depth,
+    areaM2,
     fits,
+    loadCapacityKg,
+    effectiveSwlPerM2,
   };
 }
 
@@ -372,6 +447,9 @@ export type StageTotals = {
   totalRailLength: number;
   totalRailWeight: number;
   totalWeight: number;
+  /** Sum of per-stage `loadCapacityKg` — i.e. how much weight all stages
+   *  combined can carry as distributed load. */
+  totalLoadCapacityKg: number;
   /** Aggregate deck counts across all stages, by deck key. */
   deckCountsByKey: Record<StageDeckKey, number>;
   /** Aggregate leg counts across all stages, by leg height (cm). */
@@ -399,6 +477,7 @@ export function computeStageTotals(
   let totalRailLength = 0;
   let totalRailWeight = 0;
   let totalWeight = 0;
+  let totalLoadCapacityKg = 0;
   let rails2mTotal = 0;
   let rails1mTotal = 0;
 
@@ -412,6 +491,7 @@ export function computeStageTotals(
     totalRailLength += calc.railLengthTotal;
     totalRailWeight += calc.railWeight;
     totalWeight += calc.totalWeight;
+    totalLoadCapacityKg += calc.loadCapacityKg;
     rails2mTotal += calc.rails2mTotal;
     rails1mTotal += calc.rails1mTotal;
     (Object.keys(calc.deckCounts) as StageDeckKey[]).forEach((k) => {
@@ -430,6 +510,7 @@ export function computeStageTotals(
     totalRailLength,
     totalRailWeight,
     totalWeight,
+    totalLoadCapacityKg,
     deckCountsByKey,
     legCountsByHeight,
     rails2mTotal,
@@ -468,12 +549,15 @@ export function normalizeStage(raw: Partial<Stage>): Stage {
     left: !!r.left,
     right: !!r.right,
   };
+  const legMode: StageLegMode =
+    raw.legMode === "perDeck" ? "perDeck" : "shared";
   return {
     id,
     name: typeof raw.name === "string" ? raw.name : "Stage",
     width: Math.max(0.5, width),
     depth: Math.max(0.5, depth),
     legHeightCm,
+    legMode,
     rails,
     notes: typeof raw.notes === "string" ? raw.notes : "",
   };
@@ -490,6 +574,7 @@ export function makeDefaultStage(name: string): Stage {
     width: 6,
     depth: 4,
     legHeightCm: 60,
+    legMode: "shared",
     rails: { ...DEFAULT_RAIL_SIDES },
     notes: "",
   };

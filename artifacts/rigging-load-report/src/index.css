@@ -2126,3 +2126,10 @@ input:focus {
   background: rgba(220, 38, 38, 0.2);
   color: #fca5a5;
 }
+.stage-capacity-note {
+  font-size: 0.78rem;
+  color: var(--muted, #64748b);
+  font-style: italic;
+  margin: -0.4rem 0 0.75rem;
+  line-height: 1.4;
+}

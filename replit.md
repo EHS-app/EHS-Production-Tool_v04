@@ -1,62 +1,95 @@
-# Workspace
+# Overview
 
-## Overview
+This project is a pnpm workspace monorepo using TypeScript, designed to be an internal stage-tech tool for EHS Rigging Load Report. It features multiple specialized reporting views: Rigging Report, Lighting Report, LED Screen Report, and Stage Report. The application aims to streamline calculations and inventory management for various event production aspects, offering functionalities like load calculation, DMX channel management, pixel mapping, and stage design. The entire application is gated behind Clerk sign-in, intended for invitation-only access.
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+# User Preferences
 
-## Stack
+- **Internal Tool**: This is an internal tool, so there is intentionally no public landing page.
+- **Invitation-Only Access**: Access is by invitation only. To request an invite, users should email utleie@ehs.no.
+- **No Sign-Up**: The sign-up footer link is hidden, and no `/sign-up` route exists.
+- **No Google Sign-in**: The Google "Continue with Google" button is hidden.
+- **No Client-side Credentials**: Admin passwords should not touch the browser.
+- **Development Auto-sign-in**: In development, the preview should auto-log the user in as Admin to avoid manual credential entry on reloads. This functionality must be strictly gated by `NODE_ENV` / `import.meta.env.DEV` and not leak to production builds.
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+# System Architecture
 
-## Key Commands
+## Monorepo Structure
 
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/api-server run dev` — run API server locally
+- **Tooling**: pnpm workspaces for monorepo management.
+- **Language**: TypeScript 5.9.
+- **Package Manager**: pnpm.
+- **Node.js**: Version 24.
 
-See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+## API and Data
 
-## Auth
+- **API Framework**: Express 5.
+- **Database**: PostgreSQL with Drizzle ORM.
+- **Validation**: Zod (`zod/v4`) and `drizzle-zod`.
+- **API Codegen**: Orval, generating from OpenAPI specifications.
 
-- **Whole app is gated behind Clerk sign-in** (invitation-only). `artifacts/rigging-load-report/src/main.tsx` wraps `<App />` in a `<ClerkProvider>` and uses `<Show when="signed-in"><App/></Show>` + `<Show when="signed-out"><SignInScreen/></Show>` so unauthenticated visitors see only the branded sign-in card. There is intentionally no public landing page (deviation from the clerk-auth skill default — explicit user requirement: this is an internal tool).
-- `SignInScreen` renders `<SignIn routing="hash" />` (no router required) with EHS branding (orange `#f97316`). The sign-up footer link is hidden via `appearance.elements.footerAction = { display: "none" }`. Below the card, a static info box says: "Access is by invitation only. To request an invite, email utleie@ehs.no" (with a `mailto:` link). No `/sign-up` route exists.
-- **Sign-in screen has a dark/light toggle** (top-right corner of the screen). State is held in `Root` via `useState<"light"|"dark">` and shares the same persistence key as the main app (`localStorage["ehs-rigging-report-v2"].theme`), so the choice survives reloads and is consistent with the in-app theme button. Two `PALETTE` objects (`light`/`dark`) drive both the surrounding chrome (page background, invite-info card) AND the Clerk `<SignIn>` `appearance` (rebuilt via `buildAppearance(theme)` on every render — `baseTheme: dark` from `@clerk/themes` is applied only when `theme === "dark"`).
-- A `SignOutButton` (uses `useClerk().signOut()` + `useUser()`) sits in the header-actions row of `App.tsx` next to the existing buttons, showing the signed-in user's email.
-- `artifacts/api-server/src/app.ts` mounts `clerkProxyMiddleware()` at `CLERK_PROXY_PATH` (`/api/__clerk`) BEFORE `express.json()`, then `clerkMiddleware()` AFTER body parsers. Proxy is production-only; in dev Clerk talks directly to its frontend API.
-- Env vars (auto-provisioned by `setupClerkWhitelabelAuth`): `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`. In prod `VITE_CLERK_PROXY_URL` is auto-set; in dev it's empty.
-- **Hiding the sign-up UI does NOT prevent API-level signups.** To make access truly invitation-only, set Clerk's sign-up mode to "Restricted" in the **Auth pane** (workspace toolbar) — only invited users can then create accounts. Invitations are also sent from the Auth pane.
-- **Google "Continue with Google" button is hidden** at the appearance level (`socialButtons`, `socialButtonsBlockButton`, `socialButtonsIconButton`, `dividerRow` all set to `display: none`). To fully disable Google as an OAuth provider at the Clerk instance level (so the proxy/API also rejects it), turn it off in the **Auth pane** under sign-in providers.
-- **Seeded admin account** (created via Clerk Backend API `POST /v1/users`): username `Admin`, primary email `olti@ehs.no`, password `EHS986!` (the email is auto-verified by `verification.strategy = "admin"`). Sign-in with the literal username "Admin" only works if username sign-in is enabled in the **Auth pane** (Clerk instance settings); otherwise users log in with `olti@ehs.no` + `EHS986!`. The Clerk Backend API does not expose a public endpoint to toggle username-as-identifier — that's an Auth pane setting only.
+## Build and Deployment
 
-## Artifacts
+- **Build Tool**: esbuild for CJS bundles.
+- **Deployment**: Supports GitHub Pages via `BASE_PATH` environment variable.
 
-- **rigging-load-report** (`artifacts/rigging-load-report`) — EHS Rigging Load Report. A single-page React + Vite stage-tech tool with a top-level view switcher:
-  - **Rigging Report view** — multi-system rigging calculator (mirrors the user-supplied HTML): inventory of trusses / fixtures / LED gear, motor selection (EXE Rise D8+), dynamic load factor, multi-point distribution (2–8 points), per-point load calculation with SWL overload detection, side-by-side static/dynamic bar chart, project-wide dashboard, dark/light mode, CSV download and print/export.
-  - **Lighting Report view** — fixture list with two layers:
-    - Linked rows auto-derived from each system's `fixtureRows`. Base info (name/qty/weight/watts/truss) is read-only on this view (edit on rigging side); DMX/position/circuit overlays are stored in `linkedMeta: Record<rigRowId, LinkedMeta>` and persist independently. Orphan meta entries are garbage-collected when the source row/system is deleted.
-    - Each fixture in the inventory carries a `dmxModes: DmxMode[]` list (e.g. Mythos 2 → Standard 30ch / Vector 34ch; MAC Aura PXL → Compact 17 / Basic 32 / Extended 89 / Ludicrous 512; etc.). The Lighting Report's DMX Ch cell renders a mode dropdown for linked rows so the user can pick a known mode and the channel count auto-fills (with a "Custom…" fallback for free entry). Mode selection is stored as `dmxModeIndex` (number for preset, `null` for custom). Defaults to the item's first mode on first link.
-    - Standalone "extra" rows added via `+ Add Extra Fixture`, fully editable.
-    - Totals dashboard sums both layers. Auto-computed DMX end address (`start + ch*qty − 1`) with >512 overflow warning.
-  - **LED Screen Report view** — pixel map generator (inspired by blinkingthings.com / led.fyi). Code lives in `src/lib/led.ts` (types + helpers) and `src/components/LedScreenReportView.tsx` (UI + SVG canvas).
-    - **Panel library is derived directly from the rigging report's `inventory["LED Screen"]`**, not hardcoded. Inventory items that carry `pixelWidth/pixelHeight/physicalWidth/physicalHeight` (added as optional fields on `InventoryItem`) become panel options; items without (e.g. Molton fabric) are filtered out by `buildLedPanels()`. A synthetic `CUSTOM_LED_PANEL` ("Custom panel…") entry is appended last for one-off pixel-map overrides via `screen.customPanel`.
-    - Linked screens auto-derived from each system's `ledRows` whose item is panel-mappable (`findPanelKeyForInventoryName`). Per-screen layout/output/color/notes/customPanel/**nameOverride** stored in `ledLinkedMeta: Record<rigRowId, LedLinkedMeta>` and GC'd alongside linkedMeta. First-edit on a linked row seeds from the currently-resolved screen so the qty-derived default layout is preserved. **Rename**: the Name input on a linked row writes to `nameOverride`; `linkedLedScreens` falls back to the auto-generated `"<system> · <item>"` label when the override is empty/whitespace, so clearing the input restores the auto name.
-    - Persisted `panelKey` values from older builds (slug-style like `uniview-ur-pro-05-3.9`) are mapped to the new inventory-name keys via `migrateLedPanelKey()` on load. Unknown keys fall through to a "(missing)" placeholder option in the dropdown, and `getLedPanel()` falls back to `CUSTOM_LED_PANEL` rather than substituting a different inventory panel — this keeps totals honest until the user re-picks.
-    - Standalone screens added via `+ Add Screen`, fully editable. Per-row actions are text-labeled (`PNG`, `Copy`, `Delete`) rather than icon-only; `Delete` shows a `window.confirm` before removing a manual screen. Linked screens (from rigging inventory) intentionally cannot be deleted from the LED tab — remove them from rigging instead.
-    - Visual SVG canvas: each screen is a grid of color-tinted panels labeled A1, B1, … (Excel-style column letters × row numbers), with a numbered output-assignment circle. Labels auto-hide when cells are too small. Each panel cell is drawn at its true pixel-aspect (e.g. Uniview 1×0.5m = 256×128 → 2:1 wide cells; 0.5×0.5m = 128×128 → square cells) and outlined with a thin dark stroke (in both the on-screen preview and the PNG export) so individual panels stay visually distinguishable even when adjacent same-color cells share a column. **Name pill** — a centered white rounded pill with bold black text (e.g. "Main", "IMAG L") is rendered on each screen in the live preview when `settings.showScreenName` is on and the screen name is non-empty; the same pill is reproduced in the PNG export so what you see is what you get.
-    - Dashboard totals: screens, panels, total pixels, area m², weight kg, power kW, and outputs needed via `outputsForScreen()` — driven by `settings.outputMode` ("per-screen" = `ceil(screen_pixels / portLimit)`; "per-row" = `panelsTall`). `portLimit` default 650,000 px/output. Settings normalized on load to prevent malformed persisted values.
-    - **Per-screen PNG export** (`src/lib/ledExport.ts`, action button "PNG" on each row). Builds a self-contained SVG (alternating column shading using `settings.panelColorDark` / `settings.panelColorLight`, A,1 / B,1 cell labels, optional data-flow arrows along `wirePath` linear or serpentine, optional centered white name pill, optional EHS logo top-right, optional bottom info bar with panel count / total panels / pixel resolution / aspect ratio, optional alignment-circle + corner-X test pattern, output badges either per-screen top-left or per-row left edge). Rasterized via `<canvas>` to PNG (longest side capped at 8192 px, aspect preserved). Logo is fetched once and cached as a data URL via `getLogoDataUrl()` to avoid canvas tainting. All toggles live in an "Export options (PNG)" disclosure card backed by `LedSettings.{showLabels, showArrows, showTestPattern, showScreenName, showInfoBar, showLogo, wirePath, outputMode, portLimit, panelColorDark, panelColorLight}`.
-    - **Dual panel color picker** — two `<input type="color">` swatches plus curated preset chips (Blue / Red / Green / Purple / Orange / Teal / Mono) in `LED_PANEL_COLOR_PRESETS` drive both the live preview and the PNG export. The in-app `ScreenSvg` preview uses the same two-color pattern as the export so it's a true WYSIWYG. `normalizeLedSettings` validates `#rrggbb` and falls back to the Blue defaults for malformed/missing persisted values.
-    - **Panel pattern selector** (`LedSettings.panelPattern`: `"checker" | "columns"`, default `"checker"`). Both the in-app `ScreenSvg` and the PNG export route the per-cell fill through `panelCellColor(col, row, pattern, dark, light)` so they cannot drift out of sync. Checker = `(col+row) % 2` (each individual panel distinct from all neighbours — needed for non-square panels like Uniview 1×0.5 m where the previous column-only striping merged a vertical stack of panels into one tall block). Columns = `col % 2` (the original look). Persisted under `ledSettings.panelPattern`; existing users without the field are normalized to `"checker"`.
-  - All three views persist to localStorage v2 (key `ehs-rigging-report-v2`, additive/back-compat with v1; `ledScreens`, `ledLinkedMeta`, `ledSettings` all optional). Reset clears all three views together.
-  - **Stage Report view** — Nivtec deck calculator (`src/lib/stage.ts` + `src/components/StageReportView.tsx`). User adds rectangular stages by W × D (snapped to 0.5 m); the greedy tiler in `tileStage()` works on a 0.5 m grid and tries each non-square deck (2×1, 0.5×2, 0.5×1) in BOTH catalog and rotated orientations, largest-area-first, so awkward dimensions like 1 × 0.5 m or 3.5 × 2 m fill cleanly. Catalog `StageDeckKey` is preserved across rotations so the breakdown table groups by physical deck type. **Leg config** is per-stage via `Stage.legMode`: `"shared"` (default) counts the union of unique deck-corner positions (adjacent decks share corner legs — the classic 4, 2, 2, … sequence), while `"perDeck"` counts `decks.length × 4` (every deck gets its own 4 legs). Leg height is per-stage from the fixed set 20/40/60/80/100/120/140 cm. `StageCalc.legPositions` is always populated (unique-corner positions) so the SVG can draw shared-corner dots; `perDeck` mode draws 4 inset dots inside each deck rectangle instead. **Load capacity** (`StageCalc.loadCapacityKg`, `effectiveSwlPerM2`) = `placedAreaM2 × minDeckSwl × heightSwlFactor(legHeightCm)`, where placed-area (sum of `p.w × p.d`) — not requested W×D — is used so partial tilings (`fits === false`) don't overstate the safe load; `heightSwlFactor` derates by leg height (≤60 cm: 1.0; 80: 0.85; 100: 0.7; 120: 0.55; 140: 0.45). Breakdown shows distributed load + rated SWL + a small datasheet disclaimer; appends "(placed area only)" when the stage didn't tile cleanly. **Handrails** are optional per side (front/back/left/right); each enabled side picks 2 m pieces first then 1 m to fill, rounding up to the next metre for sub-metre sides. Stages persist under `PersistedV2.stages` and are normalized via `normalizeStage()` on load (defaults missing `rails`/legHeight/dimensions/legMode to safe values). `resetAll()` clears `stages` along with the other tab state. Top dashboard aggregates deck counts by key, leg counts, rail piece counts, total weight, and `totalLoadCapacityKg` (sum across stages); per-stage card shows a top-down SVG with deck rectangles colour-coded by size, leg dots, and red rail strokes for visual sanity-check.
-  - No backend. Single-file `App.tsx`. Top-level state migrates v1 → v2 transparently. Build accepts `BASE_PATH` env for GitHub Pages deploy via `.github/workflows/deploy-pages.yml`.
+## Authentication
+
+- **Provider**: Clerk for sign-in and user management.
+- **Security**:
+    - `clerkProxyMiddleware()` is mounted before `express.json()`.
+    - `clerkMiddleware()` is mounted after body parsers.
+    - Clerk's sign-up mode is set to "Restricted" for invitation-only access.
+    - Google OAuth is disabled at the Clerk instance level.
+- **Admin Setup**: A seeded admin account (`olti@ehs.no` with password `EHS986!`) is provisioned via Clerk Backend API, with email auto-verified.
+- **Dev Auto-sign-in** (preview convenience only — fully gated by `NODE_ENV` / `import.meta.env.DEV`):
+    - Backend route `POST /api/dev/auto-signin-token` (`artifacts/api-server/src/routes/devAutoSignIn.ts`) returns 404 in production. In dev it calls Clerk Backend API `POST /v1/sign_in_tokens` for the seeded admin user (`user_3Cx5qiY52TcaJowheSkwll49BRQ`, expires in 60s) using `CLERK_SECRET_KEY` (server-only) and returns `{ ticket }`.
+    - Frontend (`AuthGate` in `main.tsx`) fetches that ticket on mount when signed-out, then calls `signIn.create({ strategy: "ticket", ticket })` followed by `signIn.finalize()`. While in flight, a `DevSigningInScreen` splash ("Signing in as Admin (preview only)…") is shown instead of the regular `<SignIn>` card to avoid flash-of-login. State machine `devStatus: "pending" | "done"` flips to `"done"` in a try/finally on completion (success or failure), so the regular sign-in card is shown if/when the user signs out.
+    - **Sign-out skip flag**: Clerk's `signOut()` triggers a navigation that remounts `AuthGate`, which would normally re-trigger auto-login on the next page load. To make explicit sign-out actually show the manual sign-in screen, the `SignOutButton` in `App.tsx` writes `sessionStorage["ehs-skip-dev-auto-signin"] = "1"` _before_ calling `signOut()`. `AuthGate`'s `useState` initializer reads & deletes that flag and starts in `"done"` state, skipping auto-login exactly once. Reloading the page after that brings auto-login back.
+    - **No credentials in the client bundle.** We use Clerk's `ticket` strategy (Backend API issues a one-time token) instead of `signIn.password()`, so the admin password never reaches the browser. (The Clerk instance is configured with `email_code` as the only first factor — `user_settings.attributes.email_address.first_factors = ["email_code"]` — so a direct `signIn.password()` call would fail with `needs_second_factor` anyway.)
+    - **Vite tree-shakes** the dev-only branches in production: `import.meta.env.DEV` is statically replaced with `false` at build time, so the auto-login `useEffect`, `DevSigningInScreen`, and the `useState` initial value all collapse to no-ops in the published bundle.
+
+## UI/UX and Features
+
+- **Theme**: Dark/light mode toggle with persistence in `localStorage`. Clerk's appearance dynamically adjusts to the selected theme.
+- **Rigging Report View**:
+    - Multi-system rigging calculator.
+    - Inventory management for trusses, fixtures, LED gear.
+    - Motor selection (EXE Rise D8+), dynamic load factor.
+    - Multi-point load distribution (2–8 points) with SWL overload detection.
+    - Visualizations: side-by-side static/dynamic bar chart.
+    - Project-wide dashboard.
+    - CSV download and print/export functionality.
+- **Lighting Report View**:
+    - Fixture list with derived rows from rigging system's `fixtureRows`.
+    - DMX mode selection per fixture with channel count auto-fill and custom options.
+    - Standalone "extra" fixture rows.
+    - Totals dashboard with DMX end address calculation and overflow warnings.
+- **LED Screen Report View**:
+    - Pixel map generator.
+    - Panel library dynamically derived from rigging report's `inventory["LED Screen"]`.
+    - Linked screens from rigging inventory and standalone customizable screens.
+    - Visual SVG canvas: grids of color-tinted panels with labels, output assignments, and name pills.
+    - Per-screen PNG export with configurable options (labels, arrows, test patterns, info bar, logo, output badges).
+    - Dual panel color picker and curated presets.
+    - Panel pattern selector (`checker` or `columns`).
+    - Dashboard displaying screens, panels, pixels, area, weight, power, and outputs.
+- **Stage Report View**:
+    - Nivtec deck calculator.
+    - User-defined rectangular stages with 0.5 m snapping.
+    - Greedy tiling algorithm for optimal deck placement.
+    - Leg configuration per stage: "shared" (counts unique deck corners) or "perDeck" (4 legs per deck).
+    - Configurable leg heights (20-140 cm) with load capacity derating.
+    - Load capacity calculation (`StageCalc.loadCapacityKg`, `effectiveSwlPerM2`).
+    - Optional handrails per side.
+    - Top-down SVG visualization of stage layout, deck colours, leg dots, and rail strokes.
+- **Persistence**: All three views persist their state to `localStorage` v2 (key `ehs-rigging-report-v2`), with transparent migration from v1. A reset function clears all view states.
+- **Frontend**: Single-page application using React and Vite.
+
+# External Dependencies
+
+- **Clerk**: For authentication and user management.
+- **PostgreSQL**: Relational database.
+- **Drizzle ORM**: TypeScript ORM for PostgreSQL.
+- **Zod**: Schema declaration and validation library.
+- **Orval**: OpenAPI spec code generator.
+- **esbuild**: JavaScript bundler.

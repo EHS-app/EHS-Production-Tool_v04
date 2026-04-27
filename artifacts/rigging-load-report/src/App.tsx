@@ -600,7 +600,14 @@ function SignOutButton() {
   return (
     <button
       className="btn btn-reset"
-      onClick={() => signOut()}
+      onClick={() => {
+        try {
+          sessionStorage.setItem("ehs-skip-dev-auto-signin", "1");
+        } catch {
+          /* sessionStorage may be unavailable */
+        }
+        void signOut();
+      }}
       title={`Signed in as ${label}. Click to sign out.`}
       style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
     >

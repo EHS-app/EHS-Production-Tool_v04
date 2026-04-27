@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ClerkProvider, SignIn, Show } from "@clerk/react";
+import { ClerkProvider, SignIn, Show, useSignIn, useAuth } from "@clerk/react";
 import { dark } from "@clerk/themes";
 import App from "./App";
 import "./index.css";
@@ -251,18 +251,133 @@ function Root() {
         },
       }}
     >
+      <AuthGate
+        theme={theme}
+        onToggleTheme={() =>
+          setTheme((t) => (t === "dark" ? "light" : "dark"))
+        }
+      />
+    </ClerkProvider>
+  );
+}
+
+function AuthGate({
+  theme,
+  onToggleTheme,
+}: {
+  theme: ThemeMode;
+  onToggleTheme: () => void;
+}) {
+  const { signIn } = useSignIn();
+  const { isLoaded: authLoaded, isSignedIn } = useAuth();
+  const attemptedRef = useRef(false);
+  const [devStatus, setDevStatus] = useState<"pending" | "done">(() => {
+    if (!import.meta.env.DEV) return "done";
+    try {
+      if (sessionStorage.getItem("ehs-skip-dev-auto-signin") === "1") {
+        sessionStorage.removeItem("ehs-skip-dev-auto-signin");
+        return "done";
+      }
+    } catch {
+      /* sessionStorage may be unavailable */
+    }
+    return "pending";
+  });
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    if (devStatus === "done") return;
+    if (!authLoaded) return;
+    if (isSignedIn) {
+      setDevStatus("done");
+      return;
+    }
+    if (attemptedRef.current) return;
+    if (!signIn) return;
+    attemptedRef.current = true;
+    (async () => {
+      try {
+        const tokenRes = await fetch("/api/dev/auto-signin-token", {
+          method: "POST",
+        });
+        if (!tokenRes.ok) {
+          console.warn(
+            "[dev auto-sign-in] token endpoint failed:",
+            tokenRes.status,
+          );
+          return;
+        }
+        const { ticket } = (await tokenRes.json()) as { ticket?: string };
+        if (!ticket) {
+          console.warn("[dev auto-sign-in] no ticket returned");
+          return;
+        }
+        const tRes = await signIn.create({ strategy: "ticket", ticket });
+        if (tRes.error) {
+          console.warn("[dev auto-sign-in] ticket failed:", tRes.error);
+          return;
+        }
+        if (signIn.status === "complete") {
+          const finRes = await signIn.finalize();
+          if (finRes.error) {
+            console.warn("[dev auto-sign-in] finalize failed:", finRes.error);
+          }
+        } else {
+          console.warn(
+            "[dev auto-sign-in] unexpected status:",
+            signIn.status,
+          );
+        }
+      } catch (err) {
+        console.warn("[dev auto-sign-in] failed:", err);
+      } finally {
+        setDevStatus("done");
+      }
+    })();
+  }, [signIn, authLoaded, isSignedIn, devStatus]);
+
+  return (
+    <>
       <Show when="signed-in">
         <App />
       </Show>
       <Show when="signed-out">
-        <SignInScreen
-          theme={theme}
-          onToggleTheme={() =>
-            setTheme((t) => (t === "dark" ? "light" : "dark"))
-          }
-        />
+        {devStatus === "pending" ? (
+          <DevSigningInScreen theme={theme} />
+        ) : (
+          <SignInScreen theme={theme} onToggleTheme={onToggleTheme} />
+        )}
       </Show>
-    </ClerkProvider>
+    </>
+  );
+}
+
+function DevSigningInScreen({ theme }: { theme: ThemeMode }) {
+  const c = PALETTE[theme];
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: c.pageBg,
+        color: c.text,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexDirection: "column",
+        gap: "16px",
+        fontFamily:
+          'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+      }}
+    >
+      <img
+        src="/logo.png"
+        alt="EHS"
+        style={{ height: "60px", opacity: 0.85 }}
+      />
+      <div style={{ fontSize: "14px", color: c.muted }}>
+        Signing in as Admin (preview only)…
+      </div>
+    </div>
   );
 }
 

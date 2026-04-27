@@ -13,43 +13,6 @@ export type LedPanel = {
   weight: number;
   /** Maximum cabinet power in W (aka "peak white"). */
   power: number;
-  /** Optional richer manufacturer specs. All optional so panels added by
-   *  the user from rigging inventory (which only carry the
-   *  load-and-power numbers) keep working. When present, the LED tab
-   *  surfaces them in a "Datasheet" expander next to the screen row and
-   *  uses `avgPower` to show a typical-vs-max power split on the
-   *  dashboard. */
-  /** Brand name (e.g. "Uniview"). */
-  brand?: string;
-  /** Model designation (e.g. "UR Pro 3.9"). */
-  model?: string;
-  /** Pixel pitch in mm (e.g. 3.91). */
-  pitchMm?: number;
-  /** Average / typical power consumption per cabinet in W (≈ 1/3 of max
-   *  for most LED cabinets). Used for "typical kW" dashboard split. */
-  avgPower?: number;
-  /** Brightness in nits / cd/m². */
-  brightnessNits?: number;
-  /** Visual refresh rate in Hz (e.g. 3840 for the Uniview UR Pro). */
-  refreshHz?: number;
-  /** Horizontal viewing angle in degrees. */
-  viewingAngleH?: number;
-  /** Vertical viewing angle in degrees. */
-  viewingAngleV?: number;
-  /** Operating voltage label (e.g. "AC 100–240 V, 50/60 Hz"). */
-  voltage?: string;
-  /** IP rating label (e.g. "IP30 (indoor)"). */
-  ipRating?: string;
-  /** Cabinet depth in mm. */
-  depthMm?: number;
-  /** LED module width in mm (cabinets are tiled from modules). */
-  moduleWMm?: number;
-  /** LED module height in mm. */
-  moduleHMm?: number;
-  /** Cabinet material (e.g. "Die-cast aluminium"). */
-  material?: string;
-  /** Manufacturer datasheet / product URL. */
-  datasheetUrl?: string;
 };
 
 export type LedCustomPanel = {
@@ -250,24 +213,6 @@ export type LedPanelSource = {
   pixelHeight?: number;
   physicalWidth?: number;
   physicalHeight?: number;
-  /** Optional richer manufacturer specs forwarded onto the LedPanel.
-   *  Same fields as LedPanel — kept optional so older inventory items
-   *  that don't supply them still work. */
-  brand?: string;
-  model?: string;
-  pitchMm?: number;
-  avgPower?: number;
-  brightnessNits?: number;
-  refreshHz?: number;
-  viewingAngleH?: number;
-  viewingAngleV?: number;
-  voltage?: string;
-  ipRating?: string;
-  depthMm?: number;
-  moduleWMm?: number;
-  moduleHMm?: number;
-  material?: string;
-  datasheetUrl?: string;
 };
 
 /** Build the LED panel library directly from the rigging inventory. Items
@@ -295,21 +240,6 @@ export function buildLedPanels(items: LedPanelSource[]): LedPanel[] {
         physicalHeight: it.physicalHeight,
         weight: it.weight,
         power: it.wattage,
-        brand: it.brand,
-        model: it.model,
-        pitchMm: it.pitchMm,
-        avgPower: it.avgPower,
-        brightnessNits: it.brightnessNits,
-        refreshHz: it.refreshHz,
-        viewingAngleH: it.viewingAngleH,
-        viewingAngleV: it.viewingAngleV,
-        voltage: it.voltage,
-        ipRating: it.ipRating,
-        depthMm: it.depthMm,
-        moduleWMm: it.moduleWMm,
-        moduleHMm: it.moduleHMm,
-        material: it.material,
-        datasheetUrl: it.datasheetUrl,
       });
     }
   }
@@ -351,7 +281,10 @@ export function migrateLedPanelKey(key: string): LedPanelKey {
       return "Uniview UR Pro 0.5x0.5m (7.2kg)";
     case "uniview-ur-pro-10-3.9":
     case "uniview-ur-pro-10-2.9":
-      return "Uniview UR Pro 1x0.5m (10.8kg)";
+    // The 500 × 1000 cabinet is now stored mounted in PORTRAIT
+    // (0.5 m wide × 1.0 m tall), so the old landscape key forwards here.
+    case "Uniview UR Pro 1x0.5m (10.8kg)":
+      return "Uniview UR Pro 0.5x1m (10.8kg)";
     default:
       return key;
   }
@@ -454,10 +387,6 @@ export type LedScreenMetrics = {
   weightKg: number;
   /** Maximum power, summing each cabinet's max draw. */
   powerW: number;
-  /** Average / typical power. Falls back to 1/3 of max for cabinets that
-   *  don't publish an explicit avg figure (the de-facto industry rule of
-   *  thumb for video content vs all-white test patterns). */
-  powerAvgW: number;
 };
 
 export function computeScreenMetrics(
@@ -468,7 +397,6 @@ export function computeScreenMetrics(
   const panelCount = screen.panelsWide * screen.panelsTall;
   const pixelsX = screen.panelsWide * panel.pixelWidth;
   const pixelsY = screen.panelsTall * panel.pixelHeight;
-  const avgPerCabinet = panel.avgPower ?? panel.power / 3;
   return {
     panels: panelCount,
     pixelsX,
@@ -479,7 +407,6 @@ export function computeScreenMetrics(
     areaM2: panelCount * (panel.physicalWidth * panel.physicalHeight),
     weightKg: panelCount * panel.weight,
     powerW: panelCount * panel.power,
-    powerAvgW: panelCount * avgPerCabinet,
   };
 }
 
@@ -491,9 +418,6 @@ export type LedTotals = {
   weightKg: number;
   /** Sum of every panel's MAX power in W (peak white). */
   powerW: number;
-  /** Sum of every panel's average / typical power in W. Useful for
-   *  estimating a realistic mains run for video content. */
-  powerAvgW: number;
   portsNeeded: number;
   /** Width in pixels of the widest screen — used by the processor
    *  capacity check to compare against the processor's max canvas width. */
@@ -536,7 +460,6 @@ export function computeLedTotals(
     areaM2: 0,
     weightKg: 0,
     powerW: 0,
-    powerAvgW: 0,
     portsNeeded: 0,
     largestWidthPx: 0,
     largestHeightPx: 0,
@@ -549,7 +472,6 @@ export function computeLedTotals(
     t.areaM2 += m.areaM2;
     t.weightKg += m.weightKg;
     t.powerW += m.powerW;
-    t.powerAvgW += m.powerAvgW;
     t.portsNeeded += outputsForScreen(s, settings, panels);
     if (m.pixelsX > t.largestWidthPx) t.largestWidthPx = m.pixelsX;
     if (m.pixelsY > t.largestHeightPx) t.largestHeightPx = m.pixelsY;

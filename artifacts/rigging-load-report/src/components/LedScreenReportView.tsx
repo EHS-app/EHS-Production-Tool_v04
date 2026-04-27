@@ -313,15 +313,7 @@ function LedDashboard({
       <Stat label="Total pixels" value={PIXEL_FMT.format(totals.pixels)} />
       <Stat label="Area" value={`${fmt(totals.areaM2, 1)} m²`} />
       <Stat label="Weight" value={`${fmt(totals.weightKg, 1)} kg`} />
-      <Stat
-        label="Power"
-        value={`${fmt(totals.powerW / 1000, 2)} kW`}
-        sub={
-          totals.powerAvgW > 0 && totals.powerAvgW < totals.powerW
-            ? `~${fmt(totals.powerAvgW / 1000, 2)} kW typical`
-            : undefined
-        }
-      />
+      <Stat label="Power" value={`${fmt(totals.powerW / 1000, 2)} kW`} />
       <Stat
         label="Outputs needed"
         value={fmt(totals.portsNeeded, 0)}
@@ -349,99 +341,6 @@ function Stat({
   );
 }
 
-/** A panel has a "rich" datasheet to show when at least one of these
- *  optional manufacturer fields is filled in. The synthetic Custom panel
- *  and pure-rigging entries (only weight + power) return false. */
-function panelHasRichSpecs(p: LedPanel): boolean {
-  return Boolean(
-    p.brand ||
-      p.model ||
-      p.pitchMm ||
-      p.brightnessNits ||
-      p.refreshHz ||
-      p.viewingAngleH ||
-      p.voltage ||
-      p.ipRating ||
-      p.datasheetUrl,
-  );
-}
-
-function DatasheetCard({ panel }: { panel: LedPanel }) {
-  const rows: Array<[string, string]> = [];
-  if (panel.brand || panel.model) {
-    rows.push([
-      "Brand / Model",
-      `${panel.brand ?? ""}${panel.brand && panel.model ? " — " : ""}${panel.model ?? ""}`,
-    ]);
-  }
-  if (panel.pitchMm)
-    rows.push(["Pixel pitch", `${panel.pitchMm.toFixed(2)} mm`]);
-  rows.push([
-    "Cabinet resolution",
-    `${PIXEL_FMT.format(panel.pixelWidth)} × ${PIXEL_FMT.format(panel.pixelHeight)} px`,
-  ]);
-  rows.push([
-    "Cabinet size",
-    `${(panel.physicalWidth * 1000).toFixed(0)} × ${(panel.physicalHeight * 1000).toFixed(0)}${panel.depthMm ? ` × ${panel.depthMm}` : ""} mm`,
-  ]);
-  if (panel.moduleWMm && panel.moduleHMm) {
-    rows.push(["Module size", `${panel.moduleWMm} × ${panel.moduleHMm} mm`]);
-  }
-  rows.push([
-    "Pixel density",
-    `${PIXEL_FMT.format(Math.round(panel.pixelWidth * panel.pixelHeight / (panel.physicalWidth * panel.physicalHeight)))} px/m²`,
-  ]);
-  rows.push(["Cabinet weight", `${panel.weight.toFixed(1)} kg`]);
-  rows.push([
-    "Power (max)",
-    `${panel.power} W per cabinet (≈ ${Math.round(panel.power / (panel.physicalWidth * panel.physicalHeight))} W/m²)`,
-  ]);
-  if (panel.avgPower) {
-    rows.push([
-      "Power (typical)",
-      `${panel.avgPower} W per cabinet (≈ ${Math.round(panel.avgPower / (panel.physicalWidth * panel.physicalHeight))} W/m²)`,
-    ]);
-  }
-  if (panel.brightnessNits)
-    rows.push(["Brightness", `${PIXEL_FMT.format(panel.brightnessNits)} nits`]);
-  if (panel.refreshHz)
-    rows.push(["Refresh rate", `≥ ${PIXEL_FMT.format(panel.refreshHz)} Hz`]);
-  if (panel.viewingAngleH || panel.viewingAngleV)
-    rows.push([
-      "Viewing angle",
-      `${panel.viewingAngleH ?? "—"}° H / ${panel.viewingAngleV ?? "—"}° V`,
-    ]);
-  if (panel.voltage) rows.push(["Voltage", panel.voltage]);
-  if (panel.ipRating) rows.push(["IP rating", panel.ipRating]);
-  if (panel.material) rows.push(["Material", panel.material]);
-
-  return (
-    <div className="led-datasheet-card">
-      <div className="led-datasheet-head">
-        <strong>{panel.name} — manufacturer datasheet</strong>
-        {panel.datasheetUrl && (
-          <a
-            className="led-datasheet-link"
-            href={panel.datasheetUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Open product page ↗
-          </a>
-        )}
-      </div>
-      <dl className="led-datasheet-grid">
-        {rows.map(([k, v]) => (
-          <div key={k} className="led-datasheet-row">
-            <dt>{k}</dt>
-            <dd>{v}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  );
-}
-
 function ScreenRow({
   screen,
   panels,
@@ -462,8 +361,6 @@ function ScreenRow({
   const panel = resolveScreenPanel(screen, panels);
   const m = computeScreenMetrics(screen, panels);
   const isCustom = screen.panelKey === CUSTOM_PANEL_KEY;
-  const hasDatasheet = panelHasRichSpecs(panel);
-  const [showSpecs, setShowSpecs] = useState(false);
 
   return (
     <>
@@ -488,41 +385,27 @@ function ScreenRow({
           />
         </td>
         <td>
-          <div className="led-panel-cell">
-            <select
-              className="led-input"
-              value={screen.panelKey}
-              onChange={(e) =>
-                onUpdate({ panelKey: e.target.value as LedPanelKey })
-              }
-            >
-              {/* If the stored key isn't in the current library (e.g. an
-                  inventory item was renamed), surface it as a placeholder
-                  so the user can see it before re-picking. */}
-              {!panels.some((p) => p.key === screen.panelKey) && (
-                <option value={screen.panelKey}>
-                  {screen.panelKey} (missing)
-                </option>
-              )}
-              {panels.map((p) => (
-                <option key={p.key} value={p.key}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-            {hasDatasheet && (
-              <button
-                type="button"
-                className={`led-spec-toggle ${showSpecs ? "is-open" : ""}`}
-                onClick={() => setShowSpecs((v) => !v)}
-                title="Show / hide manufacturer datasheet specs"
-                aria-expanded={showSpecs}
-                aria-label="Toggle datasheet"
-              >
-                {showSpecs ? "× Specs" : "ⓘ Specs"}
-              </button>
+          <select
+            className="led-input"
+            value={screen.panelKey}
+            onChange={(e) =>
+              onUpdate({ panelKey: e.target.value as LedPanelKey })
+            }
+          >
+            {/* If the stored key isn't in the current library (e.g. an
+                inventory item was renamed), surface it as a placeholder
+                so the user can see it before re-picking. */}
+            {!panels.some((p) => p.key === screen.panelKey) && (
+              <option value={screen.panelKey}>
+                {screen.panelKey} (missing)
+              </option>
             )}
-          </div>
+            {panels.map((p) => (
+              <option key={p.key} value={p.key}>
+                {p.name}
+              </option>
+            ))}
+          </select>
         </td>
         <td>
           <input
@@ -633,13 +516,6 @@ function ScreenRow({
           )}
         </td>
       </tr>
-      {showSpecs && hasDatasheet && (
-        <tr className="led-row-specs">
-          <td colSpan={11}>
-            <DatasheetCard panel={panel} />
-          </td>
-        </tr>
-      )}
       {isCustom && (
         <tr className="led-row-custom">
           <td colSpan={11}>

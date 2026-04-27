@@ -26,6 +26,15 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
 
+## Auth
+
+- **Whole app is gated behind Clerk sign-in** (invitation-only). `artifacts/rigging-load-report/src/main.tsx` wraps `<App />` in a `<ClerkProvider>` and uses `<Show when="signed-in"><App/></Show>` + `<Show when="signed-out"><SignInScreen/></Show>` so unauthenticated visitors see only the branded sign-in card. There is intentionally no public landing page (deviation from the clerk-auth skill default — explicit user requirement: this is an internal tool).
+- `SignInScreen` renders `<SignIn routing="hash" />` (no router required) with EHS branding (orange `#f97316` + navy `#0f172a`/`#1e293b`, `dark` baseTheme from `@clerk/themes`). The sign-up footer link is hidden via `appearance.elements.footerAction = { display: "none" }`. Below the card, a static info box says: "Access is by invitation only. To request an invite, email utleie@ehs.no" (with a `mailto:` link). No `/sign-up` route exists.
+- A `SignOutButton` (uses `useClerk().signOut()` + `useUser()`) sits in the header-actions row of `App.tsx` next to the existing buttons, showing the signed-in user's email.
+- `artifacts/api-server/src/app.ts` mounts `clerkProxyMiddleware()` at `CLERK_PROXY_PATH` (`/api/__clerk`) BEFORE `express.json()`, then `clerkMiddleware()` AFTER body parsers. Proxy is production-only; in dev Clerk talks directly to its frontend API.
+- Env vars (auto-provisioned by `setupClerkWhitelabelAuth`): `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`. In prod `VITE_CLERK_PROXY_URL` is auto-set; in dev it's empty.
+- **Hiding the sign-up UI does NOT prevent API-level signups.** To make access truly invitation-only, set Clerk's sign-up mode to "Restricted" in the **Auth pane** (workspace toolbar) — only invited users can then create accounts. Invitations are also sent from the Auth pane.
+
 ## Artifacts
 
 - **rigging-load-report** (`artifacts/rigging-load-report`) — EHS Rigging Load Report. A single-page React + Vite stage-tech tool with a top-level view switcher:

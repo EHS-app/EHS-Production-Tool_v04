@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useClerk, useUser } from "@clerk/react";
 import "./index.css";
 import ehsLogo from "./assets/ehs-logo.png";
 import {
@@ -586,6 +587,28 @@ function computeMetrics(sys: System): SystemMetrics {
     dynamicPointLoads,
     hoist,
   };
+}
+
+function SignOutButton() {
+  const { signOut } = useClerk();
+  const { user } = useUser();
+  const label =
+    user?.primaryEmailAddress?.emailAddress ??
+    user?.username ??
+    user?.firstName ??
+    "Account";
+  return (
+    <button
+      className="btn btn-reset"
+      onClick={() => signOut()}
+      title={`Signed in as ${label}. Click to sign out.`}
+      style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+    >
+      <span style={{ opacity: 0.85 }}>{label}</span>
+      <span aria-hidden>·</span>
+      <span>Sign out</span>
+    </button>
+  );
 }
 
 function App() {
@@ -1566,6 +1589,7 @@ function App() {
           >
             Export Report
           </button>
+          <SignOutButton />
         </div>
       </div>
 

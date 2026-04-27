@@ -65,80 +65,102 @@ export const LED_SCREEN_COLORS = [
   "#f97316",
 ];
 
-export const BUILT_IN_LED_PANELS: LedPanel[] = [
-  {
-    key: "uniview-ur-pro-05-3.9",
-    name: "Uniview UR Pro 0.5×0.5m (3.9mm)",
-    pixelWidth: 128,
-    pixelHeight: 128,
-    physicalWidth: 0.5,
-    physicalHeight: 0.5,
-    weight: 7.2,
-    power: 175,
-  },
-  {
-    key: "uniview-ur-pro-05-2.9",
-    name: "Uniview UR Pro 0.5×0.5m (2.9mm)",
-    pixelWidth: 168,
-    pixelHeight: 168,
-    physicalWidth: 0.5,
-    physicalHeight: 0.5,
-    weight: 7.2,
-    power: 175,
-  },
-  {
-    key: "uniview-ur-pro-10-3.9",
-    name: "Uniview UR Pro 1×0.5m (3.9mm)",
-    pixelWidth: 256,
-    pixelHeight: 128,
-    physicalWidth: 1.0,
-    physicalHeight: 0.5,
-    weight: 10.8,
-    power: 350,
-  },
-  {
-    key: "uniview-ur-pro-10-2.9",
-    name: "Uniview UR Pro 1×0.5m (2.9mm)",
-    pixelWidth: 336,
-    pixelHeight: 168,
-    physicalWidth: 1.0,
-    physicalHeight: 0.5,
-    weight: 10.8,
-    power: 350,
-  },
-  {
-    key: "custom",
-    name: "Custom panel…",
-    pixelWidth: 128,
-    pixelHeight: 128,
-    physicalWidth: 0.5,
-    physicalHeight: 0.5,
-    weight: 7.0,
-    power: 175,
-  },
-];
+/** Synthetic "Custom panel…" entry — not from rigging inventory. The user
+ *  enters pixel/physical/weight/power per-screen via the customPanel field. */
+export const CUSTOM_PANEL_KEY = "custom";
+export const CUSTOM_LED_PANEL: LedPanel = {
+  key: CUSTOM_PANEL_KEY,
+  name: "Custom panel…",
+  pixelWidth: 128,
+  pixelHeight: 128,
+  physicalWidth: 0.5,
+  physicalHeight: 0.5,
+  weight: 7.0,
+  power: 175,
+};
 
-export const DEFAULT_LED_PANEL_KEY = BUILT_IN_LED_PANELS[0].key;
+/** Anything carrying enough info to be exposed as a panel option. The rigging
+ *  report's InventoryItem shape conforms to this naturally. */
+export type LedPanelSource = {
+  name: string;
+  weight: number;
+  wattage: number;
+  pixelWidth?: number;
+  pixelHeight?: number;
+  physicalWidth?: number;
+  physicalHeight?: number;
+};
 
-/** Inventory item name → built-in panel key for auto-link from rigging.
- *  Returns null for items that should NOT auto-link to the LED tab
- *  (Molton fabric, custom rows, unrecognized items). The user can always
- *  add an LED screen manually on the LED tab. */
-export function detectPanelKeyFromInventory(name: string): LedPanelKey | null {
-  const n = name.toLowerCase();
-  if (n.startsWith("molton")) return null;
-  if (n.includes("uniview") && n.includes("0.5x0.5")) {
-    return "uniview-ur-pro-05-3.9";
+/** Build the LED panel library directly from the rigging inventory. Items
+ *  that don't carry pixel/physical info (e.g. Molton fabric) are skipped.
+ *  The "Custom panel…" entry is always appended last. */
+export function buildLedPanels(items: LedPanelSource[]): LedPanel[] {
+  const panels: LedPanel[] = [];
+  for (const it of items) {
+    if (
+      typeof it.pixelWidth === "number" &&
+      typeof it.pixelHeight === "number" &&
+      typeof it.physicalWidth === "number" &&
+      typeof it.physicalHeight === "number" &&
+      it.pixelWidth > 0 &&
+      it.pixelHeight > 0 &&
+      it.physicalWidth > 0 &&
+      it.physicalHeight > 0
+    ) {
+      panels.push({
+        key: it.name,
+        name: it.name,
+        pixelWidth: it.pixelWidth,
+        pixelHeight: it.pixelHeight,
+        physicalWidth: it.physicalWidth,
+        physicalHeight: it.physicalHeight,
+        weight: it.weight,
+        power: it.wattage,
+      });
+    }
   }
-  if (n.includes("uniview") && n.includes("1x0.5")) {
-    return "uniview-ur-pro-10-3.9";
-  }
-  return null;
+  panels.push(CUSTOM_LED_PANEL);
+  return panels;
 }
 
-/** True if the inventory item should appear as a screen on the LED tab. */
-export function isLedPanelInventoryItem(name: string): boolean {
-  return detectPanelKeyFromInventory(name) !== null;
+/** Default panel key for a freshly-added screen — first inventory panel,
+ *  falling back to Custom if inventory has no LED-capable items. */
+export function defaultPanelKeyOf(panels: LedPanel[]): LedPanelKey {
+  return panels[0]?.key ?? CUSTOM_PANEL_KEY;
+}
+
+/** Look up a panel by key. If not found (e.g. an inventory item was renamed
+ *  or removed since the screen was saved), fall back to the synthetic Custom
+ *  panel rather than the first inventory entry — silently substituting a
+ *  similarly-named-but-different panel would corrupt totals. The UI surfaces
+ *  the stale key as "(missing)" so the user can re-pick. */
+export function getLedPanel(key: LedPanelKey, panels: LedPanel[]): LedPanel {
+  return panels.find((p) => p.key === key) ?? CUSTOM_LED_PANEL;
+}
+
+/** True if this rigging inventory item is mapped to a panel in the library. */
+export function findPanelKeyForInventoryName(
+  name: string,
+  panels: LedPanel[],
+): LedPanelKey | null {
+  const found = panels.find((p) => p.key === name);
+  return found ? found.key : null;
+}
+
+/** Migrate panel keys from older builds (which used pitch-suffixed slugs)
+ *  to the new inventory-name-based keys. Unknown keys are returned as-is so
+ *  getLedPanel's fallback can take over. */
+export function migrateLedPanelKey(key: string): LedPanelKey {
+  switch (key) {
+    case "uniview-ur-pro-05-3.9":
+    case "uniview-ur-pro-05-2.9":
+      return "Uniview UR Pro 0.5x0.5m (7.2kg)";
+    case "uniview-ur-pro-10-3.9":
+    case "uniview-ur-pro-10-2.9":
+      return "Uniview UR Pro 1x0.5m (10.8kg)";
+    default:
+      return key;
+  }
 }
 
 /** Normalize a possibly-malformed persisted LedSettings into a safe value. */
@@ -151,23 +173,17 @@ export function normalizeLedSettings(s: unknown): LedSettings {
       : DEFAULT_LED_SETTINGS.portLimit;
   return {
     portLimit,
-    showLabels: obj.showLabels !== false, // default true
+    showLabels: obj.showLabels !== false,
   };
 }
 
-export function getLedPanel(key: LedPanelKey): LedPanel {
-  return (
-    BUILT_IN_LED_PANELS.find((p) => p.key === key) ?? BUILT_IN_LED_PANELS[0]
-  );
-}
-
-/** Resolve a screen's effective panel (using customPanel if panelKey === "custom"). */
-export function resolveScreenPanel(screen: {
-  panelKey: LedPanelKey;
-  customPanel?: LedCustomPanel;
-}): LedPanel {
-  const base = getLedPanel(screen.panelKey);
-  if (screen.panelKey === "custom" && screen.customPanel) {
+/** Resolve a screen's effective panel (using customPanel if panelKey === custom). */
+export function resolveScreenPanel(
+  screen: { panelKey: LedPanelKey; customPanel?: LedCustomPanel },
+  panels: LedPanel[],
+): LedPanel {
+  const base = getLedPanel(screen.panelKey, panels);
+  if (screen.panelKey === CUSTOM_PANEL_KEY && screen.customPanel) {
     return {
       ...base,
       pixelWidth: screen.customPanel.pixelWidth,
@@ -193,21 +209,24 @@ export type LedScreenMetrics = {
   powerW: number;
 };
 
-export function computeScreenMetrics(screen: LedScreen): LedScreenMetrics {
-  const panel = resolveScreenPanel(screen);
-  const panels = screen.panelsWide * screen.panelsTall;
+export function computeScreenMetrics(
+  screen: LedScreen,
+  panels: LedPanel[],
+): LedScreenMetrics {
+  const panel = resolveScreenPanel(screen, panels);
+  const panelCount = screen.panelsWide * screen.panelsTall;
   const pixelsX = screen.panelsWide * panel.pixelWidth;
   const pixelsY = screen.panelsTall * panel.pixelHeight;
   return {
-    panels,
+    panels: panelCount,
     pixelsX,
     pixelsY,
     pixels: pixelsX * pixelsY,
     widthM: screen.panelsWide * panel.physicalWidth,
     heightM: screen.panelsTall * panel.physicalHeight,
-    areaM2: panels * (panel.physicalWidth * panel.physicalHeight),
-    weightKg: panels * panel.weight,
-    powerW: panels * panel.power,
+    areaM2: panelCount * (panel.physicalWidth * panel.physicalHeight),
+    weightKg: panelCount * panel.weight,
+    powerW: panelCount * panel.power,
   };
 }
 
@@ -224,6 +243,7 @@ export type LedTotals = {
 export function computeLedTotals(
   screens: LedScreen[],
   settings: LedSettings,
+  panels: LedPanel[],
 ): LedTotals {
   const t: LedTotals = {
     screens: screens.length,
@@ -236,7 +256,7 @@ export function computeLedTotals(
   };
   const limit = Math.max(1, settings.portLimit);
   for (const s of screens) {
-    const m = computeScreenMetrics(s);
+    const m = computeScreenMetrics(s, panels);
     t.panels += m.panels;
     t.pixels += m.pixels;
     t.areaM2 += m.areaM2;
@@ -258,12 +278,15 @@ export function colLabel(i: number): string {
   return out;
 }
 
-export function newLedScreen(seed?: Partial<LedScreen>): LedScreen {
+export function newLedScreen(
+  defaultPanelKey: LedPanelKey,
+  seed?: Partial<LedScreen>,
+): LedScreen {
   const id = `led-${Math.random().toString(36).slice(2, 9)}`;
   return {
     id,
     name: seed?.name ?? "Screen",
-    panelKey: seed?.panelKey ?? DEFAULT_LED_PANEL_KEY,
+    panelKey: seed?.panelKey ?? defaultPanelKey,
     panelsWide: seed?.panelsWide ?? 8,
     panelsTall: seed?.panelsTall ?? 4,
     color: seed?.color ?? LED_SCREEN_COLORS[0],
@@ -275,11 +298,14 @@ export function newLedScreen(seed?: Partial<LedScreen>): LedScreen {
   };
 }
 
-export function defaultLinkedLedMeta(qty: number): LedLinkedMeta {
+export function defaultLinkedLedMeta(
+  qty: number,
+  defaultPanelKey: LedPanelKey,
+): LedLinkedMeta {
   const w = Math.max(1, Math.ceil(Math.sqrt(qty)));
   const h = Math.max(1, Math.ceil(qty / w));
   return {
-    panelKey: DEFAULT_LED_PANEL_KEY,
+    panelKey: defaultPanelKey,
     panelsWide: w,
     panelsTall: h,
     color: LED_SCREEN_COLORS[0],

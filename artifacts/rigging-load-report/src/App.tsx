@@ -2,13 +2,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "./index.css";
 import ehsLogo from "./assets/ehs-logo.png";
 import {
-  BUILT_IN_LED_PANELS,
+  CUSTOM_LED_PANEL,
+  CUSTOM_PANEL_KEY,
   DEFAULT_LED_SETTINGS,
   LED_SCREEN_COLORS,
+  buildLedPanels,
   computeLedTotals,
   defaultLinkedLedMeta,
-  detectPanelKeyFromInventory,
-  isLedPanelInventoryItem,
+  defaultPanelKeyOf,
+  findPanelKeyForInventoryName,
+  migrateLedPanelKey,
   newLedScreen,
   normalizeLedSettings,
   type LedCustomPanel,
@@ -32,6 +35,12 @@ type InventoryItem = {
    *  manufacturer documentation. The first entry is treated as the default
    *  when the fixture is first linked into the Lighting Plan. */
   dmxModes?: DmxMode[];
+  /** LED panel pixel/physical dimensions. When all four are set, this
+   *  inventory item appears as a panel option on the LED Screen Report. */
+  pixelWidth?: number;
+  pixelHeight?: number;
+  physicalWidth?: number;
+  physicalHeight?: number;
 };
 
 type Category = "Truss" | "Fixtures" | "LED Screen";
@@ -285,8 +294,26 @@ const inventory: Record<Category, InventoryItem[]> = {
     },
   ],
   "LED Screen": [
-    { name: "Uniview UR Pro 1x0.5m (10.8kg)", weight: 10.8, wattage: 350, area: 0.5 },
-    { name: "Uniview UR Pro 0.5x0.5m (7.2kg)", weight: 7.2, wattage: 175, area: 0.25 },
+    {
+      name: "Uniview UR Pro 1x0.5m (10.8kg)",
+      weight: 10.8,
+      wattage: 350,
+      area: 0.5,
+      pixelWidth: 256,
+      pixelHeight: 128,
+      physicalWidth: 1.0,
+      physicalHeight: 0.5,
+    },
+    {
+      name: "Uniview UR Pro 0.5x0.5m (7.2kg)",
+      weight: 7.2,
+      wattage: 175,
+      area: 0.25,
+      pixelWidth: 128,
+      pixelHeight: 128,
+      physicalWidth: 0.5,
+      physicalHeight: 0.5,
+    },
     { name: "Molton 6x4m (7.2kg)", weight: 7.2, wattage: 0, area: 0 },
     { name: "Molton 9x6m (16.2kg)", weight: 16.2, wattage: 0, area: 0 },
     { name: "Molton 9x9m (24.3kg)", weight: 24.3, wattage: 0, area: 0 },
@@ -590,11 +617,22 @@ function App() {
     persisted?.linkedMeta ?? {},
   );
   const [ledScreens, setLedScreens] = useState<LedScreen[]>(
-    persisted?.ledScreens ?? [],
+    () =>
+      (persisted?.ledScreens ?? []).map((s) => ({
+        ...s,
+        panelKey: migrateLedPanelKey(s.panelKey),
+      })),
   );
   const [ledLinkedMeta, setLedLinkedMeta] = useState<
     Record<string, LedLinkedMeta>
-  >(persisted?.ledLinkedMeta ?? {});
+  >(() => {
+    const raw = persisted?.ledLinkedMeta ?? {};
+    const out: Record<string, LedLinkedMeta> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      out[k] = { ...v, panelKey: migrateLedPanelKey(v.panelKey) };
+    }
+    return out;
+  });
   const [ledSettings, setLedSettings] = useState<LedSettings>(
     normalizeLedSettings(persisted?.ledSettings),
   );
@@ -814,14 +852,28 @@ function App() {
 
   // ── LED Screen Report ──────────────────────────────────────────────────
 
+  /** Panel library derived directly from the rigging report's "LED Screen"
+   *  inventory. Items without pixel/physical info (e.g. Molton fabric) are
+   *  filtered out. A synthetic "Custom panel…" entry is appended last. */
+  const ledPanels = useMemo(
+    () => buildLedPanels(inventory["LED Screen"]),
+    [],
+  );
+  const defaultLedPanelKey = useMemo(
+    () => defaultPanelKeyOf(ledPanels),
+    [ledPanels],
+  );
+
   // Garbage-collect ledLinkedMeta entries whose source rigging ledRow no
-  // longer exists OR is not an LED panel item (e.g. Molton mask).
+  // longer exists OR is not a panel-mappable inventory item (e.g. Molton).
   useEffect(() => {
     const liveIds = new Set<string>();
     for (const sys of systems) {
       for (const row of sys.ledRows) {
         const item = getRowItem(row);
-        if (item && isLedPanelInventoryItem(item.name)) liveIds.add(row.id);
+        if (item && findPanelKeyForInventoryName(item.name, ledPanels)) {
+          liveIds.add(row.id);
+        }
       }
     }
     setLedLinkedMeta((all) => {
@@ -832,7 +884,7 @@ function App() {
       for (const k of keys) if (liveIds.has(k)) next[k] = all[k];
       return next;
     });
-  }, [systems]);
+  }, [systems, ledPanels]);
 
   /** Screens auto-derived from each rigging system's ledRows. Layout
    *  (panelsWide/Tall, output, color, notes) lives in `ledLinkedMeta`
@@ -844,14 +896,12 @@ function App() {
       for (const row of sys.ledRows) {
         const item = getRowItem(row);
         if (!item) continue;
-        if (!isLedPanelInventoryItem(item.name)) continue;
+        const detected = findPanelKeyForInventoryName(item.name, ledPanels);
+        if (!detected) continue;
         const stored = ledLinkedMeta[row.id];
-        const fallback = defaultLinkedLedMeta(row.qty);
-        const detected =
-          detectPanelKeyFromInventory(item.name) ?? fallback.panelKey;
+        const fallback = defaultLinkedLedMeta(row.qty, detected);
         const meta: LedLinkedMeta = stored ?? {
           ...fallback,
-          panelKey: detected,
           color: LED_SCREEN_COLORS[colorIdx % LED_SCREEN_COLORS.length],
         };
         colorIdx++;
@@ -871,7 +921,7 @@ function App() {
       }
     }
     return out;
-  }, [systems, ledLinkedMeta]);
+  }, [systems, ledLinkedMeta, ledPanels]);
 
   const allLedScreens = useMemo<LedScreen[]>(
     () => [...linkedLedScreens, ...ledScreens],
@@ -879,15 +929,15 @@ function App() {
   );
 
   const ledTotals = useMemo(
-    () => computeLedTotals(allLedScreens, ledSettings),
-    [allLedScreens, ledSettings],
+    () => computeLedTotals(allLedScreens, ledSettings, ledPanels),
+    [allLedScreens, ledSettings, ledPanels],
   );
 
   const addLedScreen = () => {
     const idx = ledScreens.length + linkedLedScreens.length;
     setLedScreens((all) => [
       ...all,
-      newLedScreen({
+      newLedScreen(defaultLedPanelKey, {
         name: `Screen ${idx + 1}`,
         color: LED_SCREEN_COLORS[idx % LED_SCREEN_COLORS.length],
       }),
@@ -911,7 +961,7 @@ function App() {
             notes: current.notes,
             customPanel: current.customPanel,
           }
-        : defaultLinkedLedMeta(1);
+        : defaultLinkedLedMeta(1, defaultLedPanelKey);
       setLedLinkedMeta((all) => {
         const prev = all[sourceRowId] ?? seed;
         const next: LedLinkedMeta = {
@@ -945,17 +995,14 @@ function App() {
     if (!screen) return;
     const base =
       screen.customPanel ??
-      (() => {
-        const def = BUILT_IN_LED_PANELS.find((p) => p.key === "custom")!;
-        return {
-          pixelWidth: def.pixelWidth,
-          pixelHeight: def.pixelHeight,
-          physicalWidth: def.physicalWidth,
-          physicalHeight: def.physicalHeight,
-          weight: def.weight,
-          power: def.power,
-        } as LedCustomPanel;
-      })();
+      ({
+        pixelWidth: CUSTOM_LED_PANEL.pixelWidth,
+        pixelHeight: CUSTOM_LED_PANEL.pixelHeight,
+        physicalWidth: CUSTOM_LED_PANEL.physicalWidth,
+        physicalHeight: CUSTOM_LED_PANEL.physicalHeight,
+        weight: CUSTOM_LED_PANEL.weight,
+        power: CUSTOM_LED_PANEL.power,
+      } as LedCustomPanel);
     updateLedScreen(id, { customPanel: { ...base, ...patch } });
   };
 
@@ -969,7 +1016,7 @@ function App() {
     if (!src) return;
     setLedScreens((all) => [
       ...all,
-      newLedScreen({
+      newLedScreen(defaultLedPanelKey, {
         name: `${src.name} (copy)`,
         panelKey: src.panelKey,
         panelsWide: src.panelsWide,
@@ -2191,6 +2238,7 @@ function App() {
       {mainView === "led" && (
         <LedScreenReportView
           screens={allLedScreens}
+          panels={ledPanels}
           settings={ledSettings}
           totals={ledTotals}
           linkedCount={linkedLedScreens.length}

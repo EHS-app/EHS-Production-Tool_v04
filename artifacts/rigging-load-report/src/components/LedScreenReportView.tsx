@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import {
-  BUILT_IN_LED_PANELS,
+  CUSTOM_PANEL_KEY,
   LED_SCREEN_COLORS,
+  type LedPanel,
   type LedPanelKey,
   type LedScreen,
   type LedSettings,
@@ -14,6 +15,7 @@ import {
 
 type Props = {
   screens: LedScreen[];
+  panels: LedPanel[];
   settings: LedSettings;
   totals: LedTotals;
   linkedCount: number;
@@ -34,6 +36,7 @@ const fmt = (n: number, d = 1) =>
 export function LedScreenReportView(props: Props) {
   const {
     screens,
+    panels,
     settings,
     totals,
     linkedCount,
@@ -131,6 +134,7 @@ export function LedScreenReportView(props: Props) {
                   <ScreenRow
                     key={s.id}
                     screen={s}
+                    panels={panels}
                     onUpdate={(patch) => onUpdateScreen(s.id, patch)}
                     onUpdateCustomPanel={(patch) =>
                       onUpdateCustomPanel(s.id, patch)
@@ -155,7 +159,11 @@ export function LedScreenReportView(props: Props) {
               circles.
             </span>
           </div>
-          <PixelMapCanvas screens={screens} settings={settings} />
+          <PixelMapCanvas
+            screens={screens}
+            panels={panels}
+            settings={settings}
+          />
         </section>
       )}
     </div>
@@ -206,20 +214,22 @@ function Stat({
 
 function ScreenRow({
   screen,
+  panels,
   onUpdate,
   onUpdateCustomPanel,
   onRemove,
   onDuplicate,
 }: {
   screen: LedScreen;
+  panels: LedPanel[];
   onUpdate: (patch: Partial<LedScreen>) => void;
   onUpdateCustomPanel: (patch: Partial<LedCustomPanel>) => void;
   onRemove: () => void;
   onDuplicate: () => void;
 }) {
-  const panel = resolveScreenPanel(screen);
-  const m = computeScreenMetrics(screen);
-  const isCustom = screen.panelKey === "custom";
+  const panel = resolveScreenPanel(screen, panels);
+  const m = computeScreenMetrics(screen, panels);
+  const isCustom = screen.panelKey === CUSTOM_PANEL_KEY;
 
   return (
     <>
@@ -247,7 +257,13 @@ function ScreenRow({
             value={screen.panelKey}
             onChange={(e) => onUpdate({ panelKey: e.target.value as LedPanelKey })}
           >
-            {BUILT_IN_LED_PANELS.map((p) => (
+            {/* If the stored key isn't in the current library (e.g. an
+                inventory item was renamed), surface it as a placeholder so
+                the user can see it before re-picking. */}
+            {!panels.some((p) => p.key === screen.panelKey) && (
+              <option value={screen.panelKey}>{screen.panelKey} (missing)</option>
+            )}
+            {panels.map((p) => (
               <option key={p.key} value={p.key}>
                 {p.name}
               </option>
@@ -451,9 +467,11 @@ function ScreenRow({
 
 function PixelMapCanvas({
   screens,
+  panels,
   settings,
 }: {
   screens: LedScreen[];
+  panels: LedPanel[];
   settings: LedSettings;
 }) {
   const layout = useMemo(() => {
@@ -465,7 +483,7 @@ function PixelMapCanvas({
     let cursorX = PAD;
     let maxBottom = 0;
     const items = screens.map((s) => {
-      const panel = resolveScreenPanel(s);
+      const panel = resolveScreenPanel(s, panels);
       const screenWidthPx = s.panelsWide * panel.physicalWidth * SCALE;
       const screenHeightPx = s.panelsTall * panel.physicalHeight * SCALE;
       const cellW = panel.physicalWidth * SCALE;
@@ -489,7 +507,7 @@ function PixelMapCanvas({
     const totalHeight = Math.max(maxBottom + PAD, 200);
 
     return { items, totalWidth, totalHeight };
-  }, [screens]);
+  }, [screens, panels]);
 
   return (
     <div className="led-canvas-wrap">
@@ -504,6 +522,7 @@ function PixelMapCanvas({
           <ScreenSvg
             key={item.screen.id}
             item={item}
+            panels={panels}
             showLabels={settings.showLabels}
           />
         ))}
@@ -514,7 +533,7 @@ function PixelMapCanvas({
 
 type SvgItem = {
   screen: LedScreen;
-  panel: ReturnType<typeof resolveScreenPanel>;
+  panel: LedPanel;
   x: number;
   y: number;
   width: number;
@@ -525,9 +544,11 @@ type SvgItem = {
 
 function ScreenSvg({
   item,
+  panels,
   showLabels,
 }: {
   item: SvgItem;
+  panels: LedPanel[];
   showLabels: boolean;
 }) {
   const { screen, x, y, width, height, cellW, cellH } = item;
@@ -572,7 +593,7 @@ function ScreenSvg({
     }
   }
 
-  const m = computeScreenMetrics(screen);
+  const m = computeScreenMetrics(screen, panels);
   const titleY = y - 36;
   const subY = y - 18;
 

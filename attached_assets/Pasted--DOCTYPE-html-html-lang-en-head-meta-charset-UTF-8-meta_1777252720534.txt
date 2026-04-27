@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EHS - Rigging Load Report</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --secondary: #f97316; 
+            --static-bar: #64748b; 
+            --danger: #dc2626;
+            --warning: #f59e0b;
+            --dark: #0f172a;
+            --light: #f1f5f9;
+            --card-bg: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --input-bg: #ffffff;
+        }
+
+        [data-theme="dark"] {
+            --light: #020617;
+            --card-bg: #1e293b;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --input-bg: #0f172a;
+        }
+
+        body { font-family: 'Inter', sans-serif; background: var(--light); color: var(--text-main); margin: 0; padding: 20px; transition: background 0.3s, color 0.3s; }
+        .container { max-width: 1400px; margin: auto; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; background: var(--dark); color: white; padding: 25px 40px; border-radius: 12px; margin-bottom: 10px; }
+        .header-left { display: flex; align-items: center; gap: 20px; }
+        .header-left img { height: 60px; width: auto; filter: brightness(0) invert(1); }
+        .header-left h1 { margin: 0; font-size: 1.8rem; border-left: 1px solid #475569; padding-left: 20px; }
+
+        .system-identity { 
+            background: var(--card-bg); 
+            padding: 20px 40px; 
+            border-radius: 12px; 
+            margin-bottom: 25px; 
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 25px;
+        }
+        .system-identity label { font-size: 0.9rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; white-space: nowrap; }
+        .system-identity input { 
+            background: transparent; 
+            border: none; 
+            border-bottom: 3px solid var(--primary); 
+            border-radius: 0; 
+            font-size: 2rem; 
+            font-weight: 900; 
+            color: var(--text-main); 
+            width: 100%; 
+            max-width: 600px; 
+            padding: 10px 0;
+        }
+
+        .dashboard { display: flex; gap: 20px; background: var(--card-bg); padding: 25px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid var(--border-color); }
+        .dash-item { flex: 1; text-align: center; border-right: 1px solid var(--border-color); }
+        .dash-item:last-child { border-right: none; }
+        .dash-item span { display: block; font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 5px; }
+        .dash-item strong { font-size: 2rem; color: var(--text-main); }
+
+        .main-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; margin-bottom: 25px; }
+        .card { background: var(--card-bg); padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid var(--border-color); }
+        .card.full-width { grid-column: 1 / -1; }
+        .card h2 { margin: 0 0 20px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 10px; color: var(--text-main); text-transform: uppercase; letter-spacing: 0.5px; }
+        .card h2::before { content: ''; width: 4px; height: 18px; background: var(--primary); border-radius: 2px; }
+
+        .analysis-container { background: var(--input-bg); border-radius: 12px; border: 1px solid var(--border-color); overflow: hidden; }
+        .points-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0; border-bottom: 1px solid var(--border-color); }
+        
+        .point-box { padding: 25px; border-right: 1px solid var(--border-color); transition: all 0.3s; position: relative; }
+        .point-box:last-child { border-right: none; }
+        .point-box.is-warning { background: rgba(245, 158, 11, 0.1); }
+        .point-box.is-danger { background: var(--danger); color: white !important; }
+        .point-box.is-danger .p-val, .point-box.is-danger .p-dyn, .point-box.is-danger span { color: white !important; }
+        
+        .overload-badge { 
+            position: absolute; 
+            top: 15px; 
+            right: 15px; 
+            font-size: 14px; 
+            font-weight: 900; 
+            background: white; 
+            color: var(--danger); 
+            padding: 6px 12px; 
+            border-radius: 6px; 
+            display: flex;
+            align-items: center;
+            gap: 6px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .point-box .p-val { font-size: 2.2rem; font-weight: 900; color: var(--secondary); display: block; letter-spacing: -1px; }
+        .point-box .p-dyn { font-size: 0.85rem; font-weight: 600; display: block; margin-top: 4px; color: var(--text-muted); text-transform: uppercase; }
+        
+        .chart-section { padding: 40px; position: relative; }
+        .bar-chart { display: flex; align-items: flex-end; justify-content: space-around; height: 300px; padding-top: 40px; gap: 20px; border-bottom: 3px solid var(--text-main); position: relative; }
+        
+        .bar-group { display: flex; flex-direction: column; align-items: center; flex: 1; max-width: 120px; }
+        .bars-side-by-side { display: flex; align-items: flex-end; gap: 6px; width: 100%; justify-content: center; }
+        .bar { width: 28px; border-radius: 6px 6px 2px 2px; position: relative; transition: height 0.5s ease-out; }
+        .bar::after { content: attr(data-value); position: absolute; top: -25px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 800; color: var(--text-main); }
+        
+        .vis-container { display: flex; justify-content: space-around; padding-top: 10px; gap: 20px; }
+        .vis-point { display: flex; flex-direction: column; align-items: center; flex: 1; max-width: 120px; }
+        .vis-arrow { width: 2px; height: 30px; background: var(--text-main); position: relative; }
+        .vis-arrow::before { content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%); border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 10px solid var(--text-main); }
+        .vis-pct { font-weight: 900; font-size: 14px; margin-bottom: 5px; color: var(--text-main); }
+        .vis-label { font-size: 12px; font-weight: 800; color: var(--text-muted); margin-top: 5px; }
+
+        .item-row { display: grid; grid-template-columns: 1fr 70px 40px; gap: 10px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color); }
+        select, input { padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px; width: 100%; box-sizing: border-box; background: var(--input-bg); color: var(--text-main); }
+        
+        .btn { padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; transition: opacity 0.2s; }
+        .btn-add { background: var(--primary); color: white; width: 100%; justify-content: center; margin-top: 10px; }
+        .btn-custom { background: #64748b; color: white; margin-top: 5px; }
+        .btn-del { background: var(--danger); color: white; justify-content: center; }
+        .btn-export { background: var(--primary); color: white; padding: 12px 24px; }
+        .btn-theme { background: #475569; color: white; margin-right: 10px; min-width: 100px; justify-content: center; }
+
+        .footer { 
+            margin-top: 40px; 
+            padding: 40px 30px; 
+            text-align: center; 
+            border-top: 1px solid var(--border-color); 
+            color: var(--text-muted); 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        .footer-company { font-size: 18px; font-weight: 800; color: var(--text-main); letter-spacing: 1px; }
+        .footer-address { font-size: 14px; font-weight: 600; }
+        .footer-disclaimer { font-size: 13px; font-weight: 500; opacity: 0.9; margin-top: 10px; line-height: 1.5; max-width: 800px; }
+
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(4px); }
+        .modal-content { background: var(--card-bg); margin: 10% auto; padding: 30px; border-radius: 16px; width: 400px; border: 1px solid var(--border-color); color: var(--text-main); }
+
+        @media print {
+            @page { size: A4 landscape; margin: 10mm; }
+            .btn, .btn-del, .btn-add, .btn-custom, .modal, .btn-theme, .header-actions { display: none !important; }
+            body { background: white !important; color: black !important; padding: 0; }
+            .header { background: white !important; color: black !important; border: 1px solid #eee; margin-bottom: 5px; }
+            .header-left img { filter: none !important; }
+            .system-identity { border: none; padding: 10px 0; margin-bottom: 10px; }
+            .system-identity input { border: none; font-size: 2.2rem; }
+            .dashboard { box-shadow: none; border: 1px solid #eee; margin-bottom: 15px; }
+            .card { box-shadow: none; border: 1px solid #eee; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <img src="EHS_logo (1).png" alt="EHS Logo">
+                <h1>Rigging Load Report</h1>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-theme" id="theme-btn" onclick="toggleTheme()">
+                    <span id="theme-icon">🌙</span> <span id="theme-text">Dark</span>
+                </button>
+                <button class="btn btn-export" onclick="window.print()">Export Report</button>
+            </div>
+        </div>
+
+        <div class="system-identity">
+            <label>Rigging Reference ID:</label>
+            <input type="text" id="sys-name" placeholder="e.g. LX1, LX2, VX1" oninput="calculate()">
+        </div>
+
+        <div class="dashboard">
+            <div class="dash-item"><span>Static Load</span><strong id="stat-total">0.0</strong><small>kg</small></div>
+            <div class="dash-item"><span>Peak Load</span><strong id="stat-dyn-max" style="color:var(--secondary)">0.0</strong><small>kg</small></div>
+            <div class="dash-item"><span>Total Area</span><strong id="stat-area">0.0</strong><small>m²</small></div>
+            <div class="dash-item"><span>Eq. Power</span><strong id="stat-power">0</strong><small>W</small></div>
+            <div class="dash-item"><span>Motor Power</span><strong id="stat-motor-power">0</strong><small>W</small></div>
+        </div>
+
+        <div class="main-grid">
+            <div class="card">
+                <h2>1. Motors & Support</h2>
+                <div style="margin-bottom: 20px; background: var(--input-bg); padding:15px; border-radius:8px; border: 1px solid var(--border-color);">
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                        <div>
+                            <label style="font-size:10px; font-weight:800; color:var(--text-muted)">POINTS</label>
+                            <select id="point-count" onchange="calculate()">
+                                <option value="2">2 Points</option>
+                                <option value="3" selected>3 Points</option>
+                                <option value="4">4 Points</option>
+                                <option value="5">5 Points</option>
+                                <option value="6">6 Points</option>
+                                <option value="7">7 Points</option>
+                                <option value="8">8 Points</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:10px; font-weight:800; color:var(--text-muted)">DYNAMIC FACTOR</label>
+                            <select id="dynamic-factor" onchange="calculate()">
+                                <option value="1.0">1.0x (Static)</option>
+                                <option value="1.25" selected>1.25x (Standard)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <label style="font-size:10px; font-weight:800; margin-top:10px; display:block; color:var(--text-muted)">MOTOR TYPE</label>
+                    <select id="hoist-model" onchange="calculate()">
+                        <option value="38.5" data-watt="800" data-swl="500">EXE Rise D8+ 500kg (38.5kg | 0.8kW)</option>
+                        <option value="69.6" data-watt="1100" data-swl="1000">EXE Rise D8+ 1000kg (69.6kg | 1.1kW)</option>
+                    </select>
+                </div>
+                <div id="rigging-list"></div>
+                <button class="btn btn-add" onclick="addRow('rigging-list', 'Truss')">+ Add Truss</button>
+            </div>
+
+            <div class="card">
+                <h2>2. Lighting Fixtures</h2>
+                <div id="fixture-list"></div>
+                <button class="btn btn-add" onclick="addRow('fixture-list', 'Fixtures')">+ Add Fixture</button>
+                <button class="btn btn-add btn-custom" onclick="openModal('fixture-list')">+ Manual Item</button>
+            </div>
+
+            <div class="card">
+                <h2>3. LED & Other Equipment</h2>
+                <div id="led-list"></div>
+                <button class="btn btn-add" onclick="addRow('led-list', 'LED Screen')">+ Add Item</button>
+                <button class="btn btn-add btn-custom" onclick="openModal('led-list')">+ Manual Item</button>
+            </div>
+
+            <div class="card full-width">
+                <h2>4. Rigging Point Calculations</h2>
+                <div class="analysis-container">
+                    <div id="point-visuals" class="points-summary"></div>
+                    <div class="chart-section">
+                        <div id="bar-chart" class="bar-chart"></div>
+                        <div id="vis-row" class="vis-container"></div>
+                    </div>
+                </div>
+                <div class="footer">
+                    <div class="footer-company">EHS AS</div>
+                    <div class="footer-address">Kjeller vest 3, 2007 Kjeller, Norway | Tel: 22 38 90 20 | www.ehs.no</div>
+                    <div class="footer-disclaimer">
+                        Calculations based on EXE Rise D8+ Specifications. Motor weights include 24m of chain. Specifications (Safety Factor 8:1).
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="customModal" class="modal">
+        <div class="modal-content">
+            <h3>Add Custom Item</h3>
+            <input type="text" id="cust-name" placeholder="Item Name" style="margin-bottom:10px">
+            <input type="number" id="cust-weight" placeholder="Weight (kg)" style="margin-bottom:10px">
+            <input type="number" id="cust-watt" placeholder="Power (W)" style="margin-bottom:10px">
+            <input type="number" id="cust-area" placeholder="Area per unit (m²)" step="0.01" style="margin-bottom:10px">
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-export" onclick="addCustomItem()">Add</button>
+                <button class="btn btn-custom" onclick="closeModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const inventory = {
+            "Truss": [
+                {"name": "Eurotruss FD34 - 3.0m (18.1kg)", "weight": 18.1, "wattage": 0, "area": 0},
+                {"name": "Eurotruss FD34 - 2.0m (12.5kg)", "weight": 12.5, "wattage": 0, "area": 0},
+                {"name": "Eurotruss FD34 - 1.0m (6.9kg)", "weight": 6.9, "wattage": 0, "area": 0},
+                {"name": "Eurotruss FD34 - 0.5m (4.5kg)", "weight": 4.5, "wattage": 0, "area": 0},
+                {"name": "Eurotruss FD34 - 0.25m (3.2kg)", "weight": 3.2, "wattage": 0, "area": 0},
+                {"name": "Eurotruss HD34 - 3.0m (21.4kg)", "weight": 21.4, "wattage": 0, "area": 0},
+                {"name": "Eurotruss HD34 - 2.0m (14.7kg)", "weight": 14.7, "wattage": 0, "area": 0},
+                {"name": "Eurotruss HD34 - 1.0m (8.1kg)", "weight": 8.1, "wattage": 0, "area": 0},
+                {"name": "Eurotruss HD34 - 0.5m (5.1kg)", "weight": 5.1, "wattage": 0, "area": 0},
+                {"name": "Eurotruss HD34 - 0.25m (3.8kg)", "weight": 3.8, "wattage": 0, "area": 0},
+                {"name": "Eurotruss FD32 - 4.0m (15.5kg)", "weight": 15.5, "wattage": 0, "area": 0},
+                {"name": "Eurotruss FD32 - 3.0m (11.8kg)", "weight": 11.8, "wattage": 0, "area": 0},
+                {"name": "Eurotruss FD32 - 2.0m (8.3kg)", "weight": 8.3, "wattage": 0, "area": 0},
+                {"name": "Eurotruss FD32 - 1.0m (4.7kg)", "weight": 4.7, "wattage": 0, "area": 0},
+                {"name": "Eurotruss FD32 - 0.5m (3.1kg)", "weight": 3.1, "wattage": 0, "area": 0}
+            ], 
+            "Fixtures": [
+                {"name": "Clay Paky Mythos 2 (32.0kg)", "weight": 32.0, "wattage": 800, "area": 0},
+                {"name": "Elation DTW Blinder 350 IP (11.0kg)", "weight": 11.0, "wattage": 310, "area": 0},
+                {"name": "Martin PowerPort 1500", "weight": 0, "wattage": 1100, "area": 0},
+                {"name": "MDG ATMe Haze", "weight": 0, "wattage": 715, "area": 0},
+                {"name": "Stage Fan / AF-1", "weight": 0, "wattage": 120, "area": 0},
+                {"name": "Astera Titan Tube (1.35kg)", "weight": 1.35, "wattage": 72, "area": 0},
+                {"name": "Astera AX2 1m PixelBar (7.4kg)", "weight": 7.4, "wattage": 80, "area": 0},
+                {"name": "Astera AX5 TriplePAR (3.4kg)", "weight": 3.4, "wattage": 45, "area": 0},
+                {"name": "Astera AX9 PowerPar (5.66kg)", "weight": 5.66, "wattage": 110, "area": 0},
+                {"name": "Astera Pixel Brick (1.12kg)", "weight": 1.12, "wattage": 20, "area": 0},
+                {"name": "Martin MAC Aura (6.6kg)", "weight": 6.6, "wattage": 260, "area": 0}, 
+                {"name": "Martin MAC Aura XB (7.5kg)", "weight": 7.5, "wattage": 260, "area": 0}, 
+                {"name": "Martin MAC Aura XIP (10.0kg)", "weight": 10.0, "wattage": 340, "area": 0}, 
+                {"name": "Martin MAC Aura PXL (15.6kg)", "weight": 15.6, "wattage": 560, "area": 0},
+                {"name": "Martin MAC One (5.4kg)", "weight": 5.4, "wattage": 160, "area": 0}, 
+                {"name": "Martin MAC Viper XIP (37.8kg)", "weight": 37.8, "wattage": 1040, "area": 0},
+                {"name": "Martin MAC Viper AirFX (36.7kg)", "weight": 36.7, "wattage": 1225, "area": 0},
+                {"name": "SnowARC Pro Quad 40 mkII (10.5kg)", "weight": 10.5, "wattage": 390, "area": 0},
+                {"name": "DTS NICK NRG 1201 (12.9kg)", "weight": 12.9, "wattage": 340, "area": 0},
+                {"name": "Elation Pulse Panel FX (14.4kg)", "weight": 14.4, "wattage": 900, "area": 0},
+                {"name": "Chauvet Color STRIKE M (13.1kg)", "weight": 13.1, "wattage": 740, "area": 0},
+                {"name": "Martin RUSH MH 7 Hybrid (25.0kg)", "weight": 25.0, "wattage": 450, "area": 0}
+            ], 
+            "LED Screen": [
+                {"name": "Uniview UR Pro 1x0.5m (10.8kg)", "weight": 10.8, "wattage": 350, "area": 0.5},
+                {"name": "Uniview UR Pro 0.5x0.5m (7.2kg)", "weight": 7.2, "wattage": 175, "area": 0.25},
+                {"name": "Molton 6x4m (7.2kg)", "weight": 7.2, "wattage": 0, "area": 0},
+                {"name": "Molton 9x6m (16.2kg)", "weight": 16.2, "wattage": 0, "area": 0},
+                {"name": "Molton 9x9m (24.3kg)", "weight": 24.3, "wattage": 0, "area": 0}
+            ]
+        };
+
+        const distributionFactors = {
+            "2": [0.5, 0.5], 
+            "3": [0.19, 0.62, 0.19], 
+            "4": [0.13, 0.37, 0.37, 0.13], 
+            "5": [0.10, 0.28, 0.24, 0.28, 0.10], 
+            "6": [0.08, 0.23, 0.19, 0.19, 0.23, 0.08], 
+            "7": [0.07, 0.19, 0.15, 0.18, 0.15, 0.19, 0.07],
+            "8": [0.06, 0.16, 0.14, 0.14, 0.14, 0.14, 0.16, 0.06]
+        };
+        
+        let activeContainer = '';
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const target = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', target);
+            
+            const icon = document.getElementById('theme-icon');
+            const text = document.getElementById('theme-text');
+            
+            if (target === 'dark') {
+                icon.innerText = '☀️';
+                text.innerText = 'Light';
+            } else {
+                icon.innerText = '🌙';
+                text.innerText = 'Dark';
+            }
+        }
+
+        function openModal(id) { activeContainer = id; document.getElementById('customModal').style.display = 'block'; }
+        function closeModal() { document.getElementById('customModal').style.display = 'none'; }
+
+        function addRow(containerId, category, qty = 1) {
+            const container = document.getElementById(containerId);
+            const div = document.createElement('div');
+            div.className = 'item-row';
+            const options = inventory[category].map(item => `<option value="${item.weight}" data-watt="${item.wattage}" data-area="${item.area}">${item.name}</option>`).join('');
+            div.innerHTML = `<select onchange="calculate()">${options}</select><input type="number" value="${qty}" min="0" oninput="calculate()"><button class="btn btn-del" onclick="this.parentElement.remove(); calculate()">×</button>`;
+            container.appendChild(div);
+            calculate();
+        }
+
+        function addCustomItem() {
+            const name = document.getElementById('cust-name').value || 'Custom';
+            const weight = parseFloat(document.getElementById('cust-weight').value) || 0;
+            const watt = parseFloat(document.getElementById('cust-watt').value) || 0;
+            const area = parseFloat(document.getElementById('cust-area').value) || 0;
+            const container = document.getElementById(activeContainer);
+            const div = document.createElement('div');
+            div.className = 'item-row';
+            div.innerHTML = `<select onchange="calculate()"><option value="${weight}" data-watt="${watt}" data-area="${area}">${name} (${weight}kg)</option></select><input type="number" value="1" oninput="calculate()"><button class="btn btn-del" onclick="this.parentElement.remove(); calculate()">×</button>`;
+            container.appendChild(div);
+            closeModal();
+            calculate();
+        }
+
+        function calculate() {
+            let totalPayload = 0, totalPower = 0, totalArea = 0;
+            ['rigging-list', 'fixture-list', 'led-list'].forEach(id => {
+                document.querySelectorAll(`#${id} .item-row`).forEach(row => {
+                    const sel = row.querySelector('select'), q = parseFloat(row.querySelector('input').value) || 0;
+                    if(sel && sel.options[sel.selectedIndex]) {
+                        const opt = sel.options[sel.selectedIndex];
+                        totalPayload += (parseFloat(sel.value) * q);
+                        totalPower += (parseFloat(opt.dataset.watt) * q);
+                        totalArea += (parseFloat(opt.dataset.area) * q);
+                    }
+                });
+            });
+
+            const pts = parseInt(document.getElementById('point-count').value);
+            const hoistSel = document.getElementById('hoist-model');
+            const hoistW = parseFloat(hoistSel.value);
+            const hoistWattPerUnit = parseFloat(hoistSel.options[hoistSel.selectedIndex].dataset.watt);
+            const swl = parseFloat(hoistSel.options[hoistSel.selectedIndex].dataset.swl);
+            const dynFactor = parseFloat(document.getElementById('dynamic-factor').value);
+            
+            const totalMotorPower = hoistWattPerUnit * pts;
+            const totalStaticWeight = totalPayload + (pts * hoistW);
+            const totalDynamicWeight = totalStaticWeight * dynFactor;
+            
+            document.getElementById('stat-total').innerText = totalStaticWeight.toFixed(1);
+            document.getElementById('stat-power').innerText = totalPower.toLocaleString();
+            document.getElementById('stat-motor-power').innerText = totalMotorPower.toLocaleString();
+            document.getElementById('stat-area').innerText = totalArea.toFixed(1);
+            
+            const factors = distributionFactors[pts];
+            const dynamicPointLoads = factors.map(f => totalDynamicWeight * f);
+            const staticPointLoads = factors.map(f => totalStaticWeight * f);
+            const maxVal = Math.max(...dynamicPointLoads);
+            
+            document.getElementById('stat-dyn-max').innerText = maxVal.toFixed(1);
+            document.getElementById('stat-dyn-max').style.color = maxVal > swl ? 'var(--danger)' : 'var(--secondary)';
+
+            document.getElementById('point-visuals').innerHTML = '';
+            document.getElementById('bar-chart').innerHTML = '';
+            document.getElementById('vis-row').innerHTML = '';
+
+            factors.forEach((f, i) => {
+                const sLoad = staticPointLoads[i];
+                const dLoad = dynamicPointLoads[i];
+                const pct = Math.round(f * 100);
+                
+                let statusClass = '';
+                let badge = '';
+                if(dLoad > swl) {
+                    statusClass = 'is-danger';
+                    badge = '<div class="overload-badge"><span>⚠️</span> OVERLOAD</div>';
+                }
+
+                document.getElementById('point-visuals').innerHTML += `
+                    <div class="point-box ${statusClass}">
+                        ${badge}
+                        <span style="font-size:10px; font-weight:800; color:var(--text-muted);">POINT 0${i+1} (${pct}%)</span>
+                        <span class="p-val">${dLoad.toFixed(1)}<small style="font-size:1rem; font-weight:600">kg</small></span>
+                        <span class="p-dyn">Static: ${sLoad.toFixed(0)}kg</span>
+                    </div>`;
+                
+                const sH = (sLoad / (Math.max(maxVal, swl) || 1)) * 240;
+                const dH = (dLoad / (Math.max(maxVal, swl) || 1)) * 240;
+                const barColor = dLoad > swl ? 'var(--danger)' : 'var(--secondary)';
+
+                document.getElementById('bar-chart').innerHTML += `
+                    <div class="bar-group">
+                        <div class="bars-side-by-side">
+                            <div class="bar" style="height:${sH}px; background:var(--static-bar)" data-value="${sLoad.toFixed(0)}"></div>
+                            <div class="bar" style="height:${dH}px; background:${barColor}" data-value="${dLoad.toFixed(0)}"></div>
+                        </div>
+                    </div>`;
+
+                document.getElementById('vis-row').innerHTML += `
+                    <div class="vis-point">
+                        <div class="vis-arrow"></div>
+                        <span class="vis-pct">${pct}%</span>
+                        <span class="vis-label">P${i+1}</span>
+                    </div>`;
+            });
+        }
+        window.onload = () => { addRow('rigging-list', 'Truss', 4); };
+    </script>
+</body>
+</html>

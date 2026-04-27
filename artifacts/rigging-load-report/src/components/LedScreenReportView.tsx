@@ -16,7 +16,14 @@ import {
   cellArrowDirection,
   type CellArrowDir,
   resolveScreenPanel,
+  outputsForScreen,
 } from "../lib/led";
+import {
+  LED_PROCESSORS,
+  findProcessor,
+  validateAgainstProcessor,
+  type ProcessorCheckResult,
+} from "../lib/ledProcessors";
 
 type Props = {
   screens: LedScreen[];
@@ -78,6 +85,13 @@ export function LedScreenReportView(props: Props) {
       </header>
 
       <LedDashboard totals={totals} settings={settings} />
+
+      <ProcessorBanner
+        totals={totals}
+        settings={settings}
+        screens={screens}
+        panels={panels}
+      />
 
       <ExportOptions
         settings={settings}
@@ -155,6 +169,132 @@ export function LedScreenReportView(props: Props) {
           />
         </section>
       )}
+    </div>
+  );
+}
+
+function ProcessorBanner({
+  totals,
+  settings,
+  screens,
+  panels,
+}: {
+  totals: LedTotals;
+  settings: LedSettings;
+  screens: LedScreen[];
+  panels: LedPanel[];
+}) {
+  const proc = findProcessor(settings.processorId);
+  if (!proc) return null;
+  if (totals.screens === 0) return null;
+
+  // Recompute outputs at the PROCESSOR's per-port limit (e.g. 650 000
+  // pixels for the Novastar MX series), so the comparison stays honest
+  // even when the user's `portLimit` field is set to something else.
+  const outputsAtProcLimit = screens.reduce(
+    (sum, s) =>
+      sum + outputsForScreen(s, settings, panels, proc.maxPixelsPerOutput),
+    0,
+  );
+
+  const result: ProcessorCheckResult = validateAgainstProcessor(proc, {
+    totalPixels: totals.pixels,
+    outputsNeeded: outputsAtProcLimit,
+    largestWidthPx: totals.largestWidthPx,
+    largestHeightPx: totals.largestHeightPx,
+    largestScreenPixels: totals.largestScreenPixels,
+  });
+
+  const utilizationPct = Math.min(999, Math.round(result.utilization * 100));
+  const outputsPct = Math.min(999, Math.round(result.outputsUtilization * 100));
+
+  return (
+    <section
+      className={`led-proc-banner is-${result.level}`}
+      aria-live="polite"
+    >
+      <div className="led-proc-head">
+        <div className="led-proc-title">
+          <span className="led-proc-dot" aria-hidden />
+          <span>
+            <strong>{proc.name}</strong>
+            <span className="led-proc-blurb"> — {proc.blurb}</span>
+          </span>
+        </div>
+        <div className="led-proc-status">
+          {result.level === "ok" && "Fits comfortably"}
+          {result.level === "warn" && "Fits — near limits"}
+          {result.level === "fail" && "Does NOT fit"}
+        </div>
+      </div>
+      <div className="led-proc-meters">
+        <Meter
+          label="Pixels"
+          used={result.totalPixels}
+          cap={proc.totalPixels}
+          pct={utilizationPct}
+          fmt={(n) => PIXEL_FMT.format(n)}
+        />
+        <Meter
+          label="Outputs"
+          used={result.outputsNeeded}
+          cap={proc.outputs}
+          pct={outputsPct}
+          fmt={(n) => `${n}`}
+        />
+        <div className="led-proc-bound">
+          <div className="led-proc-bound-label">Largest screen</div>
+          <div className="led-proc-bound-value">
+            {totals.largestWidthPx.toLocaleString()} ×{" "}
+            {totals.largestHeightPx.toLocaleString()} px
+          </div>
+          <div className="led-proc-bound-sub">
+            Max canvas: {proc.maxWidthPx.toLocaleString()} ×{" "}
+            {proc.maxHeightPx.toLocaleString()} px
+          </div>
+        </div>
+      </div>
+      {result.issues.length > 0 && (
+        <ul className="led-proc-issues">
+          {result.issues.map((iss, i) => (
+            <li key={i} className={`led-proc-issue is-${iss.level}`}>
+              {iss.message}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function Meter({
+  label,
+  used,
+  cap,
+  pct,
+  fmt,
+}: {
+  label: string;
+  used: number;
+  cap: number;
+  pct: number;
+  fmt: (n: number) => string;
+}) {
+  const overcap = used > cap;
+  return (
+    <div className="led-proc-meter">
+      <div className="led-proc-meter-row">
+        <span className="led-proc-meter-label">{label}</span>
+        <span className="led-proc-meter-value">
+          {fmt(used)} / {fmt(cap)} ({pct}%)
+        </span>
+      </div>
+      <div className="led-proc-meter-track">
+        <div
+          className={`led-proc-meter-fill ${overcap ? "is-over" : pct > 90 ? "is-warn" : "is-ok"}`}
+          style={{ width: `${Math.min(100, pct)}%` }}
+        />
+      </div>
     </div>
   );
 }
@@ -921,6 +1061,26 @@ function ExportOptions({
             >
               <option value="per-screen">One per screen</option>
               <option value="per-row">One per panel row</option>
+            </select>
+          </label>
+
+          <label className="led-inline-field">
+            <span>Processor</span>
+            <select
+              className="led-input"
+              value={settings.processorId ?? ""}
+              onChange={(e) =>
+                onUpdateSettings({
+                  processorId: e.target.value === "" ? null : e.target.value,
+                })
+              }
+            >
+              <option value="">— None / generic —</option>
+              {LED_PROCESSORS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
             </select>
           </label>
 

@@ -1666,6 +1666,151 @@ input:focus {
   gap: 12px 18px;
   padding: 12px 0 4px;
 }
+
+/* ── Processor capacity banner ─────────────────────────────────────── */
+.led-proc-banner {
+  border: 1px solid var(--border, #d6dbe2);
+  border-left-width: 4px;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  display: grid;
+  gap: 10px;
+}
+.led-proc-banner.is-ok {
+  border-left-color: #16a34a;
+  background: #f0fdf4;
+}
+.led-proc-banner.is-warn {
+  border-left-color: #d97706;
+  background: #fffbeb;
+}
+.led-proc-banner.is-fail {
+  border-left-color: #dc2626;
+  background: #fef2f2;
+}
+.led-proc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.led-proc-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+.led-proc-blurb {
+  color: #475569;
+  font-weight: 400;
+}
+.led-proc-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+}
+.led-proc-banner.is-ok .led-proc-dot {
+  color: #16a34a;
+}
+.led-proc-banner.is-warn .led-proc-dot {
+  color: #d97706;
+}
+.led-proc-banner.is-fail .led-proc-dot {
+  color: #dc2626;
+}
+.led-proc-status {
+  font-weight: 600;
+  font-size: 13px;
+}
+.led-proc-banner.is-ok .led-proc-status {
+  color: #15803d;
+}
+.led-proc-banner.is-warn .led-proc-status {
+  color: #b45309;
+}
+.led-proc-banner.is-fail .led-proc-status {
+  color: #b91c1c;
+}
+.led-proc-meters {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 720px) {
+  .led-proc-meters {
+    grid-template-columns: 1fr;
+  }
+}
+.led-proc-meter-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: #334155;
+}
+.led-proc-meter-label {
+  font-weight: 600;
+}
+.led-proc-meter-track {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.led-proc-meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 200ms ease;
+}
+.led-proc-meter-fill.is-ok {
+  background: #22c55e;
+}
+.led-proc-meter-fill.is-warn {
+  background: #f59e0b;
+}
+.led-proc-meter-fill.is-over {
+  background: #ef4444;
+}
+.led-proc-bound-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+.led-proc-bound-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+.led-proc-bound-sub {
+  font-size: 11px;
+  color: #64748b;
+}
+.led-proc-issues {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.led-proc-issue {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+.led-proc-issue.is-warn {
+  border-color: #fcd34d;
+  color: #92400e;
+}
+.led-proc-issue.is-fail {
+  border-color: #fca5a5;
+  color: #991b1b;
+}
 .led-export-grid .led-inline-field select.led-input,
 .led-export-grid .led-inline-field input.led-input,
 .led-export-grid .led-inline-field input[type="number"] {

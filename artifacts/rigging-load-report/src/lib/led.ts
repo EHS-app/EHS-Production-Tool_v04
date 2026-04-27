@@ -134,6 +134,12 @@ export type LedSettings = {
   panelColorLight: string;
   /** How the two colors are tiled across the panel grid. See `LedPanelPattern`. */
   panelPattern: LedPanelPattern;
+  /** Optional id of the chosen LED processor (e.g. "novastar-mx30").
+   *  When set, the LED tab shows a capacity banner that compares the
+   *  current screens-and-panels totals against the processor's published
+   *  pixel / output / canvas-size limits. `null` means "no processor
+   *  picked" — capacity validation is hidden. */
+  processorId: string | null;
 };
 
 export const DEFAULT_LED_SETTINGS: LedSettings = {
@@ -149,6 +155,7 @@ export const DEFAULT_LED_SETTINGS: LedSettings = {
   panelColorDark: "#1f3b8a",
   panelColorLight: "#5a8edc",
   panelPattern: "checker",
+  processorId: null,
 };
 
 /** Curated dual-color presets for the panel grid (dark, light). */
@@ -300,6 +307,10 @@ export function normalizeLedSettings(s: unknown): LedSettings {
     obj.outputMode === "per-row" ? "per-row" : "per-screen";
   const panelPattern: LedPanelPattern =
     obj.panelPattern === "columns" ? "columns" : "checker";
+  const processorId =
+    typeof obj.processorId === "string" && obj.processorId.length > 0
+      ? obj.processorId
+      : null;
   return {
     portLimit,
     showLabels: obj.showLabels !== false,
@@ -319,6 +330,7 @@ export function normalizeLedSettings(s: unknown): LedSettings {
       DEFAULT_LED_SETTINGS.panelColorLight,
     ),
     panelPattern,
+    processorId,
   };
 }
 
@@ -398,18 +410,32 @@ export type LedTotals = {
   weightKg: number;
   powerW: number;
   portsNeeded: number;
+  /** Width in pixels of the widest screen — used by the processor
+   *  capacity check to compare against the processor's max canvas width. */
+  largestWidthPx: number;
+  /** Height in pixels of the tallest screen — same purpose, height axis. */
+  largestHeightPx: number;
+  /** Pixel count of the single largest screen — used to flag when a
+   *  screen by itself exceeds a processor's per-output cap. */
+  largestScreenPixels: number;
 };
 
 export function outputsForScreen(
   screen: LedScreen,
   settings: LedSettings,
   panels: LedPanel[],
+  /** Optional pixels-per-output override. When provided, overrides
+   *  `settings.portLimit` for this calculation only — used by the
+   *  processor capacity check so we always count outputs at the
+   *  PROCESSOR's per-port cap (e.g. 650 000 for Novastar MX30/MX40),
+   *  not the user's chosen `portLimit` (which might be higher). */
+  portLimitOverride?: number,
 ): number {
   if (settings.outputMode === "per-row") {
     return Math.max(1, screen.panelsTall);
   }
   const m = computeScreenMetrics(screen, panels);
-  const limit = Math.max(1, settings.portLimit);
+  const limit = Math.max(1, portLimitOverride ?? settings.portLimit);
   return Math.max(1, Math.ceil(m.pixels / limit));
 }
 
@@ -426,6 +452,9 @@ export function computeLedTotals(
     weightKg: 0,
     powerW: 0,
     portsNeeded: 0,
+    largestWidthPx: 0,
+    largestHeightPx: 0,
+    largestScreenPixels: 0,
   };
   for (const s of screens) {
     const m = computeScreenMetrics(s, panels);
@@ -435,6 +464,9 @@ export function computeLedTotals(
     t.weightKg += m.weightKg;
     t.powerW += m.powerW;
     t.portsNeeded += outputsForScreen(s, settings, panels);
+    if (m.pixelsX > t.largestWidthPx) t.largestWidthPx = m.pixelsX;
+    if (m.pixelsY > t.largestHeightPx) t.largestHeightPx = m.pixelsY;
+    if (m.pixels > t.largestScreenPixels) t.largestScreenPixels = m.pixels;
   }
   return t;
 }

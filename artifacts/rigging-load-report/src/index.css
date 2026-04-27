@@ -1759,6 +1759,10 @@ input:focus {
   width: 70px;
   font-variant-numeric: tabular-nums;
 }
+.led-input-name {
+  min-width: 130px;
+  font-weight: 600;
+}
 .led-sub {
   font-size: 0.75rem;
   color: var(--text-soft, #6b7280);

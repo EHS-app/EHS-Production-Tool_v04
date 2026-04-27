@@ -231,10 +231,12 @@ function ScreenRow({
         </td>
         <td>
           <input
-            className="led-input"
+            className="led-input led-input-name"
             type="text"
             value={screen.name}
             onChange={(e) => onUpdate({ name: e.target.value })}
+            placeholder="e.g. Main, IMAG, Side L…"
+            title="This name appears as the centered pill on the pixel map and on the exported PNG."
           />
         </td>
         <td>
@@ -342,17 +344,25 @@ function ScreenRow({
           <button
             className="btn btn-soft btn-sm"
             onClick={onDuplicate}
-            title="Duplicate"
+            title="Duplicate this screen"
           >
-            ⎘
+            Copy
           </button>
           {!screen.linked && (
             <button
               className="btn btn-danger btn-sm"
-              onClick={onRemove}
-              title="Remove"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `Delete screen "${screen.name || "(unnamed)"}"? This can't be undone.`,
+                  )
+                ) {
+                  onRemove();
+                }
+              }}
+              title="Delete this screen"
             >
-              ✕
+              Delete
             </button>
           )}
         </td>
@@ -516,7 +526,7 @@ function PixelMapCanvas({
             key={item.screen.id}
             item={item}
             panels={panels}
-            showLabels={settings.showLabels}
+            settings={settings}
           />
         ))}
       </svg>
@@ -538,17 +548,17 @@ type SvgItem = {
 function ScreenSvg({
   item,
   panels,
-  showLabels,
+  settings,
 }: {
   item: SvgItem;
   panels: LedPanel[];
-  showLabels: boolean;
+  settings: LedSettings;
 }) {
   const { screen, x, y, width, height, cellW, cellH } = item;
   const cells: React.ReactNode[] = [];
   const minDim = Math.min(cellW, cellH);
   const labelFont = Math.max(7, Math.min(14, minDim * 0.32));
-  const showLabelsHere = showLabels && minDim >= 14;
+  const showLabelsHere = settings.showLabels && minDim >= 14;
 
   for (let row = 0; row < screen.panelsTall; row++) {
     for (let col = 0; col < screen.panelsWide; col++) {
@@ -654,6 +664,54 @@ function ScreenSvg({
         stroke="#0f172a"
         strokeWidth={2}
       />
+      {/* Centered "Main"/"IMAG" name pill — matches the PNG export so the
+          user can preview what they'll get. Hidden if the user disabled
+          the pill in Export options, or if there is no name. */}
+      {settings.showScreenName && screen.name.trim().length > 0 && (() => {
+        const name = screen.name;
+        const pillFont = Math.max(
+          14,
+          Math.min(36, Math.min(width, height) * 0.08),
+        );
+        // Approximate text width — we don't have measureText in SVG so we
+        // budget ~0.62em per char which is a safe upper bound for most
+        // sans-serif fonts.
+        const padX = pillFont * 0.9;
+        const padY = pillFont * 0.45;
+        const textW = name.length * pillFont * 0.62;
+        const pillW = textW + padX * 2;
+        const pillH = pillFont + padY * 2;
+        const cx = x + width / 2;
+        const cy = y + height / 2;
+        return (
+          <g pointerEvents="none">
+            <rect
+              x={cx - pillW / 2}
+              y={cy - pillH / 2}
+              width={pillW}
+              height={pillH}
+              rx={pillH / 2}
+              ry={pillH / 2}
+              fill="#ffffff"
+              stroke="#0f172a"
+              strokeWidth={2}
+              opacity={0.95}
+            />
+            <text
+              x={cx}
+              y={cy}
+              fontSize={pillFont}
+              fontWeight={700}
+              fill="#0f172a"
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontFamily="system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+            >
+              {name}
+            </text>
+          </g>
+        );
+      })()}
     </g>
   );
 }

@@ -2142,7 +2142,6 @@ function LightingPlanView({
                   <th>Weight (kg)</th>
                   <th>Power (W)</th>
                   <th>DMX Ch</th>
-                  <th>Beam (°)</th>
                   <th>Truss</th>
                   <th>Pos (m)</th>
                   <th>Circuit</th>
@@ -2350,24 +2349,6 @@ function LightingPlanView({
                             aria-label="DMX channels per fixture"
                           />
                         )}
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          min={0}
-                          max={180}
-                          value={f.beamAngle}
-                          onChange={(e) =>
-                            onUpdate(f.id, {
-                              beamAngle: Math.max(
-                                0,
-                                Math.min(180, Number(e.target.value) || 0),
-                              ),
-                            })
-                          }
-                          className="fx-input fx-input-num"
-                          aria-label="Beam angle in degrees"
-                        />
                       </td>
                       <td>
                         {f.linked ? (

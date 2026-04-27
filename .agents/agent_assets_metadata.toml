@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "VBKxBSOZhGrZDczt1bxpl"
+uri = "file://exports/ehs-rigging-load-report.zip"
+type = "unspecified"
+title = "EHS Rigging Load Report — full source code"

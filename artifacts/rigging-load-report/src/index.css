@@ -1679,6 +1679,74 @@ input:focus {
   opacity: 0.55;
   cursor: not-allowed;
 }
+.led-color-pair-field {
+  grid-column: 1 / -1;
+  gap: 8px;
+}
+.led-color-pair-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.led-color-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-soft, #6b7280);
+  cursor: pointer;
+}
+.led-color-input input[type="color"] {
+  width: 40px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.led-color-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.led-color-preset {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 999px;
+  background: var(--input-bg, #fff);
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+.led-color-preset:hover {
+  border-color: #6366f1;
+}
+.led-color-preset.is-active {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+}
+.led-color-preset-half {
+  display: inline-block;
+  width: 12px;
+  height: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.25);
+}
+.led-color-preset-half:first-child {
+  border-radius: 4px 0 0 4px;
+  margin-right: -1px;
+}
+.led-color-preset-half:nth-child(2) {
+  border-radius: 0 4px 4px 0;
+}
+.led-color-preset-label {
+  font-weight: 500;
+}
 
 .led-empty {
   padding: 24px;

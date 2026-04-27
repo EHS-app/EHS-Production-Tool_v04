@@ -113,7 +113,10 @@ export function buildScreenSvg(input: BuildSvgInput): string {
     for (let cx = 0; cx < screen.panelsWide; cx++) {
       const x = cx * cellW;
       const y = cy * cellH;
-      const fill = cx % 2 === 0 ? COLOR_PANEL_DARK : COLOR_PANEL_LIGHT;
+      const fill =
+        cx % 2 === 0
+          ? settings.panelColorDark || COLOR_PANEL_DARK
+          : settings.panelColorLight || COLOR_PANEL_LIGHT;
       parts.push(
         `<rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" fill="${fill}"/>`,
       );

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   CUSTOM_PANEL_KEY,
+  LED_PANEL_COLOR_PRESETS,
   LED_SCREEN_COLORS,
   type LedPanel,
   type LedPanelKey,
@@ -564,6 +565,8 @@ function ScreenSvg({
     for (let col = 0; col < screen.panelsWide; col++) {
       const cx = x + col * cellW;
       const cy = y + row * cellH;
+      const cellFill =
+        col % 2 === 0 ? settings.panelColorDark : settings.panelColorLight;
       cells.push(
         <g key={`${col}-${row}`}>
           <rect
@@ -571,8 +574,7 @@ function ScreenSvg({
             y={cy}
             width={cellW}
             height={cellH}
-            fill={screen.color}
-            fillOpacity={0.55}
+            fill={cellFill}
             stroke="#0f172a"
             strokeOpacity={0.5}
             strokeWidth={1}
@@ -860,6 +862,67 @@ function ExportOptions({
             />
             <span>Show EHS logo</span>
           </label>
+
+          <div className="led-inline-field led-color-pair-field">
+            <span>Panel colors (alternating)</span>
+            <div className="led-color-pair-row">
+              <label className="led-color-input">
+                <input
+                  type="color"
+                  value={settings.panelColorDark}
+                  onChange={(e) =>
+                    onUpdateSettings({ panelColorDark: e.target.value })
+                  }
+                  aria-label="Dark panel color"
+                />
+                <span>Dark</span>
+              </label>
+              <label className="led-color-input">
+                <input
+                  type="color"
+                  value={settings.panelColorLight}
+                  onChange={(e) =>
+                    onUpdateSettings({ panelColorLight: e.target.value })
+                  }
+                  aria-label="Light panel color"
+                />
+                <span>Light</span>
+              </label>
+            </div>
+            <div className="led-color-presets">
+              {LED_PANEL_COLOR_PRESETS.map((p) => {
+                const isActive =
+                  settings.panelColorDark.toLowerCase() ===
+                    p.dark.toLowerCase() &&
+                  settings.panelColorLight.toLowerCase() ===
+                    p.light.toLowerCase();
+                return (
+                  <button
+                    key={p.label}
+                    type="button"
+                    className={`led-color-preset ${isActive ? "is-active" : ""}`}
+                    title={`Use ${p.label} preset`}
+                    onClick={() =>
+                      onUpdateSettings({
+                        panelColorDark: p.dark,
+                        panelColorLight: p.light,
+                      })
+                    }
+                  >
+                    <span
+                      className="led-color-preset-half"
+                      style={{ background: p.dark }}
+                    />
+                    <span
+                      className="led-color-preset-half"
+                      style={{ background: p.light }}
+                    />
+                    <span className="led-color-preset-label">{p.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
     </section>

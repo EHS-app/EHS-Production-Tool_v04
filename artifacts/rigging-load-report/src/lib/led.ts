@@ -68,6 +68,10 @@ export type LedSettings = {
    *  - per-screen: one circle per screen (uses portLimit for capacity calc)
    *  - per-row: each panel row of each screen is its own output */
   outputMode: LedOutputMode;
+  /** Two colors used for the alternating column shading on the panel grid.
+   *  Visible in both the in-app preview and the exported PNG. */
+  panelColorDark: string;
+  panelColorLight: string;
 };
 
 export const DEFAULT_LED_SETTINGS: LedSettings = {
@@ -80,7 +84,24 @@ export const DEFAULT_LED_SETTINGS: LedSettings = {
   showLogo: true,
   wirePath: "linear",
   outputMode: "per-screen",
+  panelColorDark: "#1f3b8a",
+  panelColorLight: "#5a8edc",
 };
+
+/** Curated dual-color presets for the panel grid (dark, light). */
+export const LED_PANEL_COLOR_PRESETS: Array<{
+  label: string;
+  dark: string;
+  light: string;
+}> = [
+  { label: "Blue", dark: "#1f3b8a", light: "#5a8edc" },
+  { label: "Red", dark: "#7f1d1d", light: "#ef4444" },
+  { label: "Green", dark: "#14532d", light: "#22c55e" },
+  { label: "Purple", dark: "#4c1d95", light: "#a78bfa" },
+  { label: "Orange", dark: "#7c2d12", light: "#fb923c" },
+  { label: "Teal", dark: "#134e4a", light: "#2dd4bf" },
+  { label: "Mono", dark: "#1f2937", light: "#9ca3af" },
+];
 
 export const LED_SCREEN_COLORS = [
   "#3b82f6",
@@ -191,7 +212,13 @@ export function migrateLedPanelKey(key: string): LedPanelKey {
   }
 }
 
-/** Normalize a possibly-malformed persisted LedSettings into a safe value. */
+/** Validate a #rrggbb hex color; fall back to `fallback` on anything else. */
+function normalizeHexColor(value: unknown, fallback: string): string {
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value)
+    ? value
+    : fallback;
+}
+
 export function normalizeLedSettings(s: unknown): LedSettings {
   const obj = (s ?? {}) as Partial<LedSettings>;
   const rawLimit = Number(obj.portLimit);
@@ -213,6 +240,14 @@ export function normalizeLedSettings(s: unknown): LedSettings {
     showLogo: obj.showLogo !== false,
     wirePath,
     outputMode,
+    panelColorDark: normalizeHexColor(
+      obj.panelColorDark,
+      DEFAULT_LED_SETTINGS.panelColorDark,
+    ),
+    panelColorLight: normalizeHexColor(
+      obj.panelColorLight,
+      DEFAULT_LED_SETTINGS.panelColorLight,
+    ),
   };
 }
 

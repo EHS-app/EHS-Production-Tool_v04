@@ -1192,7 +1192,6 @@ function App() {
         <div className="header-left">
           <img src={ehsLogo} alt="EHS Logo" className="header-logo-img" />
           <div className="header-title">
-            <span className="header-eyebrow">EHS</span>
             <h1>
               Production <span className="header-title-accent">Tool</span>
             </h1>

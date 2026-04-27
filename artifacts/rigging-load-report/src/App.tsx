@@ -1277,7 +1277,7 @@ function App() {
           className={`view-tab ${mainView === "lighting" ? "is-active" : ""}`}
           onClick={() => setMainView("lighting")}
         >
-          Lighting Plan
+          Lighting Report
           {allLightingFixtures.length > 0 && (
             <span className="view-tab-badge">
               {allLightingFixtures.length}

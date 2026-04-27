@@ -358,7 +358,7 @@ function getRowItem(row: Row): InventoryItem | undefined {
 const STORAGE_KEY_V2 = "ehs-rigging-report-v2";
 const STORAGE_KEY_V1 = "ehs-rigging-report-v1";
 
-type MainView = "rigging" | "lighting";
+type MainView = "rigging" | "lighting" | "led";
 
 type ShowFixture = {
   id: string;
@@ -1283,6 +1283,12 @@ function App() {
             </span>
           )}
         </button>
+        <button
+          className={`view-tab ${mainView === "led" ? "is-active" : ""}`}
+          onClick={() => setMainView("led")}
+        >
+          LED Screen Report
+        </button>
       </div>
 
       {mainView === "rigging" && <>
@@ -1966,6 +1972,16 @@ function App() {
       </div>
 
       </>}
+
+      {mainView === "led" && (
+        <div className="card" style={{ padding: 32, textAlign: "center" }}>
+          <h2 style={{ marginTop: 0 }}>LED Screen Report</h2>
+          <p style={{ color: "var(--text-soft, #6b7280)" }}>
+            This tab is empty for now. Tell me what fields, columns, and totals
+            you want here and I'll build it out.
+          </p>
+        </div>
+      )}
 
       {mainView === "lighting" && (
         <LightingPlanView

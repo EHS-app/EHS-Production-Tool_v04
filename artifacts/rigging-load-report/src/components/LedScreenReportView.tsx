@@ -13,6 +13,8 @@ import {
   colLabel,
   computeScreenMetrics,
   panelCellColor,
+  cellArrowDirection,
+  type CellArrowDir,
   resolveScreenPanel,
 } from "../lib/led";
 
@@ -562,6 +564,12 @@ function ScreenSvg({
   const minDim = Math.min(cellW, cellH);
   const labelFont = Math.max(7, Math.min(14, minDim * 0.32));
   const showLabelsHere = settings.showLabels && minDim >= 14;
+  // Arrows need a bit of room — skip on tiny cells where they'd be a
+  // smudge. Labels (top-left) and arrows (bottom-right or center) sit
+  // in different parts of the cell, so they don't collide visually.
+  const showArrowsHere = settings.showArrows && minDim >= 12;
+  const arrowSize = Math.max(6, minDim * 0.32);
+  const arrowStroke = Math.max(1.2, arrowSize * 0.16);
 
   for (let row = 0; row < screen.panelsTall; row++) {
     for (let col = 0; col < screen.panelsWide; col++) {
@@ -574,6 +582,15 @@ function ScreenSvg({
         settings.panelColorDark,
         settings.panelColorLight,
       );
+      const arrowDir = showArrowsHere
+        ? cellArrowDirection(
+            col,
+            row,
+            screen.panelsWide,
+            screen.panelsTall,
+            settings.wirePath,
+          )
+        : null;
       cells.push(
         <g key={`${col}-${row}`}>
           <rect
@@ -587,19 +604,69 @@ function ScreenSvg({
             strokeWidth={1}
           />
           {showLabelsHere && (
+            // Top-left corner so labels never overlap the centred
+            // data-flow arrows. Mirrors the PNG export.
             <text
-              x={cx + cellW / 2}
-              y={cy + cellH / 2}
+              x={cx + Math.max(2, cellW * 0.06)}
+              y={cy + Math.max(2, cellH * 0.06) + labelFont * 0.85}
               fontSize={labelFont}
               fill="#0f172a"
-              textAnchor="middle"
-              dominantBaseline="central"
               fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+              fontWeight={600}
             >
               {colLabel(col)}
               {row + 1}
             </text>
           )}
+          {arrowDir && (
+            <CellArrow
+              cx={cx + cellW / 2}
+              cy={cy + cellH / 2}
+              size={arrowSize}
+              stroke={arrowStroke}
+              dir={arrowDir}
+            />
+          )}
+        </g>,
+      );
+    }
+  }
+
+  // Numbered output badges centered above each pair of columns — only
+  // shown in column-serpentine mode (which is the typical way large
+  // processors slice a wall: one output per 2 columns).
+  const colPairBadges: React.ReactNode[] = [];
+  if (settings.wirePath === "column-serpentine") {
+    const pairs = Math.ceil(screen.panelsWide / 2);
+    const startIndex = screen.outputIndex ?? 1;
+    const badgeR = Math.max(10, Math.min(20, cellW * 0.35));
+    for (let p = 0; p < pairs; p++) {
+      const col0 = p * 2;
+      const col1 = Math.min(col0 + 1, screen.panelsWide - 1);
+      const cxBadge =
+        x + ((col0 + col1 + 1) * cellW) / 2;
+      const cyBadge = y - badgeR - 6;
+      colPairBadges.push(
+        <g key={`pair-${p}`}>
+          <circle
+            cx={cxBadge}
+            cy={cyBadge}
+            r={badgeR}
+            fill="#ffffff"
+            stroke="#0f172a"
+            strokeWidth={2}
+          />
+          <text
+            x={cxBadge}
+            y={cyBadge}
+            fontSize={Math.max(11, badgeR * 0.95)}
+            fontWeight={700}
+            fill="#0f172a"
+            textAnchor="middle"
+            dominantBaseline="central"
+          >
+            {startIndex + p}
+          </text>
         </g>,
       );
     }
@@ -611,30 +678,34 @@ function ScreenSvg({
 
   return (
     <g>
-      {/* Output badge */}
-      {screen.outputIndex != null && (
-        <g>
-          <circle
-            cx={x + width / 2}
-            cy={y - 26}
-            r={18}
-            fill={screen.color}
-            stroke="#0f172a"
-            strokeWidth={2}
-          />
-          <text
-            x={x + width / 2}
-            y={y - 26}
-            fontSize={16}
-            fontWeight={700}
-            fill="#fff"
-            textAnchor="middle"
-            dominantBaseline="central"
-          >
-            {screen.outputIndex}
-          </text>
-        </g>
-      )}
+      {/* Per-column-pair output badges (column-serpentine wiring only) */}
+      {colPairBadges}
+      {/* Single per-screen output badge — hidden when the column-pair
+          badges are taking over the strip above the screen. */}
+      {screen.outputIndex != null &&
+        settings.wirePath !== "column-serpentine" && (
+          <g>
+            <circle
+              cx={x + width / 2}
+              cy={y - 26}
+              r={18}
+              fill={screen.color}
+              stroke="#0f172a"
+              strokeWidth={2}
+            />
+            <text
+              x={x + width / 2}
+              y={y - 26}
+              fontSize={16}
+              fontWeight={700}
+              fill="#fff"
+              textAnchor="middle"
+              dominantBaseline="central"
+            >
+              {screen.outputIndex}
+            </text>
+          </g>
+        )}
       {/* Screen title */}
       <text
         x={x}
@@ -725,6 +796,88 @@ function ScreenSvg({
   );
 }
 
+/** Single arrow centered at (cx, cy), drawn as a stroke + filled arrowhead.
+ *  Direction-agnostic so the same component handles up / down / left /
+ *  right for the per-cell data-flow indicators. */
+function CellArrow({
+  cx,
+  cy,
+  size,
+  stroke,
+  dir,
+}: {
+  cx: number;
+  cy: number;
+  size: number;
+  stroke: number;
+  dir: Exclude<CellArrowDir, null>;
+}) {
+  // Compute the line endpoints and the polygon for the arrowhead.
+  const half = size / 2;
+  const head = size * 0.55;
+  let x1 = cx;
+  let y1 = cy;
+  let x2 = cx;
+  let y2 = cy;
+  let p1x = 0;
+  let p1y = 0;
+  let p2x = 0;
+  let p2y = 0;
+  if (dir === "right") {
+    x1 = cx - half;
+    x2 = cx + half;
+    y1 = y2 = cy;
+    p1x = x2 - head;
+    p1y = cy - head * 0.6;
+    p2x = x2 - head;
+    p2y = cy + head * 0.6;
+  } else if (dir === "left") {
+    x1 = cx + half;
+    x2 = cx - half;
+    y1 = y2 = cy;
+    p1x = x2 + head;
+    p1y = cy - head * 0.6;
+    p2x = x2 + head;
+    p2y = cy + head * 0.6;
+  } else if (dir === "down") {
+    y1 = cy - half;
+    y2 = cy + half;
+    x1 = x2 = cx;
+    p1x = cx - head * 0.6;
+    p1y = y2 - head;
+    p2x = cx + head * 0.6;
+    p2y = y2 - head;
+  } else {
+    // up
+    y1 = cy + half;
+    y2 = cy - half;
+    x1 = x2 = cx;
+    p1x = cx - head * 0.6;
+    p1y = y2 + head;
+    p2x = cx + head * 0.6;
+    p2y = y2 + head;
+  }
+  return (
+    <g pointerEvents="none">
+      <line
+        x1={x1}
+        y1={y1}
+        x2={x2}
+        y2={y2}
+        stroke="#0a0a0a"
+        strokeOpacity={0.9}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+      />
+      <polygon
+        points={`${x2},${y2} ${p1x},${p1y} ${p2x},${p2y}`}
+        fill="#0a0a0a"
+        fillOpacity={0.9}
+      />
+    </g>
+  );
+}
+
 function ExportOptions({
   settings,
   onUpdateSettings,
@@ -783,7 +936,8 @@ function ExportOptions({
               }
             >
               <option value="linear">Linear (rows L→R)</option>
-              <option value="serpentine">Serpentine (alternates)</option>
+              <option value="serpentine">Serpentine (alternates rows)</option>
+              <option value="column-serpentine">Snake by column (down/up)</option>
             </select>
           </label>
 

@@ -70,8 +70,10 @@ This project is a pnpm workspace monorepo using TypeScript, designed to be an in
     - Linked screens from rigging inventory and standalone customizable screens.
     - Visual SVG canvas: grids of color-tinted panels with labels, output assignments, and name pills.
     - Per-screen PNG export with configurable options (labels, arrows, test patterns, info bar, logo, output badges).
-    - Dual panel color picker and curated presets.
+    - Dual panel color picker and curated presets (Blue, Red, **Red + Blue**, Green, Purple, Orange, Teal, Mono).
     - Panel pattern selector (`checker` or `columns`).
+    - **Wire-path modes** (`LedSettings.wirePath`): `linear` (every row L→R), `serpentine` (alternating-row snake L→R / R→L), and `column-serpentine` (snake by column — odd columns flow down, even columns flow up, with a → transition along the bottom row). Direction per cell is computed by `cellArrowDirection()` in `lib/led.ts`, which is shared by the in-app `<ScreenSvg>` preview (`components/LedScreenReportView.tsx`) and the PNG export (`lib/ledExport.ts`) so the two can never drift out of sync. Arrows are drawn inside each panel cell — no longer between cells — by the `<CellArrow>` React component and its mirror `cellArrowSvg()`.
+    - In `column-serpentine` mode the single per-screen output badge is replaced by **per-column-pair output badges**: one numbered white circle per pair of columns sitting just above the screen, starting from `screen.outputIndex ?? 1` (matches how Brompton / NovaStar processors typically slice a wall — one output per 2 columns).
     - Dashboard displaying screens, panels, pixels, area, weight, power, and outputs.
 - **Stage Report View** — Nivtec deck calculator, sourced from the official Nivtec 2024 catalogue, set-up rules, and assembly manual:
     - Standard Nivtec deck sizes only: 2×1 m (33 kg), 1×1 m (19.5 kg), 0.5×2 m (22 kg), 0.5×1 m (11 kg). All decks rated 750 kg/m² SWL.

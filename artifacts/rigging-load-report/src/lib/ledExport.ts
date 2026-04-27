@@ -2,6 +2,7 @@ import {
   colLabel,
   computeScreenMetrics,
   panelCellColor,
+  cellArrowDirection,
   resolveScreenPanel,
   type LedPanel,
   type LedScreen,
@@ -163,21 +164,25 @@ export function buildScreenSvg(input: BuildSvgInput): string {
     }
   }
 
-  // Data-flow arrows.
+  // Per-cell data-flow arrows. Direction is decided centrally in
+  // `cellArrowDirection()` so the on-screen preview and this PNG export
+  // can never disagree. Each arrow sits in the centre of its cell.
   if (settings.showArrows) {
-    const arrowSize = Math.max(6, Math.min(cellW, cellH) * 0.14);
-    const stroke = Math.max(2, arrowSize * 0.18);
-    // For each row, draw arrows between adjacent cells. Direction follows
-    // wirePath: linear = always L→R; serpentine = alternates.
+    const arrowSize = Math.max(8, Math.min(cellW, cellH) * 0.32);
+    const stroke = Math.max(2, arrowSize * 0.16);
     for (let cy = 0; cy < screen.panelsTall; cy++) {
-      const reversed =
-        settings.wirePath === "serpentine" && cy % 2 === 1;
-      const yMid = cy * cellH + cellH / 2;
-      for (let cx = 0; cx < screen.panelsWide - 1; cx++) {
-        const xJoin = (cx + 1) * cellW;
-        const fromX = reversed ? xJoin + arrowSize * 1.2 : xJoin - arrowSize * 1.2;
-        const toX = reversed ? xJoin - arrowSize * 1.2 : xJoin + arrowSize * 1.2;
-        parts.push(arrowSvg(fromX, yMid, toX, yMid, arrowSize, stroke));
+      for (let cx = 0; cx < screen.panelsWide; cx++) {
+        const dir = cellArrowDirection(
+          cx,
+          cy,
+          screen.panelsWide,
+          screen.panelsTall,
+          settings.wirePath,
+        );
+        if (!dir) continue;
+        const midX = cx * cellW + cellW / 2;
+        const midY = cy * cellH + cellH / 2;
+        parts.push(cellArrowSvg(midX, midY, arrowSize, stroke, dir));
       }
     }
   }
@@ -201,7 +206,29 @@ export function buildScreenSvg(input: BuildSvgInput): string {
   }
 
   // Output number circles.
-  if (settings.outputMode === "per-row") {
+  if (settings.wirePath === "column-serpentine") {
+    // One circle per pair of columns, sitting just inside the top edge.
+    // White fill, dark border to match a typical processor build sheet.
+    const pairs = Math.ceil(screen.panelsWide / 2);
+    const r = Math.min(cellW * 0.45, minDim * 0.05);
+    const margin = Math.max(r * 0.4, minDim * 0.012);
+    const startIndex = screen.outputIndex ?? 1;
+    for (let p = 0; p < pairs; p++) {
+      const col0 = p * 2;
+      const col1 = Math.min(col0 + 1, screen.panelsWide - 1);
+      const cxPx = ((col0 + col1 + 1) * cellW) / 2;
+      const cyPx = margin + r;
+      parts.push(
+        outputBadgeSvg(
+          cxPx,
+          cyPx,
+          r,
+          String(startIndex + p),
+          Math.min(outputFont, r * 1.1),
+        ),
+      );
+    }
+  } else if (settings.outputMode === "per-row") {
     // One circle per row, centered vertically in the row, sitting at the
     // left edge just inside the screen.
     const r = Math.min(cellH * 0.32, minDim * 0.035);
@@ -282,20 +309,63 @@ export function buildScreenSvg(input: BuildSvgInput): string {
   return parts.join("");
 }
 
-function arrowSvg(
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
+/** Draw a single arrow centred at (cx, cy), pointing in the given
+ *  direction. Mirror of `<CellArrow>` in LedScreenReportView so the PNG
+ *  export and the on-screen preview look identical. */
+function cellArrowSvg(
+  cx: number,
+  cy: number,
   size: number,
   stroke: number,
+  dir: "right" | "left" | "up" | "down",
 ): string {
-  const dir = x2 >= x1 ? 1 : -1;
-  const headBackX = x2 - dir * size;
-  const headHalf = size * 0.6;
+  const half = size / 2;
+  const head = size * 0.55;
+  let x1 = cx;
+  let y1 = cy;
+  let x2 = cx;
+  let y2 = cy;
+  let p1x = 0;
+  let p1y = 0;
+  let p2x = 0;
+  let p2y = 0;
+  if (dir === "right") {
+    x1 = cx - half;
+    x2 = cx + half;
+    y1 = y2 = cy;
+    p1x = x2 - head;
+    p1y = cy - head * 0.6;
+    p2x = x2 - head;
+    p2y = cy + head * 0.6;
+  } else if (dir === "left") {
+    x1 = cx + half;
+    x2 = cx - half;
+    y1 = y2 = cy;
+    p1x = x2 + head;
+    p1y = cy - head * 0.6;
+    p2x = x2 + head;
+    p2y = cy + head * 0.6;
+  } else if (dir === "down") {
+    y1 = cy - half;
+    y2 = cy + half;
+    x1 = x2 = cx;
+    p1x = cx - head * 0.6;
+    p1y = y2 - head;
+    p2x = cx + head * 0.6;
+    p2y = y2 - head;
+  } else {
+    // up
+    y1 = cy + half;
+    y2 = cy - half;
+    x1 = x2 = cx;
+    p1x = cx - head * 0.6;
+    p1y = y2 + head;
+    p2x = cx + head * 0.6;
+    p2y = y2 + head;
+  }
   return [
-    `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#0a0a0a" stroke-opacity="0.85" stroke-width="${stroke}"/>`,
-    `<polygon points="${x2},${y2} ${headBackX},${y2 - headHalf} ${headBackX},${y2 + headHalf}" fill="#0a0a0a" fill-opacity="0.85"/>`,
+    `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#0a0a0a" stroke-opacity="0.9" stroke-width="${stroke}" stroke-linecap="round"/>`,
+    `<polygon points="${x2},${y2} ${p1x},${p1y} ${p2x},${p2y}" fill="#0a0a0a" fill-opacity="0.9"/>`,
   ].join("");
 }
 

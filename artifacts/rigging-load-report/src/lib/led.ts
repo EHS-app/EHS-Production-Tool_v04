@@ -49,7 +49,53 @@ export type LedLinkedMeta = {
   nameOverride?: string;
 };
 
-export type LedWirePath = "linear" | "serpentine";
+export type LedWirePath = "linear" | "serpentine" | "column-serpentine";
+
+/** Per-cell arrow direction returned by `cellArrowDirection()`. `null`
+ *  means the cell sits at the very end of the data path so it gets no
+ *  arrow. */
+export type CellArrowDir = "right" | "left" | "up" | "down" | null;
+
+/** Compute which way the data-flow arrow should point inside the cell at
+ *  (col, row), given the screen's grid size and wiring mode. Centralized
+ *  so the in-app preview and the PNG export can never disagree. */
+export function cellArrowDirection(
+  col: number,
+  row: number,
+  panelsWide: number,
+  panelsTall: number,
+  wirePath: LedWirePath,
+): CellArrowDir {
+  if (panelsWide < 1 || panelsTall < 1) return null;
+  if (wirePath === "column-serpentine") {
+    // Bottom-right cell has no successor — terminus of the snake.
+    if (row === panelsTall - 1 && col === panelsWide - 1) return null;
+    // Bottom row of every other column shows a → transition to the
+    // next column, matching the visual style users expect on processor
+    // build maps.
+    if (row === panelsTall - 1) return "right";
+    // Odd column index (0, 2, 4…) flows DOWN; even (1, 3, 5…) flows UP.
+    return col % 2 === 0 ? "down" : "up";
+  }
+  if (wirePath === "serpentine") {
+    const reversed = row % 2 === 1;
+    if (reversed) {
+      // Right → Left flow. First cell of the row drops down at the
+      // start of the previous (left-to-right) row's end; here we just
+      // point left between cells. The first cell (col 0) ends the row
+      // and drops down to the next row.
+      if (col === 0) return row < panelsTall - 1 ? "down" : null;
+      return "left";
+    }
+    // Left → Right flow.
+    if (col === panelsWide - 1) return row < panelsTall - 1 ? "down" : null;
+    return "right";
+  }
+  // Linear: every row goes left-to-right. Last column drops down to the
+  // start of the next row.
+  if (col === panelsWide - 1) return row < panelsTall - 1 ? "down" : null;
+  return "right";
+}
 export type LedOutputMode = "per-screen" | "per-row";
 /** How the two `panelColor*` colors are distributed across the panel grid.
  *  - "checker" (default): every panel alternates with its neighbours in
@@ -113,6 +159,7 @@ export const LED_PANEL_COLOR_PRESETS: Array<{
 }> = [
   { label: "Blue", dark: "#1f3b8a", light: "#5a8edc" },
   { label: "Red", dark: "#7f1d1d", light: "#ef4444" },
+  { label: "Red + Blue", dark: "#3b82f6", light: "#dc4040" },
   { label: "Green", dark: "#14532d", light: "#22c55e" },
   { label: "Purple", dark: "#4c1d95", light: "#a78bfa" },
   { label: "Orange", dark: "#7c2d12", light: "#fb923c" },
@@ -244,7 +291,11 @@ export function normalizeLedSettings(s: unknown): LedSettings {
       ? rawLimit
       : DEFAULT_LED_SETTINGS.portLimit;
   const wirePath: LedWirePath =
-    obj.wirePath === "serpentine" ? "serpentine" : "linear";
+    obj.wirePath === "serpentine"
+      ? "serpentine"
+      : obj.wirePath === "column-serpentine"
+        ? "column-serpentine"
+        : "linear";
   const outputMode: LedOutputMode =
     obj.outputMode === "per-row" ? "per-row" : "per-screen";
   const panelPattern: LedPanelPattern =

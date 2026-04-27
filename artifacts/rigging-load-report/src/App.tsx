@@ -1194,7 +1194,7 @@ function App() {
           <div className="header-title">
             <span className="header-eyebrow">EHS</span>
             <h1>
-              Tool for <span className="header-title-accent">Production</span>
+              Production <span className="header-title-accent">Tool</span>
             </h1>
           </div>
         </div>

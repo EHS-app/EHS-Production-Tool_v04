@@ -217,14 +217,13 @@ function SignInScreen({
           background: c.inviteBg,
         }}
       >
-        Access is by invitation only. To request an invite, email{" "}
+        Need help contact{" "}
         <a
           href="mailto:utleie@ehs.no"
           style={{ color: EHS_ORANGE, fontWeight: 600 }}
         >
           utleie@ehs.no
         </a>
-        .
       </div>
     </div>
   );

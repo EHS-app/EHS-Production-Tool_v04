@@ -143,6 +143,42 @@ function getRowItem(row: Row): InventoryItem | undefined {
 const STORAGE_KEY_V2 = "ehs-rigging-report-v2";
 const STORAGE_KEY_V1 = "ehs-rigging-report-v1";
 
+type MainView = "rigging" | "lighting";
+
+type ShowFixture = {
+  id: string;
+  name: string;
+  qty: number;
+  weight: number;
+  watts: number;
+  dmxChannels: number;
+  beamAngle: number;
+  systemId: string;
+  position: number;
+  circuit: string;
+  universe: number;
+  startAddress: number;
+  notes: string;
+};
+
+function makeShowFixture(): ShowFixture {
+  return {
+    id: newId("fx"),
+    name: "",
+    qty: 1,
+    weight: 0,
+    watts: 0,
+    dmxChannels: 0,
+    beamAngle: 0,
+    systemId: "",
+    position: 0,
+    circuit: "",
+    universe: 1,
+    startAddress: 1,
+    notes: "",
+  };
+}
+
 type PersistedV2 = {
   theme: "light" | "dark";
   venue: string;
@@ -150,6 +186,8 @@ type PersistedV2 = {
   engineer: string;
   systems: System[];
   activeSystemId: string;
+  showFixtures?: ShowFixture[];
+  mainView?: MainView;
 };
 
 function loadPersisted(): Partial<PersistedV2> | null {
@@ -265,6 +303,11 @@ function App() {
     return list[0].id;
   });
 
+  const [mainView, setMainView] = useState<MainView>(persisted?.mainView ?? "rigging");
+  const [showFixtures, setShowFixtures] = useState<ShowFixture[]>(
+    persisted?.showFixtures ?? [],
+  );
+
   const [modalTarget, setModalTarget] = useState<Category | null>(null);
   const [custName, setCustName] = useState("");
   const [custWeight, setCustWeight] = useState("");
@@ -285,6 +328,8 @@ function App() {
       engineer,
       systems,
       activeSystemId,
+      showFixtures,
+      mainView,
     };
     try {
       localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(data));
@@ -297,7 +342,7 @@ function App() {
     } catch {
       /* ignore quota errors */
     }
-  }, [theme, venue, reportDate, engineer, systems, activeSystemId]);
+  }, [theme, venue, reportDate, engineer, systems, activeSystemId, showFixtures, mainView]);
 
   const activeSystem =
     systems.find((s) => s.id === activeSystemId) ?? systems[0];
@@ -367,6 +412,45 @@ function App() {
     setCustArea("");
   };
   const closeModal = () => setModalTarget(null);
+
+  // ── Show Fixtures (Lighting Plan) ───────────────────────────────────────
+  const addShowFixture = () =>
+    setShowFixtures((all) => [...all, makeShowFixture()]);
+
+  const updateShowFixture = (id: string, patch: Partial<ShowFixture>) =>
+    setShowFixtures((all) =>
+      all.map((f) => (f.id === id ? { ...f, ...patch } : f)),
+    );
+
+  const removeShowFixture = (id: string) =>
+    setShowFixtures((all) => all.filter((f) => f.id !== id));
+
+  const duplicateShowFixture = (id: string) =>
+    setShowFixtures((all) => {
+      const idx = all.findIndex((f) => f.id === id);
+      if (idx < 0) return all;
+      const copy = { ...all[idx], id: newId("fx") };
+      const next = all.slice();
+      next.splice(idx + 1, 0, copy);
+      return next;
+    });
+
+  const lightingTotals = useMemo(() => {
+    let qty = 0,
+      weight = 0,
+      watts = 0,
+      channels = 0;
+    for (const f of showFixtures) {
+      qty += f.qty;
+      weight += f.weight * f.qty;
+      watts += f.watts * f.qty;
+      channels += f.dmxChannels * f.qty;
+    }
+    const universesUsed = new Set(
+      showFixtures.filter((f) => f.dmxChannels > 0).map((f) => f.universe),
+    ).size;
+    return { qty, weight, watts, channels, universesUsed };
+  }, [showFixtures]);
 
   const submitCustom = () => {
     if (!modalTarget) return;
@@ -566,7 +650,7 @@ function App() {
   const resetAll = () => {
     if (
       !confirm(
-        "Reset the entire report? All systems, gear, and project info will be cleared.",
+        "Reset the entire report? All systems, gear, project info, and lighting fixtures will be cleared.",
       )
     )
       return;
@@ -576,6 +660,8 @@ function App() {
     setEngineer("");
     setSystems([fresh]);
     setActiveSystemId(fresh.id);
+    setShowFixtures([]);
+    setMainView("rigging");
   };
 
   const metricsByActive = useMemo(() => computeMetrics(activeSystem), [activeSystem]);
@@ -726,7 +812,19 @@ function App() {
           <button className="btn btn-csv" onClick={downloadCsv} title="Download CSV">
             CSV
           </button>
-          <button className="btn btn-export" onClick={() => window.print()}>
+          <button
+            className="btn btn-export"
+            onClick={() => {
+              if (mainView !== "rigging") {
+                setMainView("rigging");
+                requestAnimationFrame(() =>
+                  requestAnimationFrame(() => window.print()),
+                );
+              } else {
+                window.print();
+              }
+            }}
+          >
             Export Report
           </button>
         </div>
@@ -763,6 +861,27 @@ function App() {
           </div>
         </div>
       </div>
+
+      {/* TOP-LEVEL VIEW SWITCHER */}
+      <div className="view-switcher no-print">
+        <button
+          className={`view-tab ${mainView === "rigging" ? "is-active" : ""}`}
+          onClick={() => setMainView("rigging")}
+        >
+          Rigging Report
+        </button>
+        <button
+          className={`view-tab ${mainView === "lighting" ? "is-active" : ""}`}
+          onClick={() => setMainView("lighting")}
+        >
+          Lighting Plan
+          {showFixtures.length > 0 && (
+            <span className="view-tab-badge">{showFixtures.length}</span>
+          )}
+        </button>
+      </div>
+
+      {mainView === "rigging" && <>
 
       {/* PROJECT-WIDE SUMMARY */}
       <div className="dashboard project-summary">
@@ -1442,6 +1561,20 @@ function App() {
         </div>
       </div>
 
+      </>}
+
+      {mainView === "lighting" && (
+        <LightingPlanView
+          showFixtures={showFixtures}
+          systems={systems}
+          totals={lightingTotals}
+          onAdd={addShowFixture}
+          onUpdate={updateShowFixture}
+          onRemove={removeShowFixture}
+          onDuplicate={duplicateShowFixture}
+        />
+      )}
+
       {modalTarget && (
         <div className="modal-backdrop" onClick={closeModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -1483,6 +1616,356 @@ function App() {
         </div>
       )}
     </div>
+  );
+}
+
+type LightingPlanViewProps = {
+  showFixtures: ShowFixture[];
+  systems: System[];
+  totals: {
+    qty: number;
+    weight: number;
+    watts: number;
+    channels: number;
+    universesUsed: number;
+  };
+  onAdd: () => void;
+  onUpdate: (id: string, patch: Partial<ShowFixture>) => void;
+  onRemove: (id: string) => void;
+  onDuplicate: (id: string) => void;
+};
+
+function LightingPlanView({
+  showFixtures,
+  systems,
+  totals,
+  onAdd,
+  onUpdate,
+  onRemove,
+  onDuplicate,
+}: LightingPlanViewProps) {
+  return (
+    <>
+      <div className="dashboard project-summary">
+        <div className="dash-item">
+          <span>Fixtures</span>
+          <strong>{totals.qty}</strong>
+          <small>units</small>
+        </div>
+        <div className="dash-item">
+          <span>Weight</span>
+          <strong>{totals.weight.toFixed(1)}</strong>
+          <small>kg</small>
+        </div>
+        <div className="dash-item">
+          <span>Power</span>
+          <strong>{totals.watts.toLocaleString()}</strong>
+          <small>W</small>
+        </div>
+        <div className="dash-item">
+          <span>DMX Channels</span>
+          <strong>{totals.channels.toLocaleString()}</strong>
+          <small>used</small>
+        </div>
+        <div className="dash-item">
+          <span>Universes</span>
+          <strong>{totals.universesUsed}</strong>
+          <small>active</small>
+        </div>
+        <div className="dash-item">
+          <span>Lines</span>
+          <strong>{showFixtures.length}</strong>
+          <small>entries</small>
+        </div>
+      </div>
+
+      <div className="card">
+        <h2>
+          Show Fixture List
+          <span className="card-total">
+            {showFixtures.length} {showFixtures.length === 1 ? "line" : "lines"}
+          </span>
+        </h2>
+        <div className="lighting-help">
+          Build your fixture list once. Weight feeds the rigging totals later;
+          DMX feeds the patch sheet; positions feed the visual plot.
+        </div>
+        {showFixtures.length === 0 ? (
+          <div className="lighting-empty">
+            No fixtures yet. Click <strong>+ Add Fixture</strong> to start your
+            list.
+          </div>
+        ) : (
+          <div className="fx-table-wrap">
+            <table className="fx-table">
+              <thead>
+                <tr>
+                  <th style={{ minWidth: 180 }}>Fixture</th>
+                  <th>Qty</th>
+                  <th>Weight (kg)</th>
+                  <th>Power (W)</th>
+                  <th>DMX Ch</th>
+                  <th>Beam (°)</th>
+                  <th>Truss</th>
+                  <th>Pos (m)</th>
+                  <th>Circuit</th>
+                  <th>Univ.</th>
+                  <th>Address</th>
+                  <th>End</th>
+                  <th>Total Wt</th>
+                  <th>Total W</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {showFixtures.map((f) => {
+                  const totalChans = f.dmxChannels * f.qty;
+                  const endAddr =
+                    totalChans > 0
+                      ? f.startAddress + totalChans - 1
+                      : 0;
+                  const overflow = endAddr > 512;
+                  const totalWt = f.weight * f.qty;
+                  const totalW = f.watts * f.qty;
+                  return (
+                    <tr key={f.id}>
+                      <td>
+                        <input
+                          type="text"
+                          value={f.name}
+                          onChange={(e) =>
+                            onUpdate(f.id, { name: e.target.value })
+                          }
+                          placeholder="e.g. Martin MAC Aura PXL"
+                          className="fx-input fx-input-name"
+                          aria-label="Fixture name"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={f.qty}
+                          onChange={(e) =>
+                            onUpdate(f.id, {
+                              qty: Math.max(
+                                1,
+                                Math.floor(Number(e.target.value) || 1),
+                              ),
+                            })
+                          }
+                          className="fx-input fx-input-num"
+                          aria-label="Quantity"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min={0}
+                          value={f.weight}
+                          onChange={(e) =>
+                            onUpdate(f.id, {
+                              weight: Math.max(0, Number(e.target.value) || 0),
+                            })
+                          }
+                          className="fx-input fx-input-num"
+                          aria-label="Weight per fixture in kilograms"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          min={0}
+                          value={f.watts}
+                          onChange={(e) =>
+                            onUpdate(f.id, {
+                              watts: Math.max(0, Number(e.target.value) || 0),
+                            })
+                          }
+                          className="fx-input fx-input-num"
+                          aria-label="Power per fixture in watts"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={f.dmxChannels}
+                          onChange={(e) =>
+                            onUpdate(f.id, {
+                              dmxChannels: Math.max(
+                                0,
+                                Math.floor(Number(e.target.value) || 0),
+                              ),
+                            })
+                          }
+                          className="fx-input fx-input-num"
+                          aria-label="DMX channels per fixture"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          min={0}
+                          max={180}
+                          value={f.beamAngle}
+                          onChange={(e) =>
+                            onUpdate(f.id, {
+                              beamAngle: Math.max(
+                                0,
+                                Math.min(180, Number(e.target.value) || 0),
+                              ),
+                            })
+                          }
+                          className="fx-input fx-input-num"
+                          aria-label="Beam angle in degrees"
+                        />
+                      </td>
+                      <td>
+                        <select
+                          value={f.systemId}
+                          onChange={(e) =>
+                            onUpdate(f.id, { systemId: e.target.value })
+                          }
+                          className="fx-input fx-input-select"
+                          aria-label="Truss assignment"
+                        >
+                          <option value="">—</option>
+                          {systems.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={f.position}
+                          onChange={(e) =>
+                            onUpdate(f.id, {
+                              position: Number(e.target.value) || 0,
+                            })
+                          }
+                          className="fx-input fx-input-num"
+                          aria-label="Position on truss in meters"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          value={f.circuit}
+                          onChange={(e) =>
+                            onUpdate(f.id, { circuit: e.target.value })
+                          }
+                          placeholder="—"
+                          className="fx-input fx-input-circuit"
+                          aria-label="Power circuit"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={f.universe}
+                          onChange={(e) =>
+                            onUpdate(f.id, {
+                              universe: Math.max(
+                                1,
+                                Math.floor(Number(e.target.value) || 1),
+                              ),
+                            })
+                          }
+                          className="fx-input fx-input-num"
+                          aria-label="DMX universe"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          min={1}
+                          max={512}
+                          step={1}
+                          value={f.startAddress}
+                          onChange={(e) =>
+                            onUpdate(f.id, {
+                              startAddress: Math.max(
+                                1,
+                                Math.min(
+                                  512,
+                                  Math.floor(Number(e.target.value) || 1),
+                                ),
+                              ),
+                            })
+                          }
+                          className="fx-input fx-input-num"
+                          aria-label="DMX start address"
+                        />
+                      </td>
+                      <td
+                        className={`fx-end ${overflow ? "fx-end-over" : ""}`}
+                        title={
+                          overflow
+                            ? "Exceeds 512 channels — bump start address or universe"
+                            : ""
+                        }
+                      >
+                        {endAddr || "—"}
+                        {overflow && " ⚠"}
+                      </td>
+                      <td className="fx-total">{totalWt.toFixed(1)}</td>
+                      <td className="fx-total">{totalW.toLocaleString()}</td>
+                      <td className="fx-actions">
+                        <button
+                          className="fx-row-btn"
+                          onClick={() => onDuplicate(f.id)}
+                          title="Duplicate row"
+                          aria-label="Duplicate row"
+                        >
+                          ⎘
+                        </button>
+                        <button
+                          className="fx-row-btn fx-row-btn-del"
+                          onClick={() => onRemove(f.id)}
+                          title="Delete row"
+                          aria-label="Delete row"
+                        >
+                          ×
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              {showFixtures.length > 0 && (
+                <tfoot>
+                  <tr>
+                    <td colSpan={12} style={{ textAlign: "right" }}>
+                      <strong>Totals</strong>
+                    </td>
+                    <td className="fx-total">{totals.weight.toFixed(1)}</td>
+                    <td className="fx-total">
+                      {totals.watts.toLocaleString()}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        )}
+        <div style={{ marginTop: 12 }}>
+          <button className="btn btn-export" onClick={onAdd}>
+            + Add Fixture
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 

@@ -12,3 +12,9 @@ id = "hkGhNh4yVch1DuGy9KpTj"
 uri = "file://exports/ehs-rigging-load-report-full-app.zip"
 type = "unspecified"
 title = "EHS Rigging Load Report — Full Project (354 KB)"
+
+[[outputs]]
+id = "dUrl3tE1z_CJi7_3VoPBQ"
+uri = "file://exports/ehs-rigging-load-report-BACKUP-2026-04-27-pre-lighting.zip"
+type = "unspecified"
+title = "Backup — before adding lighting tools (135 KB)"

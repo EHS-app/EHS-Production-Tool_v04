@@ -51,6 +51,24 @@ type InventoryItem = {
   pixelHeight?: number;
   physicalWidth?: number;
   physicalHeight?: number;
+  /** Optional richer manufacturer specs forwarded onto the LedPanel
+   *  via `buildLedPanels`. Used by the LED Screen Report's "Datasheet"
+   *  expander and by the Power-(typical) dashboard stat. */
+  brand?: string;
+  model?: string;
+  pitchMm?: number;
+  avgPower?: number;
+  brightnessNits?: number;
+  refreshHz?: number;
+  viewingAngleH?: number;
+  viewingAngleV?: number;
+  voltage?: string;
+  ipRating?: string;
+  depthMm?: number;
+  moduleWMm?: number;
+  moduleHMm?: number;
+  material?: string;
+  datasheetUrl?: string;
 };
 
 type Category = "Truss" | "Fixtures" | "LED Screen";
@@ -313,6 +331,21 @@ const inventory: Record<Category, InventoryItem[]> = {
       pixelHeight: 128,
       physicalWidth: 1.0,
       physicalHeight: 0.5,
+      brand: "Uniview",
+      model: "UR Pro 3.9 (1000 × 500 cabinet)",
+      pitchMm: 3.91,
+      avgPower: 117,
+      brightnessNits: 1000,
+      refreshHz: 3840,
+      viewingAngleH: 140,
+      viewingAngleV: 140,
+      voltage: "AC 100–240 V, 50/60 Hz",
+      ipRating: "IP30 (indoor)",
+      depthMm: 75,
+      moduleWMm: 250,
+      moduleHMm: 250,
+      material: "Die-cast aluminium",
+      datasheetUrl: "https://www.uniview.com/Products/Display/UR-Pro-Series/",
     },
     {
       name: "Uniview UR Pro 0.5x0.5m (7.2kg)",
@@ -323,6 +356,21 @@ const inventory: Record<Category, InventoryItem[]> = {
       pixelHeight: 128,
       physicalWidth: 0.5,
       physicalHeight: 0.5,
+      brand: "Uniview",
+      model: "UR Pro 3.9 (500 × 500 cabinet)",
+      pitchMm: 3.91,
+      avgPower: 58,
+      brightnessNits: 1000,
+      refreshHz: 3840,
+      viewingAngleH: 140,
+      viewingAngleV: 140,
+      voltage: "AC 100–240 V, 50/60 Hz",
+      ipRating: "IP30 (indoor)",
+      depthMm: 75,
+      moduleWMm: 250,
+      moduleHMm: 250,
+      material: "Die-cast aluminium",
+      datasheetUrl: "https://www.uniview.com/Products/Display/UR-Pro-Series/",
     },
     { name: "Molton 6x4m (7.2kg)", weight: 7.2, wattage: 0, area: 0 },
     { name: "Molton 9x6m (16.2kg)", weight: 16.2, wattage: 0, area: 0 },

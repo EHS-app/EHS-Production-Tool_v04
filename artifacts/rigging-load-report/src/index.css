@@ -1954,6 +1954,93 @@ input:focus {
   color: inherit;
 }
 
+.led-panel-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.led-spec-toggle {
+  flex: none;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--text-soft, #4b5563);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.led-spec-toggle:hover {
+  background: var(--surface-soft, #f3f4f6);
+  color: var(--text, #111827);
+}
+.led-spec-toggle.is-open {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.45);
+  color: #1d4ed8;
+}
+
+.led-row-specs td {
+  background: var(--surface-soft, #f9fafb);
+  border-bottom: 2px solid var(--border, #e5e7eb);
+  padding: 12px 14px;
+}
+.led-datasheet-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.led-datasheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.88rem;
+  color: var(--text, #111827);
+}
+.led-datasheet-link {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  text-decoration: none;
+  padding: 3px 8px;
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.08);
+}
+.led-datasheet-link:hover {
+  background: rgba(59, 130, 246, 0.16);
+}
+.led-datasheet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 6px 18px;
+  margin: 0;
+}
+.led-datasheet-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--border, #e5e7eb);
+}
+.led-datasheet-row dt {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-soft, #6b7280);
+}
+.led-datasheet-row dd {
+  margin: 0;
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text, #111827);
+}
+
 .led-input {
   padding: 5px 8px;
   border: 1px solid var(--border, #d1d5db);

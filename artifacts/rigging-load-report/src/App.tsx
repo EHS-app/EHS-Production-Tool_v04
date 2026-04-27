@@ -91,31 +91,9 @@ type Row = {
   custom?: InventoryItem;
 };
 
-let rowIdCounter = 0;
-const newId = () => `row-${++rowIdCounter}-${Math.random().toString(36).slice(2, 8)}`;
-
-function makeRow(category: Category, qty = 1): Row {
-  return { id: newId(), category, selectedIndex: 0, qty };
-}
-
-function makeCustomRow(targetCategory: Category, item: InventoryItem): Row {
-  return { id: newId(), category: targetCategory, selectedIndex: -1, qty: 1, custom: item };
-}
-
-function getRowItem(row: Row): InventoryItem | undefined {
-  if (row.custom) return row.custom;
-  if (row.category === "Custom") return undefined;
-  return inventory[row.category as Category][row.selectedIndex];
-}
-
-const STORAGE_KEY = "ehs-rigging-report-v1";
-
-type PersistedState = {
-  theme: "light" | "dark";
-  systemName: string;
-  venue: string;
-  reportDate: string;
-  engineer: string;
+type System = {
+  id: string;
+  name: string;
   pointCount: number;
   dynamicFactor: number;
   hoistIndex: number;
@@ -124,39 +102,167 @@ type PersistedState = {
   ledRows: Row[];
 };
 
-function loadPersisted(): Partial<PersistedState> | null {
+let idCounter = 0;
+const newId = (prefix = "id") =>
+  `${prefix}-${++idCounter}-${Math.random().toString(36).slice(2, 8)}`;
+
+function makeRow(category: Category, qty = 1): Row {
+  return { id: newId("row"), category, selectedIndex: 0, qty };
+}
+
+function makeCustomRow(targetCategory: Category, item: InventoryItem): Row {
+  return {
+    id: newId("row"),
+    category: targetCategory,
+    selectedIndex: -1,
+    qty: 1,
+    custom: item,
+  };
+}
+
+function makeSystem(name: string): System {
+  return {
+    id: newId("sys"),
+    name,
+    pointCount: 3,
+    dynamicFactor: 1.25,
+    hoistIndex: 0,
+    riggingRows: [makeRow("Truss", 4)],
+    fixtureRows: [],
+    ledRows: [],
+  };
+}
+
+function getRowItem(row: Row): InventoryItem | undefined {
+  if (row.custom) return row.custom;
+  if (row.category === "Custom") return undefined;
+  return inventory[row.category as Category][row.selectedIndex];
+}
+
+const STORAGE_KEY_V2 = "ehs-rigging-report-v2";
+const STORAGE_KEY_V1 = "ehs-rigging-report-v1";
+
+type PersistedV2 = {
+  theme: "light" | "dark";
+  venue: string;
+  reportDate: string;
+  engineer: string;
+  systems: System[];
+  activeSystemId: string;
+};
+
+function loadPersisted(): Partial<PersistedV2> | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as Partial<PersistedState>;
+    const rawV2 = localStorage.getItem(STORAGE_KEY_V2);
+    if (rawV2) return JSON.parse(rawV2) as Partial<PersistedV2>;
+
+    const rawV1 = localStorage.getItem(STORAGE_KEY_V1);
+    if (rawV1) {
+      const v1 = JSON.parse(rawV1);
+      const sys: System = {
+        id: newId("sys"),
+        name: v1.systemName || "LX1",
+        pointCount: v1.pointCount ?? 3,
+        dynamicFactor: v1.dynamicFactor ?? 1.25,
+        hoistIndex: v1.hoistIndex ?? 0,
+        riggingRows: Array.isArray(v1.riggingRows)
+          ? v1.riggingRows
+          : [makeRow("Truss", 4)],
+        fixtureRows: Array.isArray(v1.fixtureRows) ? v1.fixtureRows : [],
+        ledRows: Array.isArray(v1.ledRows) ? v1.ledRows : [],
+      };
+      return {
+        theme: v1.theme ?? "light",
+        venue: v1.venue ?? "",
+        reportDate: v1.reportDate ?? new Date().toISOString().slice(0, 10),
+        engineer: v1.engineer ?? "",
+        systems: [sys],
+        activeSystemId: sys.id,
+      };
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
+type SystemMetrics = {
+  payload: number;
+  power: number;
+  area: number;
+  static: number;
+  dynamic: number;
+  motorPower: number;
+  peak: number;
+  swl: number;
+  headroom: number;
+  factors: number[];
+  staticPointLoads: number[];
+  dynamicPointLoads: number[];
+  hoist: Hoist;
+};
+
+function computeMetrics(sys: System): SystemMetrics {
+  let payload = 0,
+    power = 0,
+    area = 0;
+  for (const row of [...sys.riggingRows, ...sys.fixtureRows, ...sys.ledRows]) {
+    const item = getRowItem(row);
+    if (!item) continue;
+    payload += item.weight * row.qty;
+    power += item.wattage * row.qty;
+    area += item.area * row.qty;
+  }
+  const hoist = hoistModels[sys.hoistIndex] ?? hoistModels[0];
+  const motorPower = hoist.watt * sys.pointCount;
+  const staticTotal = payload + sys.pointCount * hoist.weight;
+  const dynamicTotal = staticTotal * sys.dynamicFactor;
+  const factors = distributionFactors[sys.pointCount] ?? [];
+  const staticPointLoads = factors.map((f) => staticTotal * f);
+  const dynamicPointLoads = factors.map((f) => dynamicTotal * f);
+  const peak = dynamicPointLoads.length ? Math.max(...dynamicPointLoads) : 0;
+  return {
+    payload,
+    power,
+    area,
+    static: staticTotal,
+    dynamic: dynamicTotal,
+    motorPower,
+    peak,
+    swl: hoist.swl,
+    headroom: hoist.swl - peak,
+    factors,
+    staticPointLoads,
+    dynamicPointLoads,
+    hoist,
+  };
+}
+
 function App() {
-  const persisted = useRef<Partial<PersistedState> | null>(loadPersisted()).current;
+  const persisted = useRef<Partial<PersistedV2> | null>(loadPersisted()).current;
+  const initialSystem = makeSystem("LX1");
 
   const [theme, setTheme] = useState<"light" | "dark">(persisted?.theme ?? "light");
-  const [systemName, setSystemName] = useState(persisted?.systemName ?? "");
   const [venue, setVenue] = useState(persisted?.venue ?? "");
   const [reportDate, setReportDate] = useState(
     persisted?.reportDate ?? new Date().toISOString().slice(0, 10),
   );
   const [engineer, setEngineer] = useState(persisted?.engineer ?? "");
-  const [pointCount, setPointCount] = useState<number>(persisted?.pointCount ?? 3);
-  const [dynamicFactor, setDynamicFactor] = useState<number>(
-    persisted?.dynamicFactor ?? 1.25,
+  const [systems, setSystems] = useState<System[]>(
+    persisted?.systems && persisted.systems.length > 0
+      ? persisted.systems
+      : [initialSystem],
   );
-  const [hoistIndex, setHoistIndex] = useState<number>(persisted?.hoistIndex ?? 0);
-
-  const [riggingRows, setRiggingRows] = useState<Row[]>(
-    persisted?.riggingRows ?? [makeRow("Truss", 4)],
-  );
-  const [fixtureRows, setFixtureRows] = useState<Row[]>(
-    persisted?.fixtureRows ?? [],
-  );
-  const [ledRows, setLedRows] = useState<Row[]>(persisted?.ledRows ?? []);
+  const [activeSystemId, setActiveSystemId] = useState<string>(() => {
+    const fromPersisted = persisted?.activeSystemId;
+    const list = persisted?.systems && persisted.systems.length > 0
+      ? persisted.systems
+      : [initialSystem];
+    if (fromPersisted && list.some((s) => s.id === fromPersisted)) {
+      return fromPersisted;
+    }
+    return list[0].id;
+  });
 
   const [modalTarget, setModalTarget] = useState<Category | null>(null);
   const [custName, setCustName] = useState("");
@@ -170,97 +276,86 @@ function App() {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
-  // Auto-save to localStorage
   useEffect(() => {
-    const data: PersistedState = {
+    const data: PersistedV2 = {
       theme,
-      systemName,
       venue,
       reportDate,
       engineer,
-      pointCount,
-      dynamicFactor,
-      hoistIndex,
-      riggingRows,
-      fixtureRows,
-      ledRows,
+      systems,
+      activeSystemId,
     };
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      const now = new Date();
+      localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(data));
       setSavedAt(
-        now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
       );
     } catch {
       /* ignore quota errors */
     }
-  }, [
-    theme,
-    systemName,
-    venue,
-    reportDate,
-    engineer,
-    pointCount,
-    dynamicFactor,
-    hoistIndex,
-    riggingRows,
-    fixtureRows,
-    ledRows,
-  ]);
+  }, [theme, venue, reportDate, engineer, systems, activeSystemId]);
 
-  const hoist = hoistModels[hoistIndex];
+  const activeSystem =
+    systems.find((s) => s.id === activeSystemId) ?? systems[0];
 
-  const { totalPayload, totalPower, totalArea, allRows } = useMemo(() => {
-    let payload = 0,
-      power = 0,
-      area = 0;
-    const all = [
-      ...riggingRows.map((r) => ({ row: r, section: "Motors & Support" as const })),
-      ...fixtureRows.map((r) => ({ row: r, section: "Lighting Fixtures" as const })),
-      ...ledRows.map((r) => ({ row: r, section: "LED & Other" as const })),
-    ];
-    for (const { row } of all) {
-      const item = getRowItem(row);
-      if (!item) continue;
-      payload += item.weight * row.qty;
-      power += item.wattage * row.qty;
-      area += item.area * row.qty;
+  const updateActiveSystem = (updates: Partial<System>) => {
+    setSystems((all) =>
+      all.map((s) => (s.id === activeSystem.id ? { ...s, ...updates } : s)),
+    );
+  };
+
+  const updateRowsKey = (
+    key: "riggingRows" | "fixtureRows" | "ledRows",
+    fn: (rows: Row[]) => Row[],
+  ) => {
+    setSystems((all) =>
+      all.map((s) =>
+        s.id === activeSystem.id ? { ...s, [key]: fn(s[key]) } : s,
+      ),
+    );
+  };
+
+  const addSystem = () => {
+    const nextNumber = systems.length + 1;
+    let baseName = `LX${nextNumber}`;
+    while (systems.some((s) => s.name === baseName)) baseName += "'";
+    const sys = makeSystem(baseName);
+    setSystems((all) => [...all, sys]);
+    setActiveSystemId(sys.id);
+  };
+
+  const duplicateActiveSystem = () => {
+    const copy: System = {
+      ...activeSystem,
+      id: newId("sys"),
+      name: `${activeSystem.name} copy`,
+      riggingRows: activeSystem.riggingRows.map((r) => ({ ...r, id: newId("row") })),
+      fixtureRows: activeSystem.fixtureRows.map((r) => ({ ...r, id: newId("row") })),
+      ledRows: activeSystem.ledRows.map((r) => ({ ...r, id: newId("row") })),
+    };
+    setSystems((all) => [...all, copy]);
+    setActiveSystemId(copy.id);
+  };
+
+  const removeSystem = (id: string) => {
+    if (systems.length <= 1) {
+      alert("You need at least one rigging system in the report.");
+      return;
     }
-    return { totalPayload: payload, totalPower: power, totalArea: area, allRows: all };
-  }, [riggingRows, fixtureRows, ledRows]);
-
-  const totalMotorPower = hoist.watt * pointCount;
-  const totalStaticWeight = totalPayload + pointCount * hoist.weight;
-  const totalDynamicWeight = totalStaticWeight * dynamicFactor;
-
-  const factors = distributionFactors[pointCount];
-  const dynamicPointLoads = factors.map((f) => totalDynamicWeight * f);
-  const staticPointLoads = factors.map((f) => totalStaticWeight * f);
-  const maxVal = Math.max(...dynamicPointLoads);
-  const swl = hoist.swl;
-  const peakUtil = swl > 0 ? maxVal / swl : 0;
-  const headroom = swl - maxVal;
-
-  const updateRow = (
-    setter: React.Dispatch<React.SetStateAction<Row[]>>,
-    id: string,
-    updates: Partial<Row>,
-  ) => {
-    setter((rows) => rows.map((r) => (r.id === id ? { ...r, ...updates } : r)));
-  };
-
-  const removeRow = (
-    setter: React.Dispatch<React.SetStateAction<Row[]>>,
-    id: string,
-  ) => {
-    setter((rows) => rows.filter((r) => r.id !== id));
-  };
-
-  const addRowTo = (
-    setter: React.Dispatch<React.SetStateAction<Row[]>>,
-    category: Category,
-  ) => {
-    setter((rows) => [...rows, makeRow(category)]);
+    const target = systems.find((s) => s.id === id);
+    if (!target) return;
+    if (
+      !confirm(
+        `Remove rigging system "${target.name}"? Its gear list will be lost.`,
+      )
+    )
+      return;
+    const remaining = systems.filter((s) => s.id !== id);
+    setSystems(remaining);
+    if (activeSystemId === id) setActiveSystemId(remaining[0].id);
   };
 
   const openModal = (category: Category) => {
@@ -270,7 +365,6 @@ function App() {
     setCustWatt("");
     setCustArea("");
   };
-
   const closeModal = () => setModalTarget(null);
 
   const submitCustom = () => {
@@ -281,33 +375,74 @@ function App() {
       wattage: parseFloat(custWatt) || 0,
       area: parseFloat(custArea) || 0,
     };
-    const setter =
+    const key =
       modalTarget === "Fixtures"
-        ? setFixtureRows
+        ? "fixtureRows"
         : modalTarget === "LED Screen"
-          ? setLedRows
-          : setRiggingRows;
-    setter((rows) => [...rows, makeCustomRow(modalTarget, item)]);
+          ? "ledRows"
+          : "riggingRows";
+    updateRowsKey(key, (rows) => [
+      ...rows,
+      makeCustomRow(modalTarget, item),
+    ]);
     closeModal();
   };
 
   const resetAll = () => {
-    if (!confirm("Reset the entire report? This will clear all gear and project info.")) return;
-    setSystemName("");
+    if (
+      !confirm(
+        "Reset the entire report? All systems, gear, and project info will be cleared.",
+      )
+    )
+      return;
+    const fresh = makeSystem("LX1");
     setVenue("");
     setReportDate(new Date().toISOString().slice(0, 10));
     setEngineer("");
-    setPointCount(3);
-    setDynamicFactor(1.25);
-    setHoistIndex(0);
-    setRiggingRows([makeRow("Truss", 4)]);
-    setFixtureRows([]);
-    setLedRows([]);
+    setSystems([fresh]);
+    setActiveSystemId(fresh.id);
   };
+
+  const metricsByActive = useMemo(() => computeMetrics(activeSystem), [activeSystem]);
+
+  const allMetrics = useMemo(
+    () => systems.map((s) => ({ system: s, metrics: computeMetrics(s) })),
+    [systems],
+  );
+
+  const projectTotals = useMemo(() => {
+    let totalStatic = 0,
+      totalDynamic = 0,
+      totalPower = 0,
+      totalMotorPower = 0,
+      totalPoints = 0,
+      totalArea = 0,
+      overloadedPoints = 0;
+    for (const { metrics } of allMetrics) {
+      totalStatic += metrics.static;
+      totalDynamic += metrics.dynamic;
+      totalPower += metrics.power;
+      totalMotorPower += metrics.motorPower;
+      totalPoints += metrics.factors.length;
+      totalArea += metrics.area;
+      overloadedPoints += metrics.dynamicPointLoads.filter(
+        (d) => d > metrics.swl,
+      ).length;
+    }
+    return {
+      totalStatic,
+      totalDynamic,
+      totalPower,
+      totalMotorPower,
+      totalPoints,
+      totalArea,
+      overloadedPoints,
+    };
+  }, [allMetrics]);
 
   const renderItemRow = (
     row: Row,
-    setter: React.Dispatch<React.SetStateAction<Row[]>>,
+    listKey: "riggingRows" | "fixtureRows" | "ledRows",
   ) => {
     const items: InventoryItem[] = row.custom
       ? [row.custom]
@@ -320,7 +455,13 @@ function App() {
         <select
           value={row.custom ? 0 : row.selectedIndex}
           onChange={(e) =>
-            updateRow(setter, row.id, { selectedIndex: Number(e.target.value) })
+            updateRowsKey(listKey, (rows) =>
+              rows.map((r) =>
+                r.id === row.id
+                  ? { ...r, selectedIndex: Number(e.target.value) }
+                  : r,
+              ),
+            )
           }
           disabled={!!row.custom}
         >
@@ -335,7 +476,13 @@ function App() {
           min={0}
           value={row.qty}
           onChange={(e) =>
-            updateRow(setter, row.id, { qty: Number(e.target.value) || 0 })
+            updateRowsKey(listKey, (rows) =>
+              rows.map((r) =>
+                r.id === row.id
+                  ? { ...r, qty: Number(e.target.value) || 0 }
+                  : r,
+              ),
+            )
           }
         />
         <div className="row-subtotal" title="Row total weight">
@@ -344,7 +491,9 @@ function App() {
         </div>
         <button
           className="btn btn-del"
-          onClick={() => removeRow(setter, row.id)}
+          onClick={() =>
+            updateRowsKey(listKey, (rows) => rows.filter((r) => r.id !== row.id))
+          }
           aria-label="Remove"
         >
           ×
@@ -359,10 +508,19 @@ function App() {
       return sum + (it ? it.weight * r.qty : 0);
     }, 0);
 
-  const peakColor = maxVal > swl ? "var(--danger)" : "var(--secondary)";
+  const peakColor =
+    metricsByActive.peak > metricsByActive.swl
+      ? "var(--danger)"
+      : "var(--secondary)";
+  const peakUtil =
+    metricsByActive.swl > 0 ? metricsByActive.peak / metricsByActive.swl : 0;
   const utilPct = Math.min(100, peakUtil * 100);
   const utilBarColor =
-    peakUtil > 1 ? "var(--danger)" : peakUtil > 0.85 ? "var(--warning)" : "var(--primary)";
+    peakUtil > 1
+      ? "var(--danger)"
+      : peakUtil > 0.85
+        ? "var(--warning)"
+        : "var(--primary)";
 
   return (
     <div className="container">
@@ -391,16 +549,8 @@ function App() {
         </div>
       </div>
 
-      <div className="system-identity">
-        <div className="sys-id-main">
-          <label>Rigging Reference ID:</label>
-          <input
-            type="text"
-            value={systemName}
-            onChange={(e) => setSystemName(e.target.value)}
-            placeholder="e.g. LX1, LX2, VX1"
-          />
-        </div>
+      {/* PROJECT META */}
+      <div className="system-identity project-card">
         <div className="project-meta">
           <div className="meta-field">
             <label>Venue / Project</label>
@@ -431,58 +581,230 @@ function App() {
         </div>
       </div>
 
+      {/* PROJECT-WIDE SUMMARY */}
+      <div className="dashboard project-summary">
+        <div className="dash-item">
+          <span>Systems</span>
+          <strong>{systems.length}</strong>
+          <small>total</small>
+        </div>
+        <div className="dash-item">
+          <span>Hoists</span>
+          <strong>{projectTotals.totalPoints}</strong>
+          <small>points</small>
+        </div>
+        <div className="dash-item">
+          <span>Project Static</span>
+          <strong>{projectTotals.totalStatic.toFixed(1)}</strong>
+          <small>kg</small>
+        </div>
+        <div className="dash-item">
+          <span>Project Dynamic</span>
+          <strong>{projectTotals.totalDynamic.toFixed(1)}</strong>
+          <small>kg</small>
+        </div>
+        <div className="dash-item">
+          <span>Project Power</span>
+          <strong>{projectTotals.totalPower.toLocaleString()}</strong>
+          <small>W</small>
+        </div>
+        <div className="dash-item">
+          <span>Motor Power</span>
+          <strong>{projectTotals.totalMotorPower.toLocaleString()}</strong>
+          <small>W</small>
+        </div>
+        <div className="dash-item">
+          <span>Overloads</span>
+          <strong
+            style={{
+              color:
+                projectTotals.overloadedPoints > 0
+                  ? "var(--danger)"
+                  : "var(--success)",
+            }}
+          >
+            {projectTotals.overloadedPoints}
+          </strong>
+          <small>{projectTotals.overloadedPoints === 1 ? "point" : "points"}</small>
+        </div>
+      </div>
+
+      {/* SYSTEM MINI CARDS — at-a-glance per-system summary */}
+      {systems.length > 1 && (
+        <div className="system-mini-grid">
+          {allMetrics.map(({ system, metrics }) => {
+            const over = metrics.peak > metrics.swl;
+            const isActive = system.id === activeSystem.id;
+            return (
+              <button
+                key={system.id}
+                className={`system-mini ${isActive ? "is-active" : ""} ${over ? "is-over" : ""}`}
+                onClick={() => setActiveSystemId(system.id)}
+              >
+                <div className="mini-name">{system.name || "Unnamed"}</div>
+                <div className="mini-stats">
+                  <span>
+                    <strong>{metrics.peak.toFixed(0)}</strong>
+                    <small>kg peak</small>
+                  </span>
+                  <span>
+                    <strong>{system.pointCount}</strong>
+                    <small>pts</small>
+                  </span>
+                  <span>
+                    <strong>{metrics.swl}</strong>
+                    <small>SWL</small>
+                  </span>
+                </div>
+                <div className="mini-bar">
+                  <div
+                    className="mini-bar-fill"
+                    style={{
+                      width: `${Math.min(100, (metrics.peak / metrics.swl) * 100)}%`,
+                      background: over
+                        ? "var(--danger)"
+                        : metrics.peak / metrics.swl > 0.85
+                          ? "var(--warning)"
+                          : "var(--primary)",
+                    }}
+                  />
+                </div>
+                {over && <span className="mini-over-tag">OVERLOAD</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* SYSTEM TABS */}
+      <div className="system-tabs no-print">
+        <div className="tabs-list">
+          {systems.map((s) => {
+            const m = computeMetrics(s);
+            const over = m.peak > m.swl;
+            const isActive = s.id === activeSystem.id;
+            return (
+              <div
+                key={s.id}
+                className={`system-tab ${isActive ? "is-active" : ""} ${over ? "is-over" : ""}`}
+                onClick={() => setActiveSystemId(s.id)}
+                role="tab"
+              >
+                <span className="tab-name">{s.name || "Unnamed"}</span>
+                {over && <span className="tab-over">⚠</span>}
+                {systems.length > 1 && (
+                  <span
+                    className="tab-close"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeSystem(s.id);
+                    }}
+                    aria-label="Remove system"
+                  >
+                    ×
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="tabs-actions">
+          <button className="btn btn-tab-action" onClick={duplicateActiveSystem}>
+            Duplicate
+          </button>
+          <button className="btn btn-tab-action btn-tab-add" onClick={addSystem}>
+            + New System
+          </button>
+        </div>
+      </div>
+
+      {/* ACTIVE SYSTEM IDENTITY */}
+      <div className="system-identity active-system-card">
+        <div className="sys-id-main">
+          <label>Rigging Reference ID:</label>
+          <input
+            type="text"
+            value={activeSystem.name}
+            onChange={(e) => updateActiveSystem({ name: e.target.value })}
+            placeholder="e.g. LX1, LX2, VX1"
+          />
+        </div>
+      </div>
+
+      {/* ACTIVE SYSTEM DASHBOARD */}
       <div className="dashboard">
         <div className="dash-item">
           <span>Static Load</span>
-          <strong>{totalStaticWeight.toFixed(1)}</strong>
+          <strong>{metricsByActive.static.toFixed(1)}</strong>
           <small>kg</small>
         </div>
         <div className="dash-item">
           <span>Peak Load</span>
-          <strong style={{ color: peakColor }}>{maxVal.toFixed(1)}</strong>
+          <strong style={{ color: peakColor }}>
+            {metricsByActive.peak.toFixed(1)}
+          </strong>
           <small>kg</small>
         </div>
         <div className="dash-item">
           <span>SWL Headroom</span>
-          <strong style={{ color: headroom < 0 ? "var(--danger)" : "var(--text-main)" }}>
-            {headroom >= 0 ? headroom.toFixed(0) : `−${Math.abs(headroom).toFixed(0)}`}
+          <strong
+            style={{
+              color:
+                metricsByActive.headroom < 0
+                  ? "var(--danger)"
+                  : "var(--text-main)",
+            }}
+          >
+            {metricsByActive.headroom >= 0
+              ? metricsByActive.headroom.toFixed(0)
+              : `−${Math.abs(metricsByActive.headroom).toFixed(0)}`}
           </strong>
           <small>kg</small>
         </div>
         <div className="dash-item">
           <span>Total Area</span>
-          <strong>{totalArea.toFixed(1)}</strong>
+          <strong>{metricsByActive.area.toFixed(1)}</strong>
           <small>m²</small>
         </div>
         <div className="dash-item">
           <span>Eq. Power</span>
-          <strong>{totalPower.toLocaleString()}</strong>
+          <strong>{metricsByActive.power.toLocaleString()}</strong>
           <small>W</small>
         </div>
         <div className="dash-item">
           <span>Motor Power</span>
-          <strong>{totalMotorPower.toLocaleString()}</strong>
+          <strong>{metricsByActive.motorPower.toLocaleString()}</strong>
           <small>W</small>
         </div>
       </div>
 
       <div className="util-bar-wrap">
         <div className="util-bar-label">
-          <span>Peak SWL Utilization</span>
-          <strong style={{ color: utilBarColor }}>{(peakUtil * 100).toFixed(1)}%</strong>
+          <span>Peak SWL Utilization — {activeSystem.name}</span>
+          <strong style={{ color: utilBarColor }}>
+            {(peakUtil * 100).toFixed(1)}%
+          </strong>
         </div>
         <div className="util-bar-track">
           <div
             className="util-bar-fill"
             style={{ width: `${utilPct}%`, background: utilBarColor }}
           />
-          <div className="util-bar-marker" style={{ left: "85%" }} title="85% caution" />
-          <div className="util-bar-marker util-marker-danger" style={{ left: "100%" }} title="100% SWL" />
+          <div
+            className="util-bar-marker"
+            style={{ left: "85%" }}
+            title="85% caution"
+          />
+          <div
+            className="util-bar-marker util-marker-danger"
+            style={{ left: "100%" }}
+            title="100% SWL"
+          />
         </div>
         <div className="util-bar-legend">
           <span>0 kg</span>
           <span>Caution 85%</span>
-          <span>SWL {swl} kg</span>
+          <span>SWL {metricsByActive.swl} kg</span>
         </div>
       </div>
 
@@ -490,15 +812,19 @@ function App() {
         <div className="card">
           <h2>
             1. Motors &amp; Support
-            <span className="card-total">{sectionTotal(riggingRows).toFixed(1)} kg</span>
+            <span className="card-total">
+              {sectionTotal(activeSystem.riggingRows).toFixed(1)} kg
+            </span>
           </h2>
           <div className="motor-config">
             <div className="motor-config-grid">
               <div>
                 <label className="field-label">Points</label>
                 <select
-                  value={pointCount}
-                  onChange={(e) => setPointCount(Number(e.target.value))}
+                  value={activeSystem.pointCount}
+                  onChange={(e) =>
+                    updateActiveSystem({ pointCount: Number(e.target.value) })
+                  }
                 >
                   {[2, 3, 4, 5, 6, 7, 8].map((n) => (
                     <option key={n} value={n}>
@@ -510,8 +836,10 @@ function App() {
               <div>
                 <label className="field-label">Dynamic Factor</label>
                 <select
-                  value={dynamicFactor}
-                  onChange={(e) => setDynamicFactor(Number(e.target.value))}
+                  value={activeSystem.dynamicFactor}
+                  onChange={(e) =>
+                    updateActiveSystem({ dynamicFactor: Number(e.target.value) })
+                  }
                 >
                   <option value={1.0}>1.0x (Static)</option>
                   <option value={1.25}>1.25x (Standard)</option>
@@ -524,8 +852,10 @@ function App() {
               Motor Type
             </label>
             <select
-              value={hoistIndex}
-              onChange={(e) => setHoistIndex(Number(e.target.value))}
+              value={activeSystem.hoistIndex}
+              onChange={(e) =>
+                updateActiveSystem({ hoistIndex: Number(e.target.value) })
+              }
             >
               {hoistModels.map((h, i) => (
                 <option key={i} value={i}>
@@ -534,13 +864,22 @@ function App() {
               ))}
             </select>
           </div>
-          <div>{riggingRows.map((r) => renderItemRow(r, setRiggingRows))}</div>
-          {riggingRows.length === 0 && (
+          <div>
+            {activeSystem.riggingRows.map((r) =>
+              renderItemRow(r, "riggingRows"),
+            )}
+          </div>
+          {activeSystem.riggingRows.length === 0 && (
             <div className="empty-row">No truss added yet</div>
           )}
           <button
             className="btn btn-add"
-            onClick={() => addRowTo(setRiggingRows, "Truss")}
+            onClick={() =>
+              updateRowsKey("riggingRows", (rows) => [
+                ...rows,
+                makeRow("Truss"),
+              ])
+            }
           >
             + Add Truss
           </button>
@@ -549,15 +888,26 @@ function App() {
         <div className="card">
           <h2>
             2. Lighting Fixtures
-            <span className="card-total">{sectionTotal(fixtureRows).toFixed(1)} kg</span>
+            <span className="card-total">
+              {sectionTotal(activeSystem.fixtureRows).toFixed(1)} kg
+            </span>
           </h2>
-          <div>{fixtureRows.map((r) => renderItemRow(r, setFixtureRows))}</div>
-          {fixtureRows.length === 0 && (
+          <div>
+            {activeSystem.fixtureRows.map((r) =>
+              renderItemRow(r, "fixtureRows"),
+            )}
+          </div>
+          {activeSystem.fixtureRows.length === 0 && (
             <div className="empty-row">No fixtures added yet</div>
           )}
           <button
             className="btn btn-add"
-            onClick={() => addRowTo(setFixtureRows, "Fixtures")}
+            onClick={() =>
+              updateRowsKey("fixtureRows", (rows) => [
+                ...rows,
+                makeRow("Fixtures"),
+              ])
+            }
           >
             + Add Fixture
           </button>
@@ -572,15 +922,24 @@ function App() {
         <div className="card">
           <h2>
             3. LED &amp; Other Equipment
-            <span className="card-total">{sectionTotal(ledRows).toFixed(1)} kg</span>
+            <span className="card-total">
+              {sectionTotal(activeSystem.ledRows).toFixed(1)} kg
+            </span>
           </h2>
-          <div>{ledRows.map((r) => renderItemRow(r, setLedRows))}</div>
-          {ledRows.length === 0 && (
+          <div>
+            {activeSystem.ledRows.map((r) => renderItemRow(r, "ledRows"))}
+          </div>
+          {activeSystem.ledRows.length === 0 && (
             <div className="empty-row">No LED or other equipment added yet</div>
           )}
           <button
             className="btn btn-add"
-            onClick={() => addRowTo(setLedRows, "LED Screen")}
+            onClick={() =>
+              updateRowsKey("ledRows", (rows) => [
+                ...rows,
+                makeRow("LED Screen"),
+              ])
+            }
           >
             + Add Item
           </button>
@@ -593,15 +952,16 @@ function App() {
         </div>
 
         <div className="card full-width">
-          <h2>4. Rigging Point Calculations</h2>
+          <h2>4. Rigging Point Calculations — {activeSystem.name}</h2>
           <div className="analysis-container">
             <div className="points-summary">
-              {factors.map((f, i) => {
-                const sLoad = staticPointLoads[i];
-                const dLoad = dynamicPointLoads[i];
+              {metricsByActive.factors.map((f, i) => {
+                const sLoad = metricsByActive.staticPointLoads[i];
+                const dLoad = metricsByActive.dynamicPointLoads[i];
                 const pct = Math.round(f * 100);
-                const util = swl > 0 ? dLoad / swl : 0;
-                const isDanger = dLoad > swl;
+                const util =
+                  metricsByActive.swl > 0 ? dLoad / metricsByActive.swl : 0;
+                const isDanger = dLoad > metricsByActive.swl;
                 const isWarning = !isDanger && util > 0.85;
                 return (
                   <div
@@ -652,21 +1012,24 @@ function App() {
                   <i style={{ background: "var(--static-bar)" }} /> Static
                 </span>
                 <span>
-                  <i style={{ background: "var(--secondary)" }} /> Dynamic ({dynamicFactor}x)
+                  <i style={{ background: "var(--secondary)" }} /> Dynamic ({activeSystem.dynamicFactor}x)
                 </span>
                 <span>
                   <i style={{ background: "var(--danger)" }} /> Over SWL
                 </span>
               </div>
               <div className="bar-chart">
-                {factors.map((_, i) => {
-                  const sLoad = staticPointLoads[i];
-                  const dLoad = dynamicPointLoads[i];
-                  const denom = Math.max(maxVal, swl) || 1;
+                {metricsByActive.factors.map((_, i) => {
+                  const sLoad = metricsByActive.staticPointLoads[i];
+                  const dLoad = metricsByActive.dynamicPointLoads[i];
+                  const denom =
+                    Math.max(metricsByActive.peak, metricsByActive.swl) || 1;
                   const sH = (sLoad / denom) * 240;
                   const dH = (dLoad / denom) * 240;
                   const barColor =
-                    dLoad > swl ? "var(--danger)" : "var(--secondary)";
+                    dLoad > metricsByActive.swl
+                      ? "var(--danger)"
+                      : "var(--secondary)";
                   return (
                     <div className="bar-group" key={i}>
                       <div className="bars-side-by-side">
@@ -690,15 +1053,15 @@ function App() {
                 <div
                   className="swl-line"
                   style={{
-                    bottom: `${(swl / (Math.max(maxVal, swl) || 1)) * 240}px`,
+                    bottom: `${(metricsByActive.swl / (Math.max(metricsByActive.peak, metricsByActive.swl) || 1)) * 240}px`,
                   }}
-                  title={`SWL ${swl}kg`}
+                  title={`SWL ${metricsByActive.swl}kg`}
                 >
-                  <span>SWL {swl}kg</span>
+                  <span>SWL {metricsByActive.swl}kg</span>
                 </div>
               </div>
               <div className="vis-container">
-                {factors.map((f, i) => (
+                {metricsByActive.factors.map((f, i) => (
                   <div className="vis-point" key={i}>
                     <div className="vis-arrow" />
                     <span className="vis-pct">{Math.round(f * 100)}%</span>
@@ -709,58 +1072,177 @@ function App() {
             </div>
           </div>
 
-          <div className="print-only print-table-wrap">
-            <h3>Equipment Manifest</h3>
-            <table className="print-table">
-              <thead>
-                <tr>
-                  <th>Section</th>
-                  <th>Item</th>
-                  <th>Qty</th>
-                  <th>Unit Wt</th>
-                  <th>Total Wt</th>
-                  <th>Power</th>
-                </tr>
-              </thead>
-              <tbody>
-                {allRows.map(({ row, section }) => {
-                  const it = getRowItem(row);
-                  if (!it) return null;
-                  return (
-                    <tr key={row.id}>
-                      <td>{section}</td>
-                      <td>{it.name}</td>
-                      <td>{row.qty}</td>
-                      <td>{it.weight.toFixed(2)} kg</td>
-                      <td>{(it.weight * row.qty).toFixed(2)} kg</td>
-                      <td>{(it.wattage * row.qty).toLocaleString()} W</td>
+          {/* PRINT PER-SYSTEM PAGES */}
+          <div className="print-only print-systems">
+            {allMetrics.map(({ system, metrics }) => (
+              <div className="print-system-page" key={system.id}>
+                <h3 className="print-system-title">
+                  {system.name} —{" "}
+                  {hoistModels[system.hoistIndex]?.label ?? "Hoist"}
+                </h3>
+                <div className="print-system-stats">
+                  <span>
+                    Static: <strong>{metrics.static.toFixed(1)} kg</strong>
+                  </span>
+                  <span>
+                    Dynamic ({system.dynamicFactor}x):{" "}
+                    <strong>{metrics.dynamic.toFixed(1)} kg</strong>
+                  </span>
+                  <span>
+                    Peak point:{" "}
+                    <strong
+                      style={{
+                        color:
+                          metrics.peak > metrics.swl
+                            ? "var(--danger)"
+                            : "inherit",
+                      }}
+                    >
+                      {metrics.peak.toFixed(1)} kg
+                    </strong>
+                  </span>
+                  <span>
+                    SWL: <strong>{metrics.swl} kg</strong>
+                  </span>
+                  <span>
+                    Headroom:{" "}
+                    <strong
+                      style={{
+                        color:
+                          metrics.headroom < 0 ? "var(--danger)" : "inherit",
+                      }}
+                    >
+                      {metrics.headroom.toFixed(0)} kg
+                    </strong>
+                  </span>
+                </div>
+                <table className="print-table print-points-table">
+                  <thead>
+                    <tr>
+                      <th>Point</th>
+                      <th>%</th>
+                      <th>Static (kg)</th>
+                      <th>Dynamic (kg)</th>
+                      <th>SWL Util</th>
+                      <th>Status</th>
                     </tr>
-                  );
-                })}
-                <tr className="print-table-total">
-                  <td colSpan={4}>Payload total</td>
-                  <td>{totalPayload.toFixed(2)} kg</td>
-                  <td>{totalPower.toLocaleString()} W</td>
-                </tr>
-                <tr className="print-table-total">
-                  <td colSpan={4}>
-                    + {pointCount} × hoist ({hoist.weight} kg)
-                  </td>
-                  <td>{(pointCount * hoist.weight).toFixed(2)} kg</td>
-                  <td>{totalMotorPower.toLocaleString()} W</td>
-                </tr>
-                <tr className="print-table-grand">
-                  <td colSpan={4}>Static load</td>
-                  <td>{totalStaticWeight.toFixed(2)} kg</td>
-                  <td>—</td>
-                </tr>
-                <tr className="print-table-grand">
-                  <td colSpan={4}>Dynamic load ({dynamicFactor}x)</td>
-                  <td>{totalDynamicWeight.toFixed(2)} kg</td>
-                  <td>—</td>
-                </tr>
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {metrics.factors.map((f, i) => {
+                      const dLoad = metrics.dynamicPointLoads[i];
+                      const sLoad = metrics.staticPointLoads[i];
+                      const util = dLoad / metrics.swl;
+                      const over = dLoad > metrics.swl;
+                      return (
+                        <tr key={i} className={over ? "print-over-row" : ""}>
+                          <td>P{i + 1}</td>
+                          <td>{Math.round(f * 100)}%</td>
+                          <td>{sLoad.toFixed(1)}</td>
+                          <td>{dLoad.toFixed(1)}</td>
+                          <td>{(util * 100).toFixed(0)}%</td>
+                          <td>{over ? "OVERLOAD" : util > 0.85 ? "Caution" : "OK"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <table className="print-table print-manifest-table">
+                  <thead>
+                    <tr>
+                      <th>Section</th>
+                      <th>Item</th>
+                      <th>Qty</th>
+                      <th>Unit Wt</th>
+                      <th>Total Wt</th>
+                      <th>Power</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      ...system.riggingRows.map((r) => ({
+                        row: r,
+                        section: "Motors & Support",
+                      })),
+                      ...system.fixtureRows.map((r) => ({
+                        row: r,
+                        section: "Lighting Fixtures",
+                      })),
+                      ...system.ledRows.map((r) => ({
+                        row: r,
+                        section: "LED & Other",
+                      })),
+                    ].map(({ row, section }) => {
+                      const it = getRowItem(row);
+                      if (!it) return null;
+                      return (
+                        <tr key={row.id}>
+                          <td>{section}</td>
+                          <td>{it.name}</td>
+                          <td>{row.qty}</td>
+                          <td>{it.weight.toFixed(2)} kg</td>
+                          <td>{(it.weight * row.qty).toFixed(2)} kg</td>
+                          <td>{(it.wattage * row.qty).toLocaleString()} W</td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="print-table-total">
+                      <td colSpan={4}>Payload total</td>
+                      <td>{metrics.payload.toFixed(2)} kg</td>
+                      <td>{metrics.power.toLocaleString()} W</td>
+                    </tr>
+                    <tr className="print-table-grand">
+                      <td colSpan={4}>Static (incl. {system.pointCount} hoists)</td>
+                      <td>{metrics.static.toFixed(2)} kg</td>
+                      <td>{metrics.motorPower.toLocaleString()} W</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            ))}
+
+            <div className="print-system-page">
+              <h3 className="print-system-title">Project Totals</h3>
+              <table className="print-table">
+                <thead>
+                  <tr>
+                    <th>System</th>
+                    <th>Hoist</th>
+                    <th>Pts</th>
+                    <th>Static (kg)</th>
+                    <th>Dynamic (kg)</th>
+                    <th>Peak (kg)</th>
+                    <th>SWL</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allMetrics.map(({ system, metrics }) => {
+                    const over = metrics.peak > metrics.swl;
+                    return (
+                      <tr key={system.id} className={over ? "print-over-row" : ""}>
+                        <td>{system.name}</td>
+                        <td>{hoistModels[system.hoistIndex]?.label ?? "—"}</td>
+                        <td>{system.pointCount}</td>
+                        <td>{metrics.static.toFixed(1)}</td>
+                        <td>{metrics.dynamic.toFixed(1)}</td>
+                        <td>{metrics.peak.toFixed(1)}</td>
+                        <td>{metrics.swl}</td>
+                        <td>{over ? "OVERLOAD" : "OK"}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="print-table-grand">
+                    <td colSpan={2}>Project total</td>
+                    <td>{projectTotals.totalPoints}</td>
+                    <td>{projectTotals.totalStatic.toFixed(1)}</td>
+                    <td>{projectTotals.totalDynamic.toFixed(1)}</td>
+                    <td colSpan={3}>
+                      {projectTotals.totalMotorPower.toLocaleString()} W motor power
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div className="footer">

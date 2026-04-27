@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./index.css";
+import ehsLogo from "./assets/ehs-logo.png";
 
 type InventoryItem = {
   name: string;
@@ -700,7 +701,7 @@ function App() {
     <div className="container">
       <div className="header">
         <div className="header-left">
-          <div className="header-logo">EHS</div>
+          <img src={ehsLogo} alt="EHS Logo" className="header-logo-img" />
           <h1>Rigging Load Report</h1>
         </div>
         <div className="header-actions">

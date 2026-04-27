@@ -46,6 +46,8 @@ type Props = {
   onUpdate: (id: string, patch: Partial<Stage>) => void;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
+  /** Open a printable build sheet for a single stage in a new window. */
+  onExport: (id: string) => void | Promise<void>;
 };
 
 const fmt = (n: number, d = 1) =>
@@ -59,7 +61,7 @@ const DECK_FILL: Record<StageDeckKey, string> = {
 };
 
 export function StageReportView(props: Props) {
-  const { stages, onAdd, onUpdate, onRemove, onDuplicate } = props;
+  const { stages, onAdd, onUpdate, onRemove, onDuplicate, onExport } = props;
 
   const calcs = useMemo(() => stages.map((s) => computeStage(s)), [stages]);
   const totals = useMemo(
@@ -175,6 +177,7 @@ export function StageReportView(props: Props) {
                 }
               }}
               onDuplicate={() => onDuplicate(stage.id)}
+              onExport={() => onExport(stage.id)}
             />
           ))}
         </div>
@@ -189,6 +192,7 @@ type StageCardProps = {
   onUpdate: (patch: Partial<Stage>) => void;
   onRemove: () => void;
   onDuplicate: () => void;
+  onExport: () => void | Promise<void>;
 };
 
 function StageCard({
@@ -197,6 +201,7 @@ function StageCard({
   onUpdate,
   onRemove,
   onDuplicate,
+  onExport,
 }: StageCardProps) {
   const isManual = stage.editMode === "manual";
   // Local UI state for the manual deck editor.
@@ -244,6 +249,15 @@ function StageCard({
           onChange={(e) => onUpdate({ name: e.target.value })}
         />
         <div className="stage-card-actions">
+          <button
+            className="btn btn-tab-action"
+            onClick={() => {
+              void onExport();
+            }}
+            title="Open a printable build sheet for this stage (PDF or print)"
+          >
+            Export
+          </button>
           <button className="btn btn-tab-action" onClick={onDuplicate}>
             Copy
           </button>

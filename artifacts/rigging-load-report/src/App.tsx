@@ -22,7 +22,13 @@ import {
 } from "./lib/led";
 import { exportScreenAsPng, getLogoDataUrl } from "./lib/ledExport";
 import { LedScreenReportView } from "./components/LedScreenReportView";
-import { type Stage, makeDefaultStage, normalizeStage } from "./lib/stage";
+import {
+  computeStage,
+  type Stage,
+  makeDefaultStage,
+  normalizeStage,
+} from "./lib/stage";
+import { exportStageReport } from "./lib/stageExport";
 import { StageReportView } from "./components/StageReportView";
 
 type DmxMode = {
@@ -1137,6 +1143,38 @@ function App() {
       const next = [...all];
       next.splice(i + 1, 0, copy);
       return next;
+    });
+  };
+
+  /** Open a printable Stage Build Sheet for a single stage. Loads the
+   *  EHS logo so the printout is fully branded; falls back to a logo-
+   *  less header if the asset can't be fetched. The popup window is
+   *  opened SYNCHRONOUSLY (before any await) so browsers don't classify
+   *  it as a programmatic pop-up and block it. */
+  const exportStage = async (id: string) => {
+    const stage = stages.find((s) => s.id === id);
+    if (!stage) return;
+    // Open the popup immediately, in the user-gesture click context.
+    const targetWin = window.open("", "_blank");
+    if (targetWin) {
+      // Show a brief placeholder while the logo loads.
+      targetWin.document.write(
+        `<!doctype html><meta charset="utf-8"><title>Generating Stage Build Sheet…</title><body style="font:14px system-ui;padding:24px;color:#64748b">Generating Stage Build Sheet…</body>`,
+      );
+    }
+    const calc = computeStage(stage);
+    let logoDataUrl: string | null = null;
+    try {
+      logoDataUrl = await getLogoDataUrl(ehsLogo);
+    } catch {
+      logoDataUrl = null;
+    }
+    exportStageReport({
+      stage,
+      calc,
+      project: { venue, date: reportDate, preparedBy: engineer },
+      logoDataUrl,
+      targetWin,
     });
   };
 
@@ -2360,6 +2398,7 @@ function App() {
           onUpdate={updateStage}
           onRemove={removeStage}
           onDuplicate={duplicateStage}
+          onExport={exportStage}
         />
       )}
 

@@ -21,6 +21,8 @@ import {
 } from "./lib/led";
 import { exportScreenAsPng, getLogoDataUrl } from "./lib/ledExport";
 import { LedScreenReportView } from "./components/LedScreenReportView";
+import { type Stage, makeDefaultStage, normalizeStage } from "./lib/stage";
+import { StageReportView } from "./components/StageReportView";
 
 type DmxMode = {
   name: string;
@@ -402,7 +404,7 @@ function getRowItem(row: Row): InventoryItem | undefined {
 const STORAGE_KEY_V2 = "ehs-rigging-report-v2";
 const STORAGE_KEY_V1 = "ehs-rigging-report-v1";
 
-type MainView = "rigging" | "lighting" | "led";
+type MainView = "rigging" | "lighting" | "led" | "stage";
 
 type ShowFixture = {
   id: string;
@@ -495,6 +497,8 @@ type PersistedV2 = {
   ledLinkedMeta?: Record<string, LedLinkedMeta>;
   /** LED Screen Report settings (port limit, label visibility). */
   ledSettings?: LedSettings;
+  /** Stage Report — list of stages (Nivtec deck calculator). */
+  stages?: Stage[];
 };
 
 function loadPersisted(): Partial<PersistedV2> | null {
@@ -637,6 +641,9 @@ function App() {
   const [ledSettings, setLedSettings] = useState<LedSettings>(
     normalizeLedSettings(persisted?.ledSettings),
   );
+  const [stages, setStages] = useState<Stage[]>(
+    () => (persisted?.stages ?? []).map(normalizeStage),
+  );
 
   const [modalTarget, setModalTarget] = useState<Category | null>(null);
   const [custName, setCustName] = useState("");
@@ -664,6 +671,7 @@ function App() {
       ledScreens,
       ledLinkedMeta,
       ledSettings,
+      stages,
     };
     try {
       localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(data));
@@ -689,6 +697,7 @@ function App() {
     ledScreens,
     ledLinkedMeta,
     ledSettings,
+    stages,
   ]);
 
   const activeSystem =
@@ -1063,6 +1072,41 @@ function App() {
     }
   };
 
+  // ---- Stage Report ----
+  const addStage = () => {
+    setStages((all) => [
+      ...all,
+      makeDefaultStage(`Stage ${all.length + 1}`),
+    ]);
+  };
+  const updateStage = (id: string, patch: Partial<Stage>) => {
+    setStages((all) =>
+      all.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    );
+  };
+  const removeStage = (id: string) => {
+    setStages((all) => all.filter((s) => s.id !== id));
+  };
+  const duplicateStage = (id: string) => {
+    setStages((all) => {
+      const i = all.findIndex((s) => s.id === id);
+      if (i < 0) return all;
+      const src = all[i];
+      const copy: Stage = {
+        ...src,
+        id:
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `stage-${Date.now()}`,
+        name: `${src.name} (copy)`,
+        rails: { ...src.rails },
+      };
+      const next = [...all];
+      next.splice(i + 1, 0, copy);
+      return next;
+    });
+  };
+
   const addShowFixture = () =>
     setShowFixtures((all) => [...all, makeShowFixture()]);
 
@@ -1356,6 +1400,7 @@ function App() {
     setLedScreens([]);
     setLedLinkedMeta({});
     setLedSettings(DEFAULT_LED_SETTINGS);
+    setStages([]);
     setMainView("rigging");
   };
 
@@ -1580,6 +1625,15 @@ function App() {
           onClick={() => setMainView("led")}
         >
           LED Screen Report
+        </button>
+        <button
+          className={`view-tab ${mainView === "stage" ? "is-active" : ""}`}
+          onClick={() => setMainView("stage")}
+        >
+          Stage Report
+          {stages.length > 0 && (
+            <span className="view-tab-badge">{stages.length}</span>
+          )}
         </button>
       </div>
 
@@ -2264,6 +2318,16 @@ function App() {
       </div>
 
       </>}
+
+      {mainView === "stage" && (
+        <StageReportView
+          stages={stages}
+          onAdd={addStage}
+          onUpdate={updateStage}
+          onRemove={removeStage}
+          onDuplicate={duplicateStage}
+        />
+      )}
 
       {mainView === "led" && (
         <LedScreenReportView

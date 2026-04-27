@@ -400,22 +400,23 @@ function StageSvg({
             )}
           </g>
         ))}
-        {/* Leg dots. In "shared" mode we draw one per unique deck-corner
-            position. In "perDeck" mode we draw 4 inset dots per deck so
-            the user can visually distinguish overlapping legs at shared
-            corners. */}
+        {/* Leg dots. In both modes, dots are drawn at the actual deck-
+            corner positions (where Nivtec legs physically sit). In
+            "shared" mode we deduplicate so each shared corner shows
+            one dot. In "perDeck" mode every deck contributes its own
+            4 corner dots (some will overlap at shared corners — that
+            matches reality, since each deck has its own 4 legs). */}
         {stage.legMode === "perDeck"
           ? calc.decks.flatMap((p, i) => {
-              const inset = Math.min(p.w, p.d) * 0.12 * scale;
-              const x1 = PAD + p.x * scale + inset;
-              const y1 = PAD + p.y * scale + inset;
-              const x2 = PAD + (p.x + p.w) * scale - inset;
-              const y2 = PAD + (p.y + p.d) * scale - inset;
+              const x1 = PAD + p.x * scale;
+              const y1 = PAD + p.y * scale;
+              const x2 = PAD + (p.x + p.w) * scale;
+              const y2 = PAD + (p.y + p.d) * scale;
               return [
-                <circle key={`${i}-tl`} cx={x1} cy={y1} r={3} fill="#0f172a" />,
-                <circle key={`${i}-tr`} cx={x2} cy={y1} r={3} fill="#0f172a" />,
-                <circle key={`${i}-bl`} cx={x1} cy={y2} r={3} fill="#0f172a" />,
-                <circle key={`${i}-br`} cx={x2} cy={y2} r={3} fill="#0f172a" />,
+                <circle key={`${i}-tl`} cx={x1} cy={y1} r={4} fill="#0f172a" />,
+                <circle key={`${i}-tr`} cx={x2} cy={y1} r={4} fill="#0f172a" />,
+                <circle key={`${i}-bl`} cx={x1} cy={y2} r={4} fill="#0f172a" />,
+                <circle key={`${i}-br`} cx={x2} cy={y2} r={4} fill="#0f172a" />,
               ];
             })
           : calc.legPositions.map((pos, i) => (

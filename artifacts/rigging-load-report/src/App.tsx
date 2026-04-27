@@ -702,7 +702,12 @@ function App() {
       <div className="header">
         <div className="header-left">
           <img src={ehsLogo} alt="EHS Logo" className="header-logo-img" />
-          <h1>Rigging Load Report</h1>
+          <div className="header-title">
+            <span className="header-eyebrow">Production · Rigging</span>
+            <h1>
+              Rigging Load <span className="header-title-accent">Report</span>
+            </h1>
+          </div>
         </div>
         <div className="header-actions">
           <span className="autosave-pill" title="Saved locally in your browser">

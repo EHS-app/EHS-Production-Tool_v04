@@ -231,18 +231,20 @@ function StageCard({
                 </option>
               ))}
             </select>
-            {nivtecBracingNote(stage.legHeightCm) && (
+            {nivtecBracingNote(stage.legHeightCm).map((n, i) => (
               <small
+                key={i}
                 style={{
                   color: "#b45309",
                   fontSize: 11,
                   marginTop: 4,
                   lineHeight: 1.3,
+                  display: "block",
                 }}
               >
-                Note: {nivtecBracingNote(stage.legHeightCm)}
+                Note: {n}
               </small>
-            )}
+            ))}
           </label>
 
           <label className="stage-field">

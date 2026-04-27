@@ -106,17 +106,27 @@ export const STAGE_LEGS: readonly StageLeg[] = [
   { heightCm: 140, weight: 7.5 },
 ];
 
-/** Bracing requirement triggered by a stage / leg height, per the Nivtec
- *  set-up rules. Returned as a short user-facing string the UI can render
- *  next to the leg-height field, or `null` if no bracing is required. */
-export function nivtecBracingNote(heightCm: number): string | null {
+/** Safety requirements triggered by a stage / leg height, per the Nivtec
+ *  set-up rules and standard EU edge-protection guidance (DIN EN 13814).
+ *  Returned as an array of short user-facing strings the UI can render
+ *  next to the leg-height field. Empty array means nothing required. */
+export function nivtecBracingNote(heightCm: number): string[] {
+  const notes: string[] = [];
   if (heightCm > 140) {
-    return "Diagonal AND additional horizontal bracing required (Nivtec set-up rules, > 140 cm).";
+    notes.push(
+      "Diagonal AND additional horizontal bracing required (Nivtec set-up rules, > 140 cm).",
+    );
+  } else if (heightCm >= 80) {
+    notes.push(
+      "Diagonal bracing required from 80 cm (Nivtec set-up rules).",
+    );
   }
-  if (heightCm >= 80) {
-    return "Diagonal bracing required from 80 cm (Nivtec set-up rules).";
+  if (heightCm >= 100) {
+    notes.push(
+      "Handrails required from 100 cm fall height (DIN EN 13814 edge protection).",
+    );
   }
-  return null;
+  return notes;
 }
 
 export type StageRail = {

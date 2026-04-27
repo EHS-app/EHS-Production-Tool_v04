@@ -245,7 +245,7 @@ function Root() {
       localization={{
         signIn: {
           start: {
-            title: "Sign in to Production Tool",
+            title: "Sign in",
             subtitle: "EHS internal tool",
           },
         },

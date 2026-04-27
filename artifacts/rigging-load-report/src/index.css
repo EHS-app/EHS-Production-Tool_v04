@@ -2129,3 +2129,84 @@ input:focus {
   margin: -0.4rem 0 0.75rem;
   line-height: 1.4;
 }
+
+/* Manual deck-editor palette: pick a deck type, then click on the stage
+   visual to place it. Selected button is highlighted in the brand
+   accent. Rotate / Clear are utility buttons on the same row. */
+.deck-palette {
+  border: 1px solid var(--border, #e2e8f0);
+  background: var(--bg-soft, #f8fafc);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 1rem;
+}
+.deck-palette-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.deck-palette-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted, #64748b);
+  margin-right: 0.25rem;
+}
+.deck-palette-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 6px;
+  background: var(--bg-elev, #fff);
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+  color: inherit;
+  line-height: 1;
+  min-height: 40px;
+}
+.deck-palette-btn:hover:not(:disabled) {
+  border-color: #94a3b8;
+}
+.deck-palette-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.deck-palette-btn.is-active {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+  background: rgba(37, 99, 235, 0.06);
+}
+.deck-palette-swatch {
+  display: inline-block;
+  border-radius: 2px;
+  border: 1px solid rgba(15, 23, 42, 0.3);
+}
+.deck-palette-rotate,
+.deck-palette-clear {
+  margin-left: auto;
+}
+.deck-palette-clear {
+  margin-left: 0;
+  color: #b91c1c;
+}
+.deck-palette-help {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--muted, #64748b);
+}
+[data-theme="dark"] .deck-palette {
+  background: #0f172a;
+  border-color: #334155;
+}
+[data-theme="dark"] .deck-palette-btn {
+  background: #1e293b;
+  border-color: #334155;
+}
+[data-theme="dark"] .deck-palette-btn.is-active {
+  background: rgba(96, 165, 250, 0.15);
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.3);
+}

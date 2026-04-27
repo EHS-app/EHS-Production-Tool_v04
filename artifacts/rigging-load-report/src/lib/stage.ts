@@ -169,12 +169,23 @@ export const DEFAULT_RAIL_SIDES: StageRailSides = {
  *    de-rig, mixed configurations, or per-deck rigging). */
 export type StageLegMode = "shared" | "perDeck";
 
+/** How the stage layout is produced.
+ *  - "auto" (default): the user enters a Width × Depth and the greedy tiler
+ *    fills the rectangle with standard Nivtec decks.
+ *  - "manual": the user explicitly places each deck on a half-metre grid
+ *    via the deck palette in the UI. The stage's Width × Depth becomes
+ *    the canvas size (clickable area) and the actual stage size is the
+ *    bounding box of the placed decks. */
+export type StageEditMode = "auto" | "manual";
+
 export type Stage = {
   id: string;
   name: string;
-  /** Width in metres (must be a multiple of 0.5). */
+  /** Width in metres (must be a multiple of 0.5). In auto mode this is
+   *  the stage size; in manual mode this is the canvas (clickable area)
+   *  width — the actual stage width is the bounding box of placements. */
   width: number;
-  /** Depth in metres (must be a multiple of 0.5). */
+  /** Depth in metres (must be a multiple of 0.5). See `width`. */
   depth: number;
   /** Leg height in centimetres. Must match one of STAGE_LEGS heights. */
   legHeightCm: number;
@@ -183,6 +194,10 @@ export type Stage = {
   /** Which sides have handrails. */
   rails: StageRailSides;
   notes: string;
+  /** Layout production mode (see StageEditMode). */
+  editMode: StageEditMode;
+  /** Manual deck placements. Used only when `editMode === "manual"`. */
+  manualPlacements: DeckPlacement[];
 };
 
 export type DeckPlacement = {
@@ -377,8 +392,63 @@ function railsForSide(lengthM: number): { count2m: number; count1m: number } {
   return { count2m, count1m };
 }
 
+/** Bounding box (in metres) of an array of deck placements. Returns
+ *  zero-size box for an empty or missing array (defensive — handles
+ *  legacy persisted Stage objects that pre-date the manual editor). */
+export function placementsBounds(placements: DeckPlacement[] | undefined): {
+  width: number;
+  depth: number;
+} {
+  if (!placements || placements.length === 0) {
+    return { width: 0, depth: 0 };
+  }
+  let maxX = 0;
+  let maxY = 0;
+  for (const p of placements) {
+    if (p.x + p.w > maxX) maxX = p.x + p.w;
+    if (p.y + p.d > maxY) maxY = p.y + p.d;
+  }
+  return { width: maxX, depth: maxY };
+}
+
+/** Does the candidate placement collide with any of the given existing
+ *  placements? Strict inequality on the half-metre grid: edges that
+ *  merely touch are NOT a collision. */
+export function placementCollides(
+  candidate: DeckPlacement,
+  existing: DeckPlacement[],
+): boolean {
+  for (const p of existing) {
+    if (
+      candidate.x < p.x + p.w &&
+      candidate.x + candidate.w > p.x &&
+      candidate.y < p.y + p.d &&
+      candidate.y + candidate.d > p.y
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function computeStage(stage: Stage): StageCalc {
-  const { placements, fits } = tileStage(stage.width, stage.depth);
+  let placements: DeckPlacement[];
+  let fits: boolean;
+  let effectiveWidth: number;
+  let effectiveDepth: number;
+  if (stage.editMode === "manual") {
+    placements = stage.manualPlacements;
+    fits = true;
+    const bb = placementsBounds(placements);
+    effectiveWidth = bb.width;
+    effectiveDepth = bb.depth;
+  } else {
+    const tiled = tileStage(stage.width, stage.depth);
+    placements = tiled.placements;
+    fits = tiled.fits;
+    effectiveWidth = stage.width;
+    effectiveDepth = stage.depth;
+  }
 
   // Deck counts.
   const deckCounts = {
@@ -416,12 +486,12 @@ export function computeStage(stage: Stage): StageCalc {
   const legW = legWeight(stage.legHeightCm);
   const legWeightTotal = legCount * legW;
 
-  // Rails by side. front/back run along the width; left/right run along the depth.
+  // Rails by side. front/back run along the (effective) width; left/right run along the (effective) depth.
   const sideLengths: Record<keyof StageRailSides, number> = {
-    front: stage.width,
-    back: stage.width,
-    left: stage.depth,
-    right: stage.depth,
+    front: effectiveWidth,
+    back: effectiveWidth,
+    left: effectiveDepth,
+    right: effectiveDepth,
   };
   const railBreakdown: StageCalc["railBreakdown"] = [];
   let rails2mTotal = 0;
@@ -452,7 +522,7 @@ export function computeStage(stage: Stage): StageCalc {
   const minSwl = usedSwls.length > 0 ? Math.min(...usedSwls) : 0;
   const factor = heightSwlFactor(stage.legHeightCm);
   const effectiveSwlPerM2 = Math.round(minSwl * factor);
-  const areaM2 = stage.width * stage.depth;
+  const areaM2 = effectiveWidth * effectiveDepth;
   const placedAreaM2 = placements.reduce((sum, p) => sum + p.w * p.d, 0);
   const loadCapacityKg = Math.round(placedAreaM2 * effectiveSwlPerM2);
 
@@ -589,6 +659,64 @@ export function normalizeStage(raw: Partial<Stage>): Stage {
   };
   const legMode: StageLegMode =
     raw.legMode === "perDeck" ? "perDeck" : "shared";
+  const editMode: StageEditMode =
+    raw.editMode === "manual" ? "manual" : "auto";
+  // Allowed (w, d) pairs per deck key — both the natural and rotated
+  // orientation are accepted. 1×1 is square (only one orientation).
+  const ALLOWED_DIMS: Record<StageDeckKey, Array<{ w: number; d: number }>> = {
+    "2x1": [
+      { w: 2, d: 1 },
+      { w: 1, d: 2 },
+    ],
+    "1x1": [{ w: 1, d: 1 }],
+    "0.5x2": [
+      { w: 0.5, d: 2 },
+      { w: 2, d: 0.5 },
+    ],
+    "0.5x1": [
+      { w: 0.5, d: 1 },
+      { w: 1, d: 0.5 },
+    ],
+  };
+  const validKeys = new Set<StageDeckKey>(["2x1", "1x1", "0.5x2", "0.5x1"]);
+  const rawList: DeckPlacement[] = Array.isArray(raw.manualPlacements)
+    ? raw.manualPlacements
+        .filter(
+          (p): p is DeckPlacement =>
+            !!p &&
+            typeof (p as DeckPlacement).key === "string" &&
+            validKeys.has((p as DeckPlacement).key) &&
+            typeof (p as DeckPlacement).x === "number" &&
+            typeof (p as DeckPlacement).y === "number" &&
+            typeof (p as DeckPlacement).w === "number" &&
+            typeof (p as DeckPlacement).d === "number" &&
+            (p as DeckPlacement).x >= 0 &&
+            (p as DeckPlacement).y >= 0 &&
+            (p as DeckPlacement).w > 0 &&
+            (p as DeckPlacement).d > 0,
+        )
+        .map((p) => ({
+          key: p.key,
+          x: snapHalfMetre(p.x),
+          y: snapHalfMetre(p.y),
+          w: snapHalfMetre(p.w),
+          d: snapHalfMetre(p.d),
+        }))
+        // Reject placements whose (w, d) does not match the deck key
+        // (covers tampered or otherwise corrupted persisted data).
+        .filter((p) =>
+          ALLOWED_DIMS[p.key].some(
+            (dim) =>
+              Math.abs(dim.w - p.w) < 1e-6 && Math.abs(dim.d - p.d) < 1e-6,
+          ),
+        )
+    : [];
+  // Drop placements that overlap an earlier accepted one (keep first
+  // wins) so corrupted data can't yield impossible stacked decks.
+  const manualPlacements: DeckPlacement[] = [];
+  for (const p of rawList) {
+    if (!placementCollides(p, manualPlacements)) manualPlacements.push(p);
+  }
   return {
     id,
     name: typeof raw.name === "string" ? raw.name : "Stage",
@@ -598,6 +726,8 @@ export function normalizeStage(raw: Partial<Stage>): Stage {
     legMode,
     rails,
     notes: typeof raw.notes === "string" ? raw.notes : "",
+    editMode,
+    manualPlacements,
   };
 }
 
@@ -615,5 +745,7 @@ export function makeDefaultStage(name: string): Stage {
     legMode: "shared",
     rails: { ...DEFAULT_RAIL_SIDES },
     notes: "",
+    editMode: "auto",
+    manualPlacements: [],
   };
 }

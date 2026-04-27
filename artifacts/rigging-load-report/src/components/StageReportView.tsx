@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   STAGE_DECKS,
   STAGE_LEG_HEIGHTS_CM,
@@ -6,11 +6,39 @@ import {
   computeStage,
   computeStageTotals,
   nivtecBracingNote,
+  placementCollides,
+  placementsBounds,
   snapHalfMetre,
+  type DeckPlacement,
   type Stage,
   type StageDeckKey,
+  type StageEditMode,
   type StageLegMode,
 } from "../lib/stage";
+
+/** Half-metre cell helper. */
+const HALF_M = 0.5;
+
+/** Catalog dimensions per deck key (in metres). Used by the palette and
+ *  the manual placer to know each deck's size. Non-square decks can be
+ *  rotated 90° for placement. */
+const DECK_DIMS: Record<StageDeckKey, { w: number; d: number }> = {
+  "2x1": { w: 2, d: 1 },
+  "1x1": { w: 1, d: 1 },
+  "0.5x2": { w: 0.5, d: 2 },
+  "0.5x1": { w: 0.5, d: 1 },
+};
+
+/** Resolve the placed dimensions of a deck, applying the current rotate
+ *  flag. 1×1 ignores rotation. */
+function placedDims(
+  key: StageDeckKey,
+  rotated: boolean,
+): { w: number; d: number } {
+  const base = DECK_DIMS[key];
+  if (key === "1x1" || !rotated) return base;
+  return { w: base.d, d: base.w };
+}
 
 type Props = {
   stages: Stage[];
@@ -46,7 +74,8 @@ export function StageReportView(props: Props) {
           <h2>Stage Report</h2>
           <p className="led-report-sub">
             Nivtec deck calculator — pick stage size and the app figures out
-            decks, legs and (optional) handrails.
+            decks, legs and (optional) handrails. Switch each stage to
+            <em> Manual</em> to place decks one by one on the grid.
           </p>
         </div>
         <div className="led-report-meta">
@@ -169,6 +198,41 @@ function StageCard({
   onRemove,
   onDuplicate,
 }: StageCardProps) {
+  const isManual = stage.editMode === "manual";
+  // Local UI state for the manual deck editor.
+  const [selectedDeckKey, setSelectedDeckKey] = useState<StageDeckKey>("1x1");
+  const [rotated, setRotated] = useState(false);
+
+  // Add a deck at the given half-metre cell (cellX, cellY). Silently
+  // refuses if the placement collides with an existing deck. Adjacent
+  // edges that just touch are allowed (no collision).
+  const addDeckAtCell = (cellX: number, cellY: number) => {
+    const dims = placedDims(selectedDeckKey, rotated);
+    const candidate: DeckPlacement = {
+      key: selectedDeckKey,
+      x: cellX * HALF_M,
+      y: cellY * HALF_M,
+      w: dims.w,
+      d: dims.d,
+    };
+    if (placementCollides(candidate, stage.manualPlacements)) return;
+    onUpdate({
+      manualPlacements: [...stage.manualPlacements, candidate],
+    });
+  };
+
+  // Remove whichever deck (if any) covers the given half-metre cell.
+  const removeDeckAtCell = (cellX: number, cellY: number) => {
+    const px = cellX * HALF_M;
+    const py = cellY * HALF_M;
+    const next = stage.manualPlacements.filter(
+      (p) => !(px >= p.x && px < p.x + p.w && py >= p.y && py < p.y + p.d),
+    );
+    if (next.length !== stage.manualPlacements.length) {
+      onUpdate({ manualPlacements: next });
+    }
+  };
+
   return (
     <div className="stage-card">
       <div className="stage-card-header">
@@ -192,30 +256,47 @@ function StageCard({
       <div className="stage-card-body">
         <div className="stage-controls">
           <label className="stage-field">
-            <span>Width (m)</span>
-            <input
-              type="number"
-              min={0.5}
-              step={0.5}
-              value={stage.width}
+            <span>Layout</span>
+            <select
+              value={stage.editMode}
               onChange={(e) =>
-                onUpdate({ width: snapHalfMetre(Number(e.target.value)) })
+                onUpdate({ editMode: e.target.value as StageEditMode })
               }
-            />
+            >
+              <option value="auto">Auto (enter size)</option>
+              <option value="manual">Manual (place decks)</option>
+            </select>
           </label>
 
-          <label className="stage-field">
-            <span>Depth (m)</span>
-            <input
-              type="number"
-              min={0.5}
-              step={0.5}
-              value={stage.depth}
-              onChange={(e) =>
-                onUpdate({ depth: snapHalfMetre(Number(e.target.value)) })
-              }
-            />
-          </label>
+          {!isManual && (
+            <label className="stage-field">
+              <span>Width (m)</span>
+              <input
+                type="number"
+                min={0.5}
+                step={0.5}
+                value={stage.width}
+                onChange={(e) =>
+                  onUpdate({ width: snapHalfMetre(Number(e.target.value)) })
+                }
+              />
+            </label>
+          )}
+
+          {!isManual && (
+            <label className="stage-field">
+              <span>Depth (m)</span>
+              <input
+                type="number"
+                min={0.5}
+                step={0.5}
+                value={stage.depth}
+                onChange={(e) =>
+                  onUpdate({ depth: snapHalfMetre(Number(e.target.value)) })
+                }
+              />
+            </label>
+          )}
 
           <label className="stage-field">
             <span>Leg height</span>
@@ -325,10 +406,121 @@ function StageCard({
           </label>
         </div>
 
+        {isManual && (
+          <DeckPalette
+            selectedKey={selectedDeckKey}
+            rotated={rotated}
+            placedCount={stage.manualPlacements.length}
+            onSelect={setSelectedDeckKey}
+            onRotate={() => setRotated((r) => !r)}
+            onClear={() => {
+              if (stage.manualPlacements.length === 0) return;
+              if (
+                window.confirm(
+                  "Remove all placed decks from this stage?",
+                )
+              ) {
+                onUpdate({ manualPlacements: [] });
+              }
+            }}
+          />
+        )}
+
         <div className="stage-summary-row">
-          <StageSvg stage={stage} calc={calc} />
+          <StageSvg
+            stage={stage}
+            calc={calc}
+            interactive={isManual}
+            selectedDeckKey={selectedDeckKey}
+            rotated={rotated}
+            onAddAtCell={addDeckAtCell}
+            onRemoveAtCell={removeDeckAtCell}
+          />
           <StageBreakdown stage={stage} calc={calc} />
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Palette of deck types for manual placement. The selected deck +
+ *  rotation get placed when the user clicks an empty cell on the stage
+ *  visual. 1×1 ignores rotation (it's square). */
+function DeckPalette({
+  selectedKey,
+  rotated,
+  placedCount,
+  onSelect,
+  onRotate,
+  onClear,
+}: {
+  selectedKey: StageDeckKey;
+  rotated: boolean;
+  placedCount: number;
+  onSelect: (k: StageDeckKey) => void;
+  onRotate: () => void;
+  onClear: () => void;
+}) {
+  const items: { key: StageDeckKey; label: string }[] = [
+    { key: "2x1", label: "2 × 1" },
+    { key: "1x1", label: "1 × 1" },
+    { key: "0.5x2", label: "0.5 × 2" },
+    { key: "0.5x1", label: "0.5 × 1" },
+  ];
+  return (
+    <div className="deck-palette">
+      <div className="deck-palette-row">
+        <span className="deck-palette-label">Place a deck</span>
+        {items.map((it) => {
+          const isActive = selectedKey === it.key;
+          const dims = placedDims(it.key, rotated);
+          // Mini preview rectangle proportional to dims (max 28px on longest side).
+          const previewMax = 28;
+          const longest = Math.max(dims.w, dims.d);
+          const sw = (dims.w / longest) * previewMax;
+          const sd = (dims.d / longest) * previewMax;
+          return (
+            <button
+              key={it.key}
+              type="button"
+              className={`deck-palette-btn${isActive ? " is-active" : ""}`}
+              onClick={() => onSelect(it.key)}
+              title={`Place ${it.label} m decks`}
+            >
+              <span
+                className="deck-palette-swatch"
+                style={{
+                  width: sw,
+                  height: sd,
+                  background: DECK_FILL[it.key],
+                }}
+              />
+              <span>{it.label}</span>
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          className="deck-palette-btn deck-palette-rotate"
+          onClick={onRotate}
+          disabled={selectedKey === "1x1"}
+          title="Rotate selected deck 90°"
+        >
+          {rotated ? "Rotated 90°" : "Rotate 90°"}
+        </button>
+        <button
+          type="button"
+          className="deck-palette-btn deck-palette-clear"
+          onClick={onClear}
+          disabled={placedCount === 0}
+          title="Remove all placed decks"
+        >
+          Clear all
+        </button>
+      </div>
+      <div className="deck-palette-help">
+        Click an empty cell on the visual to place the selected deck. Click a
+        placed deck to remove it.
       </div>
     </div>
   );
@@ -338,36 +530,175 @@ function StageCard({
 function StageSvg({
   stage,
   calc,
+  interactive = false,
+  selectedDeckKey = "1x1",
+  rotated = false,
+  onAddAtCell,
+  onRemoveAtCell,
 }: {
   stage: Stage;
   calc: ReturnType<typeof computeStage>;
+  /** Manual editor mode: render half-metre grid + click handlers. */
+  interactive?: boolean;
+  /** Currently-selected deck type from the palette (manual mode). */
+  selectedDeckKey?: StageDeckKey;
+  /** 90° rotation flag from the palette (manual mode). */
+  rotated?: boolean;
+  /** Click on an empty cell when interactive: add the selected deck. */
+  onAddAtCell?: (cellX: number, cellY: number) => void;
+  /** Click on a deck when interactive: remove that deck. */
+  onRemoveAtCell?: (cellX: number, cellY: number) => void;
 }) {
   const PAD = 12;
   const MAX = 480;
-  const scale = Math.min(MAX / Math.max(stage.width, 0.5), MAX / Math.max(stage.depth, 0.5));
-  const W = stage.width * scale + PAD * 2;
-  const H = stage.depth * scale + PAD * 2;
+
+  // Canvas size (clickable area):
+  //  - auto mode: stage.width × stage.depth (the entered size)
+  //  - manual mode: bounding box of placements + 1m padding on each
+  //    side, with a minimum of 6×4 m so an empty stage still shows a
+  //    workable grid. The canvas grows as decks are placed near the edge.
+  const bbox = placementsBounds(stage.manualPlacements);
+  const canvasW = interactive
+    ? Math.max(bbox.width + 1, 6)
+    : Math.max(stage.width, 0.5);
+  const canvasD = interactive
+    ? Math.max(bbox.depth + 1, 4)
+    : Math.max(stage.depth, 0.5);
+
+  // Effective stage rectangle used for rails & background border.
+  // In manual mode this is the placements bounding box; in auto mode
+  // it is the canvas (the entire stage).
+  const stageW =
+    stage.editMode === "manual" ? bbox.width : Math.max(stage.width, 0.5);
+  const stageD =
+    stage.editMode === "manual" ? bbox.depth : Math.max(stage.depth, 0.5);
+
+  const scale = Math.min(MAX / canvasW, MAX / canvasD);
+  const W = canvasW * scale + PAD * 2;
+  const H = canvasD * scale + PAD * 2;
+
+  // Hover preview state (manual mode only): which half-metre cell the
+  // pointer is currently over.
+  const [hover, setHover] = useState<{ cx: number; cy: number } | null>(null);
+
+  // Compute hover preview rectangle and whether placement would be valid.
+  const hoverPreview = (() => {
+    if (!interactive || !hover) return null;
+    const dims = placedDims(selectedDeckKey, rotated);
+    const hx = hover.cx * HALF_M;
+    const hy = hover.cy * HALF_M;
+    // Is the hovered cell already covered by a placed deck? Then the
+    // click would REMOVE that deck — show its outline as the preview.
+    const covering = stage.manualPlacements.find(
+      (p) =>
+        hx >= p.x && hx < p.x + p.w && hy >= p.y && hy < p.y + p.d,
+    );
+    if (covering) {
+      return { mode: "remove" as const, p: covering };
+    }
+    // Otherwise we're going to ADD — preview the candidate. The only
+    // real constraint in manual mode is that decks must not overlap an
+    // existing placement; the working canvas auto-grows to fit, so
+    // there is no fixed boundary to overflow.
+    const candidate: DeckPlacement = {
+      key: selectedDeckKey,
+      x: hx,
+      y: hy,
+      w: dims.w,
+      d: dims.d,
+    };
+    const collides = placementCollides(candidate, stage.manualPlacements);
+    return {
+      mode: "add" as const,
+      p: candidate,
+      valid: !collides,
+    };
+  })();
+
+  // Cell counts (half-metre cells) for the grid + click overlay.
+  const cellsW = Math.round(canvasW / HALF_M);
+  const cellsD = Math.round(canvasD / HALF_M);
 
   return (
     <div className="stage-preview">
       <svg
         viewBox={`0 0 ${W} ${H}`}
         width="100%"
-        style={{ maxWidth: W, height: "auto", display: "block" }}
+        style={{
+          maxWidth: W,
+          height: "auto",
+          display: "block",
+          touchAction: "manipulation",
+        }}
+        onMouseLeave={() => setHover(null)}
       >
-        {/* Background */}
+        {/* Canvas background (clickable area). In manual mode this is the
+            larger working area; the actual stage outline is drawn below. */}
         <rect
           x={PAD}
           y={PAD}
-          width={stage.width * scale}
-          height={stage.depth * scale}
+          width={canvasW * scale}
+          height={canvasD * scale}
           fill="#0f172a"
-          fillOpacity={0.05}
+          fillOpacity={interactive ? 0.03 : 0.05}
           stroke="#0f172a"
-          strokeOpacity={0.4}
+          strokeOpacity={interactive ? 0.15 : 0.4}
           strokeWidth={1}
         />
-        {/* Decks */}
+
+        {/* Half-metre grid (manual mode only) */}
+        {interactive && (
+          <g pointerEvents="none">
+            {Array.from({ length: cellsW + 1 }).map((_, i) => (
+              <line
+                key={`vx-${i}`}
+                x1={PAD + i * HALF_M * scale}
+                y1={PAD}
+                x2={PAD + i * HALF_M * scale}
+                y2={PAD + canvasD * scale}
+                stroke="#94a3b8"
+                strokeOpacity={i % 2 === 0 ? 0.35 : 0.18}
+                strokeWidth={1}
+              />
+            ))}
+            {Array.from({ length: cellsD + 1 }).map((_, i) => (
+              <line
+                key={`hz-${i}`}
+                x1={PAD}
+                y1={PAD + i * HALF_M * scale}
+                x2={PAD + canvasW * scale}
+                y2={PAD + i * HALF_M * scale}
+                stroke="#94a3b8"
+                strokeOpacity={i % 2 === 0 ? 0.35 : 0.18}
+                strokeWidth={1}
+              />
+            ))}
+          </g>
+        )}
+
+        {/* Stage outline (manual mode only — auto mode's outline is the
+            canvas itself, drawn above). Dashed rectangle at the bounding
+            box of placed decks so the user can see the actual stage shape
+            inside the larger working canvas. */}
+        {interactive && stageW > 0 && stageD > 0 && (
+          <rect
+            x={PAD}
+            y={PAD}
+            width={stageW * scale}
+            height={stageD * scale}
+            fill="none"
+            stroke="#0f172a"
+            strokeOpacity={0.55}
+            strokeWidth={1.5}
+            strokeDasharray="4 3"
+            pointerEvents="none"
+          />
+        )}
+        {/* Decks. In interactive mode the click-catcher cells (drawn
+            last, on top) intercept clicks and either add or remove a
+            deck depending on whether the clicked cell is occupied — so
+            the deck rects themselves don't need their own click
+            handlers. */}
         {calc.decks.map((p, i) => (
           <g key={i}>
             <rect
@@ -456,47 +787,123 @@ function StageSvg({
                 />
               );
             })}
-        {/* Rail strokes — front bottom, back top, left/right sides */}
-        {stage.rails.front && (
+        {/* Rail strokes — front bottom, back top, left/right sides.
+            In manual mode rails follow the actual stage (bounding box of
+            placements); in auto mode they follow the entered W × D. */}
+        {stage.rails.front && stageW > 0 && (
           <line
             x1={PAD}
-            y1={PAD + stage.depth * scale}
-            x2={PAD + stage.width * scale}
-            y2={PAD + stage.depth * scale}
+            y1={PAD + stageD * scale}
+            x2={PAD + stageW * scale}
+            y2={PAD + stageD * scale}
             stroke="#dc2626"
             strokeWidth={4}
           />
         )}
-        {stage.rails.back && (
+        {stage.rails.back && stageW > 0 && (
           <line
             x1={PAD}
             y1={PAD}
-            x2={PAD + stage.width * scale}
+            x2={PAD + stageW * scale}
             y2={PAD}
             stroke="#dc2626"
             strokeWidth={4}
           />
         )}
-        {stage.rails.left && (
+        {stage.rails.left && stageD > 0 && (
           <line
             x1={PAD}
             y1={PAD}
             x2={PAD}
-            y2={PAD + stage.depth * scale}
+            y2={PAD + stageD * scale}
             stroke="#dc2626"
             strokeWidth={4}
           />
         )}
-        {stage.rails.right && (
+        {stage.rails.right && stageD > 0 && (
           <line
-            x1={PAD + stage.width * scale}
+            x1={PAD + stageW * scale}
             y1={PAD}
-            x2={PAD + stage.width * scale}
-            y2={PAD + stage.depth * scale}
+            x2={PAD + stageW * scale}
+            y2={PAD + stageD * scale}
             stroke="#dc2626"
             strokeWidth={4}
           />
         )}
+
+        {/* Hover preview rectangle (manual mode). Drawn before the
+            click-catcher cells so it doesn't intercept pointer events. */}
+        {hoverPreview && hoverPreview.mode === "add" && (
+          <rect
+            x={PAD + hoverPreview.p.x * scale}
+            y={PAD + hoverPreview.p.y * scale}
+            width={hoverPreview.p.w * scale}
+            height={hoverPreview.p.d * scale}
+            fill={
+              hoverPreview.valid
+                ? DECK_FILL[hoverPreview.p.key]
+                : "#dc2626"
+            }
+            fillOpacity={hoverPreview.valid ? 0.35 : 0.25}
+            stroke={hoverPreview.valid ? DECK_FILL[hoverPreview.p.key] : "#dc2626"}
+            strokeWidth={1.5}
+            strokeDasharray="4 2"
+            pointerEvents="none"
+          />
+        )}
+        {hoverPreview && hoverPreview.mode === "remove" && (
+          <rect
+            x={PAD + hoverPreview.p.x * scale}
+            y={PAD + hoverPreview.p.y * scale}
+            width={hoverPreview.p.w * scale}
+            height={hoverPreview.p.d * scale}
+            fill="#dc2626"
+            fillOpacity={0.15}
+            stroke="#dc2626"
+            strokeWidth={1.5}
+            strokeDasharray="3 3"
+            pointerEvents="none"
+          />
+        )}
+
+        {/* Click-catcher grid (manual mode only). One transparent rect
+            per half-metre cell — clicking adds the selected deck (the
+            click handler walks down to the cell coords) and hovering
+            updates the preview. Decks above this layer take precedence
+            because they intercept clicks first via their own onClick. */}
+        {interactive &&
+          Array.from({ length: cellsD }).map((_, cy) =>
+            Array.from({ length: cellsW }).map((_, cx) => (
+              <rect
+                key={`cell-${cx}-${cy}`}
+                x={PAD + cx * HALF_M * scale}
+                y={PAD + cy * HALF_M * scale}
+                width={HALF_M * scale}
+                height={HALF_M * scale}
+                fill="transparent"
+                style={{ cursor: "pointer" }}
+                onMouseEnter={() => setHover({ cx, cy })}
+                onClick={() => {
+                  // If the clicked cell is already covered by a deck,
+                  // remove it; otherwise place the selected deck here.
+                  const px = cx * HALF_M;
+                  const py = cy * HALF_M;
+                  const covering = stage.manualPlacements.some(
+                    (p) =>
+                      px >= p.x &&
+                      px < p.x + p.w &&
+                      py >= p.y &&
+                      py < p.y + p.d,
+                  );
+                  if (covering) {
+                    onRemoveAtCell?.(cx, cy);
+                  } else {
+                    onAddAtCell?.(cx, cy);
+                  }
+                }}
+              />
+            )),
+          )}
       </svg>
       <div className="stage-preview-legend">
         <span>

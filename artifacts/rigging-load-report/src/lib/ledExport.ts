@@ -123,6 +123,28 @@ export function buildScreenSvg(input: BuildSvgInput): string {
     }
   }
 
+  // Panel gridlines — drawn once as a single overlay (one line per interior
+  // boundary plus the four outer edges) so each individual panel is visible
+  // regardless of physical aspect ratio. This avoids the double-stroke
+  // alpha-compounding that would happen if every cell rect got its own
+  // outline. Width is clamped so it stays sensible at tiny custom panels
+  // (1–4 px) and at very large pixel-pitch panels (e.g. 256+ px cells).
+  const panelStroke = clamp(Math.min(cellW, cellH) * 0.012, 1, 4);
+  const gridColor = "#0f172a";
+  const gridOpacity = 0.55;
+  for (let i = 0; i <= screen.panelsWide; i++) {
+    const x = i * cellW;
+    parts.push(
+      `<line x1="${x}" y1="0" x2="${x}" y2="${H}" stroke="${gridColor}" stroke-width="${panelStroke}" stroke-opacity="${gridOpacity}"/>`,
+    );
+  }
+  for (let i = 0; i <= screen.panelsTall; i++) {
+    const y = i * cellH;
+    parts.push(
+      `<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="${gridColor}" stroke-width="${panelStroke}" stroke-opacity="${gridOpacity}"/>`,
+    );
+  }
+
   // Cell labels: "A,1" "B,1" … in the top-left corner of each panel.
   if (settings.showLabels) {
     const padX = Math.max(4, cellW * 0.04);

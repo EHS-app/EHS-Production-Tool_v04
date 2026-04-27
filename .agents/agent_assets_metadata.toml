@@ -6,3 +6,9 @@ id = "VBKxBSOZhGrZDczt1bxpl"
 uri = "file://exports/ehs-rigging-load-report.zip"
 type = "unspecified"
 title = "EHS Rigging Load Report — full source code"
+
+[[outputs]]
+id = "hkGhNh4yVch1DuGy9KpTj"
+uri = "file://exports/ehs-rigging-load-report-full-app.zip"
+type = "unspecified"
+title = "EHS Rigging Load Report — full project (monorepo)"

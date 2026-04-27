@@ -1155,239 +1155,259 @@ function ExportOptions({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <section className="led-card led-export-card">
-      <div className="led-card-head">
-        <h3>
-          <button
-            type="button"
-            className="led-disclosure"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-          >
-            <span className="led-disclosure-arrow">{open ? "▼" : "▶"}</span>
-            Export options (PNG)
-          </button>
-        </h3>
-        <span className="led-hint">
-          Affects what the per-screen <strong>PNG</strong> button renders.
-          The on-screen pixel map below uses these too where applicable.
+    <section className={`led-card led-export-card ${open ? "is-open" : ""}`}>
+      <button
+        type="button"
+        className="led-export-header"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <span className="led-export-header-main">
+          <span className="led-export-header-icon" aria-hidden="true">
+            ⚙
+          </span>
+          <span className="led-export-header-text">
+            <span className="led-export-header-title">
+              Export options (PNG)
+            </span>
+            <span className="led-export-header-sub">
+              Controls what the per-screen <strong>PNG</strong> button renders.
+              The on-screen pixel map uses these too where applicable.
+            </span>
+          </span>
         </span>
-      </div>
+        <span className="led-export-header-chevron" aria-hidden="true">
+          {open ? "▾" : "▸"}
+        </span>
+      </button>
 
       {open && (
-        <div className="led-export-grid">
-          <label className="led-inline-field">
-            <span>Output mode</span>
-            <select
-              className="led-input"
-              value={settings.outputMode}
-              onChange={(e) =>
-                onUpdateSettings({
-                  outputMode: e.target.value as LedSettings["outputMode"],
-                })
-              }
-            >
-              <option value="per-screen">One per screen</option>
-              <option value="per-row">One per panel row</option>
-            </select>
-          </label>
-
-          <label className="led-inline-field">
-            <span>Processor</span>
-            <select
-              className="led-input"
-              value={settings.processorId ?? ""}
-              onChange={(e) =>
-                onUpdateSettings({
-                  processorId: e.target.value === "" ? null : e.target.value,
-                })
-              }
-            >
-              <option value="">— None / generic —</option>
-              {LED_PROCESSORS.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="led-inline-field">
-            <span>Wire path</span>
-            <select
-              className="led-input"
-              value={settings.wirePath}
-              onChange={(e) =>
-                onUpdateSettings({
-                  wirePath: e.target.value as LedSettings["wirePath"],
-                })
-              }
-            >
-              <option value="linear">Linear (rows L→R)</option>
-              <option value="serpentine">Serpentine (alternates rows)</option>
-              <option value="column-serpentine">Snake by column (down/up)</option>
-            </select>
-          </label>
-
-          <label className="led-inline-field">
-            <span>Pixels per output</span>
-            <input
-              type="number"
-              className="led-input"
-              min={1000}
-              step={1000}
-              disabled={settings.outputMode !== "per-screen"}
-              value={settings.portLimit}
-              onChange={(e) =>
-                onUpdateSettings({
-                  portLimit: Math.max(1000, Number(e.target.value) || 1000),
-                })
-              }
-            />
-          </label>
-
-          <label className="led-inline-field led-inline-checkbox">
-            <input
-              type="checkbox"
-              checked={settings.showLabels}
-              onChange={(e) =>
-                onUpdateSettings({ showLabels: e.target.checked })
-              }
-            />
-            <span>Show panel labels (A1, B1…)</span>
-          </label>
-
-          <label className="led-inline-field led-inline-checkbox">
-            <input
-              type="checkbox"
-              checked={settings.showArrows}
-              onChange={(e) =>
-                onUpdateSettings({ showArrows: e.target.checked })
-              }
-            />
-            <span>Show data-flow arrows</span>
-          </label>
-
-          <label className="led-inline-field led-inline-checkbox">
-            <input
-              type="checkbox"
-              checked={settings.showTestPattern}
-              onChange={(e) =>
-                onUpdateSettings({ showTestPattern: e.target.checked })
-              }
-            />
-            <span>Show alignment circle + corner X</span>
-          </label>
-
-          <label className="led-inline-field led-inline-checkbox">
-            <input
-              type="checkbox"
-              checked={settings.showScreenName}
-              onChange={(e) =>
-                onUpdateSettings({ showScreenName: e.target.checked })
-              }
-            />
-            <span>Show screen name pill</span>
-          </label>
-
-          <label className="led-inline-field led-inline-checkbox">
-            <input
-              type="checkbox"
-              checked={settings.showInfoBar}
-              onChange={(e) =>
-                onUpdateSettings({ showInfoBar: e.target.checked })
-              }
-            />
-            <span>Show bottom info bar</span>
-          </label>
-
-          <label className="led-inline-field led-inline-checkbox">
-            <input
-              type="checkbox"
-              checked={settings.showLogo}
-              onChange={(e) =>
-                onUpdateSettings({ showLogo: e.target.checked })
-              }
-            />
-            <span>Show EHS logo</span>
-          </label>
-
-          <label className="led-inline-field">
-            <span>Panel pattern</span>
-            <select
-              className="led-input"
-              value={settings.panelPattern}
-              onChange={(e) =>
-                onUpdateSettings({
-                  panelPattern: e.target.value as LedPanelPattern,
-                })
-              }
-            >
-              <option value="checker">
-                Checkerboard (every panel visible)
-              </option>
-              <option value="columns">Vertical stripes (columns)</option>
-            </select>
-          </label>
-
-          <div className="led-inline-field led-color-pair-field">
-            <span>Panel colors (alternating)</span>
-            <div className="led-color-pair-row">
-              <label className="led-color-input">
-                <input
-                  type="color"
-                  value={settings.panelColorDark}
+        <div className="led-export-body">
+          {/* ── Group 1: Output & wiring ───────────────────────────── */}
+          <div className="led-export-group">
+            <div className="led-export-group-head">
+              <span className="led-export-group-title">Output &amp; wiring</span>
+              <span className="led-export-group-hint">
+                How the wall is sliced across processor outputs.
+              </span>
+            </div>
+            <div className="led-export-fields">
+              <label className="led-field">
+                <span className="led-field-label">Output mode</span>
+                <select
+                  className="led-input"
+                  value={settings.outputMode}
                   onChange={(e) =>
-                    onUpdateSettings({ panelColorDark: e.target.value })
+                    onUpdateSettings({
+                      outputMode: e.target.value as LedSettings["outputMode"],
+                    })
                   }
-                  aria-label="Dark panel color"
-                />
-                <span>Dark</span>
+                >
+                  <option value="per-screen">One per screen</option>
+                  <option value="per-row">One per panel row</option>
+                </select>
               </label>
-              <label className="led-color-input">
+
+              <label className="led-field">
+                <span className="led-field-label">Pixels per output</span>
                 <input
-                  type="color"
-                  value={settings.panelColorLight}
+                  type="number"
+                  className="led-input"
+                  min={1000}
+                  step={1000}
+                  disabled={settings.outputMode !== "per-screen"}
+                  value={settings.portLimit}
                   onChange={(e) =>
-                    onUpdateSettings({ panelColorLight: e.target.value })
+                    onUpdateSettings({
+                      portLimit: Math.max(1000, Number(e.target.value) || 1000),
+                    })
                   }
-                  aria-label="Light panel color"
                 />
-                <span>Light</span>
+              </label>
+
+              <label className="led-field">
+                <span className="led-field-label">Wire path</span>
+                <select
+                  className="led-input"
+                  value={settings.wirePath}
+                  onChange={(e) =>
+                    onUpdateSettings({
+                      wirePath: e.target.value as LedSettings["wirePath"],
+                    })
+                  }
+                >
+                  <option value="linear">Linear (rows L→R)</option>
+                  <option value="serpentine">
+                    Serpentine (alternates rows)
+                  </option>
+                  <option value="column-serpentine">
+                    Snake by column (down/up)
+                  </option>
+                </select>
+              </label>
+
+              <label className="led-field">
+                <span className="led-field-label">Processor</span>
+                <select
+                  className="led-input"
+                  value={settings.processorId ?? ""}
+                  onChange={(e) =>
+                    onUpdateSettings({
+                      processorId:
+                        e.target.value === "" ? null : e.target.value,
+                    })
+                  }
+                >
+                  <option value="">— None / generic —</option>
+                  {LED_PROCESSORS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
-            <div className="led-color-presets">
-              {LED_PANEL_COLOR_PRESETS.map((p) => {
-                const isActive =
-                  settings.panelColorDark.toLowerCase() ===
-                    p.dark.toLowerCase() &&
-                  settings.panelColorLight.toLowerCase() ===
-                    p.light.toLowerCase();
+          </div>
+
+          {/* ── Group 2: Visual overlays ───────────────────────────── */}
+          <div className="led-export-group">
+            <div className="led-export-group-head">
+              <span className="led-export-group-title">Visual overlays</span>
+              <span className="led-export-group-hint">
+                Toggle the helper graphics drawn on top of every cabinet.
+              </span>
+            </div>
+            <div className="led-export-toggles">
+              {(
+                [
+                  ["showLabels", "Panel labels (A1, B1…)"],
+                  ["showArrows", "Data-flow arrows"],
+                  ["showTestPattern", "Alignment circle + corner X"],
+                  ["showScreenName", "Screen name pill"],
+                  ["showInfoBar", "Bottom info bar"],
+                  ["showLogo", "EHS logo"],
+                ] as const
+              ).map(([key, label]) => {
+                const checked = Boolean(settings[key]);
                 return (
-                  <button
-                    key={p.label}
-                    type="button"
-                    className={`led-color-preset ${isActive ? "is-active" : ""}`}
-                    title={`Use ${p.label} preset`}
-                    onClick={() =>
-                      onUpdateSettings({
-                        panelColorDark: p.dark,
-                        panelColorLight: p.light,
-                      })
-                    }
+                  <label
+                    key={key}
+                    className={`led-toggle-card ${checked ? "is-on" : ""}`}
                   >
-                    <span
-                      className="led-color-preset-half"
-                      style={{ background: p.dark }}
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) =>
+                        onUpdateSettings({
+                          [key]: e.target.checked,
+                        } as Partial<LedSettings>)
+                      }
                     />
+                    <span className="led-toggle-card-text">{label}</span>
                     <span
-                      className="led-color-preset-half"
-                      style={{ background: p.light }}
-                    />
-                    <span className="led-color-preset-label">{p.label}</span>
-                  </button>
+                      className="led-toggle-card-pill"
+                      aria-hidden="true"
+                    >
+                      {checked ? "On" : "Off"}
+                    </span>
+                  </label>
                 );
               })}
+            </div>
+          </div>
+
+          {/* ── Group 3: Look &amp; feel ───────────────────────────── */}
+          <div className="led-export-group">
+            <div className="led-export-group-head">
+              <span className="led-export-group-title">Look &amp; feel</span>
+              <span className="led-export-group-hint">
+                Cabinet pattern and the alternating tint used on the map.
+              </span>
+            </div>
+
+            <div className="led-export-look">
+              <label className="led-field">
+                <span className="led-field-label">Panel pattern</span>
+                <select
+                  className="led-input"
+                  value={settings.panelPattern}
+                  onChange={(e) =>
+                    onUpdateSettings({
+                      panelPattern: e.target.value as LedPanelPattern,
+                    })
+                  }
+                >
+                  <option value="checker">
+                    Checkerboard (every panel visible)
+                  </option>
+                  <option value="columns">Vertical stripes (columns)</option>
+                </select>
+              </label>
+
+              <div className="led-field">
+                <span className="led-field-label">Panel colors</span>
+                <div className="led-color-pair-row">
+                  <label className="led-color-input">
+                    <input
+                      type="color"
+                      value={settings.panelColorDark}
+                      onChange={(e) =>
+                        onUpdateSettings({ panelColorDark: e.target.value })
+                      }
+                      aria-label="Dark panel color"
+                    />
+                    <span>Dark</span>
+                  </label>
+                  <label className="led-color-input">
+                    <input
+                      type="color"
+                      value={settings.panelColorLight}
+                      onChange={(e) =>
+                        onUpdateSettings({ panelColorLight: e.target.value })
+                      }
+                      aria-label="Light panel color"
+                    />
+                    <span>Light</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="led-export-presets">
+              <span className="led-export-presets-label">Presets</span>
+              <div className="led-color-presets">
+                {LED_PANEL_COLOR_PRESETS.map((p) => {
+                  const isActive =
+                    settings.panelColorDark.toLowerCase() ===
+                      p.dark.toLowerCase() &&
+                    settings.panelColorLight.toLowerCase() ===
+                      p.light.toLowerCase();
+                  return (
+                    <button
+                      key={p.label}
+                      type="button"
+                      className={`led-color-preset ${isActive ? "is-active" : ""}`}
+                      title={`Use ${p.label} preset`}
+                      onClick={() =>
+                        onUpdateSettings({
+                          panelColorDark: p.dark,
+                          panelColorLight: p.light,
+                        })
+                      }
+                    >
+                      <span
+                        className="led-color-preset-half"
+                        style={{ background: p.dark }}
+                      />
+                      <span
+                        className="led-color-preset-half"
+                        style={{ background: p.light }}
+                      />
+                      <span className="led-color-preset-label">{p.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

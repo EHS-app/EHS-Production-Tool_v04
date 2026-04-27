@@ -1641,30 +1641,238 @@ input:focus {
   cursor: pointer;
 }
 
-.led-export-card .led-card-head {
-  align-items: flex-start;
+/* ── Export options card ───────────────────────────────────────────── */
+.led-export-card {
+  padding: 0;
+  overflow: hidden;
 }
-.led-disclosure {
+.led-export-card.is-open {
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06),
+    0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.led-export-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 16px;
+  padding: 14px 18px;
   background: none;
   border: 0;
-  padding: 0;
   font: inherit;
   color: inherit;
+  text-align: left;
   cursor: pointer;
+  transition: background 120ms ease;
+}
+.led-export-header:hover {
+  background: var(--surface-soft, #f8fafc);
+}
+.led-export-card.is-open .led-export-header {
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  background: var(--surface-soft, #f8fafc);
+}
+.led-export-header-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.led-export-header-icon {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.12);
+  color: #4f46e5;
+  font-size: 1.05rem;
+  flex: none;
 }
-.led-disclosure-arrow {
-  font-size: 0.7em;
-  opacity: 0.7;
-  width: 1em;
+.led-export-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
-.led-export-grid {
+.led-export-header-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text, #0f172a);
+  line-height: 1.2;
+}
+.led-export-header-sub {
+  font-size: 0.78rem;
+  color: var(--text-soft, #64748b);
+  line-height: 1.35;
+}
+.led-export-header-chevron {
+  font-size: 1rem;
+  color: var(--text-soft, #94a3b8);
+  flex: none;
+  transition: transform 150ms ease, color 150ms ease;
+}
+.led-export-header:hover .led-export-header-chevron {
+  color: var(--text, #0f172a);
+}
+
+.led-export-body {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 18px 18px;
+}
+.led-export-group {
+  padding: 14px 0;
+  border-top: 1px dashed var(--border, #e5e7eb);
+}
+.led-export-group:first-child {
+  border-top: 0;
+  padding-top: 8px;
+}
+.led-export-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.led-export-group-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text, #0f172a);
+}
+.led-export-group-hint {
+  font-size: 0.78rem;
+  color: var(--text-soft, #64748b);
+}
+
+.led-export-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px 16px;
+}
+
+.led-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.led-field-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-soft, #6b7280);
+}
+.led-field .led-input,
+.led-field input[type="number"] {
+  width: 100%;
+  padding: 6px 10px;
+  height: 34px;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 8px;
+  background: var(--input-bg, #fff);
+  color: inherit;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.led-field .led-input:focus,
+.led-field input[type="number"]:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+.led-field input[type="number"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--surface-soft, #f3f4f6);
+}
+
+/* Toggle cards (overlays group) */
+.led-export-toggles {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px 18px;
-  padding: 12px 0 4px;
+  gap: 8px;
+}
+.led-toggle-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 10px;
+  background: var(--input-bg, #fff);
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease,
+    box-shadow 120ms ease;
+}
+.led-toggle-card:hover {
+  border-color: #94a3b8;
+}
+.led-toggle-card.is-on {
+  border-color: rgba(99, 102, 241, 0.55);
+  background: rgba(99, 102, 241, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.18);
+}
+.led-toggle-card input[type="checkbox"] {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  accent-color: #6366f1;
+  margin: 0;
+}
+.led-toggle-card-text {
+  flex: 1 1 auto;
+  font-size: 0.86rem;
+  color: var(--text, #111827);
+  line-height: 1.2;
+}
+.led-toggle-card-pill {
+  flex: none;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--surface-soft, #e5e7eb);
+  color: var(--text-soft, #6b7280);
+}
+.led-toggle-card.is-on .led-toggle-card-pill {
+  background: #4f46e5;
+  color: #fff;
+}
+
+/* Look & feel layout */
+.led-export-look {
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) minmax(210px, 1fr);
+  gap: 12px 16px;
+}
+@media (max-width: 640px) {
+  .led-export-look {
+    grid-template-columns: 1fr;
+  }
+}
+.led-export-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border, #e5e7eb);
+}
+.led-export-presets-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-soft, #6b7280);
 }
 
 /* ── Processor capacity banner ─────────────────────────────────────── */
@@ -1810,19 +2018,6 @@ input:focus {
 .led-proc-issue.is-fail {
   border-color: #fca5a5;
   color: #991b1b;
-}
-.led-export-grid .led-inline-field select.led-input,
-.led-export-grid .led-inline-field input.led-input,
-.led-export-grid .led-inline-field input[type="number"] {
-  width: 100%;
-}
-.led-export-grid .led-inline-field input[type="number"]:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.led-color-pair-field {
-  grid-column: 1 / -1;
-  gap: 8px;
 }
 .led-color-pair-row {
   display: flex;

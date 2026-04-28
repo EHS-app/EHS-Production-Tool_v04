@@ -2646,50 +2646,63 @@ input:focus {
 .stage-rails {
   border: 1px solid var(--border, #e2e8f0);
   border-radius: 8px;
-  padding: 0.5rem 0.75rem 0.6rem;
+  padding: 0.4rem 0.55rem 0.5rem;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  column-gap: 0.5rem;
-  row-gap: 0.4rem;
+  grid-template-columns: repeat(4, minmax(64px, 1fr));
+  column-gap: 0.35rem;
+  row-gap: 0.3rem;
   align-items: center;
   margin: 0;
-  min-width: 280px;
-  flex: 1 1 320px;
+  min-width: 0;
+  flex: 1 1 260px;
 }
 .stage-rails legend {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted, #64748b);
-  padding: 0 0.4rem;
+  padding: 0 0.35rem;
 }
 .stage-rails label {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 0.4rem;
-  font-size: 0.88rem;
-  padding: 0.3rem 0.5rem;
+  justify-content: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  line-height: 1;
+  padding: 0.28rem 0.4rem;
   border: 1px solid var(--border, #e2e8f0);
   border-radius: 6px;
   background: var(--bg-elev, #fff);
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
+  /* Override any inherited text colour so the chip label is always
+     readable on its background, even inside dark sections. */
+  color: var(--text-main, #0f172a);
 }
 .stage-rails label:hover {
   border-color: var(--accent, #f97316);
 }
-.stage-rails label input {
+.stage-rails label input[type="checkbox"] {
+  /* Pin the native checkbox to a tight, predictable footprint so it
+     stays vertically centred next to the label text. flex-shrink:0
+     stops it from collapsing inside the chip's flex container. */
+  appearance: auto;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  margin: 0;
+  padding: 0;
+  border-radius: 3px;
   accent-color: var(--accent, #f97316);
   cursor: pointer;
-  margin: 0;
+  vertical-align: middle;
 }
 .stage-rails label:has(input:checked) {
   border-color: var(--accent, #f97316);
-  background: color-mix(in srgb, var(--accent, #f97316) 12%, var(--bg-elev, #fff));
-  color: var(--text-main, #0f172a);
+  background: color-mix(in srgb, var(--accent, #f97316) 14%, var(--bg-elev, #fff));
   font-weight: 600;
 }
 @media (max-width: 640px) {

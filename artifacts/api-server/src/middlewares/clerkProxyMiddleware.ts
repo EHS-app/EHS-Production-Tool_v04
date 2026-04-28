@@ -41,6 +41,7 @@ export function clerkProxyMiddleware(): RequestHandler {
     changeOrigin: true,
     pathRewrite: (path: string) =>
       path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
+    selfHandleResponse: true,
     on: {
       proxyReq: (proxyReq, req) => {
         const protocol = req.headers["x-forwarded-proto"] || "https";
@@ -57,6 +58,59 @@ export function clerkProxyMiddleware(): RequestHandler {
           "";
         if (clientIp) {
           proxyReq.setHeader("X-Forwarded-For", clientIp);
+        }
+      },
+      proxyRes: (proxyRes, req, res) => {
+        // Mirror status + headers so the client gets an unchanged response.
+        res.statusCode = proxyRes.statusCode || 200;
+        for (const [k, v] of Object.entries(proxyRes.headers)) {
+          if (v !== undefined) {
+            try {
+              res.setHeader(k, v as string | string[] | number);
+            } catch {
+              /* drop hop-by-hop or invalid headers silently */
+            }
+          }
+        }
+
+        // Capture the body so we can both forward it and log failures
+        // for sensitive endpoints (sign-in / sign-up). This is invaluable
+        // for debugging "Account not found" / "Wrong password" issues.
+        const url = (req as { url?: string }).url || "";
+        const isAuthEndpoint =
+          /\/v1\/client\/sign_(ins|ups)/.test(url) ||
+          /\/v1\/client\/sign_ins\/[^/]+\/(prepare|attempt)_first_factor/.test(url);
+
+        if (isAuthEndpoint && (proxyRes.statusCode || 200) >= 400) {
+          const chunks: Buffer[] = [];
+          proxyRes.on("data", (chunk: Buffer) => chunks.push(chunk));
+          proxyRes.on("end", () => {
+            const body = Buffer.concat(chunks);
+            try {
+              const text = body.toString("utf8");
+              // Log the JSON error body for debugging
+              // eslint-disable-next-line no-console
+              console.warn(
+                "[clerkProxy] auth failure",
+                JSON.stringify({
+                  url,
+                  status: proxyRes.statusCode,
+                  body: text.slice(0, 1000),
+                }),
+              );
+            } catch {
+              /* ignore */
+            }
+            res.end(body);
+          });
+          proxyRes.on("error", (err: Error) => {
+            // eslint-disable-next-line no-console
+            console.warn("[clerkProxy] upstream error", err.message);
+            res.end();
+          });
+        } else {
+          // Pass-through for everything else
+          proxyRes.pipe(res);
         }
       },
     },

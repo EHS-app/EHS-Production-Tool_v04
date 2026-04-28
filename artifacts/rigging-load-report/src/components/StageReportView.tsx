@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { NumberField } from "./NumberField";
 import {
   STAGE_DECKS,
   STAGE_LEG_HEIGHTS_CM,
@@ -341,14 +342,12 @@ function StageCard({
           {!isManual && (
             <label className="stage-field">
               <span>Width (m)</span>
-              <input
-                type="number"
+              <NumberField
                 min={0.5}
                 step={0.5}
                 value={stage.width}
-                onChange={(e) =>
-                  onUpdate({ width: snapHalfMetre(Number(e.target.value)) })
-                }
+                transform={(n) => Math.max(0.5, snapHalfMetre(n))}
+                onCommit={(n) => onUpdate({ width: n })}
               />
             </label>
           )}
@@ -356,14 +355,12 @@ function StageCard({
           {!isManual && (
             <label className="stage-field">
               <span>Depth (m)</span>
-              <input
-                type="number"
+              <NumberField
                 min={0.5}
                 step={0.5}
                 value={stage.depth}
-                onChange={(e) =>
-                  onUpdate({ depth: snapHalfMetre(Number(e.target.value)) })
-                }
+                transform={(n) => Math.max(0.5, snapHalfMetre(n))}
+                onCommit={(n) => onUpdate({ depth: n })}
               />
             </label>
           )}

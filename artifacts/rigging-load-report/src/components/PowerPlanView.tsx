@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { NumberField } from "./NumberField";
 import {
   POWER_PHASES,
   computeCircuitLoad,
@@ -182,32 +183,26 @@ function CircuitCard({
         <div className="power-circuit-rating">
           <label>
             <span>V</span>
-            <input
+            <NumberField
               className="led-input led-input-num"
-              type="number"
               min={1}
               step={10}
               value={circuit.voltage}
-              onChange={(e) =>
-                onUpdate({
-                  voltage: Math.max(1, Number(e.target.value) || 230),
-                })
-              }
+              transform={(n) => Math.max(1, n || 230)}
+              emptyValue={230}
+              onCommit={(voltage) => onUpdate({ voltage })}
             />
           </label>
           <label>
             <span>A / phase</span>
-            <input
+            <NumberField
               className="led-input led-input-num"
-              type="number"
               min={1}
               step={1}
               value={circuit.ampsPerPhase}
-              onChange={(e) =>
-                onUpdate({
-                  ampsPerPhase: Math.max(1, Number(e.target.value) || 32),
-                })
-              }
+              transform={(n) => Math.max(1, n || 32)}
+              emptyValue={32}
+              onCommit={(ampsPerPhase) => onUpdate({ ampsPerPhase })}
             />
           </label>
           <span className="power-circuit-cap">
@@ -316,37 +311,27 @@ function CircuitCard({
                       </select>
                     </td>
                     <td>
-                      <input
+                      <NumberField
                         className="led-input led-input-num"
-                        type="number"
                         min={1}
                         step={1}
                         value={it.qty}
-                        onChange={(e) =>
-                          onUpdateItem(it.id, {
-                            qty: Math.max(
-                              1,
-                              Math.round(Number(e.target.value) || 1),
-                            ),
-                          })
-                        }
+                        transform={(n) => Math.max(1, Math.round(n || 1))}
+                        emptyValue={1}
+                        onCommit={(qty) => onUpdateItem(it.id, { qty })}
                         aria-label="Quantity"
                       />
                     </td>
                     <td>
-                      <input
+                      <NumberField
                         className="led-input led-input-num"
-                        type="number"
                         min={0}
                         step={10}
                         value={it.wattsPerUnit}
-                        onChange={(e) =>
-                          onUpdateItem(it.id, {
-                            wattsPerUnit: Math.max(
-                              0,
-                              Number(e.target.value) || 0,
-                            ),
-                          })
+                        transform={(n) => Math.max(0, n || 0)}
+                        emptyValue={0}
+                        onCommit={(wattsPerUnit) =>
+                          onUpdateItem(it.id, { wattsPerUnit })
                         }
                         aria-label="Watts per unit"
                       />

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { NumberField } from "./NumberField";
 import {
   clampTrussToVenue,
   makeDefaultTruss,
@@ -151,47 +152,38 @@ export function RiggPlanView({
         <div className="rigg-venue-grid">
           <label className="led-field">
             <span className="led-field-label">Width (m)</span>
-            <input
+            <NumberField
               className="led-input led-input-num"
-              type="number"
               min={1}
               step={0.5}
               value={venue.widthM}
-              onChange={(e) =>
-                onUpdateVenue({
-                  widthM: Math.max(1, snapHalfMetre(Number(e.target.value) || 0)),
-                })
-              }
+              transform={(n) => Math.max(1, snapHalfMetre(n || 0))}
+              emptyValue={1}
+              onCommit={(widthM) => onUpdateVenue({ widthM })}
             />
           </label>
           <label className="led-field">
             <span className="led-field-label">Depth (m)</span>
-            <input
+            <NumberField
               className="led-input led-input-num"
-              type="number"
               min={1}
               step={0.5}
               value={venue.depthM}
-              onChange={(e) =>
-                onUpdateVenue({
-                  depthM: Math.max(1, snapHalfMetre(Number(e.target.value) || 0)),
-                })
-              }
+              transform={(n) => Math.max(1, snapHalfMetre(n || 0))}
+              emptyValue={1}
+              onCommit={(depthM) => onUpdateVenue({ depthM })}
             />
           </label>
           <label className="led-field">
             <span className="led-field-label">Ceiling (m)</span>
-            <input
+            <NumberField
               className="led-input led-input-num"
-              type="number"
               min={1}
               step={0.5}
               value={venue.ceilingM}
-              onChange={(e) =>
-                onUpdateVenue({
-                  ceilingM: Math.max(1, snapHalfMetre(Number(e.target.value) || 0)),
-                })
-              }
+              transform={(n) => Math.max(1, snapHalfMetre(n || 0))}
+              emptyValue={1}
+              onCommit={(ceilingM) => onUpdateVenue({ ceilingM })}
             />
           </label>
         </div>
@@ -274,17 +266,18 @@ export function RiggPlanView({
                         <div className="led-sub">{sys.pointCount} pts</div>
                       </td>
                       <td>
-                        <input
+                        <NumberField
                           className="led-input led-input-num"
-                          type="number"
                           step={0.5}
                           value={t.x}
-                          onChange={(e) =>
+                          transform={(n) => snapHalfMetre(n || 0)}
+                          emptyValue={0}
+                          onCommit={(x) =>
                             onUpdateTruss(sys.id, {
                               ...clampTrussToVenue(
                                 {
                                   ...t,
-                                  x: snapHalfMetre(Number(e.target.value) || 0),
+                                  x,
                                 },
                                 venue,
                               ),
@@ -293,17 +286,18 @@ export function RiggPlanView({
                         />
                       </td>
                       <td>
-                        <input
+                        <NumberField
                           className="led-input led-input-num"
-                          type="number"
                           step={0.5}
                           value={t.y}
-                          onChange={(e) =>
+                          transform={(n) => snapHalfMetre(n || 0)}
+                          emptyValue={0}
+                          onCommit={(y) =>
                             onUpdateTruss(sys.id, {
                               ...clampTrussToVenue(
                                 {
                                   ...t,
-                                  y: snapHalfMetre(Number(e.target.value) || 0),
+                                  y,
                                 },
                                 venue,
                               ),
@@ -312,40 +306,36 @@ export function RiggPlanView({
                         />
                       </td>
                       <td>
-                        <input
+                        <NumberField
                           className="led-input led-input-num"
-                          type="number"
                           step={0.5}
                           min={0}
                           max={venue.ceilingM}
                           value={t.z}
-                          onChange={(e) =>
-                            onUpdateTruss(sys.id, {
-                              z: Math.min(
-                                venue.ceilingM,
-                                Math.max(0, snapHalfMetre(Number(e.target.value) || 0)),
-                              ),
-                            })
+                          transform={(n) =>
+                            Math.min(
+                              venue.ceilingM,
+                              Math.max(0, snapHalfMetre(n || 0)),
+                            )
                           }
+                          emptyValue={0}
+                          onCommit={(z) => onUpdateTruss(sys.id, { z })}
                         />
                       </td>
                       <td>
-                        <input
+                        <NumberField
                           className="led-input led-input-num"
-                          type="number"
                           step={0.5}
                           min={0.5}
                           value={t.lengthM}
-                          onChange={(e) =>
+                          transform={(n) =>
+                            Math.max(0.5, snapHalfMetre(n || 0))
+                          }
+                          emptyValue={0.5}
+                          onCommit={(lengthM) =>
                             onUpdateTruss(sys.id, {
                               ...clampTrussToVenue(
-                                {
-                                  ...t,
-                                  lengthM: Math.max(
-                                    0.5,
-                                    snapHalfMetre(Number(e.target.value) || 0),
-                                  ),
-                                },
+                                { ...t, lengthM },
                                 venue,
                               ),
                             })

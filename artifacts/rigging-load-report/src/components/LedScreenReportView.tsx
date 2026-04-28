@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { NumberField } from "./NumberField";
 import {
   CUSTOM_PANEL_KEY,
   LED_PANEL_COLOR_PRESETS,
@@ -408,29 +409,23 @@ function ScreenRow({
           </select>
         </td>
         <td>
-          <input
+          <NumberField
             className="led-input led-input-num"
-            type="number"
             min={1}
             value={screen.panelsWide}
-            onChange={(e) =>
-              onUpdate({
-                panelsWide: Math.max(1, Number(e.target.value) || 1),
-              })
-            }
+            transform={(n) => Math.max(1, Math.round(n || 1))}
+            emptyValue={1}
+            onCommit={(panelsWide) => onUpdate({ panelsWide })}
           />
         </td>
         <td>
-          <input
+          <NumberField
             className="led-input led-input-num"
-            type="number"
             min={1}
             value={screen.panelsTall}
-            onChange={(e) =>
-              onUpdate({
-                panelsTall: Math.max(1, Number(e.target.value) || 1),
-              })
-            }
+            transform={(n) => Math.max(1, Math.round(n || 1))}
+            emptyValue={1}
+            onCommit={(panelsTall) => onUpdate({ panelsTall })}
           />
         </td>
         <td className="led-num">
@@ -523,89 +518,77 @@ function ScreenRow({
               <strong>Custom panel:</strong>
               <label>
                 Pixels W
-                <input
-                  type="number"
+                <NumberField
                   min={1}
                   value={panel.pixelWidth}
-                  onChange={(e) =>
-                    onUpdateCustomPanel({
-                      pixelWidth: Math.max(1, Number(e.target.value) || 1),
-                    })
+                  transform={(n) => Math.max(1, Math.round(n || 1))}
+                  emptyValue={1}
+                  onCommit={(pixelWidth) =>
+                    onUpdateCustomPanel({ pixelWidth })
                   }
                 />
               </label>
               <label>
                 Pixels H
-                <input
-                  type="number"
+                <NumberField
                   min={1}
                   value={panel.pixelHeight}
-                  onChange={(e) =>
-                    onUpdateCustomPanel({
-                      pixelHeight: Math.max(1, Number(e.target.value) || 1),
-                    })
+                  transform={(n) => Math.max(1, Math.round(n || 1))}
+                  emptyValue={1}
+                  onCommit={(pixelHeight) =>
+                    onUpdateCustomPanel({ pixelHeight })
                   }
                 />
               </label>
               <label>
                 Width (m)
-                <input
-                  type="number"
+                <NumberField
                   min={0.01}
                   step={0.01}
                   value={panel.physicalWidth}
-                  onChange={(e) =>
-                    onUpdateCustomPanel({
-                      physicalWidth: Math.max(
-                        0.01,
-                        Number(e.target.value) || 0.5,
-                      ),
-                    })
+                  transform={(n) => Math.max(0.01, n || 0.5)}
+                  emptyValue={0.5}
+                  onCommit={(physicalWidth) =>
+                    onUpdateCustomPanel({ physicalWidth })
                   }
                 />
               </label>
               <label>
                 Height (m)
-                <input
-                  type="number"
+                <NumberField
                   min={0.01}
                   step={0.01}
                   value={panel.physicalHeight}
-                  onChange={(e) =>
-                    onUpdateCustomPanel({
-                      physicalHeight: Math.max(
-                        0.01,
-                        Number(e.target.value) || 0.5,
-                      ),
-                    })
+                  transform={(n) => Math.max(0.01, n || 0.5)}
+                  emptyValue={0.5}
+                  onCommit={(physicalHeight) =>
+                    onUpdateCustomPanel({ physicalHeight })
                   }
                 />
               </label>
               <label>
                 Weight (kg)
-                <input
-                  type="number"
+                <NumberField
                   min={0}
                   step={0.1}
                   value={panel.weight}
-                  onChange={(e) =>
-                    onUpdateCustomPanel({
-                      weight: Math.max(0, Number(e.target.value) || 0),
-                    })
+                  transform={(n) => Math.max(0, n || 0)}
+                  emptyValue={0}
+                  onCommit={(weight) =>
+                    onUpdateCustomPanel({ weight })
                   }
                 />
               </label>
               <label>
                 Power (W)
-                <input
-                  type="number"
+                <NumberField
                   min={0}
                   step={1}
                   value={panel.power}
-                  onChange={(e) =>
-                    onUpdateCustomPanel({
-                      power: Math.max(0, Number(e.target.value) || 0),
-                    })
+                  transform={(n) => Math.max(0, n || 0)}
+                  emptyValue={0}
+                  onCommit={(power) =>
+                    onUpdateCustomPanel({ power })
                   }
                 />
               </label>
@@ -1086,17 +1069,16 @@ function ExportOptions({
 
               <label className="led-field">
                 <span className="led-field-label">Pixels per output</span>
-                <input
-                  type="number"
+                <NumberField
                   className="led-input"
                   min={1000}
                   step={1000}
                   disabled={settings.outputMode !== "per-screen"}
                   value={settings.portLimit}
-                  onChange={(e) =>
-                    onUpdateSettings({
-                      portLimit: Math.max(1000, Number(e.target.value) || 1000),
-                    })
+                  transform={(n) => Math.max(1000, n || 1000)}
+                  emptyValue={1000}
+                  onCommit={(portLimit) =>
+                    onUpdateSettings({ portLimit })
                   }
                 />
               </label>

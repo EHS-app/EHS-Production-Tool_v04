@@ -23,6 +23,7 @@ import {
   type LedSettings,
 } from "./lib/led";
 import { findProcessor } from "./lib/ledProcessors";
+import { NumberField } from "./components/NumberField";
 import { ShareBriefModal } from "./components/ShareBriefModal";
 import type { BuildBriefInput } from "./lib/projectBrief";
 import { exportScreenAsPng, getLogoDataUrl } from "./lib/ledExport";
@@ -2428,15 +2429,16 @@ function App() {
             </option>
           ))}
         </select>
-        <input
-          type="number"
+        <NumberField
           min={0}
           value={row.qty}
-          onChange={(e) =>
+          transform={(n) => Math.max(0, n || 0)}
+          emptyValue={0}
+          onCommit={(qty) =>
             updateRowsKey(listKey, (rows) =>
               rows.map((r) =>
                 r.id === row.id
-                  ? { ...r, qty: Number(e.target.value) || 0 }
+                  ? { ...r, qty }
                   : r,
               ),
             )
@@ -3724,17 +3726,15 @@ function LightingPlanView({
                             {f.qty}
                           </span>
                         ) : (
-                          <input
-                            type="number"
+                          <NumberField
                             min={1}
                             step={1}
                             value={f.qty}
-                            onChange={(e) =>
+                            transform={(n) => Math.max(1, Math.floor(n || 1))}
+                            emptyValue={1}
+                            onCommit={(qty) =>
                               onUpdate(f.id, {
-                                qty: Math.max(
-                                  1,
-                                  Math.floor(Number(e.target.value) || 1),
-                                ),
+                                qty,
                               })
                             }
                             className="fx-input fx-input-num"
@@ -3748,17 +3748,15 @@ function LightingPlanView({
                             {f.weight.toFixed(1)}
                           </span>
                         ) : (
-                          <input
-                            type="number"
+                          <NumberField
                             step="0.1"
                             min={0}
                             value={f.weight}
-                            onChange={(e) =>
+                            transform={(n) => Math.max(0, n || 0)}
+                            emptyValue={0}
+                            onCommit={(weight) =>
                               onUpdate(f.id, {
-                                weight: Math.max(
-                                  0,
-                                  Number(e.target.value) || 0,
-                                ),
+                                weight,
                               })
                             }
                             className="fx-input fx-input-num"
@@ -3772,16 +3770,14 @@ function LightingPlanView({
                             {f.watts}
                           </span>
                         ) : (
-                          <input
-                            type="number"
+                          <NumberField
                             min={0}
                             value={f.watts}
-                            onChange={(e) =>
+                            transform={(n) => Math.max(0, n || 0)}
+                            emptyValue={0}
+                            onCommit={(watts) =>
                               onUpdate(f.id, {
-                                watts: Math.max(
-                                  0,
-                                  Number(e.target.value) || 0,
-                                ),
+                                watts,
                               })
                             }
                             className="fx-input fx-input-num"
@@ -3824,17 +3820,15 @@ function LightingPlanView({
                               <option value={-1}>Custom…</option>
                             </select>
                             {f.dmxModeIndex === null ? (
-                              <input
-                                type="number"
+                              <NumberField
                                 min={0}
                                 step={1}
                                 value={f.dmxChannels}
-                                onChange={(e) =>
+                                transform={(n) => Math.max(0, Math.floor(n || 0))}
+                                emptyValue={0}
+                                onCommit={(dmxChannels) =>
                                   onUpdate(f.id, {
-                                    dmxChannels: Math.max(
-                                      0,
-                                      Math.floor(Number(e.target.value) || 0),
-                                    ),
+                                    dmxChannels,
                                   })
                                 }
                                 className="fx-input fx-input-num fx-mode-custom"
@@ -3850,17 +3844,15 @@ function LightingPlanView({
                             )}
                           </div>
                         ) : (
-                          <input
-                            type="number"
+                          <NumberField
                             min={0}
                             step={1}
                             value={f.dmxChannels}
-                            onChange={(e) =>
+                            transform={(n) => Math.max(0, Math.floor(n || 0))}
+                            emptyValue={0}
+                            onCommit={(dmxChannels) =>
                               onUpdate(f.id, {
-                                dmxChannels: Math.max(
-                                  0,
-                                  Math.floor(Number(e.target.value) || 0),
-                                ),
+                                dmxChannels,
                               })
                             }
                             className="fx-input fx-input-num"
@@ -3890,14 +3882,13 @@ function LightingPlanView({
                         )}
                       </td>
                       <td>
-                        <input
-                          type="number"
+                        <NumberField
                           step="0.1"
                           value={f.position}
-                          onChange={(e) =>
-                            onUpdate(f.id, {
-                              position: Number(e.target.value) || 0,
-                            })
+                          transform={(n) => n || 0}
+                          emptyValue={0}
+                          onCommit={(position) =>
+                            onUpdate(f.id, { position })
                           }
                           className="fx-input fx-input-num"
                           aria-label="Position on truss in meters"
@@ -3916,40 +3907,31 @@ function LightingPlanView({
                         />
                       </td>
                       <td>
-                        <input
-                          type="number"
+                        <NumberField
                           min={1}
                           step={1}
                           value={f.universe}
-                          onChange={(e) =>
-                            onUpdate(f.id, {
-                              universe: Math.max(
-                                1,
-                                Math.floor(Number(e.target.value) || 1),
-                              ),
-                            })
+                          transform={(n) => Math.max(1, Math.floor(n || 1))}
+                          emptyValue={1}
+                          onCommit={(universe) =>
+                            onUpdate(f.id, { universe })
                           }
                           className="fx-input fx-input-num"
                           aria-label="DMX universe"
                         />
                       </td>
                       <td>
-                        <input
-                          type="number"
+                        <NumberField
                           min={1}
                           max={512}
                           step={1}
                           value={f.startAddress}
-                          onChange={(e) =>
-                            onUpdate(f.id, {
-                              startAddress: Math.max(
-                                1,
-                                Math.min(
-                                  512,
-                                  Math.floor(Number(e.target.value) || 1),
-                                ),
-                              ),
-                            })
+                          transform={(n) =>
+                            Math.max(1, Math.min(512, Math.floor(n || 1)))
+                          }
+                          emptyValue={1}
+                          onCommit={(startAddress) =>
+                            onUpdate(f.id, { startAddress })
                           }
                           className="fx-input fx-input-num"
                           aria-label="DMX start address"

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { NumberField } from "./NumberField";
 import {
   SOUND_CATEGORIES,
   computeSoundTotals,
@@ -173,45 +174,36 @@ function SoundRow({
         </select>
       </td>
       <td>
-        <input
+        <NumberField
           className="led-input led-input-num"
-          type="number"
           min={1}
           step={1}
           value={item.qty}
-          onChange={(e) =>
-            onUpdate({
-              qty: Math.max(1, Math.round(Number(e.target.value) || 1)),
-            })
-          }
+          transform={(n) => Math.max(1, Math.round(n || 1))}
+          emptyValue={1}
+          onCommit={(qty) => onUpdate({ qty })}
         />
       </td>
       <td>
-        <input
+        <NumberField
           className="led-input led-input-num"
-          type="number"
           min={0}
           step={0.5}
           value={item.weightPerUnit}
-          onChange={(e) =>
-            onUpdate({
-              weightPerUnit: Math.max(0, Number(e.target.value) || 0),
-            })
-          }
+          transform={(n) => Math.max(0, n || 0)}
+          emptyValue={0}
+          onCommit={(weightPerUnit) => onUpdate({ weightPerUnit })}
         />
       </td>
       <td>
-        <input
+        <NumberField
           className="led-input led-input-num"
-          type="number"
           min={0}
           step={50}
           value={item.powerPerUnit}
-          onChange={(e) =>
-            onUpdate({
-              powerPerUnit: Math.max(0, Number(e.target.value) || 0),
-            })
-          }
+          transform={(n) => Math.max(0, n || 0)}
+          emptyValue={0}
+          onCommit={(powerPerUnit) => onUpdate({ powerPerUnit })}
         />
       </td>
       <td className="led-num">{fmtNum(w, 1)}</td>

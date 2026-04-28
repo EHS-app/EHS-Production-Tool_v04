@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { NumberField } from "./NumberField";
 import {
   CREW_ROLES,
   computeCrewTotals,
@@ -176,17 +177,14 @@ function CrewRow({
       </td>
       <td className="led-num">{fmtNum(hours, 1)}</td>
       <td>
-        <input
+        <NumberField
           className="led-input led-input-num"
-          type="number"
           min={0}
           step={10}
           value={member.dayRate}
-          onChange={(e) =>
-            onUpdate({
-              dayRate: Math.max(0, Number(e.target.value) || 0),
-            })
-          }
+          transform={(n) => Math.max(0, n || 0)}
+          emptyValue={0}
+          onCommit={(dayRate) => onUpdate({ dayRate })}
         />
       </td>
       <td>

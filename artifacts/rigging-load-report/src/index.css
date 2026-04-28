@@ -2645,24 +2645,146 @@ input:focus {
 }
 .stage-rails {
   border: 1px solid var(--border, #e2e8f0);
-  border-radius: 6px;
-  padding: 0.4rem 0.7rem;
-  display: flex;
-  gap: 0.85rem;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem 0.6rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 0.5rem;
+  row-gap: 0.4rem;
   align-items: center;
-  flex-wrap: wrap;
+  margin: 0;
+  min-width: 280px;
+  flex: 1 1 320px;
 }
 .stage-rails legend {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
   color: var(--muted, #64748b);
-  padding: 0 0.25rem;
+  padding: 0 0.4rem;
 }
 .stage-rails label {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: 0.9rem;
+  justify-content: flex-start;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 6px;
+  background: var(--bg-elev, #fff);
   cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.stage-rails label:hover {
+  border-color: var(--accent, #f97316);
+}
+.stage-rails label input {
+  accent-color: var(--accent, #f97316);
+  cursor: pointer;
+  margin: 0;
+}
+.stage-rails label:has(input:checked) {
+  border-color: var(--accent, #f97316);
+  background: color-mix(in srgb, var(--accent, #f97316) 12%, var(--bg-elev, #fff));
+  color: var(--text-main, #0f172a);
+  font-weight: 600;
+}
+@media (max-width: 640px) {
+  .stage-rails {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Custom-rail toolbar (lives just above the stage SVG). */
+.stage-rail-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.6rem;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  background: var(--bg-soft, #f1f5f9);
+}
+.stage-rail-tools-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted, #64748b);
+  padding-right: 0.3rem;
+}
+.stage-rail-tool-btn {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.32rem 0.65rem;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 6px;
+  background: var(--bg-elev, #fff);
+  color: var(--text-main, #0f172a);
+  cursor: pointer;
+}
+.stage-rail-tool-btn:hover {
+  border-color: var(--accent, #f97316);
+}
+.stage-rail-tool-btn.is-active {
+  border-color: var(--accent, #f97316);
+  background: var(--accent, #f97316);
+  color: #fff;
+  font-weight: 600;
+}
+.stage-rail-tool-btn.is-active.is-delete {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+.stage-rail-tool-help {
+  flex: 1 1 100%;
+  font-size: 0.8rem;
+  color: var(--muted, #64748b);
+  margin-top: 0.15rem;
+}
+
+/* Visible custom-rail line on the SVG. */
+.stage-rail-segment {
+  stroke: #dc2626;
+  stroke-width: 4;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.stage-rail-hit {
+  stroke: transparent;
+  stroke-width: 14;
+  stroke-linecap: round;
+  fill: none;
+}
+.stage-rail-hit.is-deletable {
+  cursor: pointer;
+}
+.stage-rail-hit.is-deletable:hover + .stage-rail-segment,
+.stage-rail-hit.is-deletable:hover {
+  stroke: #fca5a5;
+}
+.stage-rail-preview {
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 6 4;
+  fill: none;
+  pointer-events: none;
+  opacity: 0.85;
+}
+.stage-rail-preview.is-valid {
+  stroke: #dc2626;
+}
+.stage-rail-preview.is-invalid {
+  stroke: #94a3b8;
+}
+.stage-rail-anchor {
+  fill: #dc2626;
+  pointer-events: none;
 }
 .stage-summary-row {
   display: grid;

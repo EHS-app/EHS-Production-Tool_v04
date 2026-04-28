@@ -1987,9 +1987,16 @@ function App() {
             : `stage-${Date.now()}`,
         name: `${src.name} (copy)`,
         rails: { ...src.rails },
-        // Deep-copy so the duplicate's manual placements can be edited
-        // without mutating the original stage.
+        // Deep-copy so the duplicate's manual placements + custom rails
+        // can be edited without mutating the original stage.
         manualPlacements: src.manualPlacements.map((p) => ({ ...p })),
+        customRails: src.customRails.map((c) => ({
+          ...c,
+          id:
+            typeof crypto !== "undefined" && "randomUUID" in crypto
+              ? crypto.randomUUID()
+              : `${c.id}-copy-${Math.random().toString(36).slice(2, 8)}`,
+        })),
       };
       const next = [...all];
       next.splice(i + 1, 0, copy);

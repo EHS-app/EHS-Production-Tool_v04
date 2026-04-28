@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   STAGE_DECKS,
   STAGE_LEG_HEIGHTS_CM,
@@ -9,12 +9,16 @@ import {
   placementCollides,
   placementsBounds,
   snapHalfMetre,
+  type CustomRail,
   type DeckPlacement,
   type Stage,
   type StageDeckKey,
   type StageEditMode,
   type StageLegMode,
 } from "../lib/stage";
+
+/** Custom-rail edit mode set by the toolbar. */
+type RailMode = "off" | "add1" | "add2" | "delete";
 
 /** Half-metre cell helper. */
 const HALF_M = 0.5;
@@ -207,6 +211,27 @@ function StageCard({
   // Local UI state for the manual deck editor.
   const [selectedDeckKey, setSelectedDeckKey] = useState<StageDeckKey>("1x1");
   const [rotated, setRotated] = useState(false);
+  // Local UI state for the custom-rail editor.
+  const [railMode, setRailMode] = useState<RailMode>("off");
+
+  /** Append a new custom rail. The caller has already snapped the
+   *  endpoints to the half-metre grid and validated they sit inside the
+   *  drawing canvas. */
+  const addCustomRail = (rail: Omit<CustomRail, "id">) => {
+    const id =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `rail-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    onUpdate({ customRails: [...stage.customRails, { id, ...rail }] });
+  };
+
+  /** Remove a single custom rail by id. */
+  const removeCustomRail = (id: string) => {
+    const next = stage.customRails.filter((c) => c.id !== id);
+    if (next.length !== stage.customRails.length) {
+      onUpdate({ customRails: next });
+    }
+  };
 
   // Add a deck at the given half-metre cell (cellX, cellY). Silently
   // refuses if the placement collides with an existing deck. Adjacent
@@ -467,16 +492,36 @@ function StageCard({
         )}
 
         <div className="stage-summary-row">
-          <StageSvg
-            stage={stage}
-            calc={calc}
-            interactive={isManual}
-            selectedDeckKey={selectedDeckKey}
-            rotated={rotated}
-            onAddAtCell={addDeckAtCell}
-            onRemoveAtCell={removeDeckAtCell}
-            onRotateAtCell={rotateDeckAtCell}
-          />
+          <div>
+            <RailToolbar
+              mode={railMode}
+              onChange={setRailMode}
+              customRailCount={stage.customRails.length}
+              onClearAll={() => {
+                if (stage.customRails.length === 0) return;
+                if (
+                  window.confirm(
+                    "Remove all custom (drawn) rails from this stage?",
+                  )
+                ) {
+                  onUpdate({ customRails: [] });
+                }
+              }}
+            />
+            <StageSvg
+              stage={stage}
+              calc={calc}
+              interactive={isManual}
+              selectedDeckKey={selectedDeckKey}
+              rotated={rotated}
+              onAddAtCell={addDeckAtCell}
+              onRemoveAtCell={removeDeckAtCell}
+              onRotateAtCell={rotateDeckAtCell}
+              railMode={railMode}
+              onAddCustomRail={addCustomRail}
+              onRemoveCustomRail={removeCustomRail}
+            />
+          </div>
           <StageBreakdown stage={stage} calc={calc} />
         </div>
       </div>
@@ -569,6 +614,66 @@ function DeckPalette({
   );
 }
 
+/** Compact toolbar for drawing custom rails on the stage SVG.
+ *  Modes: Off, Add 2 m, Add 1 m, Delete. The selected mode determines
+ *  what clicks on the stage drawing do. */
+function RailToolbar({
+  mode,
+  onChange,
+  customRailCount,
+  onClearAll,
+}: {
+  mode: RailMode;
+  onChange: (m: RailMode) => void;
+  customRailCount: number;
+  onClearAll: () => void;
+}) {
+  const items: { mode: RailMode; label: string; isDelete?: boolean }[] = [
+    { mode: "off", label: "Off" },
+    { mode: "add2", label: "Draw 2 m rail" },
+    { mode: "add1", label: "Draw 1 m rail" },
+    { mode: "delete", label: "Delete rail", isDelete: true },
+  ];
+  const helpText = (() => {
+    if (mode === "add2" || mode === "add1") {
+      const len = mode === "add2" ? "2 m" : "1 m";
+      return `Click two points on the stage to drop a ${len} rail. The first click sets the start; the second click sets the direction (snapped to the nearest axis). Esc to cancel.`;
+    }
+    if (mode === "delete") {
+      return "Click a custom rail on the stage to remove it. The four side handrails are toggled with the checkboxes above.";
+    }
+    return "Pick a tool to draw or delete custom rail segments anywhere on the stage.";
+  })();
+  return (
+    <div className="stage-rail-tools">
+      <span className="stage-rail-tools-label">Custom rails</span>
+      {items.map((it) => (
+        <button
+          key={it.mode}
+          type="button"
+          className={`stage-rail-tool-btn${
+            mode === it.mode ? " is-active" : ""
+          }${it.isDelete ? " is-delete" : ""}`}
+          onClick={() => onChange(mode === it.mode ? "off" : it.mode)}
+          title={it.label}
+        >
+          {it.label}
+        </button>
+      ))}
+      <button
+        type="button"
+        className="stage-rail-tool-btn"
+        onClick={onClearAll}
+        disabled={customRailCount === 0}
+        title="Remove every drawn rail from this stage"
+      >
+        Clear all ({customRailCount})
+      </button>
+      <div className="stage-rail-tool-help">{helpText}</div>
+    </div>
+  );
+}
+
 /** Top-down preview of the stage with each deck drawn as a coloured rectangle. */
 function StageSvg({
   stage,
@@ -579,6 +684,9 @@ function StageSvg({
   onAddAtCell,
   onRemoveAtCell,
   onRotateAtCell,
+  railMode = "off",
+  onAddCustomRail,
+  onRemoveCustomRail,
 }: {
   stage: Stage;
   calc: ReturnType<typeof computeStage>;
@@ -595,6 +703,12 @@ function StageSvg({
   /** Right-click (or Shift+click) on a placed deck: rotate it 90° in
    *  place (top-left corner stays anchored). No-op on 1×1 decks. */
   onRotateAtCell?: (cellX: number, cellY: number) => void;
+  /** Currently-selected custom-rail tool (set by the toolbar). */
+  railMode?: RailMode;
+  /** Commit a fully-snapped, validated custom rail (no id yet). */
+  onAddCustomRail?: (rail: Omit<CustomRail, "id">) => void;
+  /** Remove a custom rail by id (delete-mode click). */
+  onRemoveCustomRail?: (id: string) => void;
 }) {
   const PAD = 12;
   const MAX = 480;
@@ -627,6 +741,141 @@ function StageSvg({
   // Hover preview state (manual mode only): which half-metre cell the
   // pointer is currently over.
   const [hover, setHover] = useState<{ cx: number; cy: number } | null>(null);
+
+  // ─── Custom-rail editor state ──────────────────────────────────────
+  //  • railAnchor: the first click of an in-progress 2-click draw,
+  //    snapped to the half-metre grid (in stage metres).
+  //  • railHover: the live pointer position, snapped to the half-metre
+  //    grid, used to render the dashed preview from anchor → pointer.
+  //  • svgRef gives us access to getScreenCTM() so we can convert
+  //    screen pixels back into our SVG/metre coordinates.
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [railAnchor, setRailAnchor] = useState<
+    { x: number; y: number } | null
+  >(null);
+  const [railHover, setRailHover] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+  const isAddMode = railMode === "add1" || railMode === "add2";
+  const previewType: 1 | 2 = railMode === "add2" ? 2 : 1;
+
+  // Reset any in-progress draw when the toolbar tool changes (e.g.
+  // user switches from Add 2 m → Delete or → Off mid-draw). Otherwise
+  // the next click in a new mode would commit a stale rail.
+  useEffect(() => {
+    setRailAnchor(null);
+    setRailHover(null);
+  }, [railMode]);
+
+  // Esc cancels an in-progress draw without leaving the tool.
+  useEffect(() => {
+    if (!isAddMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setRailAnchor(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isAddMode]);
+
+  // Convert a pointer event's screen coords into the canvas-local
+  // metre coordinate system used everywhere else in this component.
+  const pointerToMetres = (e: React.MouseEvent<SVGElement>) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: 0, y: 0 };
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const local = pt.matrixTransform(ctm.inverse());
+    return { x: (local.x - PAD) / scale, y: (local.y - PAD) / scale };
+  };
+  const snap = (n: number) => Math.round(n * 2) / 2;
+
+  // Helper: pixel coords of a custom-rail segment (ax,ay is the
+  // lower endpoint; the rail extends +type metres along `orient`).
+  const railPx = (rail: {
+    ax: number;
+    ay: number;
+    orient: "h" | "v";
+    type: 1 | 2;
+  }) => {
+    const x1 = PAD + rail.ax * scale;
+    const y1 = PAD + rail.ay * scale;
+    const x2 =
+      rail.orient === "h" ? PAD + (rail.ax + rail.type) * scale : x1;
+    const y2 =
+      rail.orient === "v" ? PAD + (rail.ay + rail.type) * scale : y1;
+    return { x1, y1, x2, y2 };
+  };
+
+  // Compute the in-progress preview rail given anchor + hover. The
+  // dominant axis (|dx| vs |dy|) decides orientation; the sign of
+  // that delta decides direction. Endpoints are snapped to the half-
+  // metre grid and validated to lie inside the canvas.
+  const preview = (() => {
+    if (!isAddMode || !railAnchor || !railHover) return null;
+    const dx = railHover.x - railAnchor.x;
+    const dy = railHover.y - railAnchor.y;
+    // Require a minimum movement of one snap step (0.5 m) before
+    // we'll show a preview / commit a rail. Without this, a stray
+    // double-click on the anchor would silently drop a rail in an
+    // arbitrary direction (orient=h, sign=+1 fallbacks).
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return null;
+    const orient: "h" | "v" = Math.abs(dx) >= Math.abs(dy) ? "h" : "v";
+    const sign =
+      orient === "h"
+        ? Math.sign(dx) || 1
+        : Math.sign(dy) || 1;
+    const ax =
+      orient === "h"
+        ? sign > 0
+          ? railAnchor.x
+          : railAnchor.x - previewType
+        : railAnchor.x;
+    const ay =
+      orient === "v"
+        ? sign > 0
+          ? railAnchor.y
+          : railAnchor.y - previewType
+        : railAnchor.y;
+    const sax = snap(ax);
+    const say = snap(ay);
+    const ex = orient === "h" ? sax + previewType : sax;
+    const ey = orient === "v" ? say + previewType : say;
+    const valid =
+      sax >= 0 && say >= 0 && ex <= canvasW && ey <= canvasD;
+    return { ax: sax, ay: say, orient, type: previewType, valid };
+  })();
+
+  const handleRailMove = (e: React.MouseEvent<SVGElement>) => {
+    if (!isAddMode) return;
+    const m = pointerToMetres(e);
+    setRailHover({ x: snap(m.x), y: snap(m.y) });
+  };
+  const handleRailClick = (e: React.MouseEvent<SVGElement>) => {
+    if (!isAddMode) return;
+    const m = pointerToMetres(e);
+    const sx = snap(m.x);
+    const sy = snap(m.y);
+    if (!railAnchor) {
+      // First click: drop the anchor. The user now drags toward
+      // either axis to choose direction; the second click commits.
+      setRailAnchor({ x: sx, y: sy });
+      setRailHover({ x: sx, y: sy });
+      return;
+    }
+    if (preview && preview.valid) {
+      onAddCustomRail?.({
+        ax: preview.ax,
+        ay: preview.ay,
+        orient: preview.orient,
+        type: preview.type,
+      });
+      setRailAnchor(null);
+      setRailHover(null);
+    }
+  };
 
   // Compute hover preview rectangle and whether placement would be valid.
   const hoverPreview = (() => {
@@ -669,6 +918,7 @@ function StageSvg({
   return (
     <div className="stage-preview">
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
         width="100%"
         style={{
@@ -677,7 +927,10 @@ function StageSvg({
           display: "block",
           touchAction: "manipulation",
         }}
-        onMouseLeave={() => setHover(null)}
+        onMouseLeave={() => {
+          setHover(null);
+          setRailHover(null);
+        }}
       >
         {/* Canvas background (clickable area). In manual mode this is the
             larger working area; the actual stage outline is drawn below. */}
@@ -913,12 +1166,80 @@ function StageSvg({
           />
         )}
 
+        {/* Custom (drawn) rails. Always rendered. In delete mode each
+            one also gets a thick transparent hit-line so users can
+            click anywhere along its length to remove it. */}
+        {stage.customRails.map((rail) => {
+          const { x1, y1, x2, y2 } = railPx(rail);
+          return (
+            <g key={rail.id}>
+              {railMode === "delete" && (
+                <line
+                  className="stage-rail-hit is-deletable"
+                  x1={x1}
+                  y1={y1}
+                  x2={x2}
+                  y2={y2}
+                  onClick={() => onRemoveCustomRail?.(rail.id)}
+                />
+              )}
+              <line
+                className="stage-rail-segment"
+                x1={x1}
+                y1={y1}
+                x2={x2}
+                y2={y2}
+              />
+            </g>
+          );
+        })}
+
+        {/* In-progress rail preview (after the first click). Dashed
+            red when valid, slate when it would fall outside the
+            canvas. Click 2 commits via the overlay below. */}
+        {preview && (
+          <line
+            className={`stage-rail-preview ${
+              preview.valid ? "is-valid" : "is-invalid"
+            }`}
+            x1={PAD + preview.ax * scale}
+            y1={PAD + preview.ay * scale}
+            x2={
+              PAD +
+              (preview.orient === "h"
+                ? preview.ax + preview.type
+                : preview.ax) *
+                scale
+            }
+            y2={
+              PAD +
+              (preview.orient === "v"
+                ? preview.ay + preview.type
+                : preview.ay) *
+                scale
+            }
+          />
+        )}
+
+        {/* Anchor dot for the first click of a 2-click draw. */}
+        {isAddMode && railAnchor && (
+          <circle
+            className="stage-rail-anchor"
+            cx={PAD + railAnchor.x * scale}
+            cy={PAD + railAnchor.y * scale}
+            r={4}
+          />
+        )}
+
         {/* Click-catcher grid (manual mode only). One transparent rect
             per half-metre cell — clicking adds the selected deck (the
             click handler walks down to the cell coords) and hovering
             updates the preview. Decks above this layer take precedence
-            because they intercept clicks first via their own onClick. */}
+            because they intercept clicks first via their own onClick.
+            Suppressed while a rail tool is active, so deck edits don't
+            steal clicks meant for the rail editor. */}
         {interactive &&
+          railMode === "off" &&
           Array.from({ length: cellsD }).map((_, cy) =>
             Array.from({ length: cellsW }).map((_, cx) => (
               <rect
@@ -972,6 +1293,24 @@ function StageSvg({
               />
             )),
           )}
+
+        {/* Rail-add click overlay — drawn last so it sits above
+            everything and captures the two clicks needed to drop a
+            custom rail. Only rendered while the user has Add 1 m or
+            Add 2 m selected. In Delete mode we don't need an overlay
+            because each rail provides its own click target. */}
+        {isAddMode && (
+          <rect
+            x={PAD}
+            y={PAD}
+            width={canvasW * scale}
+            height={canvasD * scale}
+            fill="transparent"
+            style={{ cursor: "crosshair" }}
+            onMouseMove={handleRailMove}
+            onClick={handleRailClick}
+          />
+        )}
       </svg>
       <div className="stage-preview-legend">
         <span>
@@ -1102,7 +1441,7 @@ function StageBreakdown({
         exact configuration.
       </div>
 
-      {calc.railBreakdown.length > 0 && (
+      {(calc.railBreakdown.length > 0 || calc.customRailsCount > 0) && (
         <>
           <h4>Handrails</h4>
           <table className="stage-table">
@@ -1123,6 +1462,18 @@ function StageBreakdown({
                   <td>{r.count1m}</td>
                 </tr>
               ))}
+              {calc.customRailsCount > 0 && (
+                <tr>
+                  <td>Custom (drawn)</td>
+                  <td>{fmt(calc.customRailsLength, 1)} m</td>
+                  <td>
+                    {stage.customRails.filter((c) => c.type === 2).length}
+                  </td>
+                  <td>
+                    {stage.customRails.filter((c) => c.type === 1).length}
+                  </td>
+                </tr>
+              )}
               <tr className="stage-row-total">
                 <td>Subtotal</td>
                 <td>{fmt(calc.railLengthTotal, 1)} m</td>

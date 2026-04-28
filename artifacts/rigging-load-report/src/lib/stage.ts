@@ -158,6 +158,24 @@ export const DEFAULT_RAIL_SIDES: StageRailSides = {
   right: false,
 };
 
+/** A user-drawn rail segment placed anywhere on the stage canvas.
+ *  Stored normalized so `(ax, ay)` is the lower endpoint along the
+ *  rail's axis, and the segment extends `+type` metres in `orient`'s
+ *  direction. Coords are metres, snapped to the 0.5 m grid. */
+export type CustomRail = {
+  id: string;
+  ax: number;
+  ay: number;
+  orient: "h" | "v";
+  /** Length in metres — must be 1 or 2 to match Nivtec rail kits. */
+  type: 1 | 2;
+};
+
+/** Snap a position to the half-metre grid. Used by the rail editor. */
+function snapHalf(n: number): number {
+  return Math.round(n * 2) / 2;
+}
+
 /** How legs are counted across the stage.
  *  - "shared" (default): adjacent decks share their corner legs, so the
  *    total is the union of unique deck-corner positions. This produces
@@ -193,6 +211,8 @@ export type Stage = {
   legMode: StageLegMode;
   /** Which sides have handrails. */
   rails: StageRailSides;
+  /** Free-form rail segments drawn on the stage canvas. */
+  customRails: CustomRail[];
   notes: string;
   /** Layout production mode (see StageEditMode). */
   editMode: StageEditMode;
@@ -244,14 +264,22 @@ export type StageCalc = {
     count2m: number;
     count1m: number;
   }[];
-  /** Total count of 2m rails across all enabled sides. */
+  /** Total count of 2m rails across all enabled sides + custom rails. */
   rails2mTotal: number;
-  /** Total count of 1m rails across all enabled sides. */
+  /** Total count of 1m rails across all enabled sides + custom rails. */
   rails1mTotal: number;
-  /** Total length of railing in metres. */
+  /** Total length of railing in metres (sides + custom). */
   railLengthTotal: number;
-  /** Total weight of railing (kg). */
+  /** Total weight of railing in kg (sides + custom). */
   railWeight: number;
+  /** How many custom (drawn) rails this stage has. Useful for the
+   *  per-stage breakdown table — they don't fit a "side" cleanly so
+   *  they're aggregated separately. */
+  customRailsCount: number;
+  /** Total length of custom rails in metres. */
+  customRailsLength: number;
+  /** Total weight contribution of custom rails (kg). */
+  customRailsWeight: number;
   /** Combined weight of decks + legs + rails (kg). */
   totalWeight: number;
   /** Stage area in m². */
@@ -511,6 +539,27 @@ export function computeStage(stage: Stage): StageCalc {
       count1m * (STAGE_RAILS.find((r) => r.length === 1)?.weight ?? 0);
   });
 
+  // Custom rails: each segment is a single 1 m or 2 m Nivtec piece, so it
+  // contributes 1 to the corresponding count and `type` metres of length.
+  const w2 = STAGE_RAILS.find((r) => r.length === 2)?.weight ?? 0;
+  const w1 = STAGE_RAILS.find((r) => r.length === 1)?.weight ?? 0;
+  let customRailsCount = 0;
+  let customRailsLength = 0;
+  let customRailsWeight = 0;
+  for (const cr of stage.customRails) {
+    customRailsCount += 1;
+    customRailsLength += cr.type;
+    if (cr.type === 2) {
+      rails2mTotal += 1;
+      customRailsWeight += w2;
+    } else {
+      rails1mTotal += 1;
+      customRailsWeight += w1;
+    }
+  }
+  railLengthTotal += customRailsLength;
+  railWeight += customRailsWeight;
+
   // Load capacity: minimum SWL across used deck types × placed area ×
   // height factor. We use the SUM OF PLACED DECK AREAS (not the
   // requested stage W×D) so partial tilings (`fits === false`, e.g. a
@@ -538,6 +587,9 @@ export function computeStage(stage: Stage): StageCalc {
     rails1mTotal,
     railLengthTotal,
     railWeight,
+    customRailsCount,
+    customRailsLength,
+    customRailsWeight,
     totalWeight: deckWeight + legWeightTotal + railWeight,
     areaM2,
     fits,
@@ -657,6 +709,27 @@ export function normalizeStage(raw: Partial<Stage>): Stage {
     left: !!r.left,
     right: !!r.right,
   };
+  const rawCustomRails: unknown = (raw as { customRails?: unknown })
+    .customRails;
+  const customRails: CustomRail[] = Array.isArray(rawCustomRails)
+    ? (rawCustomRails as Array<Partial<CustomRail>>)
+        .filter(
+          (c): c is CustomRail =>
+            !!c &&
+            typeof c.id === "string" &&
+            typeof c.ax === "number" &&
+            typeof c.ay === "number" &&
+            (c.orient === "h" || c.orient === "v") &&
+            (c.type === 1 || c.type === 2),
+        )
+        .map((c) => ({
+          id: c.id,
+          ax: snapHalf(Math.max(0, c.ax)),
+          ay: snapHalf(Math.max(0, c.ay)),
+          orient: c.orient,
+          type: c.type,
+        }))
+    : [];
   const legMode: StageLegMode =
     raw.legMode === "perDeck" ? "perDeck" : "shared";
   const editMode: StageEditMode =
@@ -725,6 +798,7 @@ export function normalizeStage(raw: Partial<Stage>): Stage {
     legHeightCm,
     legMode,
     rails,
+    customRails,
     notes: typeof raw.notes === "string" ? raw.notes : "",
     editMode,
     manualPlacements,
@@ -744,6 +818,7 @@ export function makeDefaultStage(name: string): Stage {
     legHeightCm: 60,
     legMode: "shared",
     rails: { ...DEFAULT_RAIL_SIDES },
+    customRails: [],
     notes: "",
     editMode: "auto",
     manualPlacements: [],

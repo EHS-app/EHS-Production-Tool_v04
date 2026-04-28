@@ -1315,6 +1315,11 @@ function App() {
           customPanel: meta.customPanel,
           linked: true,
           sourceRowId: row.id,
+          // Project per-screen annotations from the linked meta into the
+          // resolved screen so the visual / export / share path treats
+          // linked and manual screens identically.
+          nameScale: meta.nameScale,
+          markers: meta.markers,
         });
       }
     }
@@ -1397,6 +1402,15 @@ function App() {
       stages,
       sound: soundItems,
       riggPlan,
+      // Pass-through state used by ShareBriefModal to render one PNG
+      // per LED screen (with the producer's pill-size + power/signal
+      // markers) and upload it as a brief attachment. Not embedded in
+      // the brief itself — only used to drive the upload step.
+      ledDiagrams: {
+        screens: allLedScreens,
+        panels: ledPanels,
+        settings: ledSettings,
+      },
     };
   }, [
     venue,
@@ -1410,7 +1424,7 @@ function App() {
     power,
     allLedScreens,
     ledPanels,
-    ledSettings.processorId,
+    ledSettings,
     stages,
     soundItems,
     riggPlan,
@@ -1465,6 +1479,15 @@ function App() {
           ...("name" in patch
             ? { nameOverride: patch.name ?? "" }
             : {}),
+          // Per-screen annotation patches: forwarded into the linked
+          // meta so the field survives unlink / relink cycles and is
+          // available to any consumer reading from `linkedLedScreens`.
+          ...("nameScale" in patch
+            ? { nameScale: patch.nameScale }
+            : {}),
+          ...("markers" in patch
+            ? { markers: patch.markers ? [...patch.markers] : [] }
+            : {}),
         };
         return { ...all, [sourceRowId]: next };
       });
@@ -1513,6 +1536,15 @@ function App() {
         outputIndex: null,
         notes: src.notes,
         customPanel: src.customPanel,
+        // Carry the producer's pill scaling and cable markers across the
+        // duplicate, so "copy of X" matches what they see on screen X.
+        // Markers are deep-copied with fresh ids so editing the copy
+        // never mutates the original (and to prevent React key clashes).
+        nameScale: src.nameScale,
+        markers: (src.markers ?? []).map((m, i) => ({
+          ...m,
+          id: `${src.id}-dup-${Date.now()}-${i}`,
+        })),
       }),
     ]);
   };

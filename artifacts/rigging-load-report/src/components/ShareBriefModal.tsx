@@ -10,6 +10,8 @@ import { encodeBrief, buildShareUrl } from "../lib/briefShare";
 import { crewHours } from "../lib/crew";
 import { loadFloorPlan, type FloorPlan } from "../lib/floorPlan";
 import { uploadBriefAttachment } from "../lib/briefAttachmentUpload";
+import { renderScreenPngBlob } from "../lib/ledExport";
+import { computeScreenMetrics } from "../lib/led";
 
 /** "Share with Crew" modal — generates one personalised brief link per
  *  crew member (and one generic link). The producer copies a link and
@@ -89,6 +91,61 @@ export function ShareBriefModal({ onClose, state }: ShareBriefModalProps) {
             }
           }
         }
+        if (cancelled) return;
+
+        // Step 2 — render one PNG per LED screen (with the producer's
+        // pill-size + power/signal markers baked in) and upload each
+        // alongside the floor plan. We skip empty screens (no panels)
+        // because the export would just be a black rectangle. Failures
+        // are non-fatal: the textual brief still ships, but we surface
+        // a soft warning so the producer knows a diagram dropped.
+        const ledDiagrams = state.ledDiagrams;
+        if (ledDiagrams) {
+          const printable = ledDiagrams.screens.filter((s) => {
+            if (s.panelsWide <= 0 || s.panelsTall <= 0) return false;
+            const m = computeScreenMetrics(s, ledDiagrams.panels);
+            return Number.isFinite(m.pixelsX) && Number.isFinite(m.pixelsY) &&
+              m.pixelsX > 0 && m.pixelsY > 0;
+          });
+          for (let i = 0; i < printable.length; i++) {
+            const screen = printable[i];
+            if (cancelled) return;
+            setUploadStatus(
+              `Uploading LED diagram ${i + 1} / ${printable.length} (${screen.name || "Screen"})…`,
+            );
+            try {
+              const png = await renderScreenPngBlob({
+                screen,
+                panels: ledDiagrams.panels,
+                settings: ledDiagrams.settings,
+                logoDataUrl: null,
+              });
+              if (cancelled) return;
+              const att = await uploadBriefAttachment(
+                {
+                  name: png.fileName,
+                  contentType: "image/png",
+                  sizeBytes: png.sizeBytes,
+                  blob: png.blob,
+                },
+                getToken,
+              );
+              if (cancelled) return;
+              attachments.push(att);
+            } catch (e) {
+              if (!cancelled) {
+                // Append, don't replace, so a floor-plan warning is
+                // preserved if it happened first.
+                const msg =
+                  e instanceof Error
+                    ? `Could not attach LED diagram for "${screen.name || "Screen"}": ${e.message}`
+                    : `Could not attach LED diagram for "${screen.name || "Screen"}".`;
+                setError((prev) => (prev ? `${prev}\n${msg}` : msg));
+              }
+            }
+          }
+        }
+
         if (cancelled) return;
         setUploadStatus(null);
 

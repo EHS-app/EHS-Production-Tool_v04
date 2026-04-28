@@ -286,6 +286,15 @@ export type BuildBriefInput = {
   /** Pre-uploaded attachments to embed in the brief. The producer
    *  uploads them once before generating links (see ShareBriefModal). */
   attachments?: BriefAttachment[];
+  /** Live LED state used by ShareBriefModal to render one PNG per
+   *  screen and upload it as a brief attachment alongside the floor
+   *  plan. Pass-through only — `buildBrief` does not embed these
+   *  directly; they become regular `attachments` after upload. */
+  ledDiagrams?: {
+    screens: import("./led").LedScreen[];
+    panels: import("./led").LedPanel[];
+    settings: import("./led").LedSettings;
+  };
 };
 
 function summariseLighting(lighting: BriefLightingInput): BriefLightingTotals {

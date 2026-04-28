@@ -1,13 +1,21 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NumberField } from "./NumberField";
 import {
   CUSTOM_PANEL_KEY,
   LED_PANEL_COLOR_PRESETS,
   LED_SCREEN_COLORS,
+  NAME_SCALE_DEFAULT,
+  NAME_SCALE_MAX,
+  NAME_SCALE_MIN,
+  PILL_CHAR_W_RATIO,
+  PILL_PAD_X_RATIO,
+  PILL_PAD_Y_RATIO,
+  clampNameScale,
   type LedPanel,
   type LedPanelKey,
   type LedPanelPattern,
   type LedScreen,
+  type LedScreenMarker,
   type LedSettings,
   type LedTotals,
   type LedCustomPanel,
@@ -18,6 +26,8 @@ import {
   type CellArrowDir,
   resolveScreenPanel,
   outputsForScreen,
+  newMarkerId,
+  nextMarkerIndex,
 } from "../lib/led";
 import {
   LED_PROCESSORS,
@@ -47,6 +57,15 @@ const PIXEL_FMT = new Intl.NumberFormat("en-US");
 const fmt = (n: number, d = 1) =>
   n.toLocaleString("en-US", { maximumFractionDigits: d });
 
+/** Which screen the user is currently placing markers onto, and what
+ *  kind. `null` = no active placement. We hoist this state to the
+ *  report root so toggling "+P" on row 1 disables a stale "+S" on
+ *  row 3, and so the canvas can read it to switch its cursor. */
+export type PlaceMode = {
+  screenId: string;
+  kind: LedScreenMarker["kind"];
+} | null;
+
 export function LedScreenReportView(props: Props) {
   const {
     screens,
@@ -64,6 +83,86 @@ export function LedScreenReportView(props: Props) {
     onExportScreen,
     onJumpToRigging,
   } = props;
+
+  const [placeMode, setPlaceMode] = useState<PlaceMode>(null);
+
+  /** Toggle placement: clicking the same `+P` button twice cancels. */
+  const togglePlaceMode = useCallback(
+    (screenId: string, kind: LedScreenMarker["kind"]) => {
+      setPlaceMode((prev) =>
+        prev && prev.screenId === screenId && prev.kind === kind
+          ? null
+          : { screenId, kind },
+      );
+    },
+    [],
+  );
+
+  /** Drop a new marker at normalized coords inside the screen rect.
+   *  Auto-clears placeMode so the user has to re-arm to place another
+   *  one — keeps stray clicks from peppering the visual. */
+  const addMarker = useCallback(
+    (
+      screenId: string,
+      kind: LedScreenMarker["kind"],
+      x: number,
+      y: number,
+    ) => {
+      const screen = screens.find((s) => s.id === screenId);
+      if (!screen) return;
+      const markers = screen.markers ?? [];
+      const next: LedScreenMarker = {
+        id: newMarkerId(),
+        kind,
+        index: nextMarkerIndex(markers, kind),
+        x: Math.min(1, Math.max(0, x)),
+        y: Math.min(1, Math.max(0, y)),
+      };
+      onUpdateScreen(screenId, { markers: [...markers, next] });
+      setPlaceMode(null);
+    },
+    [screens, onUpdateScreen],
+  );
+
+  const moveMarker = useCallback(
+    (screenId: string, markerId: string, x: number, y: number) => {
+      const screen = screens.find((s) => s.id === screenId);
+      if (!screen) return;
+      const next = (screen.markers ?? []).map((m) =>
+        m.id === markerId
+          ? { ...m, x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) }
+          : m,
+      );
+      onUpdateScreen(screenId, { markers: next });
+    },
+    [screens, onUpdateScreen],
+  );
+
+  const removeMarker = useCallback(
+    (screenId: string, markerId: string) => {
+      const screen = screens.find((s) => s.id === screenId);
+      if (!screen) return;
+      const next = (screen.markers ?? []).filter((m) => m.id !== markerId);
+      onUpdateScreen(screenId, { markers: next });
+    },
+    [screens, onUpdateScreen],
+  );
+
+  const clearMarkers = useCallback(
+    (screenId: string) => {
+      const screen = screens.find((s) => s.id === screenId);
+      if (!screen || (screen.markers ?? []).length === 0) return;
+      if (
+        !window.confirm(
+          `Remove all power & signal markers from "${screen.name || "(unnamed)"}"?`,
+        )
+      ) {
+        return;
+      }
+      onUpdateScreen(screenId, { markers: [] });
+    },
+    [screens, onUpdateScreen],
+  );
 
   return (
     <div className="led-report">
@@ -138,6 +237,7 @@ export function LedScreenReportView(props: Props) {
                     key={s.id}
                     screen={s}
                     panels={panels}
+                    placeMode={placeMode}
                     onUpdate={(patch) => onUpdateScreen(s.id, patch)}
                     onUpdateCustomPanel={(patch) =>
                       onUpdateCustomPanel(s.id, patch)
@@ -145,6 +245,8 @@ export function LedScreenReportView(props: Props) {
                     onRemove={() => onRemoveScreen(s.id)}
                     onDuplicate={() => onDuplicateScreen(s.id)}
                     onExport={() => onExportScreen(s.id)}
+                    onTogglePlaceMode={(kind) => togglePlaceMode(s.id, kind)}
+                    onClearMarkers={() => clearMarkers(s.id)}
                   />
                 ))}
               </tbody>
@@ -167,6 +269,10 @@ export function LedScreenReportView(props: Props) {
             screens={screens}
             panels={panels}
             settings={settings}
+            placeMode={placeMode}
+            onAddMarker={addMarker}
+            onMoveMarker={moveMarker}
+            onRemoveMarker={removeMarker}
           />
         </section>
       )}
@@ -345,23 +451,35 @@ function Stat({
 function ScreenRow({
   screen,
   panels,
+  placeMode,
   onUpdate,
   onUpdateCustomPanel,
   onRemove,
   onDuplicate,
   onExport,
+  onTogglePlaceMode,
+  onClearMarkers,
 }: {
   screen: LedScreen;
   panels: LedPanel[];
+  placeMode: PlaceMode;
   onUpdate: (patch: Partial<LedScreen>) => void;
   onUpdateCustomPanel: (patch: Partial<LedCustomPanel>) => void;
   onRemove: () => void;
   onDuplicate: () => void;
   onExport: () => void | Promise<void>;
+  onTogglePlaceMode: (kind: LedScreenMarker["kind"]) => void;
+  onClearMarkers: () => void;
 }) {
   const panel = resolveScreenPanel(screen, panels);
   const m = computeScreenMetrics(screen, panels);
   const isCustom = screen.panelKey === CUSTOM_PANEL_KEY;
+  const nameScale = clampNameScale(screen.nameScale);
+  const markers = screen.markers ?? [];
+  const powerCount = markers.filter((mk) => mk.kind === "power").length;
+  const signalCount = markers.filter((mk) => mk.kind === "signal").length;
+  const armed =
+    placeMode && placeMode.screenId === screen.id ? placeMode.kind : null;
 
   return (
     <>
@@ -384,6 +502,32 @@ function ScreenRow({
             placeholder="e.g. Main, IMAG, Side L…"
             title="This name appears as the centered pill on the pixel map and on the exported PNG."
           />
+          {/* Pill-size slider — sits directly under the name input so the
+              relationship is obvious. The number on the right doubles as
+              a "reset to 1×" button when the user wants the default. */}
+          <div className="led-pill-scale" title="Resize the name pill on the visual / PNG export">
+            <span className="led-pill-scale-label">Pill size</span>
+            <input
+              className="led-pill-scale-range"
+              type="range"
+              min={NAME_SCALE_MIN}
+              max={NAME_SCALE_MAX}
+              step={0.1}
+              value={nameScale}
+              onChange={(e) =>
+                onUpdate({ nameScale: Number(e.target.value) })
+              }
+              aria-label={`Name pill size for ${screen.name || "screen"}`}
+            />
+            <button
+              type="button"
+              className="led-pill-scale-value"
+              onClick={() => onUpdate({ nameScale: NAME_SCALE_DEFAULT })}
+              title="Reset to 1×"
+            >
+              {nameScale.toFixed(1)}×
+            </button>
+          </div>
         </td>
         <td>
           <select
@@ -478,6 +622,49 @@ function ScreenRow({
           />
         </td>
         <td className="led-actions">
+          {/* Cable-marker toolbar — visible per row so the producer can
+              annotate one screen without disturbing markers on others.
+              `armed` highlights whichever button is currently in
+              placement mode; clicking it again cancels. */}
+          <div
+            className="led-marker-toolbar"
+            role="group"
+            aria-label={`Power and signal markers for ${screen.name || "screen"}`}
+          >
+            <button
+              type="button"
+              className={`btn btn-sm led-marker-btn led-marker-btn-power ${armed === "power" ? "is-armed" : ""}`}
+              onClick={() => onTogglePlaceMode("power")}
+              title={
+                armed === "power"
+                  ? "Cancel — click here to stop placing power markers"
+                  : "Click, then click on the screen below to drop a power marker (P1, P2…)"
+              }
+            >
+              {armed === "power" ? "Click screen…" : `+P${powerCount > 0 ? ` (${powerCount})` : ""}`}
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm led-marker-btn led-marker-btn-signal ${armed === "signal" ? "is-armed" : ""}`}
+              onClick={() => onTogglePlaceMode("signal")}
+              title={
+                armed === "signal"
+                  ? "Cancel — click here to stop placing signal markers"
+                  : "Click, then click on the screen below to drop a signal marker (S1, S2…)"
+              }
+            >
+              {armed === "signal" ? "Click screen…" : `+S${signalCount > 0 ? ` (${signalCount})` : ""}`}
+            </button>
+            <button
+              type="button"
+              className="btn btn-soft btn-sm"
+              onClick={onClearMarkers}
+              disabled={markers.length === 0}
+              title="Remove every power & signal marker on this screen"
+            >
+              Clear
+            </button>
+          </div>
           <button
             className="btn btn-primary btn-sm"
             onClick={() => onExport()}
@@ -604,10 +791,23 @@ function PixelMapCanvas({
   screens,
   panels,
   settings,
+  placeMode,
+  onAddMarker,
+  onMoveMarker,
+  onRemoveMarker,
 }: {
   screens: LedScreen[];
   panels: LedPanel[];
   settings: LedSettings;
+  placeMode: PlaceMode;
+  onAddMarker: (
+    screenId: string,
+    kind: LedScreenMarker["kind"],
+    x: number,
+    y: number,
+  ) => void;
+  onMoveMarker: (screenId: string, markerId: string, x: number, y: number) => void;
+  onRemoveMarker: (screenId: string, markerId: string) => void;
 }) {
   const layout = useMemo(() => {
     const SCALE = 70; // px per meter
@@ -659,6 +859,10 @@ function PixelMapCanvas({
             item={item}
             panels={panels}
             settings={settings}
+            placeMode={placeMode}
+            onAddMarker={onAddMarker}
+            onMoveMarker={onMoveMarker}
+            onRemoveMarker={onRemoveMarker}
           />
         ))}
       </svg>
@@ -681,12 +885,136 @@ function ScreenSvg({
   item,
   panels,
   settings,
+  placeMode,
+  onAddMarker,
+  onMoveMarker,
+  onRemoveMarker,
 }: {
   item: SvgItem;
   panels: LedPanel[];
   settings: LedSettings;
+  placeMode: PlaceMode;
+  onAddMarker: (
+    screenId: string,
+    kind: LedScreenMarker["kind"],
+    x: number,
+    y: number,
+  ) => void;
+  onMoveMarker: (screenId: string, markerId: string, x: number, y: number) => void;
+  onRemoveMarker: (screenId: string, markerId: string) => void;
 }) {
   const { screen, x, y, width, height, cellW, cellH } = item;
+  const armed: LedScreenMarker["kind"] | null =
+    placeMode && placeMode.screenId === screen.id ? placeMode.kind : null;
+  /** The transparent overlay rect's client bounding box is the source
+   *  of truth for "where on the screen did the user click?" — using it
+   *  also handles the SVG's `preserveAspectRatio` scaling correctly,
+   *  whereas a viewBox-based math conversion would need extra work. */
+  const overlayRectRef = useRef<SVGRectElement | null>(null);
+  const [draggingMarkerId, setDraggingMarkerId] = useState<string | null>(
+    null,
+  );
+
+  const screenId = screen.id;
+  const markers = screen.markers ?? [];
+
+  /** Convert a pointer event into normalised coords inside the screen
+   *  rect. Returns null if the overlay isn't mounted yet (e.g. during
+   *  the initial render between effects). */
+  const eventToNorm = useCallback(
+    (e: { clientX: number; clientY: number }): { x: number; y: number } | null => {
+      const rect = overlayRectRef.current?.getBoundingClientRect();
+      if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+      return {
+        x: (e.clientX - rect.left) / rect.width,
+        y: (e.clientY - rect.top) / rect.height,
+      };
+    },
+    [],
+  );
+
+  const handleOverlayClick = useCallback(
+    (e: React.MouseEvent<SVGRectElement>) => {
+      if (!armed) return;
+      const norm = eventToNorm(e);
+      if (!norm) return;
+      onAddMarker(screenId, armed, norm.x, norm.y);
+    },
+    [armed, eventToNorm, onAddMarker, screenId],
+  );
+
+  /** Marker pointer-down: alt or right-button = delete, otherwise begin
+   *  drag with pointer capture so the move keeps tracking even if the
+   *  cursor leaves the SVG (matches iPad-friendly drag conventions). */
+  const handleMarkerPointerDown = useCallback(
+    (markerId: string) =>
+      (e: React.PointerEvent<SVGGElement>) => {
+        e.stopPropagation();
+        if (e.altKey || e.button === 2) {
+          e.preventDefault();
+          onRemoveMarker(screenId, markerId);
+          return;
+        }
+        setDraggingMarkerId(markerId);
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch {
+          // Some browsers throw on capture for non-primary pointers; the
+          // drag still works via window-fallback movements, so swallow.
+        }
+      },
+    [onRemoveMarker, screenId],
+  );
+
+  const handleMarkerPointerMove = useCallback(
+    (markerId: string) =>
+      (e: React.PointerEvent<SVGGElement>) => {
+        if (draggingMarkerId !== markerId) return;
+        const norm = eventToNorm(e);
+        if (!norm) return;
+        onMoveMarker(screenId, markerId, norm.x, norm.y);
+      },
+    [draggingMarkerId, eventToNorm, onMoveMarker, screenId],
+  );
+
+  const handleMarkerPointerUp = useCallback(
+    () => setDraggingMarkerId(null),
+    [],
+  );
+
+  /** Window-level fallback: if `setPointerCapture` was rejected (rare on
+   *  some pointer types) or capture is silently lost, the per-marker
+   *  pointermove won't fire once the cursor leaves the marker dot. We
+   *  therefore mirror move/up at the window while a drag is active so
+   *  the marker keeps tracking and always releases. */
+  useEffect(() => {
+    if (!draggingMarkerId) return;
+    const onMove = (e: PointerEvent) => {
+      const norm = eventToNorm(e);
+      if (!norm) return;
+      onMoveMarker(screenId, draggingMarkerId, norm.x, norm.y);
+    };
+    const onUp = () => setDraggingMarkerId(null);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [draggingMarkerId, eventToNorm, onMoveMarker, screenId]);
+
+  const handleMarkerContextMenu = useCallback(
+    (markerId: string) => (e: React.MouseEvent) => {
+      // Right-click = delete, never the browser context menu.
+      e.preventDefault();
+      e.stopPropagation();
+      onRemoveMarker(screenId, markerId);
+    },
+    [onRemoveMarker, screenId],
+  );
+
   const cells: React.ReactNode[] = [];
   const minDim = Math.min(cellW, cellH);
   const labelFont = Math.max(7, Math.min(14, minDim * 0.32));
@@ -871,21 +1199,43 @@ function ScreenSvg({
         stroke="#0f172a"
         strokeWidth={2}
       />
+      {/* Click-target overlay for marker placement. Sits above cells but
+          below the markers themselves so a click on an existing marker
+          is captured by the marker (drag/delete) and a click anywhere
+          else lands on this overlay. `pointerEvents` is toggled so the
+          overlay is invisible to clicks unless the row is currently
+          armed (+P or +S pressed) — keeps the visual passive by default. */}
+      <rect
+        ref={overlayRectRef}
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill="transparent"
+        pointerEvents={armed ? "all" : "none"}
+        style={armed ? { cursor: "crosshair" } : undefined}
+        onClick={handleOverlayClick}
+      />
       {/* Centered "Main"/"IMAG" name pill — matches the PNG export so the
           user can preview what they'll get. Hidden if the user disabled
           the pill in Export options, or if there is no name. */}
       {settings.showScreenName && screen.name.trim().length > 0 && (() => {
         const name = screen.name;
-        const pillFont = Math.max(
+        // Same shape as ledExport.ts: a built-in clamp times the
+        // user-tunable per-screen scale. The clamp ceiling rises with
+        // scale so 2× actually looks 2× bigger instead of capping at 36.
+        const baseFont = Math.max(
           14,
           Math.min(36, Math.min(width, height) * 0.08),
         );
-        // Approximate text width — we don't have measureText in SVG so we
-        // budget ~0.62em per char which is a safe upper bound for most
-        // sans-serif fonts.
-        const padX = pillFont * 0.9;
-        const padY = pillFont * 0.45;
-        const textW = name.length * pillFont * 0.62;
+        const scale = clampNameScale(screen.nameScale);
+        const pillFont = baseFont * scale;
+        // Pill geometry uses the shared PILL_*_RATIO constants so the
+        // live preview and the exported PNG always agree on the shape
+        // (the base font is different by design — see led.ts).
+        const padX = pillFont * PILL_PAD_X_RATIO;
+        const padY = pillFont * PILL_PAD_Y_RATIO;
+        const textW = name.length * pillFont * PILL_CHAR_W_RATIO;
         const pillW = textW + padX * 2;
         const pillH = pillFont + padY * 2;
         const cx = x + width / 2;
@@ -918,6 +1268,73 @@ function ScreenSvg({
             </text>
           </g>
         );
+      })()}
+      {/* Producer-drawn power / signal markers. Rendered last so they
+          sit on top of the cells, outline, click overlay, and pill —
+          matches the PNG export's z-order. */}
+      {markers.length > 0 && (() => {
+        const markerR = Math.max(8, Math.min(width, height) * 0.04);
+        return markers.map((mk) => {
+          const cx = x + Math.min(1, Math.max(0, mk.x)) * width;
+          const cy = y + Math.min(1, Math.max(0, mk.y)) * height;
+          const fill = mk.kind === "power" ? "#dc2626" : "#2563eb";
+          const isDragging = draggingMarkerId === mk.id;
+          const fontSize = markerR * 1.05;
+          const label = `${mk.kind === "power" ? "P" : "S"}${mk.index}`;
+          return (
+            <g
+              key={mk.id}
+              onPointerDown={handleMarkerPointerDown(mk.id)}
+              onPointerMove={handleMarkerPointerMove(mk.id)}
+              onPointerUp={handleMarkerPointerUp}
+              onPointerCancel={handleMarkerPointerUp}
+              onContextMenu={handleMarkerContextMenu(mk.id)}
+              style={{
+                cursor: isDragging ? "grabbing" : "grab",
+                touchAction: "none",
+              }}
+            >
+              {/* Drop-shadow disc — keeps the marker visible on bright
+                  cabinets and white test patterns. */}
+              <circle
+                cx={cx + markerR * 0.06}
+                cy={cy + markerR * 0.06}
+                r={markerR}
+                fill="#000"
+                fillOpacity={0.35}
+                pointerEvents="none"
+              />
+              <circle
+                cx={cx}
+                cy={cy}
+                r={markerR}
+                fill={fill}
+                stroke="#ffffff"
+                strokeWidth={Math.max(1.5, markerR * 0.14)}
+              />
+              <text
+                x={cx}
+                y={cy}
+                fontSize={fontSize}
+                fontWeight={700}
+                fill="#ffffff"
+                textAnchor="middle"
+                dominantBaseline="central"
+                fontFamily="system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+                pointerEvents="none"
+              >
+                {label}
+              </text>
+              {/* Hover/touch hint — reveals what the marker means and
+                  how to remove it without cluttering the always-on
+                  visual. */}
+              <title>
+                {mk.kind === "power" ? "Power" : "Signal"} drop {mk.index} —
+                drag to move, alt-click or right-click to delete
+              </title>
+            </g>
+          );
+        });
       })()}
     </g>
   );

@@ -24,6 +24,26 @@ export type LedCustomPanel = {
   power: number;
 };
 
+/** A producer-placed annotation on a screen visual, used to show the
+ *  crew where to land power or signal cables. `x` and `y` are normalized
+ *  coordinates within the screen rectangle (0–1, top-left origin) so a
+ *  marker stays in the same spot if the panel grid is later resized. */
+export type LedScreenMarker = {
+  id: string;
+  kind: "power" | "signal";
+  /** 1-based index per kind on this screen, used for the visible label
+   *  (P1, P2, S1…). Stored rather than recomputed so labels don't shuffle
+   *  if the user deletes a middle marker. */
+  index: number;
+  /** Normalized horizontal position within the screen rect (0 = left,
+   *  1 = right). May briefly fall outside [0,1] during a drag; consumers
+   *  should clamp at render time. */
+  x: number;
+  /** Normalized vertical position within the screen rect (0 = top,
+   *  1 = bottom). Same clamping note as `x`. */
+  y: number;
+};
+
 export type LedScreen = {
   id: string;
   name: string;
@@ -36,6 +56,14 @@ export type LedScreen = {
   customPanel?: LedCustomPanel;
   linked?: boolean;
   sourceRowId?: string;
+  /** Multiplier for the centred "Main" / "IMAG" name pill on the visual
+   *  and the exported PNG. 1 = built-in default size; 0.5 = half; 2 =
+   *  double. Optional so older persisted blobs keep working — readers
+   *  treat `undefined` as 1. Always clamped to a sane range at render. */
+  nameScale?: number;
+  /** Producer-drawn power / signal markers shown to the crew. Optional
+   *  for backwards compatibility — readers treat `undefined` as []. */
+  markers?: LedScreenMarker[];
 };
 
 export type LedLinkedMeta = {
@@ -51,7 +79,62 @@ export type LedLinkedMeta = {
    *  rename a linked screen to "Main", "IMAG", etc. Empty/undefined means
    *  fall back to the auto-generated name. */
   nameOverride?: string;
+  /** Same semantics as `LedScreen.nameScale`. Optional for backwards
+   *  compatibility. */
+  nameScale?: number;
+  /** Same semantics as `LedScreen.markers`. */
+  markers?: LedScreenMarker[];
 };
+
+/** Lower / upper bounds for the name-pill multiplier. Values outside this
+ *  range either disappear entirely (nameScale=0) or overflow the screen,
+ *  neither of which is useful — we clamp at every read site. */
+export const NAME_SCALE_MIN = 0.3;
+export const NAME_SCALE_MAX = 4;
+export const NAME_SCALE_DEFAULT = 1;
+
+/** Shared name-pill geometry ratios. Both the live SVG preview and the
+ *  exported PNG renderer key off these so the producer's preview matches
+ *  the file the crew actually receives. Live and export use different
+ *  base font sizes (since they render in different coordinate systems),
+ *  but the *shape* of the pill — padding and approx text width — must
+ *  stay proportional. */
+export const PILL_PAD_X_RATIO = 0.7;
+export const PILL_PAD_Y_RATIO = 0.35;
+export const PILL_CHAR_W_RATIO = 0.6;
+
+/** Normalize a possibly-undefined nameScale into a finite, clamped
+ *  number. Used by both the on-screen preview and the PNG export so they
+ *  can never disagree on what "scale = 1.7" means. */
+export function clampNameScale(value: number | undefined | null): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return NAME_SCALE_DEFAULT;
+  }
+  if (value < NAME_SCALE_MIN) return NAME_SCALE_MIN;
+  if (value > NAME_SCALE_MAX) return NAME_SCALE_MAX;
+  return value;
+}
+
+/** Pick the next 1-based label index for a marker of `kind` on a screen.
+ *  Indexes are per-kind: deleting P1 then adding a new power marker
+ *  re-uses index 1, but signal markers count independently. */
+export function nextMarkerIndex(
+  markers: LedScreenMarker[] | undefined,
+  kind: LedScreenMarker["kind"],
+): number {
+  const used = new Set(
+    (markers ?? []).filter((m) => m.kind === kind).map((m) => m.index),
+  );
+  let i = 1;
+  while (used.has(i)) i++;
+  return i;
+}
+
+/** Generate a marker id that is short, URL-safe, and unique enough for
+ *  per-screen scope (markers persist per screen, never globally). */
+export function newMarkerId(): string {
+  return `m_${Math.random().toString(36).slice(2, 10)}`;
+}
 
 export type LedWirePath = "linear" | "serpentine" | "column-serpentine";
 
@@ -508,6 +591,11 @@ export function newLedScreen(
     customPanel: seed?.customPanel,
     linked: seed?.linked,
     sourceRowId: seed?.sourceRowId,
+    // Default annotations — `undefined` would also be fine (readers
+    // tolerate it) but materialising them here keeps the in-memory shape
+    // predictable for the spread-based update paths.
+    nameScale: seed?.nameScale ?? NAME_SCALE_DEFAULT,
+    markers: seed?.markers ? [...seed.markers] : [],
   };
 }
 
@@ -524,5 +612,7 @@ export function defaultLinkedLedMeta(
     color: LED_SCREEN_COLORS[0],
     outputIndex: null,
     notes: "",
+    nameScale: NAME_SCALE_DEFAULT,
+    markers: [],
   };
 }

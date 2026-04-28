@@ -2506,7 +2506,108 @@ input:focus {
 .led-actions {
   white-space: nowrap;
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
+  align-items: center;
+}
+
+/* Compact pill-size slider sitting under the screen-name input. The
+   value chip on the right is also a button (click to reset to 1×). */
+.led-pill-scale {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--text-soft, #6b7280);
+}
+.led-pill-scale-label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 0.65rem;
+}
+.led-pill-scale-range {
+  flex: 1 1 auto;
+  min-width: 80px;
+  max-width: 160px;
+  accent-color: var(--accent, #2563eb);
+}
+.led-pill-scale-value {
+  background: var(--surface-soft, #f3f4f6);
+  border: 1px solid var(--border, #e5e7eb);
+  color: inherit;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-width: 38px;
+  text-align: center;
+}
+.led-pill-scale-value:hover {
+  background: var(--surface-soft-hover, #e5e7eb);
+}
+
+/* Per-row power/signal/clear toolbar — sits inside .led-actions. The
+   armed state pulses so the producer knows the next click on the
+   visual will drop a marker. */
+.led-marker-toolbar {
+  display: inline-flex;
+  gap: 3px;
+  padding: 2px 4px;
+  border: 1px dashed var(--border, #e5e7eb);
+  border-radius: 8px;
+  background: var(--surface-soft, #f9fafb);
+}
+.led-marker-btn {
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.led-marker-btn-power {
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+  border-color: rgba(220, 38, 38, 0.25);
+}
+.led-marker-btn-power:hover {
+  background: rgba(220, 38, 38, 0.18);
+}
+.led-marker-btn-signal {
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+  border-color: rgba(37, 99, 235, 0.25);
+}
+.led-marker-btn-signal:hover {
+  background: rgba(37, 99, 235, 0.18);
+}
+.led-marker-btn.is-armed {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+  animation: led-marker-armed-pulse 1.4s ease-in-out infinite;
+}
+@keyframes led-marker-armed-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 currentColor; }
+  50% { box-shadow: 0 0 0 4px rgba(0, 0, 0, 0); }
+}
+
+[data-theme="dark"] .led-marker-toolbar {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+[data-theme="dark"] .led-marker-btn-power {
+  background: rgba(248, 113, 113, 0.16);
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+[data-theme="dark"] .led-marker-btn-signal {
+  background: rgba(96, 165, 250, 0.16);
+  color: #93c5fd;
+  border-color: rgba(96, 165, 250, 0.3);
 }
 
 .led-hint {

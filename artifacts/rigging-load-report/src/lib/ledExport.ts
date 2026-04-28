@@ -1,4 +1,8 @@
 import {
+  PILL_CHAR_W_RATIO,
+  PILL_PAD_X_RATIO,
+  PILL_PAD_Y_RATIO,
+  clampNameScale,
   colLabel,
   computeScreenMetrics,
   panelCellColor,
@@ -6,6 +10,7 @@ import {
   resolveScreenPanel,
   type LedPanel,
   type LedScreen,
+  type LedScreenMarker,
   type LedSettings,
 } from "./led";
 
@@ -255,14 +260,17 @@ export function buildScreenSvg(input: BuildSvgInput): string {
     );
   }
 
-  // Screen name pill — centered.
+  // Screen name pill — centered. Per-screen `nameScale` lets the
+  // producer tune the pill independently of the dynamic floor (e.g.
+  // shrink it on a long IMAG name, blow it up for a stage backdrop).
   if (settings.showScreenName && screen.name.trim()) {
     const text = screen.name.trim();
-    const padX = screenNameFont * 0.7;
-    const padY = screenNameFont * 0.35;
-    const approxTextW = text.length * screenNameFont * 0.55;
+    const scaledFont = screenNameFont * clampNameScale(screen.nameScale);
+    const padX = scaledFont * PILL_PAD_X_RATIO;
+    const padY = scaledFont * PILL_PAD_Y_RATIO;
+    const approxTextW = text.length * scaledFont * PILL_CHAR_W_RATIO;
     const pillW = approxTextW + padX * 2;
-    const pillH = screenNameFont + padY * 2;
+    const pillH = scaledFont + padY * 2;
     const px = (W - pillW) / 2;
     const py = (H - pillH) / 2;
     const radius = pillH * 0.18;
@@ -270,8 +278,22 @@ export function buildScreenSvg(input: BuildSvgInput): string {
       `<rect x="${px}" y="${py}" width="${pillW}" height="${pillH}" rx="${radius}" ry="${radius}" fill="#ffffff"/>`,
     );
     parts.push(
-      `<text x="${W / 2}" y="${py + pillH / 2 + screenNameFont * 0.35}" text-anchor="middle" font-family="${FONT_FAMILY}" font-size="${screenNameFont}" fill="#1c1f24" font-weight="700">${escXml(text)}</text>`,
+      `<text x="${W / 2}" y="${py + pillH / 2 + scaledFont * 0.35}" text-anchor="middle" font-family="${FONT_FAMILY}" font-size="${scaledFont}" fill="#1c1f24" font-weight="700">${escXml(text)}</text>`,
     );
+  }
+
+  // Producer-drawn power / signal markers — drawn last so they sit on
+  // top of every other overlay (test pattern, info bar, even the name
+  // pill if a marker happens to land there). Mirrors the on-screen
+  // preview, so the PNG and the live visual look identical.
+  const markers = screen.markers ?? [];
+  if (markers.length > 0) {
+    const markerR = clamp(minDim * 0.04, 28, 160);
+    for (const mk of markers) {
+      const cx = clamp(mk.x, 0, 1) * W;
+      const cy = clamp(mk.y, 0, 1) * H;
+      parts.push(buildMarkerSvg(cx, cy, markerR, mk));
+    }
   }
 
   // EHS logo — top-right corner. Embedded as data URL so the rasterizer
@@ -369,6 +391,30 @@ function cellArrowSvg(
   ].join("");
 }
 
+/** Filled disc + white border + label ("P1", "S2"…). The fill colour
+ *  signals the cable kind: red-orange for power, indigo for signal —
+ *  the same palette as the on-screen preview so the crew can recognise
+ *  the symbols across both. */
+function buildMarkerSvg(
+  cx: number,
+  cy: number,
+  r: number,
+  mk: LedScreenMarker,
+): string {
+  const fill = mk.kind === "power" ? "#dc2626" : "#2563eb";
+  const stroke = "#ffffff";
+  const strokeW = Math.max(2, r * 0.14);
+  const fontSize = r * 1.05;
+  const label = `${mk.kind === "power" ? "P" : "S"}${mk.index}`;
+  return [
+    // Drop-shadow so the dot remains visible against bright cabinet
+    // colours (yellow, white test pattern, etc).
+    `<circle cx="${cx + strokeW * 0.4}" cy="${cy + strokeW * 0.4}" r="${r}" fill="#000" fill-opacity="0.35"/>`,
+    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeW}"/>`,
+    `<text x="${cx}" y="${cy + fontSize * 0.35}" text-anchor="middle" font-family="${FONT_FAMILY}" font-size="${fontSize}" font-weight="700" fill="#ffffff">${escXml(label)}</text>`,
+  ].join("");
+}
+
 function outputBadgeSvg(
   cx: number,
   cy: number,
@@ -451,13 +497,22 @@ export function safeFilename(name: string, fallback = "screen"): string {
   return cleaned || fallback;
 }
 
-/** End-to-end: build SVG, rasterize, download as PNG. */
-export async function exportScreenAsPng(input: {
+export type RenderScreenPng = {
+  blob: Blob;
+  fileName: string;
+  sizeBytes: number;
+};
+
+/** Build SVG → rasterize → return the PNG blob (and a suggested
+ *  filename) without triggering a download. The brief-share flow uses
+ *  this to upload the diagram straight to object storage; the in-app
+ *  "PNG" button uses it via `exportScreenAsPng` to download. */
+export async function renderScreenPngBlob(input: {
   screen: LedScreen;
   panels: LedPanel[];
   settings: LedSettings;
   logoDataUrl: string | null;
-}): Promise<void> {
+}): Promise<RenderScreenPng> {
   const m = computeScreenMetrics(input.screen, input.panels);
   if (
     !Number.isFinite(m.pixelsX) ||
@@ -473,6 +528,17 @@ export async function exportScreenAsPng(input: {
   }
   const svg = buildScreenSvg(input);
   const blob = await rasterizeSvgToPng(svg, m.pixelsX, m.pixelsY);
-  const fname = `${safeFilename(input.screen.name)}_${m.pixelsX}x${m.pixelsY}.png`;
-  downloadBlob(blob, fname);
+  const fileName = `${safeFilename(input.screen.name)}_${m.pixelsX}x${m.pixelsY}.png`;
+  return { blob, fileName, sizeBytes: blob.size };
+}
+
+/** End-to-end: build SVG, rasterize, download as PNG. */
+export async function exportScreenAsPng(input: {
+  screen: LedScreen;
+  panels: LedPanel[];
+  settings: LedSettings;
+  logoDataUrl: string | null;
+}): Promise<void> {
+  const { blob, fileName } = await renderScreenPngBlob(input);
+  downloadBlob(blob, fileName);
 }

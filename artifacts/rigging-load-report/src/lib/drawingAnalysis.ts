@@ -33,6 +33,10 @@ export type ExtractedLighting = {
   qty: number;
   weightKg: number | null;
   watts: number | null;
+  /** Truss / system label this fixture is hung on, mirroring one of
+   *  trusses[].name. Empty string when the drawing didn't show a hang.
+   *  Used to group fixtures onto the same Rigging system on apply. */
+  trussName: string;
   notes: string;
 };
 

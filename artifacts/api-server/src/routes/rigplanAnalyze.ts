@@ -129,7 +129,9 @@ function parseDataUrl(
  *  value when the drawing doesn't show it. */
 const SCHEMA_PROMPT = `You are an assistant for a touring production rigging tool. Inspect the
 attached venue / show drawing (top-down rigging plan, lighting plot, stage
-diagram or similar) and extract a structured list of physical items.
+diagram, ground plan or section) and extract a structured list of every
+physical item that is shown. Read every page of a multi-page PDF, and read
+every legend, key, label and dimension annotation, not just the symbols.
 
 Return ONLY a single JSON code block (\`\`\`json ... \`\`\`) matching this
 TypeScript-style schema. Omit no required keys; use empty arrays when
@@ -139,26 +141,74 @@ nothing of that kind is shown.
   "venue":      { "widthM": number|null, "depthM": number|null, "ceilingM": number|null },
   "stages":     [ { "name": string, "widthM": number, "depthM": number, "notes": string } ],
   "trusses":    [ { "name": string, "lengthM": number, "pointCount": number, "trimM": number|null, "notes": string } ],
-  "lighting":   [ { "name": string, "qty": number, "weightKg": number|null, "watts": number|null, "notes": string } ],
+  "lighting":   [ { "name": string, "qty": number, "weightKg": number|null, "watts": number|null, "trussName": string, "notes": string } ],
   "ledScreens": [ { "name": string, "panelsWide": number|null, "panelsTall": number|null, "notes": string } ],
   "sound":      [ { "name": string, "qty": number, "weightKg": number|null, "watts": number|null, "notes": string } ],
   "summary":    string
 }
 
 Conventions:
-- All distances are in metres. Convert feet/inches if you see them.
-- "trusses" should describe overhead rigging bars / motors / hangs you can
-  see in the drawing. \`pointCount\` is the number of motors / pickup
-  points on that truss; clamp to between 1 and 8. If unsure, use 3.
-- "lighting" is the count of fixtures by type (e.g. "Robe MegaPointe x12").
-  Read fixture labels and tally by type. Set qty to the visible count.
-- "ledScreens" is full LED walls — try to identify panel grid (W x H) from
-  the drawing if visible, otherwise set both to null.
+- All distances are in metres. Convert feet / inches / mm to metres
+  (1 ft = 0.3048 m, 1 in = 0.0254 m, 1 mm = 0.001 m). Round to one decimal.
+
+- "trusses" / rigging systems:
+  * One truss = one named overhead rigging bar / hang / ladder / pre-rig
+    truss / boom. The motors / chain hoists / pickup points DRAWN ON
+    that bar do NOT each become their own truss — they contribute to
+    that bar's \`pointCount\`. Only emit a separate truss entry when the
+    drawing labels it as an independent system.
+  * Read the label EXACTLY as shown on the drawing — typical labels
+    include "LX1", "LX 2", "LX-3", "FOH", "Mid", "Mid LX", "Front
+    Truss", "Back Truss", "Side LX SL", "Side LX SR". Keep the same
+    casing and number. If a bar has no visible label, name it "LX1",
+    "LX2"… in left-to-right / front-to-back order.
+  * Do not emit two trusses with the same name. If you see the same
+    label twice on the drawing it is the same physical system.
+  * \`lengthM\` MUST come from the drawing if a length is annotated
+    (e.g. "12 m", "8.0 m", "30'-0\\""). Otherwise estimate from the venue
+    scale and the bar's drawn extent. Never leave it 0 if a length is
+    visible.
+  * \`pointCount\` is the number of motors / chain hoists / pickup points
+    drawn on that bar (look for triangles, circles or "M" markers).
+    Clamp 1-8. If unsure, use 3.
+  * \`trimM\` is the trim height (height above stage / deck) if labelled
+    (e.g. "trim 7.5 m", "TH 7.0 m"). null if not given.
+  * Put any extra useful info (colour, position, notes from the drawing)
+    in \`notes\`, e.g. "stage left", "pre-rigged", "downstage of LX2".
+
+- "lighting":
+  * Tally fixtures by type. Read the legend / fixture key first, then
+    count symbols on each truss. The result is one row per fixture type
+    PER truss — e.g. "Robe MegaPointe x6 on LX1" and "Robe MegaPointe
+    x4 on LX2" are TWO rows, not one combined row of 10.
+  * \`name\` is the fixture make + model exactly as printed in the legend
+    (e.g. "Robe MegaPointe", "Martin MAC Aura PXL", "ETC Source 4 26°").
+  * \`qty\` is the visible count of that fixture on that one truss.
+  * \`trussName\` is the truss / system label the fixture is hanging on,
+    using the SAME string as the corresponding "trusses[].name" (e.g.
+    "LX1", "FOH", "Mid"). If the fixture is on the floor, a boom or a
+    side ladder, use that label instead (e.g. "Floor", "SL Boom",
+    "SR Ladder"). Use empty string only when there is genuinely no
+    truss / position info.
+  * \`weightKg\` and \`watts\` are PER-FIXTURE values. Use known catalogue
+    values for common fixtures (e.g. MegaPointe ~22.5 kg / 470 W,
+    MAC Aura PXL ~10.5 kg / 260 W). Use null only if you have no
+    reasonable estimate.
+
+- "ledScreens" is full LED walls / panels — try to identify panel grid
+  (W x H) from the drawing if visible, otherwise set both to null.
 - "sound" is PA / monitor / sub items.
-- "stages" is built decking / risers (not the whole venue).
+- "stages" is built decking / risers / drum risers / DJ booths (not the
+  whole venue floor). Read each stage / deck / riser block separately.
+  Use the labelled dimensions (e.g. "Main Stage 12 x 8 m", "Drum riser
+  2 x 2 m"). \`name\` should match the label on the drawing.
 - "summary" is one short sentence describing what the drawing depicts.
 
-If the image is NOT a production drawing or you cannot extract anything,
+Be precise — if the drawing labels something "LX3" with a length of
+12 m and 4 motors, the output truss MUST be name="LX3", lengthM=12,
+pointCount=4. Do NOT invent items that are not in the drawing.
+
+If the file is NOT a production drawing or you cannot extract anything,
 still return the schema with empty arrays and a summary explaining why.
 Do not include any text outside the JSON code block.`;
 
@@ -208,6 +258,10 @@ type ExtractedItems = {
     qty: number;
     weightKg: number | null;
     watts: number | null;
+    /** Truss / system label this fixture is hung on, copied from one of
+     *  trusses[].name when the model recognised a hang. Empty when the
+     *  drawing didn't show one. */
+    trussName: string;
     notes: string;
   }>;
   ledScreens: Array<{
@@ -285,6 +339,7 @@ function normalizeExtracted(raw: unknown): ExtractedItems {
         qty,
         weightKg: num(o.weightKg),
         watts: num(o.watts),
+        trussName: str(o.trussName).trim(),
         notes: str(o.notes),
       };
     }),

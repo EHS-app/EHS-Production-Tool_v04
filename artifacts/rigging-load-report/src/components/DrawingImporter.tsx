@@ -349,6 +349,7 @@ export function DrawingImporter({ currentVenue, projectName, onApply }: Props) {
                     {f.qty}× {f.name}
                   </strong>
                   <span className="led-sub">
+                    {f.trussName ? `on ${f.trussName} · ` : ""}
                     {f.weightKg != null ? `${fmt(f.weightKg)} kg ea` : "weight ?"}
                     {f.watts != null ? ` · ${fmt(f.watts, 0)} W ea` : ""}
                     {f.notes ? ` · ${f.notes}` : ""}

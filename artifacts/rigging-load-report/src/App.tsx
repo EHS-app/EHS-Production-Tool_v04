@@ -1603,47 +1603,113 @@ function App() {
       if (Object.keys(venuePatch).length > 0) updateRiggPlanVenue(venuePatch);
     }
 
-    // Trusses → new Systems on the Rigging Report
+    // Trusses → new Systems on the Rigging Report.
+    //
+    // We also keep a name → systemId map covering BOTH systems that
+    // already existed and the ones we are about to create, so the
+    // Lighting step below can attach each fixture to the same system
+    // its truss resolves to. Names are matched case-insensitively
+    // because operators on a drawing aren't always consistent
+    // ("LX1" vs "Lx 1" vs "lx-1").
+    const newSystems: System[] = [];
+    const usedNames = new Set(systems.map((s) => s.name));
+    /** Lower-cased, whitespace-collapsed lookup key for truss names. */
+    const trussKey = (s: string): string =>
+      s.trim().toLowerCase().replace(/[\s_-]+/g, "");
+    const systemIdByTrussName = new Map<string, string>();
+    for (const sys of systems) {
+      const k = trussKey(sys.name);
+      if (k) systemIdByTrussName.set(k, sys.id);
+    }
+
+    /** Add `key → id` to the map only the FIRST time we see `key`.
+     *  Used so that if the analyser emits two trusses with the same
+     *  label ("LX1", "LX1"), all fixtures tagged "LX1" attach to the
+     *  same (first) system instead of being split between them. */
+    const indexTruss = (key: string, id: string) => {
+      if (key && !systemIdByTrussName.has(key)) {
+        systemIdByTrussName.set(key, id);
+      }
+    };
+
     if (selection.trussIndexes.size > 0) {
-      const newSystems: System[] = [];
-      // Names that already exist (current state + ones we're about to
-      // add) so we never collide.
-      const usedNames = new Set(systems.map((s) => s.name));
       extracted.trusses.forEach((t, i) => {
         if (!selection.trussIndexes.has(i)) return;
-        let name = t.name && t.name.trim() ? t.name.trim() : `LX${systems.length + newSystems.length + 1}`;
+        const rawName = t.name && t.name.trim() ? t.name.trim() : "";
+        let name =
+          rawName || `LX${systems.length + newSystems.length + 1}`;
         while (usedNames.has(name)) name += "'";
         usedNames.add(name);
         const sys = makeSystem(name);
         sys.pointCount = Math.min(8, Math.max(1, Math.round(t.pointCount || 3)));
         newSystems.push(sys);
+        // Index BOTH the original PDF label and the (possibly-suffixed)
+        // final name, so a fixture that says trussName="LX1" still
+        // resolves even if we had to rename the system to "LX1'" to
+        // dedupe. First-write-wins: the FIRST truss row labelled "LX1"
+        // owns that label for fixture-linking purposes.
+        if (rawName) indexTruss(trussKey(rawName), sys.id);
+        indexTruss(trussKey(name), sys.id);
       });
-      if (newSystems.length > 0) {
-        setSystems((all) => [...all, ...newSystems]);
-        // Focus the first newly-added one so the user can see the result
-        // when they switch to the Rigging Report.
-        setActiveSystemId(newSystems[0].id);
-      }
     }
 
-    // Lighting fixtures
+    // Lighting fixtures.
+    //
+    // Each extracted fixture row may carry a `trussName` from the PDF
+    // ("LX1", "FOH", …). We try to link it to:
+    //   1. an existing system on the Rigging Report,
+    //   2. one of the systems we just created above, or
+    //   3. as a last resort, a fresh system auto-created on the fly so
+    //      that "fixtures on the same truss end up on the same system"
+    //      even when the user didn't tick the matching truss row.
     if (selection.lightingIndexes.size > 0) {
       const additions: ShowFixture[] = [];
       extracted.lighting.forEach((f, i) => {
         if (!selection.lightingIndexes.has(i)) return;
         const base = makeShowFixture();
+        let systemId = "";
+        const trussRaw = (f.trussName ?? "").trim();
+        if (trussRaw) {
+          const k = trussKey(trussRaw);
+          const existingId = systemIdByTrussName.get(k);
+          if (existingId) {
+            systemId = existingId;
+          } else {
+            // Auto-create a system for this fixture's truss so all
+            // fixtures sharing the same trussName collapse onto it.
+            let name = trussRaw;
+            while (usedNames.has(name)) name += "'";
+            usedNames.add(name);
+            const sys = makeSystem(name);
+            newSystems.push(sys);
+            indexTruss(k, sys.id);
+            indexTruss(trussKey(name), sys.id);
+            systemId = sys.id;
+          }
+        }
         additions.push({
           ...base,
           name: f.name || "Fixture",
           qty: Math.max(1, Math.round(f.qty || 1)),
           weight: f.weightKg != null ? Math.max(0, f.weightKg) : 0,
           watts: f.watts != null ? Math.max(0, Math.round(f.watts)) : 0,
+          systemId,
           notes: f.notes || "",
         });
       });
       if (additions.length > 0) {
         setShowFixtures((all) => [...all, ...additions]);
       }
+    }
+
+    // Commit any new systems (created from trusses[] and / or auto-
+    // created by the Lighting step) in a single state update so the
+    // truss/fixture wiring stays consistent.
+    if (newSystems.length > 0) {
+      setSystems((all) => [...all, ...newSystems]);
+      // Focus the first newly-added one so the user can see the result
+      // when they switch to the Rigging Report.
+      setActiveSystemId(newSystems[0].id);
     }
 
     // LED screens

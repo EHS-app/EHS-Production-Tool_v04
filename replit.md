@@ -5,8 +5,7 @@ This project is a pnpm workspace monorepo designed as an internal stage-tech too
 # User Preferences
 
 - **Internal Tool**: This is an internal tool, so there is intentionally no public landing page.
-- **Invitation-Only Access**: Access is by invitation only. To request an invite, users should email utleie@ehs.no.
-- **No Sign-Up**: The sign-up footer link is hidden, and no `/sign-up` route exists.
+- **Open Sign-Up**: Anyone can create an account from the sign-in screen via the Sign in / Sign up tab toggle.
 - **Google Sign-in**: Visible on the production sign-in page (the auth instance currently has email/password disabled, so Google is the active sign-in method on prod). Email/password sign-in can be re-enabled from the Auth pane in the Replit Workspace toolbar.
 - **No Client-side Credentials**: Admin passwords should not touch the browser.
 - **Development Auto-sign-in**: In development, the preview should auto-log the user in as Admin to avoid manual credential entry on reloads. This functionality must be strictly gated by `NODE_ENV` / `import.meta.env.DEV` and not leak to production builds.
@@ -30,8 +29,9 @@ This project is a pnpm workspace monorepo designed as an internal stage-tech too
 - **Deployment**: Supports GitHub Pages via `BASE_PATH` environment variable
 
 ## Authentication
-- **Provider**: Clerk for sign-in and user management. Sign-up is restricted to invitation only. Google OAuth is the active sign-in method on production (the auth instance currently has email/password disabled — this can be re-enabled from the Auth pane in the Replit Workspace toolbar).
-- **Admin Setup**: Seeded admin account for `olti@ehs.no` provisioned via Clerk Backend API.
+- **Provider**: Clerk for sign-in and user management. Sign-up is open — anyone can create an account. Google OAuth is the active sign-in/sign-up method on production (the auth instance currently has email/password disabled — this can be re-enabled from the Auth pane in the Replit Workspace toolbar).
+- **Auth Screen**: Single screen with a Sign in / Sign up tab toggle. Clerk's built-in cross-link is hidden so the tabs are the only mode switcher; the chosen mode is persisted in `sessionStorage` so OAuth redirects land back on the right widget.
+- **Admin Setup**: Seeded admin account for `olti@ehs.no` provisioned via Clerk Backend API. Personal Gmail `tsako.olti@gmail.com` is added as a verified secondary email so Google sign-in maps to the admin user.
 - **Dev Auto-sign-in**: A development-only feature that auto-logs in as Admin via Clerk's ticket strategy, ensuring no admin credentials reach the client. This is strictly guarded by `NODE_ENV`.
 
 ## UI/UX and Features

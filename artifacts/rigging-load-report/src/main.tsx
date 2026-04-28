@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ClerkProvider, SignIn, Show, useSignIn, useAuth } from "@clerk/react";
+import {
+  ClerkProvider,
+  SignIn,
+  SignUp,
+  Show,
+  useSignIn,
+  useAuth,
+} from "@clerk/react";
 import { dark } from "@clerk/themes";
 import App from "./App";
 import "./index.css";
@@ -122,6 +129,7 @@ function buildAppearance(theme: ThemeMode) {
       },
       footerActionText: { color: c.muted },
       footerActionLink: { color: EHS_ORANGE, fontWeight: 600 },
+      footerAction: { display: "none" },
       dividerText: { color: c.muted },
       dividerLine: { backgroundColor: c.border },
       socialButtonsBlockButton: {
@@ -142,6 +150,20 @@ function buildAppearance(theme: ThemeMode) {
   };
 }
 
+type AuthMode = "signIn" | "signUp";
+
+const AUTH_MODE_KEY = "ehs-auth-mode";
+
+function loadInitialAuthMode(): AuthMode {
+  try {
+    const raw = sessionStorage.getItem(AUTH_MODE_KEY);
+    if (raw === "signUp" || raw === "signIn") return raw;
+  } catch {
+    /* sessionStorage may be unavailable */
+  }
+  return "signIn";
+}
+
 function SignInScreen({
   theme,
   onToggleTheme,
@@ -150,6 +172,15 @@ function SignInScreen({
   onToggleTheme: () => void;
 }) {
   const c = PALETTE[theme];
+  const [mode, setModeState] = useState<AuthMode>(() => loadInitialAuthMode());
+  const setMode = (next: AuthMode) => {
+    try {
+      sessionStorage.setItem(AUTH_MODE_KEY, next);
+    } catch {
+      /* sessionStorage may be unavailable */
+    }
+    setModeState(next);
+  };
   return (
     <div
       style={{
@@ -206,7 +237,56 @@ function SignInScreen({
         </div>
       </div>
 
-      <SignIn routing="hash" />
+      <div
+        role="tablist"
+        aria-label="Authentication mode"
+        style={{
+          display: "inline-flex",
+          padding: 4,
+          borderRadius: 12,
+          background: c.cardBg,
+          border: `1px solid ${c.border}`,
+          boxShadow: c.shadow,
+        }}
+      >
+        {(
+          [
+            { id: "signIn", label: "Sign in" },
+            { id: "signUp", label: "Sign up" },
+          ] as const
+        ).map((opt) => {
+          const active = mode === opt.id;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setMode(opt.id)}
+              style={{
+                padding: "8px 18px",
+                fontSize: 14,
+                fontWeight: 600,
+                borderRadius: 8,
+                cursor: "pointer",
+                border: "none",
+                background: active ? EHS_ORANGE : "transparent",
+                color: active ? "#0b0b0b" : c.text,
+                fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+                transition: "background 120ms ease, color 120ms ease",
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {mode === "signIn" ? (
+        <SignIn routing="hash" />
+      ) : (
+        <SignUp routing="hash" />
+      )}
 
       <div
         style={{
@@ -222,7 +302,7 @@ function SignInScreen({
           background: c.inviteBg,
         }}
       >
-        Need help contact{" "}
+        Questions? Contact{" "}
         <a
           href="mailto:utleie@ehs.no"
           style={{ color: EHS_ORANGE, fontWeight: 600 }}
@@ -251,7 +331,13 @@ function Root() {
         signIn: {
           start: {
             title: "Sign in",
-            subtitle: "EHS internal tool",
+            subtitle: "EHS Production Tool",
+          },
+        },
+        signUp: {
+          start: {
+            title: "Create your account",
+            subtitle: "EHS Production Tool",
           },
         },
       }}
@@ -344,6 +430,7 @@ function AuthGate({
   return (
     <>
       <Show when="signed-in">
+        <ClearAuthMode />
         <App />
       </Show>
       <Show when="signed-out">
@@ -355,6 +442,17 @@ function AuthGate({
       </Show>
     </>
   );
+}
+
+function ClearAuthMode() {
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem(AUTH_MODE_KEY);
+    } catch {
+      /* sessionStorage may be unavailable */
+    }
+  }, []);
+  return null;
 }
 
 function DevSigningInScreen({ theme }: { theme: ThemeMode }) {

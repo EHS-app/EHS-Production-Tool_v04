@@ -24,6 +24,13 @@ export type ExtractedTruss = {
   name: string;
   lengthM: number;
   pointCount: number;
+  /** Per-motor working-load capacity in kg if labelled on the drawing
+   *  ("1t" / "500 kg" / "Lodestar 1t"). The applier maps this onto one
+   *  of the two configured hoist models so a system imported from a
+   *  drawing comes pre-set with the right motor type. null when the
+   *  drawing didn't show it — the applier then falls back to the
+   *  default 500 kg motor. */
+  hoistKg: number | null;
   trimM: number | null;
   notes: string;
 };

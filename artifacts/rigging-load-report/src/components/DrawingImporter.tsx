@@ -8,6 +8,7 @@ import {
   type ApplySelection,
   type ExtractedItems,
 } from "../lib/drawingAnalysis";
+import { fileToFloorPlan, type FloorPlan } from "../lib/floorPlan";
 
 type Props = {
   /** Current venue dimensions, sent as context to the analyser so it
@@ -16,6 +17,12 @@ type Props = {
   projectName?: string;
   /** Apply the user's chosen subset back to the report. */
   onApply: (extracted: ExtractedItems, selection: ApplySelection) => void;
+  /** Promote the currently-loaded drawing to the Rigg Plan backdrop.
+   *  Optional — host views that don't show a plan can omit this. */
+  onUseAsFloorPlan?: (plan: FloorPlan) => void;
+  /** True when a backdrop is already set, so the button can swap labels
+   *  to "Replace floor plan". */
+  hasFloorPlan?: boolean;
 };
 
 const ACCEPT =
@@ -41,7 +48,13 @@ function toggleIndex(set: Set<number>, idx: number): Set<number> {
   return next;
 }
 
-export function DrawingImporter({ currentVenue, projectName, onApply }: Props) {
+export function DrawingImporter({
+  currentVenue,
+  projectName,
+  onApply,
+  onUseAsFloorPlan,
+  hasFloorPlan,
+}: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -50,6 +63,8 @@ export function DrawingImporter({ currentVenue, projectName, onApply }: Props) {
   const [selection, setSelection] = useState<ApplySelection>(selectNone());
   const [applied, setApplied] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isPreparingFloorPlan, setIsPreparingFloorPlan] = useState(false);
+  const [floorPlanApplied, setFloorPlanApplied] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Revoke the object URL when we swap files / unmount, otherwise the
@@ -85,7 +100,27 @@ export function DrawingImporter({ currentVenue, projectName, onApply }: Props) {
     setExtracted(null);
     setSelection(selectNone());
     setApplied(false);
+    setFloorPlanApplied(false);
     setFile(f);
+  }
+
+  async function useAsFloorPlan() {
+    if (!file || !onUseAsFloorPlan) return;
+    setError(null);
+    setIsPreparingFloorPlan(true);
+    try {
+      const plan = await fileToFloorPlan(file);
+      onUseAsFloorPlan(plan);
+      setFloorPlanApplied(true);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not prepare this drawing for the floor plan.",
+      );
+    } finally {
+      setIsPreparingFloorPlan(false);
+    }
   }
 
   async function runAnalyze() {
@@ -120,6 +155,7 @@ export function DrawingImporter({ currentVenue, projectName, onApply }: Props) {
     setSelection(selectNone());
     setError(null);
     setApplied(false);
+    setFloorPlanApplied(false);
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -205,11 +241,32 @@ export function DrawingImporter({ currentVenue, projectName, onApply }: Props) {
               >
                 {isAnalyzing ? "Analyzing…" : extracted ? "Re-analyze" : "Analyze drawing"}
               </button>
+              {onUseAsFloorPlan && (
+                <button
+                  type="button"
+                  className="btn btn-soft"
+                  onClick={useAsFloorPlan}
+                  disabled={isPreparingFloorPlan || isAnalyzing}
+                  title={
+                    hasFloorPlan
+                      ? "Replace the current Rigg Plan backdrop"
+                      : "Use this drawing as the Rigg Plan backdrop"
+                  }
+                >
+                  {isPreparingFloorPlan
+                    ? "Preparing…"
+                    : floorPlanApplied
+                      ? "Floor plan set"
+                      : hasFloorPlan
+                        ? "Replace floor plan"
+                        : "Use as floor plan"}
+                </button>
+              )}
               <button
                 type="button"
                 className="btn btn-soft"
                 onClick={reset}
-                disabled={isAnalyzing}
+                disabled={isAnalyzing || isPreparingFloorPlan}
               >
                 Choose another file
               </button>
@@ -315,6 +372,9 @@ export function DrawingImporter({ currentVenue, projectName, onApply }: Props) {
                   <strong>{t.name}</strong>
                   <span className="led-sub">
                     {fmt(t.lengthM)} m · {t.pointCount} pts
+                    {t.hoistKg != null
+                      ? ` · ${t.hoistKg >= 1000 ? "1 t" : `${t.hoistKg} kg`} motors`
+                      : ""}
                     {t.trimM != null ? ` · trim ${fmt(t.trimM)} m` : ""}
                     {t.notes ? ` · ${t.notes}` : ""}
                   </span>

@@ -140,7 +140,7 @@ nothing of that kind is shown.
 {
   "venue":      { "widthM": number|null, "depthM": number|null, "ceilingM": number|null },
   "stages":     [ { "name": string, "widthM": number, "depthM": number, "notes": string } ],
-  "trusses":    [ { "name": string, "lengthM": number, "pointCount": number, "trimM": number|null, "notes": string } ],
+  "trusses":    [ { "name": string, "lengthM": number, "pointCount": number, "hoistKg": number|null, "trimM": number|null, "notes": string } ],
   "lighting":   [ { "name": string, "qty": number, "weightKg": number|null, "watts": number|null, "trussName": string, "notes": string } ],
   "ledScreens": [ { "name": string, "panelsWide": number|null, "panelsTall": number|null, "widthM": number|null, "heightM": number|null, "notes": string } ],
   "sound":      [ { "name": string, "qty": number, "weightKg": number|null, "watts": number|null, "notes": string } ],
@@ -171,6 +171,13 @@ Conventions:
   * \`pointCount\` is the number of motors / chain hoists / pickup points
     drawn on that bar (look for triangles, circles or "M" markers).
     Clamp 1-8. If unsure, use 3.
+  * \`hoistKg\` is the working-load capacity of each motor on that bar in
+    kilograms, when the drawing labels the motor model or capacity.
+    Common labels: "1t", "1 ton", "1000 kg", "1000kg", "D8+ 1t",
+    "Lodestar 1t", "BGV-D8+ 1000 kg" → \`hoistKg = 1000\`. "500 kg",
+    "500kg", "0.5t", "1/2 t", "D8 500", "Lodestar 500" → \`hoistKg = 500\`.
+    Use null when no motor type / capacity is shown. Pick the dominant
+    capacity for the truss when several are visible.
   * \`trimM\` is the trim height (height above stage / deck) if labelled
     (e.g. "trim 7.5 m", "TH 7.0 m"). null if not given.
   * Put any extra useful info (colour, position, notes from the drawing)
@@ -272,6 +279,10 @@ type ExtractedItems = {
     name: string;
     lengthM: number;
     pointCount: number;
+    /** Per-motor working-load capacity in kg, when labelled on the
+     *  drawing. Currently mapped on the client to one of the two
+     *  configured hoist models (500 kg / 1000 kg). null when unknown. */
+    hoistKg: number | null;
     trimM: number | null;
     notes: string;
   }>;
@@ -434,10 +445,19 @@ function normalizeExtracted(raw: unknown): ExtractedItems {
       const o = (s && typeof s === "object" ? s : {}) as Record<string, unknown>;
       const ptRaw = num(o.pointCount);
       const pt = ptRaw == null ? 3 : Math.min(8, Math.max(1, Math.round(ptRaw)));
+      // Clamp implausible motor sizes from the model. Real touring
+      // gear is 250 / 500 / 1000 / 2000 kg; anything outside 100-5000
+      // kg is almost certainly a misread of a part number.
+      const hoistRaw = num(o.hoistKg);
+      const hoistKg =
+        hoistRaw != null && hoistRaw >= 100 && hoistRaw <= 5000
+          ? Math.round(hoistRaw)
+          : null;
       return {
         name: str(o.name) || "Truss",
         lengthM: numOrZero(o.lengthM),
         pointCount: pt,
+        hoistKg,
         trimM: num(o.trimM),
         notes: str(o.notes),
       };

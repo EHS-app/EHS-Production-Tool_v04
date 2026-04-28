@@ -15,6 +15,7 @@ import type {
   ApplySelection,
   ExtractedItems,
 } from "../lib/drawingAnalysis";
+import type { FloorPlan } from "../lib/floorPlan";
 
 /** Round numeric truss fields to one decimal so JSON storage stays
  *  small and the editor table never displays floating-point fuzz. */
@@ -58,6 +59,13 @@ type Props = {
   ) => void;
   /** Project / venue name used as extra context for the analyser. */
   projectName?: string;
+  /** When set, the SVG canvas renders this image behind the trusses
+   *  instead of the synthetic grid. */
+  floorPlan: FloorPlan | null;
+  /** Set / replace the floor-plan backdrop with a new drawing. */
+  onSetFloorPlan: (plan: FloorPlan) => void;
+  /** Drop the backdrop and fall back to the synthetic grid. */
+  onClearFloorPlan: () => void;
 };
 
 const fmt = (n: number, d = 1) =>
@@ -77,6 +85,9 @@ export function RiggPlanView({
   onJumpToRigging,
   onApplyExtractedItems,
   projectName,
+  floorPlan,
+  onSetFloorPlan,
+  onClearFloorPlan,
 }: Props) {
   const { venue, trussById } = plan;
 
@@ -139,6 +150,8 @@ export function RiggPlanView({
         currentVenue={venue}
         projectName={projectName}
         onApply={onApplyExtractedItems}
+        onUseAsFloorPlan={onSetFloorPlan}
+        hasFloorPlan={floorPlan != null}
       />
 
       {/* Venue editor */}
@@ -218,6 +231,8 @@ export function RiggPlanView({
             selectedId={selectedId}
             onSelect={setSelectedId}
             onUpdateTruss={onUpdateTruss}
+            floorPlan={floorPlan}
+            onClearFloorPlan={onClearFloorPlan}
           />
         )}
       </section>
@@ -385,6 +400,8 @@ function PlanCanvas({
   selectedId,
   onSelect,
   onUpdateTruss,
+  floorPlan,
+  onClearFloorPlan,
 }: {
   venue: RiggPlanVenue;
   systems: RiggPlanSystemInfo[];
@@ -392,6 +409,8 @@ function PlanCanvas({
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onUpdateTruss: (id: string, patch: Partial<RiggPlanTruss>) => void;
+  floorPlan: FloorPlan | null;
+  onClearFloorPlan: () => void;
 }) {
   // SVG uses world-units (metres). We let CSS scale it to fit the card.
   const padM = 1; // padding in metres around the venue rect
@@ -463,7 +482,45 @@ function PlanCanvas({
   }
 
   return (
-    <div className="rigg-canvas-wrap">
+    <div className="rigg-canvas-wrap" style={{ position: "relative" }}>
+      {floorPlan && (
+        <div
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            zIndex: 2,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            background: "rgba(255,255,255,0.92)",
+            border: "1px solid var(--border, #cbd5e1)",
+            borderRadius: 6,
+            padding: "4px 8px",
+            fontSize: 12,
+            color: "#0f172a",
+            maxWidth: "60%",
+          }}
+        >
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+            title={floorPlan.fileName}
+          >
+            Floor plan: <strong>{floorPlan.fileName}</strong>
+          </span>
+          <button
+            type="button"
+            className="btn btn-soft btn-xs"
+            onClick={onClearFloorPlan}
+          >
+            Clear
+          </button>
+        </div>
+      )}
       <svg
         ref={svgRef}
         className="rigg-canvas"
@@ -493,13 +550,30 @@ function PlanCanvas({
           </pattern>
         </defs>
 
+        {/* Floor-plan backdrop (the user's uploaded drawing). Drawn
+            BEFORE the venue rect so the rect's outline still frames it,
+            and `preserveAspectRatio="xMidYMid meet"` keeps the drawing
+            from being squashed when its proportions don't match the
+            venue. The user adjusts venue width/depth to align scale. */}
+        {floorPlan && (
+          <image
+            href={floorPlan.imageDataUrl}
+            x={padM}
+            y={padM}
+            width={venue.widthM}
+            height={venue.depthM}
+            preserveAspectRatio="xMidYMid meet"
+            opacity={0.85}
+          />
+        )}
+
         {/* Venue rect */}
         <rect
           x={padM}
           y={padM}
           width={venue.widthM}
           height={venue.depthM}
-          fill="url(#rigg-grid)"
+          fill={floorPlan ? "transparent" : "url(#rigg-grid)"}
           stroke="#475569"
           strokeWidth={0.06}
         />

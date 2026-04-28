@@ -9,11 +9,13 @@ import {
 } from "../lib/portalStorage";
 import type {
   BriefAssignment,
+  BriefAttachment,
   BriefRiggPlan,
   BriefSchedule,
   BriefSchedulePhaseKey,
   ProjectBrief,
 } from "../../lib/projectBrief";
+import { attachmentDownloadUrl } from "../../lib/briefAttachmentUpload";
 
 const PHASE_LABELS: Record<BriefSchedulePhaseKey, string> = {
   setup: "Setup",
@@ -556,8 +558,109 @@ export function BriefDetail({
           <RiggPlanMap theme={theme} plan={brief.riggPlan} />
         </SectionCard>
       ) : null}
+
+      {brief.attachments.length > 0 ? (
+        <SectionCard theme={theme} title="Drawings & attachments">
+          <AttachmentsList theme={theme} attachments={brief.attachments} />
+        </SectionCard>
+      ) : null}
     </div>
   );
+}
+
+/** Render the per-brief attachment list. Each row is a download anchor
+ *  pointing at the api-server's `/api/storage/objects/...` route, which
+ *  streams the bytes back from object storage. The anchor uses the
+ *  `download` attribute so the browser saves the file with the original
+ *  filename instead of opening it inline. */
+function AttachmentsList({
+  theme,
+  attachments,
+}: {
+  theme: ThemeMode;
+  attachments: BriefAttachment[];
+}) {
+  const c = PALETTE[theme];
+  return (
+    <ul
+      style={{
+        listStyle: "none",
+        margin: 0,
+        padding: 0,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+      }}
+    >
+      {attachments.map((a) => (
+        <li
+          key={a.id}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: "10px 12px",
+            background: c.cardBg,
+            border: `1px solid ${c.border}`,
+            borderRadius: 10,
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: c.text,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {a.name}
+            </div>
+            <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
+              {describeAttachment(a)}
+            </div>
+          </div>
+          <a
+            href={attachmentDownloadUrl(a)}
+            target="_blank"
+            rel="noreferrer"
+            download={a.name}
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              padding: "8px 14px",
+              border: "1px solid #f88000",
+              borderRadius: 8,
+              background: "#f88000",
+              color: "#0b0b0b",
+              textDecoration: "none",
+              flexShrink: 0,
+            }}
+          >
+            Download
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Build the secondary line for an attachment row, e.g. "PDF · 1.4 MB". */
+function describeAttachment(a: BriefAttachment): string {
+  const parts: string[] = [];
+  const subtype = a.contentType.split("/")[1] || a.contentType;
+  parts.push(subtype.toUpperCase());
+  if (a.sizeBytes > 0) parts.push(formatBytes(a.sizeBytes));
+  return parts.join(" · ");
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
 /* ---------------------------------------------------------------- pieces */

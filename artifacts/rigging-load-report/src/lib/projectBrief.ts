@@ -138,6 +138,29 @@ export type BriefRiggPlan = {
   }>;
 };
 
+/** Metadata for a file the producer attached to the brief (e.g. the
+ *  rigging drawing). The bytes themselves live in object storage; the
+ *  brief carries only enough info to render a download row and build
+ *  the public-by-token URL `${baseUrl}api/storage${objectPath}`.
+ *
+ *  Designed to stay tiny (~150 bytes JSON each) so a brief with a few
+ *  attachments doesn't blow the URL-length budget. */
+export type BriefAttachment = {
+  /** Stable id within the brief (used as React key + download anchor). */
+  id: string;
+  /** Original filename, shown in the UI. */
+  name: string;
+  /** MIME type ("application/pdf", "image/png", …). */
+  contentType: string;
+  /** Original size in bytes — surfaced so the recipient knows what to
+   *  expect on a metered connection. */
+  sizeBytes: number;
+  /** Object-storage path returned by the upload-URL endpoint, of the
+   *  shape `/objects/<id>`. The Portal builds the download URL as
+   *  `${BASE_URL}api/storage${objectPath}`. */
+  objectPath: string;
+};
+
 export type ProjectBrief = {
   version: typeof BRIEF_VERSION;
   generatedAt: number;
@@ -166,6 +189,10 @@ export type ProjectBrief = {
   stage: BriefStageTotals;
   sound: BriefSoundTotals;
   riggPlan: BriefRiggPlan | null;
+  /** Files the crew can download directly from object storage. Always
+   *  present (possibly empty) on briefs created by version ≥ 1; older
+   *  briefs are normalised to `[]`. */
+  attachments: BriefAttachment[];
 };
 
 /** Generate a short opaque id for a brief. Browsers' crypto.randomUUID
@@ -256,6 +283,9 @@ export type BuildBriefInput = {
   stages: Stage[];
   sound: SoundItem[];
   riggPlan: RiggPlan;
+  /** Pre-uploaded attachments to embed in the brief. The producer
+   *  uploads them once before generating links (see ShareBriefModal). */
+  attachments?: BriefAttachment[];
 };
 
 function summariseLighting(lighting: BriefLightingInput): BriefLightingTotals {
@@ -465,6 +495,7 @@ export function buildBrief(input: BuildBriefInput): ProjectBrief {
     stage: summariseStages(input.stages),
     sound: summariseSound(input.sound),
     riggPlan: summariseRiggPlan(input.riggPlan, systemNames),
+    attachments: (input.attachments ?? []).map((a) => ({ ...a })),
   };
 }
 
@@ -764,5 +795,38 @@ export function normalizeBrief(raw: unknown): ProjectBrief | null {
     stage: normalizeStageTotals(r.stage),
     sound: normalizeSoundTotals(r.sound),
     riggPlan: normalizeRiggPlan(r.riggPlan),
+    attachments: normalizeAttachments(r.attachments),
   };
+}
+
+/** Coerce the optional `attachments` field. We require all four
+ *  meaningful fields (id / name / contentType / objectPath) to be
+ *  non-empty strings; anything else is dropped silently so a tampered
+ *  payload can't inject undefined-y fields into the download UI. */
+function normalizeAttachments(raw: unknown): BriefAttachment[] {
+  return asArray(raw)
+    .map((a): BriefAttachment | null => {
+      const o = asObject(a);
+      const id = asString(o.id);
+      const name = asString(o.name);
+      const contentType = asString(o.contentType);
+      const objectPath = asString(o.objectPath);
+      if (!id || !name || !contentType || !objectPath) return null;
+      // Strict canonical shape: `/objects/uploads/<uuid-ish>`. The
+      // server only ever issues this exact pattern, so anything else
+      // is either a tampered payload or a stale path from a different
+      // storage layout — reject it rather than letting the download UI
+      // point off-host or at a directory traversal.
+      if (!/^\/objects\/uploads\/[A-Za-z0-9_-]{8,128}$/.test(objectPath)) {
+        return null;
+      }
+      return {
+        id,
+        name,
+        contentType,
+        sizeBytes: Math.max(0, asNumber(o.sizeBytes)),
+        objectPath,
+      };
+    })
+    .filter((a): a is BriefAttachment => a != null);
 }

@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@clerk/react";
 import {
   buildBrief,
+  type BriefAttachment,
   type BuildBriefInput,
   type ProjectBrief,
 } from "../lib/projectBrief";
 import { encodeBrief, buildShareUrl } from "../lib/briefShare";
 import { crewHours } from "../lib/crew";
+import { loadFloorPlan, type FloorPlan } from "../lib/floorPlan";
+import { uploadBriefAttachment } from "../lib/briefAttachmentUpload";
 
 /** "Share with Crew" modal — generates one personalised brief link per
  *  crew member (and one generic link). The producer copies a link and
@@ -34,6 +38,12 @@ export function ShareBriefModal({ onClose, state }: ShareBriefModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [previewBrief, setPreviewBrief] = useState<ProjectBrief | null>(null);
+  /** Producer-facing status while we upload the floor-plan attachment.
+   *  `null` once the upload finishes (or there was nothing to upload). */
+  const [uploadStatus, setUploadStatus] = useState<string | null>(
+    "Preparing brief…",
+  );
+  const { getToken } = useAuth();
 
   // Generate the links once on open. Encoding is async (gzip is async)
   // but tiny — just enough to need a Promise.
@@ -45,13 +55,54 @@ export function ShareBriefModal({ onClose, state }: ShareBriefModalProps) {
           (typeof import.meta !== "undefined" &&
             (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
           "/";
+
+        // Step 1 — if the producer has a floor plan stashed, upload it
+        // once. Every brief we generate below embeds the resulting
+        // attachment metadata, so all recipients pull the same object
+        // out of storage rather than re-uploading per crew member.
+        const attachments: BriefAttachment[] = [];
+        const floorPlan: FloorPlan | null = loadFloorPlan();
+        if (floorPlan?.originalDataUrl) {
+          setUploadStatus(`Uploading ${floorPlan.fileName}…`);
+          try {
+            const att = await uploadBriefAttachment(
+              {
+                name: floorPlan.fileName || "drawing",
+                contentType: floorPlan.contentType || "application/octet-stream",
+                sizeBytes: floorPlan.sizeBytes || 0,
+                dataUrl: floorPlan.originalDataUrl,
+              },
+              getToken,
+            );
+            if (cancelled) return;
+            attachments.push(att);
+          } catch (e) {
+            // Non-fatal — we still want to ship the textual brief even
+            // if the drawing upload fails (slow connection, signed-out
+            // session, etc). Surface a soft warning to the producer.
+            if (!cancelled) {
+              setError(
+                e instanceof Error
+                  ? `Could not attach the drawing: ${e.message}`
+                  : "Could not attach the drawing to the brief.",
+              );
+            }
+          }
+        }
+        if (cancelled) return;
+        setUploadStatus(null);
+
         const generated: RecipientLink[] = [];
 
         // Generic link (no recipient highlighted) — usable when the
         // producer just wants to share the brief broadly (e.g. with a
         // venue contact who isn't on the call sheet).
         {
-          const brief = buildBrief({ ...state, recipientCrewId: null });
+          const brief = buildBrief({
+            ...state,
+            recipientCrewId: null,
+            attachments,
+          });
           if (!previewBrief) setPreviewBrief(brief);
           const encoded = await encodeBrief(brief);
           generated.push({
@@ -65,7 +116,11 @@ export function ShareBriefModal({ onClose, state }: ShareBriefModalProps) {
 
         // Per-crew links.
         for (const m of state.crew) {
-          const brief = buildBrief({ ...state, recipientCrewId: m.id });
+          const brief = buildBrief({
+            ...state,
+            recipientCrewId: m.id,
+            attachments,
+          });
           const encoded = await encodeBrief(brief);
           generated.push({
             crewId: m.id,
@@ -84,6 +139,7 @@ export function ShareBriefModal({ onClose, state }: ShareBriefModalProps) {
               ? e.message
               : "Could not generate the brief links.",
           );
+          setUploadStatus(null);
         }
       }
     })();
@@ -258,7 +314,7 @@ export function ShareBriefModal({ onClose, state }: ShareBriefModalProps) {
 
           {!links ? (
             <div style={{ padding: 24, textAlign: "center", color: "#64748b" }}>
-              Generating links…
+              {uploadStatus ?? "Generating links…"}
             </div>
           ) : links.length === 1 ? (
             // No crew yet — only the generic link is available.
@@ -286,6 +342,28 @@ export function ShareBriefModal({ onClose, state }: ShareBriefModalProps) {
               )}
             </div>
           )}
+
+          {previewBrief && previewBrief.attachments.length > 0 ? (
+            <div
+              style={{
+                marginTop: 14,
+                padding: "10px 12px",
+                background: "rgba(248,128,0,0.08)",
+                border: "1px solid rgba(248,128,0,0.25)",
+                borderRadius: 10,
+                fontSize: 12,
+                color: "#7c2d12",
+                lineHeight: 1.5,
+              }}
+            >
+              <strong>Attached to every link:</strong>{" "}
+              {previewBrief.attachments
+                .map((a) => a.name)
+                .join(", ")}
+              . Clear the floor plan in the Rigg Plan tab if this is from a
+              different project.
+            </div>
+          ) : null}
 
           <p
             style={{

@@ -52,6 +52,11 @@ import { SoundReportView } from "./components/SoundReportView";
 import { EquipmentPicker } from "./components/EquipmentPicker";
 import type { LibraryItem } from "./lib/equipmentLibrary";
 import {
+  loadFloorPlan,
+  saveFloorPlan,
+  type FloorPlan,
+} from "./lib/floorPlan";
+import {
   defaultPowerPlan,
   makePowerCircuit,
   makePowerItem,
@@ -999,6 +1004,17 @@ function App() {
     normalizeRiggPlan(persisted?.riggPlan),
   );
 
+  // The floor-plan backdrop lives in its own localStorage slot so a
+  // 4 MB drawing data URL never bloats the main report blob (and a
+  // QuotaExceededError on the floor-plan slot doesn't kill the rest
+  // of the report's autosave).
+  const [floorPlan, setFloorPlan] = useState<FloorPlan | null>(() =>
+    loadFloorPlan(),
+  );
+  useEffect(() => {
+    saveFloorPlan(floorPlan);
+  }, [floorPlan]);
+
   const [modalTarget, setModalTarget] = useState<Category | null>(null);
   const [custName, setCustName] = useState("");
   const [custWeight, setCustWeight] = useState("");
@@ -1633,6 +1649,15 @@ function App() {
       }
     };
 
+    /** Map the analyser's per-motor capacity in kg onto one of the
+     *  two configured hoist models. We split at the geometric mean
+     *  (~707 kg) of 500 and 1000 kg, but force anything ≥ 750 kg up
+     *  to the 1 t model so a "1 t" tag never silently rounds down. */
+    const pickHoistIndex = (kg: number | null): number => {
+      if (kg == null) return 0;
+      return kg >= 750 ? 1 : 0;
+    };
+
     if (selection.trussIndexes.size > 0) {
       extracted.trusses.forEach((t, i) => {
         if (!selection.trussIndexes.has(i)) return;
@@ -1643,6 +1668,7 @@ function App() {
         usedNames.add(name);
         const sys = makeSystem(name);
         sys.pointCount = Math.min(8, Math.max(1, Math.round(t.pointCount || 3)));
+        sys.hoistIndex = pickHoistIndex(t.hoistKg);
         newSystems.push(sys);
         // Index BOTH the original PDF label and the (possibly-suffixed)
         // final name, so a fixture that says trussName="LX1" still
@@ -2427,6 +2453,7 @@ function App() {
     setSoundItems([]);
     setPower(defaultPowerPlan());
     setRiggPlan({ ...DEFAULT_RIGG_PLAN, trussById: {} });
+    setFloorPlan(null);
     setMainView("rigging");
   };
 
@@ -3478,6 +3505,9 @@ function App() {
           onJumpToRigging={() => setMainView("rigging")}
           onApplyExtractedItems={applyExtractedItems}
           projectName={venue}
+          floorPlan={floorPlan}
+          onSetFloorPlan={setFloorPlan}
+          onClearFloorPlan={() => setFloorPlan(null)}
         />
       )}
 

@@ -30,7 +30,7 @@ This project is a pnpm workspace monorepo acting as an internal stage-tech tool 
 
 ## Authentication
 - **Provider**: Clerk for sign-in and user management.
-- **Auth Screen**: Single screen with Sign in / Sign up tab toggle, persisting mode in `sessionStorage`.
+- **Auth Screen**: Three-step flow. (1) **Role chooser** — first screen shows two cards, "Employee" (Production Tool) and "Freelancer" (Freelance Portal); the choice is persisted to `sessionStorage` under `ehs-login-intent` so OAuth redirects keep the right context. (2) **Sign in / Sign up** — once a role is picked, the screen header reflects that role ("Production Tool" or "Freelance Portal"), the Clerk widget renders, and a "Change role" button returns to the chooser. The Sign in / Sign up tab toggle is the only mode switcher (Clerk's cross-link is hidden), with mode persisted under `ehs-auth-mode`. (3) **Post-login redirect** — a `<PostLoginRedirect />` component mounted inside the signed-in `<Router>` reads `ehs-login-intent` once on mount: freelancers landing outside `/portal/*` are pushed to `/portal`, employees landing inside `/portal/*` are pushed to `/`, then the intent key is cleared. Deep links (e.g. `/portal/brief/import?b=...`) are preserved because the redirect skips when the user's current path already matches their chosen role.
 - **Admin Setup**: Seeded admin account for `olti@ehs.no` provisioned via Clerk Backend API, with `tsako.olti@gmail.com` as a verified secondary email for Google sign-in.
 - **Dev Auto-sign-in**: Development-only auto-login as Admin via Clerk's ticket strategy, guarded by `NODE_ENV`.
 

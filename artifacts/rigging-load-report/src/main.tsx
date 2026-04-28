@@ -9,7 +9,7 @@ import {
   useAuth,
 } from "@clerk/react";
 import { dark } from "@clerk/themes";
-import { Route, Router, Switch } from "wouter";
+import { Route, Router, Switch, useLocation } from "wouter";
 import App from "./App";
 import { Portal } from "./portal/Portal";
 import "./index.css";
@@ -153,8 +153,10 @@ function buildAppearance(theme: ThemeMode) {
 }
 
 type AuthMode = "signIn" | "signUp";
+type LoginIntent = "employee" | "freelancer";
 
 const AUTH_MODE_KEY = "ehs-auth-mode";
+const LOGIN_INTENT_KEY = "ehs-login-intent";
 
 function loadInitialAuthMode(): AuthMode {
   try {
@@ -166,6 +168,28 @@ function loadInitialAuthMode(): AuthMode {
   return "signIn";
 }
 
+function loadInitialLoginIntent(): LoginIntent | null {
+  try {
+    const raw = sessionStorage.getItem(LOGIN_INTENT_KEY);
+    if (raw === "employee" || raw === "freelancer") return raw;
+  } catch {
+    /* sessionStorage may be unavailable */
+  }
+  return null;
+}
+
+function saveLoginIntent(intent: LoginIntent | null) {
+  try {
+    if (intent) {
+      sessionStorage.setItem(LOGIN_INTENT_KEY, intent);
+    } else {
+      sessionStorage.removeItem(LOGIN_INTENT_KEY);
+    }
+  } catch {
+    /* sessionStorage may be unavailable */
+  }
+}
+
 function SignInScreen({
   theme,
   onToggleTheme,
@@ -175,6 +199,9 @@ function SignInScreen({
 }) {
   const c = PALETTE[theme];
   const [mode, setModeState] = useState<AuthMode>(() => loadInitialAuthMode());
+  const [intent, setIntentState] = useState<LoginIntent | null>(() =>
+    loadInitialLoginIntent(),
+  );
   const setMode = (next: AuthMode) => {
     try {
       sessionStorage.setItem(AUTH_MODE_KEY, next);
@@ -183,6 +210,21 @@ function SignInScreen({
     }
     setModeState(next);
   };
+  const setIntent = (next: LoginIntent | null) => {
+    saveLoginIntent(next);
+    setIntentState(next);
+  };
+
+  if (intent === null) {
+    return (
+      <RoleChooserScreen
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+        onPick={setIntent}
+      />
+    );
+  }
+
   return (
     <div
       style={{
@@ -235,9 +277,42 @@ function SignInScreen({
           style={{ height: "44px", width: "auto" }}
         />
         <div style={{ fontSize: "22px", fontWeight: 700, letterSpacing: 0.3 }}>
-          Production <span style={{ color: EHS_ORANGE }}>Tool</span>
+          {intent === "freelancer" ? (
+            <>
+              Freelance <span style={{ color: EHS_ORANGE }}>Portal</span>
+            </>
+          ) : (
+            <>
+              Production <span style={{ color: EHS_ORANGE }}>Tool</span>
+            </>
+          )}
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setIntent(null)}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "6px 12px",
+          fontSize: 13,
+          fontWeight: 600,
+          borderRadius: 8,
+          cursor: "pointer",
+          background: "transparent",
+          color: c.muted,
+          border: `1px solid ${c.border}`,
+          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+        }}
+      >
+        <span aria-hidden>←</span>
+        <span>
+          Not {intent === "freelancer" ? "a freelancer" : "an employee"}?
+          Change role
+        </span>
+      </button>
 
       <div
         role="tablist"
@@ -314,6 +389,230 @@ function SignInScreen({
       </div>
     </div>
   );
+}
+
+function RoleChooserScreen({
+  theme,
+  onToggleTheme,
+  onPick,
+}: {
+  theme: ThemeMode;
+  onToggleTheme: () => void;
+  onPick: (role: LoginIntent) => void;
+}) {
+  const c = PALETTE[theme];
+  const cards: Array<{
+    id: LoginIntent;
+    title: string;
+    subtitle: string;
+    description: string;
+  }> = [
+    {
+      id: "employee",
+      title: "Employee",
+      subtitle: "Production Tool",
+      description:
+        "Plan rigging, lighting, LED screens, stages, sound, crew and rigg plans for EHS productions.",
+    },
+    {
+      id: "freelancer",
+      title: "Freelancer",
+      subtitle: "Freelance Portal",
+      description:
+        "View your project briefings, manage your gig logbook, availability calendar, earnings and profile.",
+    },
+  ];
+  return (
+    <div
+      style={{
+        minHeight: "100dvh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "32px 16px",
+        background: c.pageBg,
+        color: c.text,
+        boxSizing: "border-box",
+        gap: "24px",
+        position: "relative",
+      }}
+    >
+      <button
+        type="button"
+        onClick={onToggleTheme}
+        title={
+          theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+        }
+        style={{
+          position: "absolute",
+          top: 20,
+          right: 20,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "8px 14px",
+          fontSize: 14,
+          fontWeight: 600,
+          borderRadius: 10,
+          cursor: "pointer",
+          background: c.cardBg,
+          color: c.text,
+          border: `1px solid ${c.border}`,
+          boxShadow: c.shadow,
+          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+        }}
+      >
+        <span aria-hidden>{theme === "dark" ? "☀" : "☾"}</span>
+        <span>{theme === "dark" ? "Light" : "Dark"}</span>
+      </button>
+
+      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <img
+          src={`${basePath}/logo.png`}
+          alt="EHS"
+          style={{ height: "44px", width: "auto" }}
+        />
+        <div style={{ fontSize: "22px", fontWeight: 700, letterSpacing: 0.3 }}>
+          EHS <span style={{ color: EHS_ORANGE }}>Sign in</span>
+        </div>
+      </div>
+
+      <div
+        style={{
+          fontSize: 15,
+          color: c.muted,
+          textAlign: "center",
+          maxWidth: 520,
+          lineHeight: 1.55,
+        }}
+      >
+        Choose how you're signing in. You can switch later from the header.
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          gap: 16,
+          width: "100%",
+          maxWidth: 720,
+        }}
+      >
+        {cards.map((card) => (
+          <button
+            key={card.id}
+            type="button"
+            onClick={() => onPick(card.id)}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
+              gap: 10,
+              padding: "22px 22px 24px",
+              background: c.cardBg,
+              color: c.text,
+              border: `1px solid ${c.border}`,
+              borderRadius: 16,
+              boxShadow: c.shadow,
+              cursor: "pointer",
+              textAlign: "left",
+              fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+              transition:
+                "transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = EHS_ORANGE;
+              e.currentTarget.style.transform = "translateY(-2px)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = c.border;
+              e.currentTarget.style.transform = "translateY(0)";
+            }}
+          >
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: 0.6,
+                textTransform: "uppercase",
+                color: EHS_ORANGE,
+              }}
+            >
+              {card.subtitle}
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{card.title}</div>
+            <div
+              style={{
+                fontSize: 13,
+                color: c.muted,
+                lineHeight: 1.5,
+              }}
+            >
+              {card.description}
+            </div>
+            <div
+              style={{
+                marginTop: 8,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "8px 14px",
+                fontSize: 13,
+                fontWeight: 700,
+                borderRadius: 8,
+                background: EHS_ORANGE,
+                color: "#0b0b0b",
+              }}
+            >
+              Sign in as {card.title} <span aria-hidden>→</span>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <div
+        style={{
+          maxWidth: "520px",
+          width: "100%",
+          textAlign: "center",
+          color: c.muted,
+          fontSize: "13px",
+          lineHeight: 1.55,
+          padding: "12px 16px",
+          border: `1px solid ${c.border}`,
+          borderRadius: "10px",
+          background: c.inviteBg,
+        }}
+      >
+        Questions? Contact{" "}
+        <a
+          href="mailto:utleie@ehs.no"
+          style={{ color: EHS_ORANGE, fontWeight: 600 }}
+        >
+          utleie@ehs.no
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function PostLoginRedirect() {
+  const [location, setLocation] = useLocation();
+  useEffect(() => {
+    const intent = loadInitialLoginIntent();
+    if (!intent) return;
+    const inPortal = location === "/portal" || location.startsWith("/portal/");
+    if (intent === "freelancer" && !inPortal) {
+      setLocation("/portal");
+    } else if (intent === "employee" && inPortal) {
+      setLocation("/");
+    }
+    saveLoginIntent(null);
+    // We only want this to run once after mount (post sign-in landing).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
 }
 
 function Root() {
@@ -434,6 +733,7 @@ function AuthGate({
       <Show when="signed-in">
         <ClearAuthMode />
         <Router base={basePath}>
+          <PostLoginRedirect />
           <Switch>
             <Route path="/portal">
               <Portal theme={theme} onToggleTheme={onToggleTheme} />

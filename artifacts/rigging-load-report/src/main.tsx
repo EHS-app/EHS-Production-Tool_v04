@@ -96,19 +96,20 @@ function buildAppearance(theme: ThemeMode) {
     elements: {
       rootBox: { width: "100%", display: "flex", justifyContent: "center" },
       cardBox: {
-        backgroundColor: c.cardBg,
-        border: `1px solid ${c.border}`,
-        borderRadius: "16px",
-        width: "440px",
+        backgroundColor: "transparent",
+        border: "none",
+        borderRadius: 0,
+        width: "100%",
         maxWidth: "100%",
-        overflow: "hidden",
-        boxShadow: c.shadow,
+        overflow: "visible",
+        boxShadow: "none",
       },
       card: {
         backgroundColor: "transparent",
         boxShadow: "none",
         border: "none",
         borderRadius: 0,
+        padding: 0,
       },
       footer: {
         backgroundColor: "transparent",
@@ -116,6 +117,7 @@ function buildAppearance(theme: ThemeMode) {
         border: "none",
         borderRadius: 0,
       },
+      header: { display: "none" },
       headerTitle: { color: c.text },
       headerSubtitle: { color: c.muted },
       formFieldLabel: { color: c.text },
@@ -199,8 +201,8 @@ function SignInScreen({
 }) {
   const c = PALETTE[theme];
   const [mode, setModeState] = useState<AuthMode>(() => loadInitialAuthMode());
-  const [intent, setIntentState] = useState<LoginIntent | null>(() =>
-    loadInitialLoginIntent(),
+  const [intent, setIntentState] = useState<LoginIntent>(
+    () => loadInitialLoginIntent() ?? "employee",
   );
   const setMode = (next: AuthMode) => {
     try {
@@ -210,20 +212,22 @@ function SignInScreen({
     }
     setModeState(next);
   };
-  const setIntent = (next: LoginIntent | null) => {
+  const setIntent = (next: LoginIntent) => {
     saveLoginIntent(next);
     setIntentState(next);
   };
 
-  if (intent === null) {
-    return (
-      <RoleChooserScreen
-        theme={theme}
-        onToggleTheme={onToggleTheme}
-        onPick={setIntent}
-      />
-    );
-  }
+  const roles: ReadonlyArray<{
+    id: LoginIntent;
+    label: string;
+    sub: string;
+  }> = [
+    { id: "employee", label: "Employee", sub: "Production Tool" },
+    { id: "freelancer", label: "Freelancer", sub: "Freelance Portal" },
+  ];
+
+  const productLabel =
+    intent === "freelancer" ? "Freelance Portal" : "Production Tool";
 
   return (
     <div
@@ -270,113 +274,177 @@ function SignInScreen({
         <span>{theme === "dark" ? "Light" : "Dark"}</span>
       </button>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 480,
+          background: c.cardBg,
+          border: `1px solid ${c.border}`,
+          borderRadius: 16,
+          boxShadow: c.shadow,
+          padding: "32px 28px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 20,
+          boxSizing: "border-box",
+          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+        }}
+      >
         <img
           src={`${basePath}/logo.png`}
           alt="EHS"
-          style={{ height: "44px", width: "auto" }}
+          style={{ height: "48px", width: "auto" }}
         />
-        <div style={{ fontSize: "22px", fontWeight: 700, letterSpacing: 0.3 }}>
-          {intent === "freelancer" ? (
-            <>
-              Freelance <span style={{ color: EHS_ORANGE }}>Portal</span>
-            </>
+
+        <div style={{ textAlign: "center" }}>
+          <div
+            style={{
+              fontSize: 20,
+              fontWeight: 700,
+              letterSpacing: 0.2,
+              color: c.text,
+            }}
+          >
+            Sign in to <span style={{ color: EHS_ORANGE }}>EHS</span>
+          </div>
+          <div
+            style={{
+              marginTop: 4,
+              fontSize: 13,
+              color: c.muted,
+              fontWeight: 500,
+            }}
+          >
+            {productLabel}
+          </div>
+        </div>
+
+        <div
+          role="radiogroup"
+          aria-label="I am signing in as"
+          style={{
+            display: "flex",
+            width: "100%",
+            padding: 4,
+            borderRadius: 12,
+            background: c.pageBg,
+            border: `1px solid ${c.border}`,
+            gap: 4,
+          }}
+        >
+          {roles.map((role) => {
+            const active = intent === role.id;
+            return (
+              <button
+                key={role.id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => setIntent(role.id)}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 2,
+                  padding: "10px 12px",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  borderRadius: 8,
+                  border: "none",
+                  cursor: "pointer",
+                  background: active ? EHS_ORANGE : "transparent",
+                  color: active ? "#0b0b0b" : c.text,
+                  transition:
+                    "background 120ms ease, color 120ms ease",
+                  fontFamily:
+                    "'Inter', system-ui, -apple-system, sans-serif",
+                }}
+              >
+                <span>{role.label}</span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    opacity: 0.85,
+                    color: active ? "#0b0b0b" : c.muted,
+                  }}
+                >
+                  {role.sub}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div
+          role="tablist"
+          aria-label="Authentication mode"
+          style={{
+            display: "flex",
+            alignSelf: "stretch",
+            justifyContent: "center",
+            gap: 28,
+            borderBottom: `1px solid ${c.border}`,
+          }}
+        >
+          {(
+            [
+              { id: "signIn", label: "Sign in" },
+              { id: "signUp", label: "Sign up" },
+            ] as const
+          ).map((opt) => {
+            const active = mode === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setMode(opt.id)}
+                style={{
+                  padding: "8px 4px 10px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: active
+                    ? `2px solid ${EHS_ORANGE}`
+                    : "2px solid transparent",
+                  marginBottom: -1,
+                  color: active ? c.text : c.muted,
+                  cursor: "pointer",
+                  fontFamily:
+                    "'Inter', system-ui, -apple-system, sans-serif",
+                  transition:
+                    "color 120ms ease, border-color 120ms ease",
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ width: "100%" }}>
+          {mode === "signIn" ? (
+            <SignIn routing="hash" />
           ) : (
-            <>
-              Production <span style={{ color: EHS_ORANGE }}>Tool</span>
-            </>
+            <SignUp routing="hash" />
           )}
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={() => setIntent(null)}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "6px 12px",
-          fontSize: 13,
-          fontWeight: 600,
-          borderRadius: 8,
-          cursor: "pointer",
-          background: "transparent",
-          color: c.muted,
-          border: `1px solid ${c.border}`,
-          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
-        }}
-      >
-        <span aria-hidden>←</span>
-        <span>
-          Not {intent === "freelancer" ? "a freelancer" : "an employee"}?
-          Change role
-        </span>
-      </button>
-
-      <div
-        role="tablist"
-        aria-label="Authentication mode"
-        style={{
-          display: "inline-flex",
-          padding: 4,
-          borderRadius: 12,
-          background: c.cardBg,
-          border: `1px solid ${c.border}`,
-          boxShadow: c.shadow,
-        }}
-      >
-        {(
-          [
-            { id: "signIn", label: "Sign in" },
-            { id: "signUp", label: "Sign up" },
-          ] as const
-        ).map((opt) => {
-          const active = mode === opt.id;
-          return (
-            <button
-              key={opt.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => setMode(opt.id)}
-              style={{
-                padding: "8px 18px",
-                fontSize: 14,
-                fontWeight: 600,
-                borderRadius: 8,
-                cursor: "pointer",
-                border: "none",
-                background: active ? EHS_ORANGE : "transparent",
-                color: active ? "#0b0b0b" : c.text,
-                fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
-                transition: "background 120ms ease, color 120ms ease",
-              }}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {mode === "signIn" ? (
-        <SignIn routing="hash" />
-      ) : (
-        <SignUp routing="hash" />
-      )}
-
       <div
         style={{
-          maxWidth: "440px",
+          maxWidth: "480px",
           width: "100%",
           textAlign: "center",
           color: c.muted,
           fontSize: "13px",
           lineHeight: 1.55,
-          padding: "12px 16px",
-          border: `1px solid ${c.border}`,
-          borderRadius: "10px",
-          background: c.inviteBg,
+          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
         }}
       >
         Questions? Contact{" "}
@@ -391,211 +459,6 @@ function SignInScreen({
   );
 }
 
-function RoleChooserScreen({
-  theme,
-  onToggleTheme,
-  onPick,
-}: {
-  theme: ThemeMode;
-  onToggleTheme: () => void;
-  onPick: (role: LoginIntent) => void;
-}) {
-  const c = PALETTE[theme];
-  const cards: Array<{
-    id: LoginIntent;
-    title: string;
-    subtitle: string;
-    description: string;
-  }> = [
-    {
-      id: "employee",
-      title: "Employee",
-      subtitle: "Production Tool",
-      description:
-        "Plan rigging, lighting, LED screens, stages, sound, crew and rigg plans for EHS productions.",
-    },
-    {
-      id: "freelancer",
-      title: "Freelancer",
-      subtitle: "Freelance Portal",
-      description:
-        "View your project briefings, manage your gig logbook, availability calendar, earnings and profile.",
-    },
-  ];
-  return (
-    <div
-      style={{
-        minHeight: "100dvh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "32px 16px",
-        background: c.pageBg,
-        color: c.text,
-        boxSizing: "border-box",
-        gap: "24px",
-        position: "relative",
-      }}
-    >
-      <button
-        type="button"
-        onClick={onToggleTheme}
-        title={
-          theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
-        }
-        style={{
-          position: "absolute",
-          top: 20,
-          right: 20,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "8px 14px",
-          fontSize: 14,
-          fontWeight: 600,
-          borderRadius: 10,
-          cursor: "pointer",
-          background: c.cardBg,
-          color: c.text,
-          border: `1px solid ${c.border}`,
-          boxShadow: c.shadow,
-          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
-        }}
-      >
-        <span aria-hidden>{theme === "dark" ? "☀" : "☾"}</span>
-        <span>{theme === "dark" ? "Light" : "Dark"}</span>
-      </button>
-
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        <img
-          src={`${basePath}/logo.png`}
-          alt="EHS"
-          style={{ height: "44px", width: "auto" }}
-        />
-        <div style={{ fontSize: "22px", fontWeight: 700, letterSpacing: 0.3 }}>
-          EHS <span style={{ color: EHS_ORANGE }}>Sign in</span>
-        </div>
-      </div>
-
-      <div
-        style={{
-          fontSize: 15,
-          color: c.muted,
-          textAlign: "center",
-          maxWidth: 520,
-          lineHeight: 1.55,
-        }}
-      >
-        Choose how you're signing in. You can switch later from the header.
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: 16,
-          width: "100%",
-          maxWidth: 720,
-        }}
-      >
-        {cards.map((card) => (
-          <button
-            key={card.id}
-            type="button"
-            onClick={() => onPick(card.id)}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-start",
-              gap: 10,
-              padding: "22px 22px 24px",
-              background: c.cardBg,
-              color: c.text,
-              border: `1px solid ${c.border}`,
-              borderRadius: 16,
-              boxShadow: c.shadow,
-              cursor: "pointer",
-              textAlign: "left",
-              fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
-              transition:
-                "transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = EHS_ORANGE;
-              e.currentTarget.style.transform = "translateY(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = c.border;
-              e.currentTarget.style.transform = "translateY(0)";
-            }}
-          >
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                letterSpacing: 0.6,
-                textTransform: "uppercase",
-                color: EHS_ORANGE,
-              }}
-            >
-              {card.subtitle}
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{card.title}</div>
-            <div
-              style={{
-                fontSize: 13,
-                color: c.muted,
-                lineHeight: 1.5,
-              }}
-            >
-              {card.description}
-            </div>
-            <div
-              style={{
-                marginTop: 8,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "8px 14px",
-                fontSize: 13,
-                fontWeight: 700,
-                borderRadius: 8,
-                background: EHS_ORANGE,
-                color: "#0b0b0b",
-              }}
-            >
-              Sign in as {card.title} <span aria-hidden>→</span>
-            </div>
-          </button>
-        ))}
-      </div>
-
-      <div
-        style={{
-          maxWidth: "520px",
-          width: "100%",
-          textAlign: "center",
-          color: c.muted,
-          fontSize: "13px",
-          lineHeight: 1.55,
-          padding: "12px 16px",
-          border: `1px solid ${c.border}`,
-          borderRadius: "10px",
-          background: c.inviteBg,
-        }}
-      >
-        Questions? Contact{" "}
-        <a
-          href="mailto:utleie@ehs.no"
-          style={{ color: EHS_ORANGE, fontWeight: 600 }}
-        >
-          utleie@ehs.no
-        </a>
-      </div>
-    </div>
-  );
-}
 
 function PostLoginRedirect() {
   const [location, setLocation] = useLocation();

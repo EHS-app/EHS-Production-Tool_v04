@@ -565,93 +565,9 @@ function PlanCanvas({
           />
         )}
 
-        {/* Trusses */}
-        <g transform={`translate(${padM} ${padM})`}>
-          {systems.map((sys) => {
-            const t = trussById[sys.id];
-            if (!t) return null;
-            const ends = trussEndpoints(t);
-            const status =
-              sys.peakKg > sys.swlKg
-                ? "#dc2626"
-                : sys.peakKg > sys.swlKg * 0.9
-                  ? "#f59e0b"
-                  : "#1d4ed8";
-            const selected = selectedId === sys.id;
-            return (
-              <g
-                key={sys.id}
-                style={{ cursor: "grab", touchAction: "none" }}
-                onPointerDown={(e) => handlePointerDown(sys.id, e)}
-              >
-                {/* truss line */}
-                <line
-                  x1={ends.x1}
-                  y1={ends.y1}
-                  x2={ends.x2}
-                  y2={ends.y2}
-                  stroke={status}
-                  strokeWidth={selected ? 0.4 : 0.28}
-                  strokeLinecap="round"
-                  opacity={selected ? 1 : 0.85}
-                />
-                {/* Hoist points (small dots evenly spaced along the truss) */}
-                {Array.from({ length: sys.pointCount }).map((_, i) => {
-                  const f =
-                    sys.pointCount === 1
-                      ? 0.5
-                      : i / Math.max(1, sys.pointCount - 1);
-                  const x = ends.x1 + (ends.x2 - ends.x1) * f;
-                  const y = ends.y1 + (ends.y2 - ends.y1) * f;
-                  return (
-                    <circle
-                      key={i}
-                      cx={x}
-                      cy={y}
-                      r={0.18}
-                      fill="#fff"
-                      stroke={status}
-                      strokeWidth={0.06}
-                    />
-                  );
-                })}
-                {/* Label pill above the truss centre */}
-                <g
-                  transform={`translate(${t.x} ${t.y - 0.6})`}
-                  pointerEvents="none"
-                >
-                  <rect
-                    x={-1.6}
-                    y={-0.45}
-                    width={3.2}
-                    height={0.9}
-                    rx={0.2}
-                    fill="#fff"
-                    stroke={status}
-                    strokeWidth={0.05}
-                  />
-                  <text
-                    textAnchor="middle"
-                    fontSize={0.42}
-                    fontWeight={600}
-                    fill="#0f172a"
-                    y={-0.05}
-                  >
-                    {sys.name}
-                  </text>
-                  <text
-                    textAnchor="middle"
-                    fontSize={0.32}
-                    fill="#475569"
-                    y={0.32}
-                  >
-                    Z {t.z} m · {sys.pointCount} pts
-                  </text>
-                </g>
-              </g>
-            );
-          })}
-        </g>
+        {/* Trusses removed at user request — only the uploaded floor
+            plan is rendered on this canvas now. The systems table
+            below the canvas still lets the user manage truss data. */}
       </svg>
     </div>
   );

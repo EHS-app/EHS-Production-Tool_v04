@@ -13,6 +13,7 @@ import {
   defaultLinkedLedMeta,
   defaultPanelKeyOf,
   findPanelKeyForInventoryName,
+  getLedPanel,
   resolveScreenPanel,
   migrateLedPanelKey,
   newLedScreen,
@@ -1715,21 +1716,39 @@ function App() {
     // LED screens
     if (selection.ledIndexes.size > 0) {
       const additions: LedScreen[] = [];
+      // Resolve the active panel's physical size once so we can convert
+      // analyser-supplied screen sizes in metres (e.g. "5 x 3 m") into
+      // panel counts. Panels with zero physical size (the synthetic
+      // Custom fallback) are skipped to avoid divide-by-zero.
+      const defaultPanel = getLedPanel(defaultLedPanelKey, ledPanels);
+      const panelWm = defaultPanel.physicalWidth;
+      const panelHm = defaultPanel.physicalHeight;
+      const metresToPanels = (
+        sizeM: number | null,
+        panelM: number,
+      ): number | undefined => {
+        if (sizeM == null || sizeM <= 0 || panelM <= 0) return undefined;
+        return Math.max(1, Math.round(sizeM / panelM));
+      };
       extracted.ledScreens.forEach((s, i) => {
         if (!selection.ledIndexes.has(i)) return;
         const idx = ledScreens.length + additions.length;
+        // Panel grid wins when the analyser gave one outright; otherwise
+        // we fall back to the metric size from the drawing.
+        const wide =
+          s.panelsWide != null && s.panelsWide > 0
+            ? Math.round(s.panelsWide)
+            : metresToPanels(s.widthM, panelWm);
+        const tall =
+          s.panelsTall != null && s.panelsTall > 0
+            ? Math.round(s.panelsTall)
+            : metresToPanels(s.heightM, panelHm);
         additions.push(
           newLedScreen(defaultLedPanelKey, {
             name: s.name || `Screen ${idx + 1}`,
             color: LED_SCREEN_COLORS[idx % LED_SCREEN_COLORS.length],
-            panelsWide:
-              s.panelsWide != null && s.panelsWide > 0
-                ? Math.round(s.panelsWide)
-                : undefined,
-            panelsTall:
-              s.panelsTall != null && s.panelsTall > 0
-                ? Math.round(s.panelsTall)
-                : undefined,
+            panelsWide: wide,
+            panelsTall: tall,
             notes: s.notes || "",
           }),
         );

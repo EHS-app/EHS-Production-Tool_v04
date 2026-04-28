@@ -44,6 +44,12 @@ export type ExtractedLedScreen = {
   name: string;
   panelsWide: number | null;
   panelsTall: number | null;
+  /** Physical screen size in metres, when the drawing labels metres
+   *  rather than panel counts (e.g. "STØTE LED 5 x 3 m"). The applier
+   *  derives panelsWide / panelsTall from these using the active
+   *  panel's physical size. */
+  widthM: number | null;
+  heightM: number | null;
   notes: string;
 };
 

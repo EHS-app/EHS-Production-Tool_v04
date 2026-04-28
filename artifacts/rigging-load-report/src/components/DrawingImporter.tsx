@@ -379,17 +379,25 @@ export function DrawingImporter({ currentVenue, projectName, onApply }: Props) {
                 }))
               }
             >
-              {items.ledScreens.map((s, i) => (
-                <div key={i}>
-                  <strong>{s.name}</strong>
-                  <span className="led-sub">
-                    {s.panelsWide != null && s.panelsTall != null
-                      ? `${s.panelsWide} × ${s.panelsTall} panels`
-                      : "panel grid ?"}
-                    {s.notes ? ` · ${s.notes}` : ""}
-                  </span>
-                </div>
-              ))}
+              {items.ledScreens.map((s, i) => {
+                // Prefer panel grid; fall back to metres if the drawing
+                // only labelled the screen size in metres ("5 x 3 m").
+                let size = "panel grid ?";
+                if (s.panelsWide != null && s.panelsTall != null) {
+                  size = `${s.panelsWide} × ${s.panelsTall} panels`;
+                } else if (s.widthM != null && s.heightM != null) {
+                  size = `${fmt(s.widthM)} × ${fmt(s.heightM)} m`;
+                }
+                return (
+                  <div key={i}>
+                    <strong>{s.name}</strong>
+                    <span className="led-sub">
+                      {size}
+                      {s.notes ? ` · ${s.notes}` : ""}
+                    </span>
+                  </div>
+                );
+              })}
             </CategoryGroup>
           )}
 

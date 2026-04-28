@@ -142,7 +142,7 @@ nothing of that kind is shown.
   "stages":     [ { "name": string, "widthM": number, "depthM": number, "notes": string } ],
   "trusses":    [ { "name": string, "lengthM": number, "pointCount": number, "trimM": number|null, "notes": string } ],
   "lighting":   [ { "name": string, "qty": number, "weightKg": number|null, "watts": number|null, "trussName": string, "notes": string } ],
-  "ledScreens": [ { "name": string, "panelsWide": number|null, "panelsTall": number|null, "notes": string } ],
+  "ledScreens": [ { "name": string, "panelsWide": number|null, "panelsTall": number|null, "widthM": number|null, "heightM": number|null, "notes": string } ],
   "sound":      [ { "name": string, "qty": number, "weightKg": number|null, "watts": number|null, "notes": string } ],
   "summary":    string
 }
@@ -181,9 +181,17 @@ Conventions:
     count symbols on each truss. The result is one row per fixture type
     PER truss — e.g. "Robe MegaPointe x6 on LX1" and "Robe MegaPointe
     x4 on LX2" are TWO rows, not one combined row of 10.
+  * EXACTLY one row per (fixture-name, trussName) pair. If the same
+    make+model appears in several clusters along the SAME truss (e.g.
+    a row of MAC Aura at upstage and another at midstage of LX6), sum
+    them into ONE row of qty = total. Do not split.
   * \`name\` is the fixture make + model exactly as printed in the legend
     (e.g. "Robe MegaPointe", "Martin MAC Aura PXL", "ETC Source 4 26°").
-  * \`qty\` is the visible count of that fixture on that one truss.
+  * \`qty\` is the visible count of that fixture on that one truss /
+    position. Quantities are almost always between 1 and ~80. If you
+    catch yourself returning more than 200 of one fixture you are
+    almost certainly mis-reading a part number or pixel count — drop
+    that row.
   * \`trussName\` is the truss / system label the fixture is hanging on,
     using the SAME string as the corresponding "trusses[].name" (e.g.
     "LX1", "FOH", "Mid"). If the fixture is on the floor, a boom or a
@@ -194,9 +202,23 @@ Conventions:
     values for common fixtures (e.g. MegaPointe ~22.5 kg / 470 W,
     MAC Aura PXL ~10.5 kg / 260 W). Use null only if you have no
     reasonable estimate.
+  * Pixel-mapped video tubes / video pixel arrays / LED video panels
+    (e.g. "VDO Fatron", "VDO Sceptron", "Pixel Tube", "Astera Titan
+    Tube" used as video) are pieces of an LED screen, NOT lighting.
+    Put their grid in "ledScreens" instead.
 
-- "ledScreens" is full LED walls / panels — try to identify panel grid
-  (W x H) from the drawing if visible, otherwise set both to null.
+- "ledScreens" is LED walls and pixel-mapped LED video surfaces. For
+  each screen ALWAYS try to record the dimensions in one of the two
+  field pairs — almost every drawing will give you at least one:
+    * If the drawing labels a panel grid (e.g. "16 W x 9 H panels",
+      "8 cabinets wide"), set \`panelsWide\` and \`panelsTall\`.
+    * If the drawing labels the screen size in metres (e.g.
+      "STØTE LED 5 x 3 m" → widthM=5, heightM=3; "IMAG- LED 7.5 m x
+      4.5 m" → widthM=7.5, heightM=4.5), set \`widthM\` and \`heightM\`.
+      Do NOT leave these null and only mention the size in \`notes\` —
+      put the numbers in the fields.
+  It is fine to fill both pairs when both are visible. Pixel totals
+  (e.g. "8960 x 1584 pixel") can additionally go in \`notes\`.
 - "sound" is PA / monitor / sub items.
 - "stages" is built decking / risers / drum risers / DJ booths (not the
   whole venue floor). Read each stage / deck / riser block separately.
@@ -268,6 +290,11 @@ type ExtractedItems = {
     name: string;
     panelsWide: number | null;
     panelsTall: number | null;
+    /** Physical screen size in metres, when the drawing labels metres
+     *  rather than panel counts (e.g. "5 x 3 m"). Falls back to null
+     *  when only panel counts are visible. */
+    widthM: number | null;
+    heightM: number | null;
     notes: string;
   }>;
   sound: Array<{
@@ -279,6 +306,91 @@ type ExtractedItems = {
   }>;
   summary: string;
 };
+
+/** Build a stable lookup key for a (fixture-name, truss) pair. We
+ *  normalise whitespace, casing and a few trivial separators so that
+ *  "MAC Aura XB" / "Mac Aura  XB" / "MAC AURA XB" collapse to one row.
+ *  Truss names are normalised the same way as on the client (see
+ *  applyExtractedItems' trussKey helper) so server-side dedup matches
+ *  the client-side fixture-to-system wiring. */
+function lightingMergeKey(name: string, trussName: string): string {
+  const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+  const trussKey = trussName.trim().toLowerCase().replace(/[\s_-]+/g, "");
+  return `${norm(name)}\u0000${trussKey}`;
+}
+
+type LightingRow = {
+  name: string;
+  qty: number;
+  weightKg: number | null;
+  watts: number | null;
+  trussName: string;
+  notes: string;
+};
+
+/** Collapse duplicate (fixture-name, truss) rows produced by the model.
+ *  Quantities sum; the first non-null weight / watts wins (Claude is
+ *  consistent within a single response, so we don't need to average);
+ *  notes from later rows are concatenated when they add new info. */
+function mergeLightingRows(rows: LightingRow[]): LightingRow[] {
+  const byKey = new Map<string, LightingRow>();
+  for (const row of rows) {
+    const key = lightingMergeKey(row.name, row.trussName);
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, { ...row });
+      continue;
+    }
+    existing.qty += row.qty;
+    if (existing.weightKg == null && row.weightKg != null) {
+      existing.weightKg = row.weightKg;
+    }
+    if (existing.watts == null && row.watts != null) {
+      existing.watts = row.watts;
+    }
+    if (row.notes && !existing.notes.includes(row.notes)) {
+      existing.notes = existing.notes
+        ? `${existing.notes}; ${row.notes}`
+        : row.notes;
+    }
+  }
+  return Array.from(byKey.values());
+}
+
+/** Pull a "<w>m × <h>m" pair out of a notes string. We only match
+ *  numbers that are explicitly suffixed with "m" (so pixel counts
+ *  like "768 x 1152 pixel" and panel counts like "16 x 9 panels" are
+ *  excluded). Returns nulls when no usable pair is found, leaving
+ *  the caller free to fall back to whatever the model already gave. */
+function parseMetresFromNotes(
+  notes: string,
+): { widthM: number | null; heightM: number | null } {
+  if (!notes) return { widthM: null, heightM: null };
+  // European / Norwegian drawings often use comma as the decimal mark
+  // (e.g. "7,5m x 4,5m"). Normalise commas-between-digits to dots
+  // before matching so we accept either form.
+  const text = notes.replace(/(\d),(\d)/g, "$1.$2");
+  const parsePair = (match: RegExpMatchArray | null) => {
+    if (!match) return null;
+    const w = Number(match[1]);
+    const h = Number(match[2]);
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+      return null;
+    }
+    return { widthM: w, heightM: h };
+  };
+  // Both numbers labelled (e.g. "7.5m x 4.5m"): preferred form.
+  const both = parsePair(
+    text.match(/(\d+(?:\.\d+)?)\s*m\s*[x×]\s*(\d+(?:\.\d+)?)\s*m/i),
+  );
+  if (both) return both;
+  // Single trailing label (e.g. "5 x 3 m" or "5x3m"). Less common, still valid.
+  const trailing = parsePair(
+    text.match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*m\b/i),
+  );
+  if (trailing) return trailing;
+  return { widthM: null, heightM: null };
+}
 
 /** Coerce raw JSON from the model into our strict schema. The model
  *  occasionally omits a field or returns the wrong type — we fix up
@@ -330,26 +442,58 @@ function normalizeExtracted(raw: unknown): ExtractedItems {
         notes: str(o.notes),
       };
     }),
-    lighting: arr(r.lighting).map((s) => {
-      const o = (s && typeof s === "object" ? s : {}) as Record<string, unknown>;
-      const qRaw = num(o.qty);
-      const qty = qRaw == null ? 1 : Math.max(1, Math.round(qRaw));
-      return {
-        name: str(o.name) || "Fixture",
-        qty,
-        weightKg: num(o.weightKg),
-        watts: num(o.watts),
-        trussName: str(o.trussName).trim(),
-        notes: str(o.notes),
-      };
-    }),
+    // Lighting rows are merged downstream — see `mergeLightingRows`.
+    // Rows with garbage quantities (e.g. the model misreading a part
+    // number or pixel count as 1000+ fixtures) are dropped both
+    // before AND after the merge: pre-merge to stop garbage poisoning
+    // a real row's total, post-merge to catch genuinely-merged rows
+    // that legitimately exceed our realistic ceiling.
+    lighting: mergeLightingRows(
+      arr(r.lighting)
+        .map((s) => {
+          const o = (s && typeof s === "object" ? s : {}) as Record<
+            string,
+            unknown
+          >;
+          const qRaw = num(o.qty);
+          return {
+            name: str(o.name) || "Fixture",
+            qty: qRaw == null ? 1 : Math.max(1, Math.round(qRaw)),
+            qRaw,
+            weightKg: num(o.weightKg),
+            watts: num(o.watts),
+            trussName: str(o.trussName).trim(),
+            notes: str(o.notes),
+          };
+        })
+        .filter((row) => row.qRaw == null || row.qRaw <= 200)
+        .map(({ qRaw: _qRaw, ...rest }) => rest),
+    ).filter((row) => row.qty <= 200),
     ledScreens: arr(r.ledScreens).map((s) => {
       const o = (s && typeof s === "object" ? s : {}) as Record<string, unknown>;
+      const name = str(o.name) || "Screen";
+      const notes = str(o.notes);
+      // Fallback parser: the model sometimes leaves widthM/heightM null
+      // and puts the metric size only in the name or notes (e.g.
+      // "Center - LED 7m x 1m", "STØTE LED 5x3m Right", "IMAG- LED
+      // 7.5m x 4.5m, 1013kg"). When the dedicated fields are empty,
+      // lift the first such pattern out of name+notes so the client
+      // can still render the screen at the correct size. Pixel counts
+      // ("768 x 1152 pixel") and panel counts ("16 x 9 panels") are
+      // intentionally ignored.
+      const lifted = parseMetresFromNotes(`${name} ${notes}`);
+      // Treat zero / negative dimensions from the model as null so that
+      // a stray "0" doesn't suppress our metres fallback or render a
+      // 0-panel-wide screen on the client.
+      const positive = (v: number | null) =>
+        v != null && v > 0 ? v : null;
       return {
-        name: str(o.name) || "Screen",
-        panelsWide: num(o.panelsWide),
-        panelsTall: num(o.panelsTall),
-        notes: str(o.notes),
+        name,
+        panelsWide: positive(num(o.panelsWide)),
+        panelsTall: positive(num(o.panelsTall)),
+        widthM: positive(num(o.widthM)) ?? lifted.widthM,
+        heightM: positive(num(o.heightM)) ?? lifted.heightM,
+        notes,
       };
     }),
     sound: arr(r.sound).map((s) => {

@@ -542,6 +542,9 @@ type PersistedV2 = {
   theme: "light" | "dark";
   venue: string;
   reportDate: string;
+  /** Optional end date for multi-day shows. Empty string = single day
+   *  (the report uses just `reportDate`). ISO date (YYYY-MM-DD). */
+  reportEndDate?: string;
   engineer: string;
   systems: System[];
   activeSystemId: string;
@@ -699,6 +702,9 @@ function App() {
   const [reportDate, setReportDate] = useState(
     persisted?.reportDate ?? new Date().toISOString().slice(0, 10),
   );
+  const [reportEndDate, setReportEndDate] = useState(
+    persisted?.reportEndDate ?? "",
+  );
   const [engineer, setEngineer] = useState(persisted?.engineer ?? "");
   const [systems, setSystems] = useState<System[]>(
     persisted?.systems && persisted.systems.length > 0
@@ -786,6 +792,7 @@ function App() {
       theme,
       venue,
       reportDate,
+      reportEndDate,
       engineer,
       systems,
       activeSystemId,
@@ -816,6 +823,7 @@ function App() {
     theme,
     venue,
     reportDate,
+    reportEndDate,
     engineer,
     systems,
     activeSystemId,
@@ -1089,6 +1097,7 @@ function App() {
     return {
       venue,
       reportDate,
+      reportEndDate,
       engineer,
       // The `recipientCrewId` is overridden per-link by ShareBriefModal.
       recipientCrewId: null,
@@ -1148,6 +1157,7 @@ function App() {
   }, [
     venue,
     reportDate,
+    reportEndDate,
     engineer,
     crew,
     systems,
@@ -1650,7 +1660,12 @@ function App() {
     exportStageReport({
       stage,
       calc,
-      project: { venue, date: reportDate, preparedBy: engineer },
+      project: {
+        venue,
+        date: reportDate,
+        endDate: reportEndDate || undefined,
+        preparedBy: engineer,
+      },
       logoDataUrl,
       targetWin,
     });
@@ -1941,6 +1956,7 @@ function App() {
     const fresh = makeSystem("LX1");
     setVenue("");
     setReportDate(new Date().toISOString().slice(0, 10));
+    setReportEndDate("");
     setEngineer("");
     setSystems([fresh]);
     setActiveSystemId(fresh.id);
@@ -2174,11 +2190,40 @@ function App() {
           </div>
           <div className="meta-field">
             <label>Date</label>
-            <input
-              type="date"
-              value={reportDate}
-              onChange={(e) => setReportDate(e.target.value)}
-            />
+            <div
+              style={{
+                display: "flex",
+                gap: 6,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <input
+                type="date"
+                value={reportDate}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setReportDate(next);
+                  if (reportEndDate && next && reportEndDate < next) {
+                    setReportEndDate(next);
+                  }
+                }}
+                aria-label="From date"
+                style={{ flex: 1, minWidth: 130 }}
+              />
+              <span aria-hidden style={{ opacity: 0.6, padding: "0 2px" }}>
+                →
+              </span>
+              <input
+                type="date"
+                value={reportEndDate}
+                min={reportDate || undefined}
+                onChange={(e) => setReportEndDate(e.target.value)}
+                aria-label="To date (optional)"
+                placeholder="End"
+                style={{ flex: 1, minWidth: 130 }}
+              />
+            </div>
           </div>
           <div className="meta-field">
             <label>Project manager</label>

@@ -347,7 +347,7 @@ export function gigFromBrief(brief: ProjectBrief): Gig {
     venue,
     role: target?.role ?? "",
     startDate: brief.project.date,
-    endDate: brief.project.date,
+    endDate: brief.project.endDate || brief.project.date,
     hours: target ? target.hours : 0,
     rate: target ? target.dayRate : 0,
     flatFee: 0,

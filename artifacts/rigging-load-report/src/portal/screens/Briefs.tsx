@@ -221,7 +221,12 @@ function BriefRow({
             flexWrap: "wrap",
           }}
         >
-          <span>{formatDate(brief.brief.project.date)}</span>
+          <span>
+            {brief.brief.project.endDate &&
+            brief.brief.project.endDate !== brief.brief.project.date
+              ? `${formatDate(brief.brief.project.date)} → ${formatDate(brief.brief.project.endDate)}`
+              : formatDate(brief.brief.project.date)}
+          </span>
           {myAssignment ? (
             <>
               <span aria-hidden>·</span>

@@ -148,8 +148,11 @@ export type ProjectBrief = {
   recipientCrewId: string | null;
   project: {
     venue: string;
-    /** ISO date (YYYY-MM-DD) of the show. */
+    /** ISO date (YYYY-MM-DD) of the show — start date when a range is set. */
     date: string;
+    /** Optional ISO end date (YYYY-MM-DD) for multi-day shows. Omitted /
+     *  empty means single-day. */
+    endDate?: string;
     preparedBy: string;
   };
   assignments: BriefAssignment[];
@@ -221,6 +224,8 @@ export type BriefRiggingInput = {
 export type BuildBriefInput = {
   venue: string;
   reportDate: string;
+  /** Optional ISO end date for multi-day shows. */
+  reportEndDate?: string;
   engineer: string;
   recipientCrewId: string | null;
   crew: CrewMember[];
@@ -428,6 +433,7 @@ export function buildBrief(input: BuildBriefInput): ProjectBrief {
     project: {
       venue: input.venue,
       date: input.reportDate,
+      endDate: input.reportEndDate ? input.reportEndDate : undefined,
       preparedBy: input.engineer,
     },
     assignments,
@@ -668,6 +674,10 @@ export function normalizeBrief(raw: unknown): ProjectBrief | null {
     project: {
       venue: asString(project.venue),
       date: asString(project.date),
+      endDate:
+        typeof project.endDate === "string" && project.endDate
+          ? project.endDate
+          : undefined,
       preparedBy: asString(project.preparedBy),
     },
     assignments: asArray(r.assignments).map(normalizeAssignment),

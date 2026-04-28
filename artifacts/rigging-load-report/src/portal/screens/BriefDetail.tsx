@@ -178,7 +178,10 @@ export function BriefDetail({
           {brief.project.venue || "Untitled show"}
         </h1>
         <div style={{ color: c.muted, fontSize: 14 }}>
-          {formatDate(brief.project.date)}
+          {brief.project.endDate &&
+          brief.project.endDate !== brief.project.date
+            ? `${formatDate(brief.project.date)} → ${formatDate(brief.project.endDate)}`
+            : formatDate(brief.project.date)}
           {brief.project.preparedBy ? (
             <>
               {" · project manager "}

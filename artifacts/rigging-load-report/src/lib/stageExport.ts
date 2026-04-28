@@ -201,6 +201,9 @@ function buildStageSvg(stage: Stage, calc: StageCalc): string {
 export type StageExportProject = {
   venue: string;
   date: string;
+  /** Optional ISO end date (YYYY-MM-DD) for multi-day shows. When set,
+   *  the export header shows the date as a "from → to" range. */
+  endDate?: string;
   preparedBy: string;
 };
 
@@ -400,7 +403,11 @@ export function exportStageReport(input: {
   </div>
   <div class="meta-item">
     <div class="label">Date</div>
-    <div class="value">${escapeHtml(project.date || "—")}</div>
+    <div class="value">${
+      project.endDate && project.endDate !== project.date
+        ? `${escapeHtml(project.date || "—")} → ${escapeHtml(project.endDate)}`
+        : escapeHtml(project.date || "—")
+    }</div>
   </div>
   <div class="meta-item">
     <div class="label">Project manager</div>

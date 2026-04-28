@@ -409,6 +409,23 @@ const hoistModels: Hoist[] = [
   { label: "EXE Rise D8+ 1000kg (69.6kg | 1.1kW)", weight: 69.6, watt: 1100, swl: 1000 },
 ];
 
+/** Sentinel returned by `getHoist` when a system has no motor selected
+ *  (`hoistIndex < 0`). All-zero weights/wattage/SWL means the motor
+ *  contribution drops out of every calculation cleanly. UI code must
+ *  treat `swl === 0` as "no SWL constraint" and skip overload checks
+ *  rather than reporting a divide-by-zero or false-positive overload. */
+const NO_HOIST: Hoist = { label: "None", weight: 0, watt: 0, swl: 0 };
+
+/** Resolve a system's `hoistIndex` to a concrete `Hoist`. Returns the
+ *  `NO_HOIST` sentinel when the user picked "None" in the Motor Type
+ *  dropdown (`idx < 0`); otherwise returns the indexed model, falling
+ *  back to the first hoist if the index is out of range so legacy /
+ *  corrupt persisted data still renders something usable. */
+function getHoist(idx: number): Hoist {
+  if (idx < 0) return NO_HOIST;
+  return hoistModels[idx] ?? hoistModels[0];
+}
+
 type Row = {
   id: string;
   category: Category | "Custom";
@@ -454,6 +471,23 @@ function makeSystem(name: string): System {
     dynamicFactor: 1.25,
     hoistIndex: 0,
     riggingRows: [makeRow("Truss", 4)],
+    fixtureRows: [],
+    ledRows: [],
+  };
+}
+
+/** Create a system with no rows and no motor selected — used by the
+ *  top-level Reset button so the user lands on a truly empty Rigging
+ *  Report and isn't surprised to see a default truss row or a motor
+ *  pre-picked. */
+function makeEmptySystem(name: string): System {
+  return {
+    id: newId("sys"),
+    name,
+    pointCount: 3,
+    dynamicFactor: 1.25,
+    hoistIndex: -1,
+    riggingRows: [],
     fixtureRows: [],
     ledRows: [],
   };
@@ -814,7 +848,7 @@ function computeMetrics(sys: System): SystemMetrics {
     power += item.wattage * row.qty;
     area += item.area * row.qty;
   }
-  const hoist = hoistModels[sys.hoistIndex] ?? hoistModels[0];
+  const hoist = getHoist(sys.hoistIndex);
   const motorPower = hoist.watt * sys.pointCount;
   const staticTotal = payload + sys.pointCount * hoist.weight;
   const dynamicTotal = staticTotal * sys.dynamicFactor;
@@ -1422,7 +1456,7 @@ function App() {
       crew,
       rigging: {
         systems: systems.map((s) => {
-          const hoist = hoistModels[s.hoistIndex] ?? hoistModels[0];
+          const hoist = getHoist(s.hoistIndex);
           return {
             id: s.id,
             name: s.name,
@@ -2484,7 +2518,7 @@ function App() {
     );
 
     for (const sys of systems) {
-      const hoist = hoistModels[sys.hoistIndex] ?? hoistModels[0];
+      const hoist = getHoist(sys.hoistIndex);
       const lines: { row: Row; section: string }[] = [
         ...sys.riggingRows.map((r) => ({ row: r, section: "Motors & Support" })),
         ...sys.fixtureRows.map((r) => ({ row: r, section: "Lighting Fixtures" })),
@@ -2564,11 +2598,21 @@ function App() {
         .join(","),
     );
     for (const { system, metrics } of allMetrics) {
-      const over = metrics.peak > metrics.swl;
+      // No hoist selected → no SWL constraint, so neither "OVERLOAD"
+      // nor the 85 %-headroom warning applies.
+      const hasHoist = metrics.swl > 0;
+      const over = hasHoist && metrics.peak > metrics.swl;
+      const status = !hasHoist
+        ? "No motor"
+        : over
+          ? "OVERLOAD"
+          : metrics.peak / metrics.swl > 0.85
+            ? "Caution"
+            : "OK";
       rows.push(
         [
           system.name,
-          hoistModels[system.hoistIndex]?.label ?? "",
+          getHoist(system.hoistIndex).label,
           system.pointCount,
           system.dynamicFactor,
           metrics.static.toFixed(2),
@@ -2576,7 +2620,7 @@ function App() {
           metrics.peak.toFixed(2),
           metrics.swl,
           metrics.headroom.toFixed(2),
-          over ? "OVERLOAD" : metrics.peak / metrics.swl > 0.85 ? "Caution" : "OK",
+          status,
         ]
           .map(esc)
           .join(","),
@@ -2590,11 +2634,19 @@ function App() {
         .join(","),
     );
     for (const { system, metrics } of allMetrics) {
+      const hasHoist = metrics.swl > 0;
       metrics.factors.forEach((f, i) => {
         const dLoad = metrics.dynamicPointLoads[i];
         const sLoad = metrics.staticPointLoads[i];
-        const util = metrics.swl > 0 ? (dLoad / metrics.swl) * 100 : 0;
-        const over = dLoad > metrics.swl;
+        const util = hasHoist ? (dLoad / metrics.swl) * 100 : 0;
+        const over = hasHoist && dLoad > metrics.swl;
+        const status = !hasHoist
+          ? "No motor"
+          : over
+            ? "OVERLOAD"
+            : util > 85
+              ? "Caution"
+              : "OK";
         rows.push(
           [
             system.name,
@@ -2603,7 +2655,7 @@ function App() {
             sLoad.toFixed(2),
             dLoad.toFixed(2),
             util.toFixed(1),
-            over ? "OVERLOAD" : util > 85 ? "Caution" : "OK",
+            status,
           ]
             .map(esc)
             .join(","),
@@ -2630,11 +2682,14 @@ function App() {
   const resetAll = () => {
     if (
       !confirm(
-        "Reset the entire report? All systems, gear, project info, and lighting fixtures will be cleared.",
+        "Reset the entire report? Every tab — systems, lighting fixtures, LED screens, stages, crew, sound, power plan, rigg plan, and the project info — will be cleared.",
       )
     )
       return;
-    const fresh = makeSystem("LX1");
+    // Truly empty starting system: no truss row, no motor — so the
+    // Rigging Report comes up blank instead of carrying over the
+    // pre-seeded "4× FD34" row + first hoist.
+    const fresh = makeEmptySystem("LX1");
     setVenue("");
     setReportDate(new Date().toISOString().slice(0, 10));
     setReportEndDate("");
@@ -2654,6 +2709,16 @@ function App() {
     setRiggPlan({ ...DEFAULT_RIGG_PLAN, trussById: {} });
     setFloorPlan(null);
     setMainView("rigging");
+    // Also wipe any in-flight modal/picker/form state so a Reset
+    // mid-session doesn't leave a half-filled "Add custom item"
+    // dialog or library picker open over the now-empty report.
+    setPickerTarget(null);
+    setModalTarget(null);
+    setCustName("");
+    setCustWeight("");
+    setCustWatt("");
+    setCustArea("");
+    setShareOpen(false);
   };
 
   const metricsByActive = useMemo(() => computeMetrics(activeSystem), [activeSystem]);
@@ -2694,9 +2759,12 @@ function App() {
       totalMotorPower += metrics.motorPower;
       totalPoints += metrics.factors.length;
       totalArea += metrics.area;
-      overloadedPoints += metrics.dynamicPointLoads.filter(
-        (d) => d > metrics.swl,
-      ).length;
+      // A "no motor" system has no SWL, so by definition no overload.
+      if (metrics.swl > 0) {
+        overloadedPoints += metrics.dynamicPointLoads.filter(
+          (d) => d > metrics.swl,
+        ).length;
+      }
     }
     return {
       totalStatic,
@@ -2779,7 +2847,7 @@ function App() {
     }, 0);
 
   const peakColor =
-    metricsByActive.peak > metricsByActive.swl
+    metricsByActive.swl > 0 && metricsByActive.peak > metricsByActive.swl
       ? "var(--danger)"
       : "var(--secondary)";
   const peakUtil =
@@ -3016,7 +3084,9 @@ function App() {
       {systems.length > 1 && (
         <div className="system-mini-grid">
           {allMetrics.map(({ system, metrics }) => {
-            const over = metrics.peak > metrics.swl;
+            const hasHoist = metrics.swl > 0;
+            const over = hasHoist && metrics.peak > metrics.swl;
+            const util = hasHoist ? metrics.peak / metrics.swl : 0;
             const isActive = system.id === activeSystem.id;
             return (
               <button
@@ -3035,7 +3105,7 @@ function App() {
                     <small>pts</small>
                   </span>
                   <span>
-                    <strong>{metrics.swl}</strong>
+                    <strong>{hasHoist ? metrics.swl : "—"}</strong>
                     <small>SWL</small>
                   </span>
                 </div>
@@ -3043,10 +3113,10 @@ function App() {
                   <div
                     className="mini-bar-fill"
                     style={{
-                      width: `${Math.min(100, (metrics.peak / metrics.swl) * 100)}%`,
+                      width: `${Math.min(100, util * 100)}%`,
                       background: over
                         ? "var(--danger)"
-                        : metrics.peak / metrics.swl > 0.85
+                        : util > 0.85
                           ? "var(--warning)"
                           : "var(--primary)",
                     }}
@@ -3064,7 +3134,7 @@ function App() {
         <div className="tabs-list">
           {systems.map((s) => {
             const m = computeMetrics(s);
-            const over = m.peak > m.swl;
+            const over = m.swl > 0 && m.peak > m.swl;
             const isActive = s.id === activeSystem.id;
             return (
               <div
@@ -3133,14 +3203,16 @@ function App() {
           <strong
             style={{
               color:
-                metricsByActive.headroom < 0
+                metricsByActive.swl > 0 && metricsByActive.headroom < 0
                   ? "var(--danger)"
                   : "var(--text-main)",
             }}
           >
-            {metricsByActive.headroom >= 0
-              ? metricsByActive.headroom.toFixed(0)
-              : `−${Math.abs(metricsByActive.headroom).toFixed(0)}`}
+            {metricsByActive.swl <= 0
+              ? "—"
+              : metricsByActive.headroom >= 0
+                ? metricsByActive.headroom.toFixed(0)
+                : `−${Math.abs(metricsByActive.headroom).toFixed(0)}`}
           </strong>
           <small>kg</small>
         </div>
@@ -3187,7 +3259,9 @@ function App() {
         <div className="util-bar-legend">
           <span>0 kg</span>
           <span>Caution 85%</span>
-          <span>SWL {metricsByActive.swl} kg</span>
+          <span>
+            SWL {metricsByActive.swl > 0 ? `${metricsByActive.swl} kg` : "—"}
+          </span>
         </div>
       </div>
 
@@ -3198,7 +3272,7 @@ function App() {
             <span className="card-total">
               {(
                 activeSystem.pointCount *
-                (hoistModels[activeSystem.hoistIndex] ?? hoistModels[0]).weight
+                getHoist(activeSystem.hoistIndex).weight
               ).toFixed(1)}{" "}
               kg
             </span>
@@ -3244,6 +3318,11 @@ function App() {
                 updateActiveSystem({ hoistIndex: Number(e.target.value) })
               }
             >
+              {/* "None" lets the producer mark a system as dead-hung /
+                  pre-rigged from venue infrastructure — the motor row
+                  contributes 0 kg / 0 W and the per-point SWL warning
+                  stops firing for this system. */}
+              <option value={-1}>None</option>
               {hoistModels.map((h, i) => (
                 <option key={i} value={i}>
                   {h.label}
@@ -3363,7 +3442,8 @@ function App() {
                 const pct = Math.round(f * 100);
                 const util =
                   metricsByActive.swl > 0 ? dLoad / metricsByActive.swl : 0;
-                const isDanger = dLoad > metricsByActive.swl;
+                const isDanger =
+                  metricsByActive.swl > 0 && dLoad > metricsByActive.swl;
                 const isWarning = !isDanger && util > 0.85;
                 return (
                   <div
@@ -3428,8 +3508,11 @@ function App() {
                     Math.max(metricsByActive.peak, metricsByActive.swl) || 1;
                   const sH = (sLoad / denom) * 240;
                   const dH = (dLoad / denom) * 240;
+                  // Without an SWL constraint (no motor), the dynamic
+                  // bar should use the neutral colour — otherwise any
+                  // positive load would falsely paint red.
                   const barColor =
-                    dLoad > metricsByActive.swl
+                    metricsByActive.swl > 0 && dLoad > metricsByActive.swl
                       ? "var(--danger)"
                       : "var(--secondary)";
                   return (
@@ -3452,15 +3535,21 @@ function App() {
                     </div>
                   );
                 })}
-                <div
-                  className="swl-line"
-                  style={{
-                    bottom: `${(metricsByActive.swl / (Math.max(metricsByActive.peak, metricsByActive.swl) || 1)) * 240}px`,
-                  }}
-                  title={`SWL ${metricsByActive.swl}kg`}
-                >
-                  <span>SWL {metricsByActive.swl}kg</span>
-                </div>
+                {/* SWL guideline — only meaningful when a motor is
+                    selected; for no-motor systems we hide it instead
+                    of drawing a misleading "SWL 0kg" line at the
+                    chart floor. */}
+                {metricsByActive.swl > 0 && (
+                  <div
+                    className="swl-line"
+                    style={{
+                      bottom: `${(metricsByActive.swl / (Math.max(metricsByActive.peak, metricsByActive.swl) || 1)) * 240}px`,
+                    }}
+                    title={`SWL ${metricsByActive.swl}kg`}
+                  >
+                    <span>SWL {metricsByActive.swl}kg</span>
+                  </div>
+                )}
               </div>
               <div className="vis-container">
                 {metricsByActive.factors.map((f, i) => (
@@ -3479,8 +3568,7 @@ function App() {
             {allMetrics.map(({ system, metrics }) => (
               <div className="print-system-page" key={system.id}>
                 <h3 className="print-system-title">
-                  {system.name} —{" "}
-                  {hoistModels[system.hoistIndex]?.label ?? "Hoist"}
+                  {system.name} — {getHoist(system.hoistIndex).label}
                 </h3>
                 <div className="print-system-stats">
                   <span>
@@ -3495,7 +3583,7 @@ function App() {
                     <strong
                       style={{
                         color:
-                          metrics.peak > metrics.swl
+                          metrics.swl > 0 && metrics.peak > metrics.swl
                             ? "var(--danger)"
                             : "inherit",
                       }}
@@ -3504,17 +3592,24 @@ function App() {
                     </strong>
                   </span>
                   <span>
-                    SWL: <strong>{metrics.swl} kg</strong>
+                    SWL:{" "}
+                    <strong>
+                      {metrics.swl > 0 ? `${metrics.swl} kg` : "—"}
+                    </strong>
                   </span>
                   <span>
                     Headroom:{" "}
                     <strong
                       style={{
                         color:
-                          metrics.headroom < 0 ? "var(--danger)" : "inherit",
+                          metrics.swl > 0 && metrics.headroom < 0
+                            ? "var(--danger)"
+                            : "inherit",
                       }}
                     >
-                      {metrics.headroom.toFixed(0)} kg
+                      {metrics.swl > 0
+                        ? `${metrics.headroom.toFixed(0)} kg`
+                        : "—"}
                     </strong>
                   </span>
                 </div>
@@ -3533,16 +3628,24 @@ function App() {
                     {metrics.factors.map((f, i) => {
                       const dLoad = metrics.dynamicPointLoads[i];
                       const sLoad = metrics.staticPointLoads[i];
-                      const util = dLoad / metrics.swl;
-                      const over = dLoad > metrics.swl;
+                      const hasHoist = metrics.swl > 0;
+                      const util = hasHoist ? dLoad / metrics.swl : 0;
+                      const over = hasHoist && dLoad > metrics.swl;
+                      const status = !hasHoist
+                        ? "—"
+                        : over
+                          ? "OVERLOAD"
+                          : util > 0.85
+                            ? "Caution"
+                            : "OK";
                       return (
                         <tr key={i} className={over ? "print-over-row" : ""}>
                           <td>P{i + 1}</td>
                           <td>{Math.round(f * 100)}%</td>
                           <td>{sLoad.toFixed(1)}</td>
                           <td>{dLoad.toFixed(1)}</td>
-                          <td>{(util * 100).toFixed(0)}%</td>
-                          <td>{over ? "OVERLOAD" : util > 0.85 ? "Caution" : "OK"}</td>
+                          <td>{hasHoist ? `${(util * 100).toFixed(0)}%` : "—"}</td>
+                          <td>{status}</td>
                         </tr>
                       );
                     })}
@@ -3593,7 +3696,11 @@ function App() {
                       <td>{metrics.power.toLocaleString()} W</td>
                     </tr>
                     <tr className="print-table-grand">
-                      <td colSpan={4}>Static (incl. {system.pointCount} hoists)</td>
+                      <td colSpan={4}>
+                        {system.hoistIndex < 0
+                          ? "Static (no motor)"
+                          : `Static (incl. ${system.pointCount} hoists)`}
+                      </td>
                       <td>{metrics.static.toFixed(2)} kg</td>
                       <td>{metrics.motorPower.toLocaleString()} W</td>
                     </tr>
@@ -3619,17 +3726,23 @@ function App() {
                 </thead>
                 <tbody>
                   {allMetrics.map(({ system, metrics }) => {
-                    const over = metrics.peak > metrics.swl;
+                    const hasHoist = metrics.swl > 0;
+                    const over = hasHoist && metrics.peak > metrics.swl;
+                    const status = !hasHoist
+                      ? "No motor"
+                      : over
+                        ? "OVERLOAD"
+                        : "OK";
                     return (
                       <tr key={system.id} className={over ? "print-over-row" : ""}>
                         <td>{system.name}</td>
-                        <td>{hoistModels[system.hoistIndex]?.label ?? "—"}</td>
+                        <td>{getHoist(system.hoistIndex).label}</td>
                         <td>{system.pointCount}</td>
                         <td>{metrics.static.toFixed(1)}</td>
                         <td>{metrics.dynamic.toFixed(1)}</td>
                         <td>{metrics.peak.toFixed(1)}</td>
-                        <td>{metrics.swl}</td>
-                        <td>{over ? "OVERLOAD" : "OK"}</td>
+                        <td>{hasHoist ? metrics.swl : "—"}</td>
+                        <td>{status}</td>
                       </tr>
                     );
                   })}

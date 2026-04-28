@@ -711,7 +711,12 @@ function StageSvg({
   onRemoveCustomRail?: (id: string) => void;
 }) {
   const PAD = 12;
-  const MAX = 480;
+  // Internal maximum render size (in SVG pixels) for the stage
+  // drawing. The actual on-screen width is capped by the column
+  // width via CSS (.stage-preview svg uses width:100%), so a higher
+  // value here lets large stages render closer to their natural
+  // proportions before the SVG gets letterboxed.
+  const MAX = 760;
 
   // Canvas size (clickable area):
   //  - auto mode: stage.width × stage.depth (the entered size)

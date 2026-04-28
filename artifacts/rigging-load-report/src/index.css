@@ -2788,8 +2788,11 @@ input:focus {
 }
 .stage-summary-row {
   display: grid;
-  grid-template-columns: minmax(280px, 1.1fr) minmax(280px, 1fr);
+  /* Give the visual (left) side ~2× the share of the breakdown so
+     larger stages have room to draw. Right column stays narrow. */
+  grid-template-columns: minmax(320px, 2.2fr) minmax(220px, 1fr);
   gap: 1.25rem;
+  align-items: start;
 }
 @media (max-width: 880px) {
   .stage-summary-row {
@@ -2800,6 +2803,14 @@ input:focus {
   background: var(--bg-soft, #f1f5f9);
   border-radius: 10px;
   padding: 0.75rem;
+}
+.stage-preview svg {
+  /* Let the drawing fill the (now wider) left column instead of
+     being capped at the old MAX in pixels. The SVG keeps its
+     intrinsic aspect ratio so larger stages still scale correctly. */
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto;
 }
 .stage-preview-legend {
   display: flex;
@@ -2820,19 +2831,24 @@ input:focus {
   height: 12px;
   border-radius: 2px;
 }
+.stage-breakdown {
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
 .stage-breakdown h4 {
-  margin: 0.25rem 0 0.4rem;
-  font-size: 0.95rem;
+  margin: 0.25rem 0 0.3rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
 }
 .stage-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9rem;
-  margin-bottom: 0.75rem;
+  font-size: 0.78rem;
+  margin-bottom: 0.55rem;
 }
 .stage-table th,
 .stage-table td {
-  padding: 0.35rem 0.5rem;
+  padding: 0.22rem 0.4rem;
   border-bottom: 1px solid var(--border, #e2e8f0);
   text-align: left;
 }
@@ -2844,20 +2860,26 @@ input:focus {
   font-weight: 600;
   background: var(--bg-soft, #f8fafc);
 }
+.stage-capacity-note {
+  font-size: 0.72rem;
+  color: var(--muted, #64748b);
+  line-height: 1.3;
+  margin-bottom: 0.55rem;
+}
 .stage-grand-total {
   margin-top: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.4rem 0.6rem;
   border-radius: 6px;
   background: var(--accent-soft, rgba(37, 99, 235, 0.08));
-  font-size: 0.95rem;
+  font-size: 0.82rem;
 }
 .stage-warning {
-  padding: 0.5rem 0.75rem;
+  padding: 0.4rem 0.6rem;
   border-radius: 6px;
   background: rgba(220, 38, 38, 0.1);
   color: #b91c1c;
-  font-size: 0.85rem;
-  margin-bottom: 0.75rem;
+  font-size: 0.78rem;
+  margin-bottom: 0.55rem;
 }
 [data-theme="dark"] .stage-card {
   background: #1e293b;

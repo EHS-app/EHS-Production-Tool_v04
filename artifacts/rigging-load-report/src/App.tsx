@@ -43,6 +43,17 @@ import {
 } from "./lib/sound";
 import { SoundReportView } from "./components/SoundReportView";
 import {
+  defaultPowerPlan,
+  makePowerCircuit,
+  makePowerItem,
+  normalizePowerPlan,
+  type PowerCircuit,
+  type PowerItem,
+  type PowerPhase,
+  type PowerPlan,
+} from "./lib/power";
+import { PowerPlanView } from "./components/PowerPlanView";
+import {
   clampTrussToVenue,
   DEFAULT_RIGG_PLAN,
   normalizeRiggPlan,
@@ -545,6 +556,8 @@ type PersistedV2 = {
   crew?: CrewMember[];
   /** Sound Report — audio inventory items. */
   soundItems?: SoundItem[];
+  /** Lighting Report → Power Plan — circuits and per-phase items. */
+  power?: PowerPlan;
   /** Rigg Plan — venue + per-system truss positions. */
   riggPlan?: RiggPlan;
 };
@@ -724,6 +737,9 @@ function App() {
   const [soundItems, setSoundItems] = useState<SoundItem[]>(
     () => (persisted?.soundItems ?? []).map(normalizeSoundItem),
   );
+  const [power, setPower] = useState<PowerPlan>(
+    () => normalizePowerPlan(persisted?.power),
+  );
   const [stages, setStages] = useState<Stage[]>(
     () => (persisted?.stages ?? []).map(normalizeStage),
   );
@@ -760,6 +776,7 @@ function App() {
       stages,
       crew,
       soundItems,
+      power,
       riggPlan,
     };
     try {
@@ -789,6 +806,7 @@ function App() {
     stages,
     crew,
     soundItems,
+    power,
     riggPlan,
   ]);
 
@@ -1279,6 +1297,90 @@ function App() {
     });
   };
 
+  // ---- Lighting → Power Plan ----
+  const addPowerCircuit = () => {
+    setPower((p) => ({
+      ...p,
+      circuits: [...p.circuits, makePowerCircuit(p.circuits.length + 1)],
+    }));
+  };
+  const updatePowerCircuit = (
+    id: string,
+    patch: Partial<Omit<PowerCircuit, "items">>,
+  ) => {
+    setPower((p) => ({
+      ...p,
+      circuits: p.circuits.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+    }));
+  };
+  const removePowerCircuit = (id: string) => {
+    setPower((p) => ({
+      ...p,
+      circuits: p.circuits.filter((c) => c.id !== id),
+    }));
+  };
+  const addPowerItem = (circuitId: string, phase: PowerPhase = "L1") => {
+    setPower((p) => ({
+      ...p,
+      circuits: p.circuits.map((c) =>
+        c.id === circuitId
+          ? { ...c, items: [...c.items, makePowerItem(phase)] }
+          : c,
+      ),
+    }));
+  };
+  const updatePowerItem = (
+    circuitId: string,
+    itemId: string,
+    patch: Partial<PowerItem>,
+  ) => {
+    setPower((p) => ({
+      ...p,
+      circuits: p.circuits.map((c) =>
+        c.id === circuitId
+          ? {
+              ...c,
+              items: c.items.map((it) =>
+                it.id === itemId ? { ...it, ...patch } : it,
+              ),
+            }
+          : c,
+      ),
+    }));
+  };
+  const removePowerItem = (circuitId: string, itemId: string) => {
+    setPower((p) => ({
+      ...p,
+      circuits: p.circuits.map((c) =>
+        c.id === circuitId
+          ? { ...c, items: c.items.filter((it) => it.id !== itemId) }
+          : c,
+      ),
+    }));
+  };
+  const duplicatePowerItem = (circuitId: string, itemId: string) => {
+    setPower((p) => ({
+      ...p,
+      circuits: p.circuits.map((c) => {
+        if (c.id !== circuitId) return c;
+        const i = c.items.findIndex((it) => it.id === itemId);
+        if (i < 0) return c;
+        const src = c.items[i];
+        const copy: PowerItem = {
+          ...src,
+          id:
+            typeof crypto !== "undefined" && "randomUUID" in crypto
+              ? `pwi-${crypto.randomUUID()}`
+              : `pwi-${Date.now()}`,
+          name: src.name ? `${src.name} (copy)` : "",
+        };
+        const next = [...c.items];
+        next.splice(i + 1, 0, copy);
+        return { ...c, items: next };
+      }),
+    }));
+  };
+
   // ---- Stage Report ----
   const addStage = () => {
     setStages((all) => [
@@ -1645,6 +1747,7 @@ function App() {
     setStages([]);
     setCrew([]);
     setSoundItems([]);
+    setPower(defaultPowerPlan());
     setRiggPlan({ ...DEFAULT_RIGG_PLAN, trussById: {} });
     setMainView("rigging");
   };
@@ -2680,6 +2783,14 @@ function App() {
           onRemove={removeShowFixture}
           onDuplicate={duplicateShowFixture}
           onJumpToRigging={() => setMainView("rigging")}
+          power={power}
+          onAddPowerCircuit={addPowerCircuit}
+          onUpdatePowerCircuit={updatePowerCircuit}
+          onRemovePowerCircuit={removePowerCircuit}
+          onAddPowerItem={addPowerItem}
+          onUpdatePowerItem={updatePowerItem}
+          onRemovePowerItem={removePowerItem}
+          onDuplicatePowerItem={duplicatePowerItem}
         />
       )}
 
@@ -2744,6 +2855,21 @@ type LightingPlanViewProps = {
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
   onJumpToRigging: () => void;
+  power: PowerPlan;
+  onAddPowerCircuit: () => void;
+  onUpdatePowerCircuit: (
+    id: string,
+    patch: Partial<Omit<PowerCircuit, "items">>,
+  ) => void;
+  onRemovePowerCircuit: (id: string) => void;
+  onAddPowerItem: (circuitId: string, phase?: PowerPhase) => void;
+  onUpdatePowerItem: (
+    circuitId: string,
+    itemId: string,
+    patch: Partial<PowerItem>,
+  ) => void;
+  onRemovePowerItem: (circuitId: string, itemId: string) => void;
+  onDuplicatePowerItem: (circuitId: string, itemId: string) => void;
 };
 
 function LightingPlanView({
@@ -2757,6 +2883,14 @@ function LightingPlanView({
   onRemove,
   onDuplicate,
   onJumpToRigging,
+  power,
+  onAddPowerCircuit,
+  onUpdatePowerCircuit,
+  onRemovePowerCircuit,
+  onAddPowerItem,
+  onUpdatePowerItem,
+  onRemovePowerItem,
+  onDuplicatePowerItem,
 }: LightingPlanViewProps) {
   const systemNameById = new Map(systems.map((s) => [s.id, s.name]));
   return (
@@ -2793,6 +2927,17 @@ function LightingPlanView({
           <small>entries</small>
         </div>
       </div>
+
+      <PowerPlanView
+        plan={power}
+        onAddCircuit={onAddPowerCircuit}
+        onUpdateCircuit={onUpdatePowerCircuit}
+        onRemoveCircuit={onRemovePowerCircuit}
+        onAddItem={onAddPowerItem}
+        onUpdateItem={onUpdatePowerItem}
+        onRemoveItem={onRemovePowerItem}
+        onDuplicateItem={onDuplicatePowerItem}
+      />
 
       <div className="card">
         <h2>

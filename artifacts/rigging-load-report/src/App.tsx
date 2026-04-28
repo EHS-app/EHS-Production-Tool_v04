@@ -1267,18 +1267,28 @@ function App() {
   };
 
   const removeSystem = (id: string) => {
-    if (systems.length <= 1) {
-      alert("You need at least one rigging system in the report.");
-      return;
-    }
     const target = systems.find((s) => s.id === id);
     if (!target) return;
-    if (
-      !confirm(
-        `Remove rigging system "${target.name}"? Its gear list will be lost.`,
-      )
-    )
+    // When this is the last system left, deleting used to be blocked
+    // outright. That made it impossible to wipe a set of imported
+    // LX1/LX2/... systems and start fresh — the last row was always
+    // stuck. Now we still need ≥ 1 system in the report (the rest of
+    // the UI assumes activeSystem exists), but we satisfy that by
+    // auto-creating one empty "System 1" to replace it. End result:
+    // user can click × down the whole list and land on a true clean
+    // slate without touching the venue, inventory, or floor plans.
+    const isLast = systems.length <= 1;
+    const promptMsg = isLast
+      ? `Remove rigging system "${target.name}" and start fresh? Its gear list will be lost and a new empty "System 1" will replace it.`
+      : `Remove rigging system "${target.name}"? Its gear list will be lost.`;
+    if (!confirm(promptMsg)) return;
+
+    if (isLast) {
+      const fresh = makeEmptySystem("System 1");
+      setSystems([fresh]);
+      setActiveSystemId(fresh.id);
       return;
+    }
     const remaining = systems.filter((s) => s.id !== id);
     setSystems(remaining);
     if (activeSystemId === id) setActiveSystemId(remaining[0].id);
@@ -3355,18 +3365,21 @@ function App() {
               >
                 <span className="tab-name">{s.name || "Unnamed"}</span>
                 {over && <span className="tab-over">⚠</span>}
-                {systems.length > 1 && (
-                  <span
-                    className="tab-close"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeSystem(s.id);
-                    }}
-                    aria-label="Remove system"
-                  >
-                    ×
-                  </span>
-                )}
+                <span
+                  className="tab-close"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeSystem(s.id);
+                  }}
+                  aria-label="Remove system"
+                  title={
+                    systems.length > 1
+                      ? "Remove this system"
+                      : "Clear this system and start fresh"
+                  }
+                >
+                  ×
+                </span>
               </div>
             );
           })}

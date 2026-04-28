@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useClerk, useUser } from "@clerk/react";
+import { Link } from "wouter";
 import "./index.css";
 import ehsLogo from "./assets/ehs-logo.png";
 import {
@@ -2043,6 +2044,20 @@ function App() {
           >
             Export Report
           </button>
+          <Link
+            href="/portal"
+            title="Go to your Freelance Portal"
+            className="btn btn-reset"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              textDecoration: "none",
+            }}
+          >
+            <span aria-hidden>◉</span>
+            <span>Portal</span>
+          </Link>
           <SignOutButton />
         </div>
       </div>

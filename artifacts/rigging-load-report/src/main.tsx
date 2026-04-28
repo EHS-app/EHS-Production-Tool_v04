@@ -9,7 +9,9 @@ import {
   useAuth,
 } from "@clerk/react";
 import { dark } from "@clerk/themes";
+import { Route, Router, Switch } from "wouter";
 import App from "./App";
+import { Portal } from "./portal/Portal";
 import "./index.css";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as
@@ -431,7 +433,19 @@ function AuthGate({
     <>
       <Show when="signed-in">
         <ClearAuthMode />
-        <App />
+        <Router base={basePath}>
+          <Switch>
+            <Route path="/portal">
+              <Portal theme={theme} onToggleTheme={onToggleTheme} />
+            </Route>
+            <Route path="/portal/:rest*">
+              <Portal theme={theme} onToggleTheme={onToggleTheme} />
+            </Route>
+            <Route>
+              <App />
+            </Route>
+          </Switch>
+        </Router>
       </Show>
       <Show when="signed-out">
         {devStatus === "pending" ? (

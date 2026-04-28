@@ -37,6 +37,12 @@ import {
 } from "./lib/crew";
 import { CrewReportView } from "./components/CrewReportView";
 import {
+  makeSoundItem,
+  normalizeSoundItem,
+  type SoundItem,
+} from "./lib/sound";
+import { SoundReportView } from "./components/SoundReportView";
+import {
   clampTrussToVenue,
   DEFAULT_RIGG_PLAN,
   normalizeRiggPlan,
@@ -439,6 +445,7 @@ type MainView =
   | "led"
   | "stage"
   | "crew"
+  | "sound"
   | "riggPlan";
 
 type ShowFixture = {
@@ -536,6 +543,8 @@ type PersistedV2 = {
   stages?: Stage[];
   /** Crew Report — call-sheet of crew members. */
   crew?: CrewMember[];
+  /** Sound Report — audio inventory items. */
+  soundItems?: SoundItem[];
   /** Rigg Plan — venue + per-system truss positions. */
   riggPlan?: RiggPlan;
 };
@@ -712,6 +721,9 @@ function App() {
   const [crew, setCrew] = useState<CrewMember[]>(
     () => (persisted?.crew ?? []).map(normalizeCrewMember),
   );
+  const [soundItems, setSoundItems] = useState<SoundItem[]>(
+    () => (persisted?.soundItems ?? []).map(normalizeSoundItem),
+  );
   const [stages, setStages] = useState<Stage[]>(
     () => (persisted?.stages ?? []).map(normalizeStage),
   );
@@ -747,6 +759,7 @@ function App() {
       ledSettings,
       stages,
       crew,
+      soundItems,
       riggPlan,
     };
     try {
@@ -775,6 +788,7 @@ function App() {
     ledSettings,
     stages,
     crew,
+    soundItems,
     riggPlan,
   ]);
 
@@ -1234,6 +1248,37 @@ function App() {
     });
   };
 
+  // ---- Sound Report ----
+  const addSoundItem = () => {
+    setSoundItems((all) => [...all, makeSoundItem()]);
+  };
+  const updateSoundItem = (id: string, patch: Partial<SoundItem>) => {
+    setSoundItems((all) =>
+      all.map((it) => (it.id === id ? { ...it, ...patch } : it)),
+    );
+  };
+  const removeSoundItem = (id: string) => {
+    setSoundItems((all) => all.filter((it) => it.id !== id));
+  };
+  const duplicateSoundItem = (id: string) => {
+    setSoundItems((all) => {
+      const i = all.findIndex((it) => it.id === id);
+      if (i < 0) return all;
+      const src = all[i];
+      const copy: SoundItem = {
+        ...src,
+        id:
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? `snd-${crypto.randomUUID()}`
+            : `snd-${Date.now()}`,
+        name: src.name ? `${src.name} (copy)` : "",
+      };
+      const next = [...all];
+      next.splice(i + 1, 0, copy);
+      return next;
+    });
+  };
+
   // ---- Stage Report ----
   const addStage = () => {
     setStages((all) => [
@@ -1599,6 +1644,7 @@ function App() {
     setLedSettings(DEFAULT_LED_SETTINGS);
     setStages([]);
     setCrew([]);
+    setSoundItems([]);
     setRiggPlan({ ...DEFAULT_RIGG_PLAN, trussById: {} });
     setMainView("rigging");
   };
@@ -1858,6 +1904,15 @@ function App() {
           Crew Report
           {crew.length > 0 && (
             <span className="view-tab-badge">{crew.length}</span>
+          )}
+        </button>
+        <button
+          className={`view-tab ${mainView === "sound" ? "is-active" : ""}`}
+          onClick={() => setMainView("sound")}
+        >
+          Sound Report
+          {soundItems.length > 0 && (
+            <span className="view-tab-badge">{soundItems.length}</span>
           )}
         </button>
         <button
@@ -2571,6 +2626,16 @@ function App() {
           onUpdate={updateCrew}
           onRemove={removeCrew}
           onDuplicate={duplicateCrew}
+        />
+      )}
+
+      {mainView === "sound" && (
+        <SoundReportView
+          items={soundItems}
+          onAdd={addSoundItem}
+          onUpdate={updateSoundItem}
+          onRemove={removeSoundItem}
+          onDuplicate={duplicateSoundItem}
         />
       )}
 

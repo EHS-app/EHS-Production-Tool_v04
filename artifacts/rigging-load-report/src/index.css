@@ -98,9 +98,68 @@ body {
 }
 .header-actions {
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.header-account {
+  display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.header-doc-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+/* Theme segmented control (Light / Dark / System) */
+.theme-seg {
+  display: inline-flex;
+  align-items: stretch;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+.theme-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1;
+}
+.theme-seg-btn:hover {
+  color: #ffffff;
+}
+.theme-seg-btn.is-selected {
+  background: var(--primary);
+  color: #ffffff;
+}
+.theme-seg-btn.is-selected:hover {
+  color: #ffffff;
+}
+@media (max-width: 700px) {
+  .theme-seg-label {
+    display: none;
+  }
+  .theme-seg-btn {
+    padding: 6px 9px;
+  }
 }
 .autosave-pill {
   font-size: 11px;
@@ -941,13 +1000,6 @@ input:focus {
   background: var(--success);
   color: white;
 }
-.btn-theme {
-  background: rgba(255, 255, 255, 0.08);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  min-width: 92px;
-  justify-content: center;
-}
 .btn-reset {
   background: transparent;
   color: #fca5a5;
@@ -1119,7 +1171,6 @@ input:focus {
   .btn-del,
   .btn-add,
   .btn-custom,
-  .btn-theme,
   .btn-reset,
   .btn-export,
   .header-actions,

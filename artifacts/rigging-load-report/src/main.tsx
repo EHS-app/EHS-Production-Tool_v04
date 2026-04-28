@@ -28,26 +28,45 @@ if (!clerkPubKey) {
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 const STORAGE_KEY_V2 = "ehs-rigging-report-v2";
+/** What we actually apply to `document.documentElement[data-theme]` and pass
+ *  to Clerk. Always concrete (no "system"). */
 type ThemeMode = "light" | "dark";
+/** What the user picks; "system" follows the OS `prefers-color-scheme`. */
+type ThemePreference = "light" | "dark" | "system";
 
-function loadInitialTheme(): ThemeMode {
+function loadInitialThemePreference(): ThemePreference {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_V2);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed?.theme === "dark" || parsed?.theme === "light") {
+      if (
+        parsed?.theme === "dark" ||
+        parsed?.theme === "light" ||
+        parsed?.theme === "system"
+      ) {
         return parsed.theme;
       }
     }
   } catch {}
-  return "light";
+  return "system";
 }
 
-function saveTheme(theme: ThemeMode) {
+function getSystemTheme(): ThemeMode {
+  if (typeof window === "undefined" || !window.matchMedia) return "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
+function resolveTheme(pref: ThemePreference): ThemeMode {
+  return pref === "system" ? getSystemTheme() : pref;
+}
+
+function saveThemePreference(pref: ThemePreference) {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_V2);
     const parsed = raw ? JSON.parse(raw) : {};
-    parsed.theme = theme;
+    parsed.theme = pref;
     localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(parsed));
   } catch {}
 }
@@ -526,12 +545,52 @@ function FreelancerGuard() {
 }
 
 function Root() {
-  const [theme, setTheme] = useState<ThemeMode>(() => loadInitialTheme());
+  const [pref, setPref] = useState<ThemePreference>(() =>
+    loadInitialThemePreference(),
+  );
+  const [systemTheme, setSystemTheme] = useState<ThemeMode>(() =>
+    getSystemTheme(),
+  );
 
+  // Track OS preference changes so "system" stays in sync.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e: MediaQueryListEvent) =>
+      setSystemTheme(e.matches ? "dark" : "light");
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", handler);
+      return () => mq.removeEventListener("change", handler);
+    }
+    mq.addListener(handler);
+    return () => mq.removeListener(handler);
+  }, []);
+
+  // Concrete theme that's actually applied to data-theme + Clerk.
+  const theme: ThemeMode = pref === "system" ? systemTheme : pref;
+
+  // Apply data-theme on every change.
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    saveTheme(theme);
   }, [theme]);
+  // Persist the *preference* (not the resolved theme), so "system" round-trips
+  // correctly across reloads. Skip the very first mount: writing on mount
+  // would race with App.tsx's PersistedV2 writeback over the same storage key,
+  // and during a V1→V2 migration could overwrite a freshly migrated legacy
+  // preference. We only persist on real user changes.
+  const didMountRef = useRef(false);
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+    saveThemePreference(pref);
+  }, [pref]);
+
+  // Cycles light -> dark -> system -> light. Used by the sign-in screen
+  // (the dashboard has its own three-way segmented control).
+  const cyclePref = () =>
+    setPref((p) => (p === "light" ? "dark" : p === "dark" ? "system" : "light"));
 
   return (
     <ClerkProvider
@@ -553,12 +612,7 @@ function Root() {
         },
       }}
     >
-      <AuthGate
-        theme={theme}
-        onToggleTheme={() =>
-          setTheme((t) => (t === "dark" ? "light" : "dark"))
-        }
-      />
+      <AuthGate theme={theme} onToggleTheme={cyclePref} />
     </ClerkProvider>
   );
 }

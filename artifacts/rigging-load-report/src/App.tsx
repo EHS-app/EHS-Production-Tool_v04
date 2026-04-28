@@ -596,8 +596,15 @@ export function buildProjectSchedule(
   return out;
 }
 
+/**
+ * The user's theme preference. "system" follows the OS / browser
+ * `prefers-color-scheme` setting. Old saved states with "light" / "dark"
+ * remain valid (back-compat); new users default to "system".
+ */
+type ThemePref = "light" | "dark" | "system";
+
 type PersistedV2 = {
-  theme: "light" | "dark";
+  theme: ThemePref;
   venue: string;
   reportDate: string;
   /** Optional end date for the SHOW phase. Empty = single day.
@@ -686,7 +693,7 @@ function loadPersisted(): Partial<PersistedV2> | null {
         ledRows: Array.isArray(v1.ledRows) ? v1.ledRows : [],
       };
       return {
-        theme: v1.theme ?? "light",
+        theme: v1.theme ?? "system",
         venue: v1.venue ?? "",
         reportDate: v1.reportDate ?? new Date().toISOString().slice(0, 10),
         engineer: v1.engineer ?? "",
@@ -786,11 +793,127 @@ function SignOutButton() {
   );
 }
 
+/**
+ * Three-way theme picker shown in the top-right of the dashboard header.
+ * Lets the user choose Light, Dark, or System (follow OS `prefers-color-scheme`).
+ *
+ * Implements the ARIA radiogroup keyboard pattern: only the selected radio is
+ * in the tab order (`tabIndex=0`); ArrowLeft/Right (and Home/End) move focus
+ * AND change the selection.
+ */
+function ThemeSegmentedControl({
+  pref,
+  onChange,
+}: {
+  pref: ThemePref;
+  onChange: (next: ThemePref) => void;
+}) {
+  const options = useMemo<
+    ReadonlyArray<{ value: ThemePref; label: string; icon: string }>
+  >(
+    () => [
+      { value: "light", label: "Light", icon: "☀" },
+      { value: "dark", label: "Dark", icon: "☾" },
+      { value: "system", label: "System", icon: "⌬" },
+    ],
+    [],
+  );
+  const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const selectedIndex = Math.max(
+    0,
+    options.findIndex((o) => o.value === pref),
+  );
+  const move = (next: number) => {
+    const i = ((next % options.length) + options.length) % options.length;
+    onChange(options[i].value);
+    btnRefs.current[i]?.focus();
+  };
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    switch (e.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        e.preventDefault();
+        move(selectedIndex + 1);
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        e.preventDefault();
+        move(selectedIndex - 1);
+        break;
+      case "Home":
+        e.preventDefault();
+        move(0);
+        break;
+      case "End":
+        e.preventDefault();
+        move(options.length - 1);
+        break;
+      default:
+        break;
+    }
+  };
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Theme"
+      className="theme-seg"
+      title="Choose theme: Light, Dark, or System"
+      onKeyDown={onKeyDown}
+    >
+      {options.map((o, i) => {
+        const selected = pref === o.value;
+        return (
+          <button
+            key={o.value}
+            ref={(el) => {
+              btnRefs.current[i] = el;
+            }}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            aria-label={`${o.label} theme`}
+            tabIndex={selected ? 0 : -1}
+            className={`theme-seg-btn${selected ? " is-selected" : ""}`}
+            onClick={() => onChange(o.value)}
+          >
+            <span aria-hidden>{o.icon}</span>
+            <span className="theme-seg-label">{o.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function App() {
   const persisted = useRef<Partial<PersistedV2> | null>(loadPersisted()).current;
   const initialSystem = makeSystem("LX1");
 
-  const [theme, setTheme] = useState<"light" | "dark">(persisted?.theme ?? "light");
+  const [themePref, setThemePref] = useState<ThemePref>(() => {
+    const t = persisted?.theme;
+    return t === "light" || t === "dark" || t === "system" ? t : "system";
+  });
+  const [systemTheme, setSystemTheme] = useState<"light" | "dark">(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return "light";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e: MediaQueryListEvent) =>
+      setSystemTheme(e.matches ? "dark" : "light");
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", handler);
+      return () => mq.removeEventListener("change", handler);
+    }
+    // Older Safari fallback
+    mq.addListener(handler);
+    return () => mq.removeListener(handler);
+  }, []);
+  const theme: "light" | "dark" =
+    themePref === "system" ? systemTheme : themePref;
   const [venue, setVenue] = useState(persisted?.venue ?? "");
   const [reportDate, setReportDate] = useState(
     persisted?.reportDate ?? new Date().toISOString().slice(0, 10),
@@ -885,7 +1008,7 @@ function App() {
 
   useEffect(() => {
     const data: PersistedV2 = {
-      theme,
+      theme: themePref,
       venue,
       reportDate,
       reportEndDate,
@@ -917,7 +1040,7 @@ function App() {
       /* ignore quota errors */
     }
   }, [
-    theme,
+    themePref,
     venue,
     reportDate,
     reportEndDate,
@@ -2221,59 +2344,63 @@ function App() {
           </div>
         </div>
         <div className="header-actions">
-          <span className="autosave-pill" title="Saved locally in your browser">
-            ● Saved {savedAt}
-          </span>
-          <button className="btn btn-reset" onClick={resetAll} title="Clear report">
-            Reset
-          </button>
-          <button
-            className="btn btn-theme"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          >
-            <span>{theme === "dark" ? "☀" : "☾"}</span>{" "}
-            <span>{theme === "dark" ? "Light" : "Dark"}</span>
-          </button>
-          <button className="btn btn-csv" onClick={downloadCsv} title="Download CSV">
-            CSV
-          </button>
-          <button
-            className="btn btn-export"
-            onClick={() => {
-              if (mainView !== "rigging") {
-                setMainView("rigging");
-                requestAnimationFrame(() =>
-                  requestAnimationFrame(() => window.print()),
-                );
-              } else {
-                window.print();
-              }
-            }}
-          >
-            Export Report
-          </button>
-          <button
-            className="btn btn-export"
-            onClick={() => setShareOpen(true)}
-            title="Generate per-crew brief links to share with freelancers"
-          >
-            Share with Crew
-          </button>
-          <Link
-            href="/portal"
-            title="Go to your Freelance Portal"
-            className="btn btn-reset"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              textDecoration: "none",
-            }}
-          >
-            <span aria-hidden>◉</span>
-            <span>Portal</span>
-          </Link>
-          <SignOutButton />
+          {/* Account cluster — pinned to the top-right of the header.
+              Holds the theme picker, Portal link, and signed-in user / Sign out. */}
+          <div className="header-account">
+            <ThemeSegmentedControl
+              pref={themePref}
+              onChange={setThemePref}
+            />
+            <Link
+              href="/portal"
+              title="Go to your Freelance Portal"
+              className="btn btn-reset"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                textDecoration: "none",
+              }}
+            >
+              <span aria-hidden>◉</span>
+              <span>Portal</span>
+            </Link>
+            <SignOutButton />
+          </div>
+          {/* Document actions — below the account cluster. */}
+          <div className="header-doc-actions">
+            <span className="autosave-pill" title="Saved locally in your browser">
+              ● Saved {savedAt}
+            </span>
+            <button className="btn btn-reset" onClick={resetAll} title="Clear report">
+              Reset
+            </button>
+            <button className="btn btn-csv" onClick={downloadCsv} title="Download CSV">
+              CSV
+            </button>
+            <button
+              className="btn btn-export"
+              onClick={() => {
+                if (mainView !== "rigging") {
+                  setMainView("rigging");
+                  requestAnimationFrame(() =>
+                    requestAnimationFrame(() => window.print()),
+                  );
+                } else {
+                  window.print();
+                }
+              }}
+            >
+              Export Report
+            </button>
+            <button
+              className="btn btn-export"
+              onClick={() => setShareOpen(true)}
+              title="Generate per-crew brief links to share with freelancers"
+            >
+              Share with Crew
+            </button>
+          </div>
         </div>
       </div>
 

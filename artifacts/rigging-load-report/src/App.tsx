@@ -52,9 +52,11 @@ import { SoundReportView } from "./components/SoundReportView";
 import { EquipmentPicker } from "./components/EquipmentPicker";
 import type { LibraryItem } from "./lib/equipmentLibrary";
 import {
-  loadFloorPlan,
-  saveFloorPlan,
+  emptyFloorPlanLibrary,
+  loadFloorPlanLibrary,
+  saveFloorPlanLibrary,
   type FloorPlan,
+  type FloorPlanLibrary,
 } from "./lib/floorPlan";
 import {
   defaultPowerPlan,
@@ -80,8 +82,10 @@ import {
   RiggPlanView,
   type RiggPlanSystemInfo,
 } from "./components/RiggPlanView";
+import { emptyApplySummary } from "./lib/drawingAnalysis";
 import type {
   ApplySelection,
+  ApplySummary,
   ExtractedItems,
 } from "./lib/drawingAnalysis";
 
@@ -1108,16 +1112,49 @@ function App() {
     normalizeRiggPlan(persisted?.riggPlan),
   );
 
-  // The floor-plan backdrop lives in its own localStorage slot so a
-  // 4 MB drawing data URL never bloats the main report blob (and a
-  // QuotaExceededError on the floor-plan slot doesn't kill the rest
-  // of the report's autosave).
-  const [floorPlan, setFloorPlan] = useState<FloorPlan | null>(() =>
-    loadFloorPlan(),
+  // The floor-plan backdrop library lives in its own localStorage slot
+  // so a few MB of drawing data URLs never bloat the main report blob
+  // (and a QuotaExceededError on the floor-plan slot doesn't kill the
+  // rest of the report's autosave). The producer can stack multiple
+  // drawings — one of them is "active" at a time and rendered behind
+  // the Rigg Plan canvas.
+  const [floorPlanLibrary, setFloorPlanLibrary] = useState<FloorPlanLibrary>(
+    () => loadFloorPlanLibrary(),
   );
   useEffect(() => {
-    saveFloorPlan(floorPlan);
-  }, [floorPlan]);
+    saveFloorPlanLibrary(floorPlanLibrary);
+  }, [floorPlanLibrary]);
+  /** Append a new drawing to the library and make it the active
+   *  backdrop. Used by the Drawing Importer's "Use as floor plan"
+   *  button — calling it three times stacks three plans the user can
+   *  switch between. */
+  const addFloorPlan = (plan: FloorPlan) => {
+    setFloorPlanLibrary((lib) => ({
+      plans: [...lib.plans, plan],
+      activeId: plan.id,
+    }));
+  };
+  /** Remove a single plan by id. If the active plan was removed, fall
+   *  back to the next one in the list (or `null` if the library is
+   *  empty afterwards) so the canvas always knows what to render. */
+  const removeFloorPlan = (id: string) => {
+    setFloorPlanLibrary((lib) => {
+      const plans = lib.plans.filter((p) => p.id !== id);
+      const activeId =
+        lib.activeId === id
+          ? (plans[0]?.id ?? null)
+          : lib.activeId;
+      return { plans, activeId };
+    });
+  };
+  /** Switch which plan is shown as the backdrop. Pass `null` to hide
+   *  the backdrop without deleting any plans. */
+  const selectFloorPlan = (id: string | null) => {
+    setFloorPlanLibrary((lib) => ({
+      ...lib,
+      activeId: id == null ? null : (lib.plans.some((p) => p.id === id) ? id : lib.activeId),
+    }));
+  };
 
   const [modalTarget, setModalTarget] = useState<Category | null>(null);
   const [custName, setCustName] = useState("");
@@ -1738,7 +1775,7 @@ function App() {
       return;
     }
     setRiggPlan(() => ({ venue: null, trussById: {} }));
-    setFloorPlan(null);
+    setFloorPlanLibrary(emptyFloorPlanLibrary());
   };
   const updateRiggPlanTruss = (
     systemId: string,
@@ -1769,7 +1806,16 @@ function App() {
   const applyExtractedItems = (
     extracted: ExtractedItems,
     selection: ApplySelection,
-  ) => {
+  ): ApplySummary => {
+    // Cross-PDF dedup is the heart of this function: when the producer
+    // uploads several drawings of the same project, items that recur
+    // across them (e.g. an "LX1" truss visible on the rigging plan AND
+    // the lighting plan) must collapse to ONE entry on the report
+    // rather than stack as duplicates. Each category gets a normalised-
+    // name lookup against the existing report; matches are skipped and
+    // counted in the returned summary.
+    const summary = emptyApplySummary();
+
     // Venue (Rigg Plan)
     if (selection.applyVenue) {
       const venuePatch: Partial<RiggPlanVenue> = {};
@@ -1785,7 +1831,10 @@ function App() {
           Math.round(extracted.venue.ceilingM * 2) / 2,
         );
       }
-      if (Object.keys(venuePatch).length > 0) updateRiggPlanVenue(venuePatch);
+      if (Object.keys(venuePatch).length > 0) {
+        updateRiggPlanVenue(venuePatch);
+        summary.venueApplied = true;
+      }
     }
 
     // Trusses → new Systems on the Rigging Report.
@@ -1830,6 +1879,17 @@ function App() {
       extracted.trusses.forEach((t, i) => {
         if (!selection.trussIndexes.has(i)) return;
         const rawName = t.name && t.name.trim() ? t.name.trim() : "";
+        // Cross-PDF dedup: if a system with this normalised name
+        // already exists OR we just created one in this same apply
+        // call (handles "LX1" appearing twice in the same PDF too),
+        // skip — the existing system stands. The fixture-linking map
+        // already points at it, so any lighting tagged with this
+        // name will still wire up correctly.
+        const dedupKey = rawName ? trussKey(rawName) : "";
+        if (dedupKey && systemIdByTrussName.has(dedupKey)) {
+          summary.systems.skipped += 1;
+          return;
+        }
         let name =
           rawName || `LX${systems.length + newSystems.length + 1}`;
         while (usedNames.has(name)) name += "'";
@@ -1838,6 +1898,7 @@ function App() {
         sys.pointCount = Math.min(8, Math.max(1, Math.round(t.pointCount || 3)));
         sys.hoistIndex = pickHoistIndex(t.hoistKg);
         newSystems.push(sys);
+        summary.systems.added += 1;
         // Index BOTH the original PDF label and the (possibly-suffixed)
         // final name, so a fixture that says trussName="LX1" still
         // resolves even if we had to rename the system to "LX1'" to
@@ -1878,6 +1939,36 @@ function App() {
       // notes are stored). Collected here, committed once below so we
       // don't fire one setLinkedMeta per fixture.
       const noteSeeds: Record<string, string> = {};
+      // Build a "this system already has fixture X" lookup for dedup.
+      // We use the same `normalizeFixtureName` the inventory matcher
+      // uses, which strips parenthetical suffixes like "(32.0kg)" and
+      // collapses non-alphanumerics — so an analyser hit on "Clay
+      // Paky Mythos 2" matches an existing inventory row whose stored
+      // name is "Clay Paky Mythos 2 (32.0kg)". A plain space-collapse
+      // would have missed that case and let duplicates through across
+      // PDFs. The set tracks `${systemId}|${normalisedName}` pairs.
+      const fixtureNameKey = (s: string) => normalizeFixtureName(s);
+      const existingFixtureKeys = new Set<string>();
+      for (const sys of systems) {
+        for (const row of sys.fixtureRows) {
+          // A row is either inventory-backed (selectedIndex points at
+          // a Fixtures library entry) or custom (the `custom` field
+          // carries the raw item with its name). Custom rows always
+          // win when present because that's how `makeCustomRow` builds
+          // analyser-imported fixtures that didn't match the library.
+          const name = row.custom
+            ? row.custom.name
+            : (inventory.Fixtures[row.selectedIndex]?.name ?? "");
+          const key = fixtureNameKey(name);
+          if (key) existingFixtureKeys.add(`${sys.id}|${key}`);
+        }
+      }
+      // Also dedup against any standalone show-fixtures that aren't
+      // assigned to a system yet — same name + same systemId="" cell.
+      for (const sf of showFixtures) {
+        const key = fixtureNameKey(sf.name);
+        if (key) existingFixtureKeys.add(`${sf.systemId}|${key}`);
+      }
 
       extracted.lighting.forEach((f, i) => {
         if (!selection.lightingIndexes.has(i)) return;
@@ -1896,6 +1987,11 @@ function App() {
             usedNames.add(name);
             const sys = makeSystem(name);
             newSystems.push(sys);
+            // Account for this auto-created system in the summary so
+            // the importer's "Added N items" banner matches reality —
+            // otherwise lighting that conjures a fresh truss is
+            // silently invisible to the user.
+            summary.systems.added += 1;
             indexTruss(k, sys.id);
             indexTruss(trussKey(name), sys.id);
             systemId = sys.id;
@@ -1906,6 +2002,21 @@ function App() {
         const fixtureName = f.name || "Fixture";
         const weight = f.weightKg != null ? Math.max(0, f.weightKg) : 0;
         const watts = f.watts != null ? Math.max(0, Math.round(f.watts)) : 0;
+
+        // Cross-PDF dedup: if this same fixture name is already on
+        // the same target system (or already in the unassigned
+        // standalone list when systemId === ""), skip. We do NOT sum
+        // quantities — the producer can edit quantities by hand on
+        // the source row, but adding an N-th identical row would be
+        // surprising. Track the (systemId, name) we just placed so a
+        // single PDF that lists the same fixture twice also dedupes.
+        const dedupKey = `${systemId}|${fixtureNameKey(fixtureName)}`;
+        if (existingFixtureKeys.has(dedupKey)) {
+          summary.fixtures.skipped += 1;
+          return;
+        }
+        existingFixtureKeys.add(dedupKey);
+        summary.fixtures.added += 1;
 
         if (systemId) {
           // Build a fixtureRow on the target rigging system.
@@ -2008,6 +2119,24 @@ function App() {
     // LED screens
     if (selection.ledIndexes.size > 0) {
       const additions: LedScreen[] = [];
+      // Cross-PDF dedup: collapse on case-insensitive screen name.
+      // Includes both stand-alone LED screens and any LED rows that
+      // ride along on a rigging system (`linkedLedScreens`) — both
+      // render on the LED tab so users would see them as duplicates
+      // either way. Without seeding from `linkedLedScreens` an
+      // import could quietly add a second copy of a screen that's
+      // already linked from a system row.
+      const ledNameKey = (s: string) =>
+        s.trim().toLowerCase().replace(/\s+/g, " ");
+      const existingLedNames = new Set<string>();
+      for (const s of ledScreens) {
+        const k = ledNameKey(s.name);
+        if (k) existingLedNames.add(k);
+      }
+      for (const s of linkedLedScreens) {
+        const k = ledNameKey(s.name);
+        if (k) existingLedNames.add(k);
+      }
       // Resolve the active panel's physical size once so we can convert
       // analyser-supplied screen sizes in metres (e.g. "5 x 3 m") into
       // panel counts. Panels with zero physical size (the synthetic
@@ -2025,6 +2154,14 @@ function App() {
       extracted.ledScreens.forEach((s, i) => {
         if (!selection.ledIndexes.has(i)) return;
         const idx = ledScreens.length + additions.length;
+        const screenName = s.name || `Screen ${idx + 1}`;
+        const dedupKey = ledNameKey(screenName);
+        if (dedupKey && existingLedNames.has(dedupKey)) {
+          summary.ledScreens.skipped += 1;
+          return;
+        }
+        existingLedNames.add(dedupKey);
+        summary.ledScreens.added += 1;
         // Panel grid wins when the analyser gave one outright; otherwise
         // we fall back to the metric size from the drawing.
         const wide =
@@ -2037,7 +2174,7 @@ function App() {
             : metresToPanels(s.heightM, panelHm);
         additions.push(
           newLedScreen(defaultLedPanelKey, {
-            name: s.name || `Screen ${idx + 1}`,
+            name: screenName,
             color: LED_SCREEN_COLORS[idx % LED_SCREEN_COLORS.length],
             panelsWide: wide,
             panelsTall: tall,
@@ -2050,14 +2187,28 @@ function App() {
       }
     }
 
-    // Stages
+    // Stages — cross-PDF dedup on case-insensitive stage name.
     if (selection.stageIndexes.size > 0) {
       const additions: Stage[] = [];
+      const stageNameKey = (s: string) =>
+        s.trim().toLowerCase().replace(/\s+/g, " ");
+      const existingStageNames = new Set<string>();
+      for (const s of stages) {
+        const k = stageNameKey(s.name);
+        if (k) existingStageNames.add(k);
+      }
       extracted.stages.forEach((st, i) => {
         if (!selection.stageIndexes.has(i)) return;
-        const base = makeDefaultStage(
-          st.name || `Stage ${stages.length + additions.length + 1}`,
-        );
+        const stageName =
+          st.name || `Stage ${stages.length + additions.length + 1}`;
+        const dedupKey = stageNameKey(stageName);
+        if (dedupKey && existingStageNames.has(dedupKey)) {
+          summary.stages.skipped += 1;
+          return;
+        }
+        existingStageNames.add(dedupKey);
+        summary.stages.added += 1;
+        const base = makeDefaultStage(stageName);
         additions.push({
           ...base,
           width: st.widthM > 0 ? st.widthM : base.width,
@@ -2070,15 +2221,35 @@ function App() {
       }
     }
 
-    // Sound
+    // Sound — cross-PDF dedup on case-insensitive item name. We use
+    // name alone (rather than name+category) because the analyser
+    // rarely emits the same name for two different physical items;
+    // overly-strict matching would let "PA Mains" and "Subs" of the
+    // same brand resurface twice across PDFs even when they are the
+    // same hardware.
     if (selection.soundIndexes.size > 0) {
       const additions: SoundItem[] = [];
+      const soundNameKey = (s: string) =>
+        s.trim().toLowerCase().replace(/\s+/g, " ");
+      const existingSoundNames = new Set<string>();
+      for (const s of soundItems) {
+        const k = soundNameKey(s.name);
+        if (k) existingSoundNames.add(k);
+      }
       extracted.sound.forEach((s, i) => {
         if (!selection.soundIndexes.has(i)) return;
+        const itemName = s.name || "Sound";
+        const dedupKey = soundNameKey(itemName);
+        if (dedupKey && existingSoundNames.has(dedupKey)) {
+          summary.sound.skipped += 1;
+          return;
+        }
+        existingSoundNames.add(dedupKey);
+        summary.sound.added += 1;
         const base = makeSoundItem();
         additions.push({
           ...base,
-          name: s.name || "Sound",
+          name: itemName,
           qty: Math.max(1, Math.round(s.qty || 1)),
           weightPerUnit: s.weightKg != null ? Math.max(0, s.weightKg) : 0,
           powerPerUnit: s.watts != null ? Math.max(0, Math.round(s.watts)) : 0,
@@ -2089,6 +2260,8 @@ function App() {
         setSoundItems((all) => [...all, ...additions]);
       }
     }
+
+    return summary;
   };
 
   // ---- Crew Report ----
@@ -2744,7 +2917,7 @@ function App() {
     // "no venue, no trusses" state rather than the legacy 20×12 m
     // default venue.
     setRiggPlan({ ...DEFAULT_RIGG_PLAN, trussById: {} });
-    setFloorPlan(null);
+    setFloorPlanLibrary(emptyFloorPlanLibrary());
     setMainView("rigging");
     // Also wipe any in-flight modal/picker/form state so a Reset
     // mid-session doesn't leave a half-filled "Add custom item"
@@ -3853,12 +4026,15 @@ function App() {
           onAddVenue={addRiggPlanVenue}
           onDeleteVenue={deleteRiggPlanVenue}
           onUpdateTruss={updateRiggPlanTruss}
+          onDeleteSystem={removeSystem}
           onJumpToRigging={() => setMainView("rigging")}
           onApplyExtractedItems={applyExtractedItems}
           projectName={venue}
-          floorPlan={floorPlan}
-          onSetFloorPlan={setFloorPlan}
-          onClearFloorPlan={() => setFloorPlan(null)}
+          floorPlans={floorPlanLibrary.plans}
+          activeFloorPlanId={floorPlanLibrary.activeId}
+          onAddFloorPlan={addFloorPlan}
+          onRemoveFloorPlan={removeFloorPlan}
+          onSelectFloorPlan={selectFloorPlan}
         />
       )}
 

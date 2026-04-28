@@ -8,7 +8,7 @@ import {
 } from "../lib/projectBrief";
 import { encodeBrief, buildShareUrl } from "../lib/briefShare";
 import { crewHours, formatCrewDayRate } from "../lib/crew";
-import { loadFloorPlan, type FloorPlan } from "../lib/floorPlan";
+import { loadActiveFloorPlan, type FloorPlan } from "../lib/floorPlan";
 import { uploadBriefAttachment } from "../lib/briefAttachmentUpload";
 import { renderScreenPngBlob } from "../lib/ledExport";
 import { computeScreenMetrics } from "../lib/led";
@@ -63,7 +63,7 @@ export function ShareBriefModal({ onClose, state }: ShareBriefModalProps) {
         // attachment metadata, so all recipients pull the same object
         // out of storage rather than re-uploading per crew member.
         const attachments: BriefAttachment[] = [];
-        const floorPlan: FloorPlan | null = loadFloorPlan();
+        const floorPlan: FloorPlan | null = loadActiveFloorPlan();
         if (floorPlan?.originalDataUrl) {
           setUploadStatus(`Uploading ${floorPlan.fileName}…`);
           try {

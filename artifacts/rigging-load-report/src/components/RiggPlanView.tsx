@@ -13,6 +13,7 @@ import {
 import { DrawingImporter } from "./DrawingImporter";
 import type {
   ApplySelection,
+  ApplySummary,
   ExtractedItems,
 } from "../lib/drawingAnalysis";
 import type { FloorPlan } from "../lib/floorPlan";
@@ -58,20 +59,33 @@ type Props = {
   onUpdateTruss: (systemId: string, patch: Partial<RiggPlanTruss>) => void;
   /** Jump to the Rigging Report so the user can rename / add systems. */
   onJumpToRigging: () => void;
-  /** Apply items extracted from an uploaded drawing to the report tabs. */
+  /** Apply items extracted from an uploaded drawing to the report tabs.
+   *  Returns a summary so the importer can show how many items were
+   *  added vs. skipped because they already existed (cross-PDF dedup). */
   onApplyExtractedItems: (
     extracted: ExtractedItems,
     selection: ApplySelection,
-  ) => void;
+  ) => ApplySummary;
   /** Project / venue name used as extra context for the analyser. */
   projectName?: string;
-  /** When set, the SVG canvas renders this image behind the trusses
-   *  instead of the synthetic grid. */
-  floorPlan: FloorPlan | null;
-  /** Set / replace the floor-plan backdrop with a new drawing. */
-  onSetFloorPlan: (plan: FloorPlan) => void;
-  /** Drop the backdrop and fall back to the synthetic grid. */
-  onClearFloorPlan: () => void;
+  /** Delete a rigging system entirely (called from the truss table's
+   *  Delete column). The host enforces "must keep ≥ 1 system". */
+  onDeleteSystem: (systemId: string) => void;
+  /** All floor plans the producer has uploaded for this project.
+   *  When more than one is present, the canvas exposes a switcher
+   *  so the producer can flip between them (e.g. "rigging plan",
+   *  "lighting plan", "stage layout") without losing any of them. */
+  floorPlans: FloorPlan[];
+  /** Which plan to render in the canvas. Null when none selected
+   *  (typically because none uploaded yet). */
+  activeFloorPlanId: string | null;
+  /** Append a freshly-uploaded plan to the library and select it. */
+  onAddFloorPlan: (plan: FloorPlan) => void;
+  /** Remove one plan from the library. The host re-points the active
+   *  selection if the deleted plan was the active one. */
+  onRemoveFloorPlan: (id: string) => void;
+  /** Switch which uploaded plan is shown in the canvas. */
+  onSelectFloorPlan: (id: string) => void;
 };
 
 /** Default dimensions used as analyser context when the producer
@@ -102,11 +116,22 @@ export function RiggPlanView({
   onJumpToRigging,
   onApplyExtractedItems,
   projectName,
-  floorPlan,
-  onSetFloorPlan,
-  onClearFloorPlan,
+  onDeleteSystem,
+  floorPlans,
+  activeFloorPlanId,
+  onAddFloorPlan,
+  onRemoveFloorPlan,
+  onSelectFloorPlan,
 }: Props) {
   const { venue, trussById } = plan;
+  // The active plan is whatever the producer last selected; if the
+  // active id no longer matches anything in the library (e.g. after a
+  // delete), fall back to the first plan so the canvas still renders
+  // something instead of going blank between renders.
+  const activeFloorPlan: FloorPlan | null =
+    floorPlans.find((p) => p.id === activeFloorPlanId) ??
+    floorPlans[0] ??
+    null;
 
   // Auto-seed any newly-created system with a default truss layout so
   // the user never has to "place" them manually — the truss just
@@ -180,9 +205,104 @@ export function RiggPlanView({
         currentVenue={venue ?? DRAWING_IMPORTER_FALLBACK_VENUE}
         projectName={projectName}
         onApply={onApplyExtractedItems}
-        onUseAsFloorPlan={onSetFloorPlan}
-        hasFloorPlan={floorPlan != null}
+        onUseAsFloorPlan={onAddFloorPlan}
+        hasFloorPlan={floorPlans.length > 0}
       />
+
+      {/* Floor-plan library — visible whenever the producer has at
+          least one uploaded plan. Lets them pick which plan the canvas
+          renders and remove ones they no longer want. Hidden when the
+          library is empty so the empty Rigg Plan stays uncluttered. */}
+      {floorPlans.length > 0 && (
+        <section className="led-card">
+          <div className="led-card-head">
+            <h3>Floor plans ({floorPlans.length})</h3>
+            <span className="led-hint">
+              Multiple uploads from the same project? Pick which one shows
+              on the canvas. Delete the ones you no longer need.
+            </span>
+          </div>
+          <ul
+            style={{
+              listStyle: "none",
+              margin: 0,
+              padding: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+            }}
+          >
+            {floorPlans.map((p) => {
+              const isActive = activeFloorPlan?.id === p.id;
+              return (
+                <li
+                  key={p.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "6px 8px",
+                    border: "1px solid var(--border, #cbd5e1)",
+                    borderRadius: 6,
+                    background: isActive
+                      ? "rgba(99,102,241,0.08)"
+                      : "transparent",
+                  }}
+                >
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      cursor: "pointer",
+                      flex: 1,
+                      minWidth: 0,
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="active-floor-plan"
+                      checked={isActive}
+                      onChange={() => onSelectFloorPlan(p.id)}
+                    />
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                      title={p.fileName}
+                    >
+                      <strong>{p.fileName}</strong>
+                    </span>
+                    {isActive && (
+                      <span className="led-sub" style={{ marginLeft: 4 }}>
+                        (showing)
+                      </span>
+                    )}
+                  </label>
+                  <button
+                    type="button"
+                    className="btn btn-soft btn-xs"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Delete floor plan "${p.fileName}"? This cannot be undone.`,
+                        )
+                      ) {
+                        onRemoveFloorPlan(p.id);
+                      }
+                    }}
+                    title="Remove this floor plan from the library"
+                  >
+                    Delete
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {venue == null ? (
         /* Empty state — no venue. The producer either deleted the
@@ -297,8 +417,7 @@ export function RiggPlanView({
                 selectedId={selectedId}
                 onSelect={setSelectedId}
                 onUpdateTruss={onUpdateTruss}
-                floorPlan={floorPlan}
-                onClearFloorPlan={onClearFloorPlan}
+                floorPlan={activeFloorPlan}
               />
             )}
           </section>
@@ -326,6 +445,7 @@ export function RiggPlanView({
                   <th>Orient</th>
                   <th className="led-num">Static load (kg)</th>
                   <th className="led-num">Peak / SWL</th>
+                  <th aria-label="Delete truss" />
                 </tr>
               </thead>
               <tbody>
@@ -449,6 +569,26 @@ export function RiggPlanView({
                       <td className={`led-num rigg-status ${status}`}>
                         {fmt(sys.peakKg, 0)} / {fmt(sys.swlKg, 0)}
                       </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-danger btn-xs"
+                          // Stop the row's onClick (which selects the
+                          // truss) from firing — clicking Delete should
+                          // not also flash a selection state on the way
+                          // out. The host's `removeSystem` already
+                          // shows its own confirm() prompt, so we do
+                          // NOT add a second one here (would double-
+                          // prompt the user).
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteSystem(sys.id);
+                          }}
+                          title="Delete this rigging system"
+                        >
+                          Delete
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -469,7 +609,6 @@ function PlanCanvas({
   onSelect,
   onUpdateTruss,
   floorPlan,
-  onClearFloorPlan,
 }: {
   venue: RiggPlanVenue;
   systems: RiggPlanSystemInfo[];
@@ -478,7 +617,6 @@ function PlanCanvas({
   onSelect: (id: string | null) => void;
   onUpdateTruss: (id: string, patch: Partial<RiggPlanTruss>) => void;
   floorPlan: FloorPlan | null;
-  onClearFloorPlan: () => void;
 }) {
   // SVG uses world-units (metres). We let CSS scale it to fit the card.
   const padM = 1; // padding in metres around the venue rect
@@ -551,6 +689,10 @@ function PlanCanvas({
 
   return (
     <div className="rigg-canvas-wrap" style={{ position: "relative" }}>
+      {/* The clear / replace controls used to live on this overlay,
+          but plans are now managed in the "Floor plans" library card
+          above the canvas. We keep a small read-only label so the
+          producer can confirm at a glance which plan is showing. */}
       {floorPlan && (
         <div
           style={{
@@ -558,9 +700,6 @@ function PlanCanvas({
             top: 8,
             right: 8,
             zIndex: 2,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
             background: "rgba(255,255,255,0.92)",
             border: "1px solid var(--border, #cbd5e1)",
             borderRadius: 6,
@@ -568,25 +707,13 @@ function PlanCanvas({
             fontSize: 12,
             color: "#0f172a",
             maxWidth: "60%",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
+          title={floorPlan.fileName}
         >
-          <span
-            style={{
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-            title={floorPlan.fileName}
-          >
-            Floor plan: <strong>{floorPlan.fileName}</strong>
-          </span>
-          <button
-            type="button"
-            className="btn btn-soft btn-xs"
-            onClick={onClearFloorPlan}
-          >
-            Clear
-          </button>
+          Floor plan: <strong>{floorPlan.fileName}</strong>
         </div>
       )}
       <svg

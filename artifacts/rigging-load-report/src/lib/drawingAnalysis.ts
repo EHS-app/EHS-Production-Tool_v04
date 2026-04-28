@@ -211,3 +211,51 @@ export function selectNone(): ApplySelection {
     soundIndexes: new Set(),
   };
 }
+
+/** Per-category counts returned by `applyExtractedItems` so the UI can
+ *  show the user exactly what landed in the report and what was
+ *  skipped because it was already there (e.g. a truss labelled "LX1"
+ *  that appears on every PDF the producer uploads — we keep ONE
+ *  rigging system for it instead of stacking duplicates). */
+export type ApplySummary = {
+  systems: { added: number; skipped: number };
+  fixtures: { added: number; skipped: number };
+  ledScreens: { added: number; skipped: number };
+  stages: { added: number; skipped: number };
+  sound: { added: number; skipped: number };
+  venueApplied: boolean;
+};
+
+export function emptyApplySummary(): ApplySummary {
+  return {
+    systems: { added: 0, skipped: 0 },
+    fixtures: { added: 0, skipped: 0 },
+    ledScreens: { added: 0, skipped: 0 },
+    stages: { added: 0, skipped: 0 },
+    sound: { added: 0, skipped: 0 },
+    venueApplied: false,
+  };
+}
+
+/** Total skips across every category — used by the importer to decide
+ *  whether to surface the "skipped duplicates" line at all. */
+export function totalSkipped(s: ApplySummary): number {
+  return (
+    s.systems.skipped +
+    s.fixtures.skipped +
+    s.ledScreens.skipped +
+    s.stages.skipped +
+    s.sound.skipped
+  );
+}
+
+/** Total adds — used the same way for the "added items" line. */
+export function totalAdded(s: ApplySummary): number {
+  return (
+    s.systems.added +
+    s.fixtures.added +
+    s.ledScreens.added +
+    s.stages.added +
+    s.sound.added
+  );
+}

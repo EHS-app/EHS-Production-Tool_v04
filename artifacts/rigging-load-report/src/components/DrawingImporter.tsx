@@ -4,8 +4,11 @@ import {
   emptyExtractedItems,
   selectAll,
   selectNone,
+  totalAdded,
   totalItemCount,
+  totalSkipped,
   type ApplySelection,
+  type ApplySummary,
   type ExtractedItems,
 } from "../lib/drawingAnalysis";
 import { fileToFloorPlan, type FloorPlan } from "../lib/floorPlan";
@@ -15,8 +18,15 @@ type Props = {
    *  can reconcile sizes on the drawing with what the user already set. */
   currentVenue: { widthM: number; depthM: number; ceilingM: number };
   projectName?: string;
-  /** Apply the user's chosen subset back to the report. */
-  onApply: (extracted: ExtractedItems, selection: ApplySelection) => void;
+  /** Apply the user's chosen subset back to the report. Returns an
+   *  `ApplySummary` so the importer can show the user how many items
+   *  were added vs. skipped because they already existed (cross-PDF
+   *  dedup — e.g. truss "LX1" appearing on every drawing in a project
+   *  collapses to a single rigging system on the report). */
+  onApply: (
+    extracted: ExtractedItems,
+    selection: ApplySelection,
+  ) => ApplySummary;
   /** Promote the currently-loaded drawing to the Rigg Plan backdrop.
    *  Optional — host views that don't show a plan can omit this. */
   onUseAsFloorPlan?: (plan: FloorPlan) => void;
@@ -62,6 +72,9 @@ export function DrawingImporter({
   const [extracted, setExtracted] = useState<ExtractedItems | null>(null);
   const [selection, setSelection] = useState<ApplySelection>(selectNone());
   const [applied, setApplied] = useState(false);
+  const [appliedSummary, setAppliedSummary] = useState<ApplySummary | null>(
+    null,
+  );
   const [isDragOver, setIsDragOver] = useState(false);
   const [isPreparingFloorPlan, setIsPreparingFloorPlan] = useState(false);
   const [floorPlanApplied, setFloorPlanApplied] = useState(false);
@@ -100,6 +113,7 @@ export function DrawingImporter({
     setExtracted(null);
     setSelection(selectNone());
     setApplied(false);
+    setAppliedSummary(null);
     setFloorPlanApplied(false);
     setFile(f);
   }
@@ -129,6 +143,7 @@ export function DrawingImporter({
     setError(null);
     setExtracted(null);
     setApplied(false);
+    setAppliedSummary(null);
     try {
       const result = await analyzeDrawing(file, {
         venue: currentVenue,
@@ -145,8 +160,9 @@ export function DrawingImporter({
 
   function applyAll() {
     if (!extracted) return;
-    onApply(extracted, selection);
+    const result = onApply(extracted, selection);
     setApplied(true);
+    setAppliedSummary(result);
   }
 
   function reset() {
@@ -155,6 +171,7 @@ export function DrawingImporter({
     setSelection(selectNone());
     setError(null);
     setApplied(false);
+    setAppliedSummary(null);
     setFloorPlanApplied(false);
     if (inputRef.current) inputRef.current.value = "";
   }
@@ -319,10 +336,53 @@ export function DrawingImporter({
             </div>
           </header>
 
-          {applied && (
+          {applied && appliedSummary && (
             <div className="drawing-applied-banner">
-              Items added to their report tabs. Open Rigging / Lighting / LED /
-              Stage / Sound to review and edit.
+              <div>
+                {(() => {
+                  const added = totalAdded(appliedSummary);
+                  const skipped = totalSkipped(appliedSummary);
+                  const parts: string[] = [];
+                  if (appliedSummary.venueApplied) {
+                    parts.push("Venue dimensions updated.");
+                  }
+                  if (added > 0) {
+                    parts.push(
+                      `Added ${added} item${added === 1 ? "" : "s"} to the report.`,
+                    );
+                  }
+                  if (skipped > 0) {
+                    parts.push(
+                      `Skipped ${skipped} duplicate${skipped === 1 ? "" : "s"} that already exist.`,
+                    );
+                  }
+                  if (parts.length === 0) {
+                    parts.push("Nothing to apply.");
+                  }
+                  return parts.join(" ");
+                })()}
+              </div>
+              {totalSkipped(appliedSummary) > 0 && (
+                <div className="led-sub" style={{ marginTop: 4 }}>
+                  Duplicates skipped:{" "}
+                  {(
+                    [
+                      ["systems", appliedSummary.systems.skipped],
+                      ["fixtures", appliedSummary.fixtures.skipped],
+                      ["LED screens", appliedSummary.ledScreens.skipped],
+                      ["stages", appliedSummary.stages.skipped],
+                      ["sound items", appliedSummary.sound.skipped],
+                    ] as const
+                  )
+                    .filter(([, n]) => n > 0)
+                    .map(([label, n]) => `${n} ${label}`)
+                    .join(" · ")}
+                </div>
+              )}
+              <div className="led-sub" style={{ marginTop: 4 }}>
+                Open Rigging / Lighting / LED / Stage / Sound to review and
+                edit.
+              </div>
             </div>
           )}
 

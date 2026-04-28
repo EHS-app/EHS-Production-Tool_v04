@@ -238,6 +238,32 @@ function StageCard({
     }
   };
 
+  /** Rotate the placed (non-square) deck under the given cell in place.
+   *  The deck's top-left corner stays where it is; w/d swap. Square
+   *  decks (1×1) are ignored. If the rotated rectangle would collide
+   *  with another placed deck, the rotation is silently refused — so
+   *  the user just sees nothing happen, same UX as a colliding click. */
+  const rotateDeckAtCell = (cellX: number, cellY: number) => {
+    const px = cellX * HALF_M;
+    const py = cellY * HALF_M;
+    const idx = stage.manualPlacements.findIndex(
+      (p) => px >= p.x && px < p.x + p.w && py >= p.y && py < p.y + p.d,
+    );
+    if (idx === -1) return;
+    const target = stage.manualPlacements[idx];
+    if (target.key === "1x1") return; // square — rotation is a no-op
+    const rotatedTarget: DeckPlacement = {
+      ...target,
+      w: target.d,
+      d: target.w,
+    };
+    const others = stage.manualPlacements.filter((_, i) => i !== idx);
+    if (placementCollides(rotatedTarget, others)) return;
+    const next = stage.manualPlacements.slice();
+    next[idx] = rotatedTarget;
+    onUpdate({ manualPlacements: next });
+  };
+
   return (
     <div className="stage-card">
       <div className="stage-card-header">
@@ -449,6 +475,7 @@ function StageCard({
             rotated={rotated}
             onAddAtCell={addDeckAtCell}
             onRemoveAtCell={removeDeckAtCell}
+            onRotateAtCell={rotateDeckAtCell}
           />
           <StageBreakdown stage={stage} calc={calc} />
         </div>
@@ -534,7 +561,9 @@ function DeckPalette({
       </div>
       <div className="deck-palette-help">
         Click an empty cell on the visual to place the selected deck. Click a
-        placed deck to remove it.
+        placed deck to remove it. <strong>Right-click</strong> (or
+        <strong> Shift + click</strong>) a placed deck to rotate it 90° in
+        place — handy for fixing one deck without re-placing the whole row.
       </div>
     </div>
   );
@@ -549,6 +578,7 @@ function StageSvg({
   rotated = false,
   onAddAtCell,
   onRemoveAtCell,
+  onRotateAtCell,
 }: {
   stage: Stage;
   calc: ReturnType<typeof computeStage>;
@@ -562,6 +592,9 @@ function StageSvg({
   onAddAtCell?: (cellX: number, cellY: number) => void;
   /** Click on a deck when interactive: remove that deck. */
   onRemoveAtCell?: (cellX: number, cellY: number) => void;
+  /** Right-click (or Shift+click) on a placed deck: rotate it 90° in
+   *  place (top-left corner stays anchored). No-op on 1×1 decks. */
+  onRotateAtCell?: (cellX: number, cellY: number) => void;
 }) {
   const PAD = 12;
   const MAX = 480;
@@ -897,9 +930,11 @@ function StageSvg({
                 fill="transparent"
                 style={{ cursor: "pointer" }}
                 onMouseEnter={() => setHover({ cx, cy })}
-                onClick={() => {
-                  // If the clicked cell is already covered by a deck,
-                  // remove it; otherwise place the selected deck here.
+                onContextMenu={(e) => {
+                  // Right-click on a placed deck = rotate it in place.
+                  // Always preventDefault so the browser menu stays
+                  // out of the way during stage editing.
+                  e.preventDefault();
                   const px = cx * HALF_M;
                   const py = cy * HALF_M;
                   const covering = stage.manualPlacements.some(
@@ -909,6 +944,25 @@ function StageSvg({
                       py >= p.y &&
                       py < p.y + p.d,
                   );
+                  if (covering) onRotateAtCell?.(cx, cy);
+                }}
+                onClick={(e) => {
+                  const px = cx * HALF_M;
+                  const py = cy * HALF_M;
+                  const covering = stage.manualPlacements.some(
+                    (p) =>
+                      px >= p.x &&
+                      px < p.x + p.w &&
+                      py >= p.y &&
+                      py < p.y + p.d,
+                  );
+                  // Shift+click on a placed deck = rotate it in place
+                  // (alternative to right-click, friendlier on touchpads).
+                  if (covering && e.shiftKey) {
+                    onRotateAtCell?.(cx, cy);
+                    return;
+                  }
+                  // Otherwise: covered = remove, empty = add.
                   if (covering) {
                     onRemoveAtCell?.(cx, cy);
                   } else {

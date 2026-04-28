@@ -181,7 +181,7 @@ export function BriefDetail({
           {formatDate(brief.project.date)}
           {brief.project.preparedBy ? (
             <>
-              {" · prepared by "}
+              {" · project manager "}
               <span style={{ color: c.text, fontWeight: 600 }}>
                 {brief.project.preparedBy}
               </span>

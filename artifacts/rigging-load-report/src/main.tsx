@@ -9,7 +9,7 @@ import {
   useAuth,
 } from "@clerk/react";
 import { dark } from "@clerk/themes";
-import { Route, Router, Switch, useLocation } from "wouter";
+import { Redirect, Route, Router, Switch, useLocation } from "wouter";
 import App from "./App";
 import { Portal } from "./portal/Portal";
 import "./index.css";
@@ -159,6 +159,33 @@ type LoginIntent = "employee" | "freelancer";
 
 const AUTH_MODE_KEY = "ehs-auth-mode";
 const LOGIN_INTENT_KEY = "ehs-login-intent";
+const USER_ROLE_KEY = "ehs-user-role";
+
+function loadUserRole(): LoginIntent | null {
+  try {
+    const raw = localStorage.getItem(USER_ROLE_KEY);
+    if (raw === "employee" || raw === "freelancer") return raw;
+  } catch {
+    /* localStorage may be unavailable */
+  }
+  return null;
+}
+
+function saveUserRole(role: LoginIntent | null) {
+  try {
+    if (role) {
+      localStorage.setItem(USER_ROLE_KEY, role);
+    } else {
+      localStorage.removeItem(USER_ROLE_KEY);
+    }
+  } catch {
+    /* localStorage may be unavailable */
+  }
+}
+
+export function clearUserRole() {
+  saveUserRole(null);
+}
 
 function loadInitialAuthMode(): AuthMode {
   try {
@@ -214,6 +241,7 @@ function SignInScreen({
   };
   const setIntent = (next: LoginIntent) => {
     saveLoginIntent(next);
+    saveUserRole(next);
     setIntentState(next);
   };
 
@@ -465,6 +493,7 @@ function PostLoginRedirect() {
   useEffect(() => {
     const intent = loadInitialLoginIntent();
     if (!intent) return;
+    saveUserRole(intent);
     const inPortal = location === "/portal" || location.startsWith("/portal/");
     if (intent === "freelancer" && !inPortal) {
       setLocation("/portal");
@@ -475,6 +504,24 @@ function PostLoginRedirect() {
     // We only want this to run once after mount (post sign-in landing).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  return null;
+}
+
+/**
+ * Continuous guard that locks freelancers to the /portal/* surface.
+ * Runs on every location change; if the persisted role is "freelancer"
+ * and the user lands outside /portal, they are redirected back to /portal.
+ */
+function FreelancerGuard() {
+  const [location, setLocation] = useLocation();
+  const role = loadUserRole();
+  useEffect(() => {
+    if (role !== "freelancer") return;
+    const inPortal = location === "/portal" || location.startsWith("/portal/");
+    if (!inPortal) {
+      setLocation("/portal");
+    }
+  }, [role, location, setLocation]);
   return null;
 }
 
@@ -597,6 +644,7 @@ function AuthGate({
         <ClearAuthMode />
         <Router base={basePath}>
           <PostLoginRedirect />
+          <FreelancerGuard />
           <Switch>
             <Route path="/portal">
               <Portal theme={theme} onToggleTheme={onToggleTheme} />
@@ -610,12 +658,18 @@ function AuthGate({
               <Portal theme={theme} onToggleTheme={onToggleTheme} />
             </Route>
             <Route>
-              <App />
+              {loadUserRole() === "freelancer" ||
+              loadInitialLoginIntent() === "freelancer" ? (
+                <Redirect to="/portal" />
+              ) : (
+                <App />
+              )}
             </Route>
           </Switch>
         </Router>
       </Show>
       <Show when="signed-out">
+        <ClearUserRoleOnSignedOut />
         {devStatus === "pending" ? (
           <DevSigningInScreen theme={theme} />
         ) : (
@@ -633,6 +687,19 @@ function ClearAuthMode() {
     } catch {
       /* sessionStorage may be unavailable */
     }
+  }, []);
+  return null;
+}
+
+/**
+ * When the app reaches the signed-out state (sign-out via any path,
+ * session expiry, etc.), clear the persisted role so the next user
+ * starts from a clean slate and the FreelancerGuard does not act on
+ * stale data.
+ */
+function ClearUserRoleOnSignedOut() {
+  useEffect(() => {
+    saveUserRole(null);
   }, []);
   return null;
 }

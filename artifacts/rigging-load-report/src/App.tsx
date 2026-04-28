@@ -673,6 +673,11 @@ function SignOutButton() {
         } catch {
           /* sessionStorage may be unavailable */
         }
+        try {
+          localStorage.removeItem("ehs-user-role");
+        } catch {
+          /* localStorage may be unavailable */
+        }
         void signOut();
       }}
       title={`Signed in as ${label}. Click to sign out.`}
@@ -2176,7 +2181,7 @@ function App() {
             />
           </div>
           <div className="meta-field">
-            <label>Prepared by</label>
+            <label>Project manager</label>
             <input
               type="text"
               value={engineer}

@@ -403,7 +403,7 @@ export function exportStageReport(input: {
     <div class="value">${escapeHtml(project.date || "—")}</div>
   </div>
   <div class="meta-item">
-    <div class="label">Prepared by</div>
+    <div class="label">Project manager</div>
     <div class="value">${escapeHtml(project.preparedBy || "—")}</div>
   </div>
   <div class="meta-item">

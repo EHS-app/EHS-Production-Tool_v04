@@ -154,6 +154,11 @@ export function PortalLayout({
             } catch {
               /* sessionStorage may be unavailable */
             }
+            try {
+              localStorage.removeItem("ehs-user-role");
+            } catch {
+              /* localStorage may be unavailable */
+            }
             void signOut();
           }}
           title={`Signed in as ${userLabel}. Click to sign out.`}

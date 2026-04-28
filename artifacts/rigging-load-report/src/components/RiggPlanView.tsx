@@ -49,6 +49,12 @@ type Props = {
   plan: RiggPlan;
   systems: RiggPlanSystemInfo[];
   onUpdateVenue: (patch: Partial<RiggPlanVenue>) => void;
+  /** Create a fresh venue with default dimensions. Called from the
+   *  "Add venue" CTA when the Rigg Plan is empty. */
+  onAddVenue: () => void;
+  /** Drop the venue and every truss placed on it. Called from the
+   *  "Delete venue" button on the Venue card. */
+  onDeleteVenue: () => void;
   onUpdateTruss: (systemId: string, patch: Partial<RiggPlanTruss>) => void;
   /** Jump to the Rigging Report so the user can rename / add systems. */
   onJumpToRigging: () => void;
@@ -68,6 +74,15 @@ type Props = {
   onClearFloorPlan: () => void;
 };
 
+/** Default dimensions used as analyser context when the producer
+ *  hasn't created a venue yet. The analyser still benefits from a
+ *  ballpark venue size to reconcile drawing dimensions against. */
+const DRAWING_IMPORTER_FALLBACK_VENUE = {
+  widthM: 20,
+  depthM: 12,
+  ceilingM: 8,
+};
+
 const fmt = (n: number, d = 1) =>
   n.toLocaleString("en-US", { maximumFractionDigits: d });
 
@@ -81,6 +96,8 @@ export function RiggPlanView({
   plan,
   systems,
   onUpdateVenue,
+  onAddVenue,
+  onDeleteVenue,
   onUpdateTruss,
   onJumpToRigging,
   onApplyExtractedItems,
@@ -93,8 +110,11 @@ export function RiggPlanView({
 
   // Auto-seed any newly-created system with a default truss layout so
   // the user never has to "place" them manually — the truss just
-  // appears the first time they open the tab.
+  // appears the first time they open the tab. Skipped entirely when
+  // there's no venue: trusses live in the venue's coordinate frame, so
+  // seeding without one would create unplaceable rows.
   useEffect(() => {
+    if (!venue) return;
     const missing = systems.filter((s) => !trussById[s.id]);
     if (missing.length === 0) return;
     const total = systems.length;
@@ -109,9 +129,11 @@ export function RiggPlanView({
       onUpdateTruss(sys.id, seed);
     });
     // We deliberately depend only on the systems list / which ids are
-    // present so this effect doesn't fire on every drag.
+    // present so this effect doesn't fire on every drag. Also include
+    // venue presence so we re-seed when the producer adds the venue
+    // back after a delete.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [systems.map((s) => s.id).join("|")]);
+  }, [systems.map((s) => s.id).join("|"), venue != null]);
 
   const placedSystems = useMemo(
     () => systems.filter((s) => trussById[s.id]),
@@ -132,110 +154,159 @@ export function RiggPlanView({
           </p>
         </div>
         <div className="led-report-meta">
-          <span className="badge">
-            <strong>{venue.widthM} × {venue.depthM} m</strong> venue
-          </span>
-          <span className="badge">
-            <strong>{venue.ceilingM} m</strong> ceiling
-          </span>
-          <span className="badge">
-            <strong>{placedSystems.length}</strong> trusses
-          </span>
+          {venue ? (
+            <>
+              <span className="badge">
+                <strong>{venue.widthM} × {venue.depthM} m</strong> venue
+              </span>
+              <span className="badge">
+                <strong>{venue.ceilingM} m</strong> ceiling
+              </span>
+              <span className="badge">
+                <strong>{placedSystems.length}</strong> trusses
+              </span>
+            </>
+          ) : (
+            <span className="badge">No venue</span>
+          )}
         </div>
       </header>
 
       {/* Drawing importer — reads a user-uploaded venue plan and lets
-          them apply the extracted items back to the report tabs. */}
+          them apply the extracted items back to the report tabs. Stays
+          visible even with no venue so a producer who only has a
+          drawing can let it populate the venue dimensions. */}
       <DrawingImporter
-        currentVenue={venue}
+        currentVenue={venue ?? DRAWING_IMPORTER_FALLBACK_VENUE}
         projectName={projectName}
         onApply={onApplyExtractedItems}
         onUseAsFloorPlan={onSetFloorPlan}
         hasFloorPlan={floorPlan != null}
       />
 
-      {/* Venue editor */}
-      <section className="led-card">
-        <div className="led-card-head">
-          <h3>Venue</h3>
-          <span className="led-hint">
-            Width is stage-left to stage-right; depth is downstage to upstage.
-          </span>
-        </div>
-        <div className="rigg-venue-grid">
-          <label className="led-field">
-            <span className="led-field-label">Width (m)</span>
-            <NumberField
-              className="led-input led-input-num"
-              min={1}
-              step={0.5}
-              value={venue.widthM}
-              transform={(n) => Math.max(1, snapHalfMetre(n || 0))}
-              emptyValue={1}
-              onCommit={(widthM) => onUpdateVenue({ widthM })}
-            />
-          </label>
-          <label className="led-field">
-            <span className="led-field-label">Depth (m)</span>
-            <NumberField
-              className="led-input led-input-num"
-              min={1}
-              step={0.5}
-              value={venue.depthM}
-              transform={(n) => Math.max(1, snapHalfMetre(n || 0))}
-              emptyValue={1}
-              onCommit={(depthM) => onUpdateVenue({ depthM })}
-            />
-          </label>
-          <label className="led-field">
-            <span className="led-field-label">Ceiling (m)</span>
-            <NumberField
-              className="led-input led-input-num"
-              min={1}
-              step={0.5}
-              value={venue.ceilingM}
-              transform={(n) => Math.max(1, snapHalfMetre(n || 0))}
-              emptyValue={1}
-              onCommit={(ceilingM) => onUpdateVenue({ ceilingM })}
-            />
-          </label>
-        </div>
-      </section>
-
-      {/* Plan canvas */}
-      <section className="led-card">
-        <div className="led-card-head">
-          <h3>Floor plan</h3>
-        </div>
-
-        {systems.length === 0 ? (
-          <div className="led-empty">
-            No rigging systems yet — add one on the{" "}
-            <button
-              type="button"
-              className="btn btn-soft btn-sm"
-              onClick={onJumpToRigging}
-            >
-              Rigging Report
-            </button>{" "}
-            and it will appear here automatically.
+      {venue == null ? (
+        /* Empty state — no venue. The producer either deleted the
+           venue or hit Reset. Show a single CTA to add one back. */
+        <section className="led-card">
+          <div className="led-card-head">
+            <h3>Venue</h3>
+            <span className="led-hint">
+              Add a venue to start placing trusses on the floor plan.
+            </span>
           </div>
-        ) : (
-          <PlanCanvas
-            venue={venue}
-            systems={placedSystems}
-            trussById={trussById}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-            onUpdateTruss={onUpdateTruss}
-            floorPlan={floorPlan}
-            onClearFloorPlan={onClearFloorPlan}
-          />
-        )}
-      </section>
+          <div className="led-empty">
+            No venue yet — start with the standard{" "}
+            {DRAWING_IMPORTER_FALLBACK_VENUE.widthM}&nbsp;×&nbsp;
+            {DRAWING_IMPORTER_FALLBACK_VENUE.depthM} m default and adjust
+            from there.
+            <div style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={onAddVenue}
+              >
+                + Add venue
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <>
+          {/* Venue editor */}
+          <section className="led-card">
+            <div className="led-card-head">
+              <h3>Venue</h3>
+              <div className="led-controls">
+                <span className="led-hint">
+                  Width is stage-left to stage-right; depth is downstage
+                  to upstage.
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-danger btn-sm"
+                  onClick={onDeleteVenue}
+                  title="Delete the venue and every placed truss"
+                >
+                  Delete venue
+                </button>
+              </div>
+            </div>
+            <div className="rigg-venue-grid">
+              <label className="led-field">
+                <span className="led-field-label">Width (m)</span>
+                <NumberField
+                  className="led-input led-input-num"
+                  min={1}
+                  step={0.5}
+                  value={venue.widthM}
+                  transform={(n) => Math.max(1, snapHalfMetre(n || 0))}
+                  emptyValue={1}
+                  onCommit={(widthM) => onUpdateVenue({ widthM })}
+                />
+              </label>
+              <label className="led-field">
+                <span className="led-field-label">Depth (m)</span>
+                <NumberField
+                  className="led-input led-input-num"
+                  min={1}
+                  step={0.5}
+                  value={venue.depthM}
+                  transform={(n) => Math.max(1, snapHalfMetre(n || 0))}
+                  emptyValue={1}
+                  onCommit={(depthM) => onUpdateVenue({ depthM })}
+                />
+              </label>
+              <label className="led-field">
+                <span className="led-field-label">Ceiling (m)</span>
+                <NumberField
+                  className="led-input led-input-num"
+                  min={1}
+                  step={0.5}
+                  value={venue.ceilingM}
+                  transform={(n) => Math.max(1, snapHalfMetre(n || 0))}
+                  emptyValue={1}
+                  onCommit={(ceilingM) => onUpdateVenue({ ceilingM })}
+                />
+              </label>
+            </div>
+          </section>
+
+          {/* Plan canvas */}
+          <section className="led-card">
+            <div className="led-card-head">
+              <h3>Floor plan</h3>
+            </div>
+
+            {systems.length === 0 ? (
+              <div className="led-empty">
+                No rigging systems yet — add one on the{" "}
+                <button
+                  type="button"
+                  className="btn btn-soft btn-sm"
+                  onClick={onJumpToRigging}
+                >
+                  Rigging Report
+                </button>{" "}
+                and it will appear here automatically.
+              </div>
+            ) : (
+              <PlanCanvas
+                venue={venue}
+                systems={placedSystems}
+                trussById={trussById}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                onUpdateTruss={onUpdateTruss}
+                floorPlan={floorPlan}
+                onClearFloorPlan={onClearFloorPlan}
+              />
+            )}
+          </section>
+        </>
+      )}
 
       {/* Per-truss editor */}
-      {placedSystems.length > 0 && (
+      {venue && placedSystems.length > 0 && (
         <section className="led-card">
           <div className="led-card-head">
             <h3>Trusses</h3>

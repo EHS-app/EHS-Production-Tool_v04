@@ -70,6 +70,7 @@ import { PowerPlanView } from "./components/PowerPlanView";
 import {
   clampTrussToVenue,
   DEFAULT_RIGG_PLAN,
+  makeDefaultVenue,
   normalizeRiggPlan,
   type RiggPlan,
   type RiggPlanTruss,
@@ -1697,7 +1698,12 @@ function App() {
 
   const updateRiggPlanVenue = (patch: Partial<RiggPlanVenue>) => {
     setRiggPlan((p) => {
-      const venue = { ...p.venue, ...patch };
+      // If the producer has deleted the venue, an "update" implicitly
+      // re-creates it with default dimensions before applying the patch
+      // — so e.g. the drawing-importer's "Apply venue" path can always
+      // populate a venue, even from the empty state.
+      const base = p.venue ?? makeDefaultVenue();
+      const venue = { ...base, ...patch };
       // Re-clamp every existing truss into the new venue so shrinking
       // the venue can never leave trusses dangling outside it.
       const trussById: Record<string, RiggPlanTruss> = {};
@@ -1706,6 +1712,33 @@ function App() {
       }
       return { venue, trussById };
     });
+  };
+  /** Add a fresh venue with default dimensions when the Rigg Plan is
+   *  empty. Re-uses the default-build helper so any future tweak to
+   *  defaults flows through both first-load and "Add venue". */
+  const addRiggPlanVenue = () => {
+    setRiggPlan((p) => ({
+      ...p,
+      venue: p.venue ?? makeDefaultVenue(),
+    }));
+  };
+  /** Delete the venue and every truss associated with it. Trusses and
+   *  the floor-plan backdrop image both live in the venue's coordinate
+   *  frame, so keeping them around when the venue is gone would leak
+   *  hidden state and surprise the user the next time they add a venue
+   *  back. The rigging systems themselves are not touched — they stay
+   *  on the Rigging Report and will get re-seeded with default truss
+   *  positions the next time a venue exists. */
+  const deleteRiggPlanVenue = () => {
+    if (
+      !confirm(
+        "Delete the venue? The floor plan and every placed truss will be cleared. The rigging systems themselves stay on the Rigging Report.",
+      )
+    ) {
+      return;
+    }
+    setRiggPlan(() => ({ venue: null, trussById: {} }));
+    setFloorPlan(null);
   };
   const updateRiggPlanTruss = (
     systemId: string,
@@ -2682,7 +2715,7 @@ function App() {
   const resetAll = () => {
     if (
       !confirm(
-        "Reset the entire report? Every tab — systems, lighting fixtures, LED screens, stages, crew, sound, power plan, rigg plan, and the project info — will be cleared.",
+        "Reset the entire report? Every tab — systems, lighting fixtures, LED screens, stages, crew, sound, power plan, rigg plan (including the venue), and the project info — will be cleared.",
       )
     )
       return;
@@ -2706,6 +2739,10 @@ function App() {
     setCrew([]);
     setSoundItems([]);
     setPower(defaultPowerPlan());
+    // DEFAULT_RIGG_PLAN now starts with `venue: null` and an empty
+    // trussById, so this returns the Rigg Plan tab to a truly blank
+    // "no venue, no trusses" state rather than the legacy 20×12 m
+    // default venue.
     setRiggPlan({ ...DEFAULT_RIGG_PLAN, trussById: {} });
     setFloorPlan(null);
     setMainView("rigging");
@@ -3813,6 +3850,8 @@ function App() {
           plan={riggPlan}
           systems={riggPlanSystems}
           onUpdateVenue={updateRiggPlanVenue}
+          onAddVenue={addRiggPlanVenue}
+          onDeleteVenue={deleteRiggPlanVenue}
           onUpdateTruss={updateRiggPlanTruss}
           onJumpToRigging={() => setMainView("rigging")}
           onApplyExtractedItems={applyExtractedItems}

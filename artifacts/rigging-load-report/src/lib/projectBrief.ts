@@ -447,6 +447,10 @@ function summariseRigging(rigging: BriefRiggingInput): BriefRiggingTotals {
 }
 
 function summariseRiggPlan(plan: RiggPlan, systemNameById: Map<string, string>): BriefRiggPlan | null {
+  // The venue is the coordinate frame for every truss — without it the
+  // brief has nothing meaningful to draw. Producers can now delete the
+  // venue from the Rigg Plan tab, so this case is reachable.
+  if (!plan.venue) return null;
   const ids = Object.keys(plan.trussById);
   if (ids.length === 0) return null;
   const trusses = ids.map((id) => {

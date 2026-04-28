@@ -37,7 +37,11 @@ export type RiggPlanTruss = {
 };
 
 export type RiggPlan = {
-  venue: RiggPlanVenue;
+  /** The producer can delete the venue (returning to a "no venue" empty
+   *  state) and re-add a fresh one. When `venue` is `null` no floor
+   *  plan is rendered and no trusses can be placed; the Rigg Plan tab
+   *  just shows an "Add venue" call to action. */
+  venue: RiggPlanVenue | null;
   /** Per-System truss layout, keyed by System.id. */
   trussById: Record<string, RiggPlanTruss>;
 };
@@ -48,10 +52,19 @@ export const DEFAULT_VENUE: RiggPlanVenue = {
   ceilingM: 8,
 };
 
+/** A truly empty Rigg Plan — no venue, no trusses. Used at first-load
+ *  when the user has no persisted state, and also by the top-bar Reset
+ *  button so a reset returns the tab to the same blank slate. */
 export const DEFAULT_RIGG_PLAN: RiggPlan = {
-  venue: { ...DEFAULT_VENUE },
+  venue: null,
   trussById: {},
 };
+
+/** Build a fresh venue with the standard default dimensions. Used when
+ *  the user clicks "Add venue" on an empty Rigg Plan. */
+export function makeDefaultVenue(): RiggPlanVenue {
+  return { ...DEFAULT_VENUE };
+}
 
 /** Round to the nearest 0.5 m — venues, trusses and trims all snap to
  *  the half-metre grid, same convention as the Stage Report. */
@@ -86,8 +99,12 @@ export function makeDefaultTruss(
   };
 }
 
-function normalizeVenue(raw: unknown): RiggPlanVenue {
-  if (!raw || typeof raw !== "object") return { ...DEFAULT_VENUE };
+/** Normalise a stored venue blob. Returns `null` when the input is
+ *  missing or falsy so the "venue deleted" state survives a reload —
+ *  callers must handle the null venue path. */
+function normalizeVenue(raw: unknown): RiggPlanVenue | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
   const num = (v: unknown, fb: number) =>
     typeof v === "number" && Number.isFinite(v) && v > 0 ? v : fb;
@@ -114,17 +131,20 @@ function normalizeTruss(raw: unknown): RiggPlanTruss | null {
 }
 
 export function normalizeRiggPlan(raw: unknown): RiggPlan {
-  if (!raw || typeof raw !== "object") return { ...DEFAULT_RIGG_PLAN };
+  if (!raw || typeof raw !== "object") return { venue: null, trussById: {} };
   const r = raw as Record<string, unknown>;
   const venue = normalizeVenue(r.venue);
   const trussById: Record<string, RiggPlanTruss> = {};
   if (r.trussById && typeof r.trussById === "object") {
     for (const [id, t] of Object.entries(r.trussById as Record<string, unknown>)) {
       const norm = normalizeTruss(t);
-      // Always clamp loaded trusses into the venue — guards against
-      // hand-edited storage and against venue shrinks done in older
-      // app versions that didn't re-clamp on venue change.
-      if (norm) trussById[id] = clampTrussToVenue(norm, venue);
+      // Trusses without a venue are meaningless (no coordinate frame
+      // to clamp them into), so drop them entirely. With a venue,
+      // always clamp loaded trusses into it — guards against hand-
+      // edited storage and against venue shrinks done in older app
+      // versions that didn't re-clamp on venue change.
+      if (!norm) continue;
+      if (venue) trussById[id] = clampTrussToVenue(norm, venue);
     }
   }
   return { venue, trussById };

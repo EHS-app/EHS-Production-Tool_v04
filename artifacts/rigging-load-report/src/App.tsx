@@ -2874,9 +2874,13 @@ function App() {
       <div className="main-grid">
         <div className="card">
           <h2>
-            1. Motors &amp; Support
+            1. Motors &amp; Hoists
             <span className="card-total">
-              {sectionTotal(activeSystem.riggingRows).toFixed(1)} kg
+              {(
+                activeSystem.pointCount *
+                (hoistModels[activeSystem.hoistIndex] ?? hoistModels[0]).weight
+              ).toFixed(1)}{" "}
+              kg
             </span>
           </h2>
           <div className="motor-config">
@@ -2927,6 +2931,15 @@ function App() {
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="card">
+          <h2>
+            2. Truss
+            <span className="card-total">
+              {sectionTotal(activeSystem.riggingRows).toFixed(1)} kg
+            </span>
+          </h2>
           <div>
             {activeSystem.riggingRows.map((r) =>
               renderItemRow(r, "riggingRows"),
@@ -2946,11 +2959,17 @@ function App() {
           >
             + Add Truss
           </button>
+          <button
+            className="btn btn-add btn-custom"
+            onClick={() => openModal("Truss")}
+          >
+            + Manual Item
+          </button>
         </div>
 
         <div className="card">
           <h2>
-            2. Lighting Fixtures
+            3. Lighting Fixtures
             <span className="card-total">
               {sectionTotal(activeSystem.fixtureRows).toFixed(1)} kg
             </span>
@@ -2984,7 +3003,7 @@ function App() {
 
         <div className="card">
           <h2>
-            3. LED &amp; Other Equipment
+            4. LED &amp; Other Equipment
             <span className="card-total">
               {sectionTotal(activeSystem.ledRows).toFixed(1)} kg
             </span>
@@ -3015,7 +3034,7 @@ function App() {
         </div>
 
         <div className="card full-width">
-          <h2>4. Rigging Point Calculations — {activeSystem.name}</h2>
+          <h2>5. Rigging Point Calculations — {activeSystem.name}</h2>
           <div className="analysis-container">
             <div className="points-summary">
               {metricsByActive.factors.map((f, i) => {

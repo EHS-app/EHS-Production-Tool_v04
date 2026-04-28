@@ -7,7 +7,7 @@ This project is a pnpm workspace monorepo designed as an internal stage-tech too
 - **Internal Tool**: This is an internal tool, so there is intentionally no public landing page.
 - **Invitation-Only Access**: Access is by invitation only. To request an invite, users should email utleie@ehs.no.
 - **No Sign-Up**: The sign-up footer link is hidden, and no `/sign-up` route exists.
-- **No Google Sign-in**: The Google "Continue with Google" button is hidden.
+- **Google Sign-in**: Visible on the production sign-in page (the auth instance currently has email/password disabled, so Google is the active sign-in method on prod). Email/password sign-in can be re-enabled from the Auth pane in the Replit Workspace toolbar.
 - **No Client-side Credentials**: Admin passwords should not touch the browser.
 - **Development Auto-sign-in**: In development, the preview should auto-log the user in as Admin to avoid manual credential entry on reloads. This functionality must be strictly gated by `NODE_ENV` / `import.meta.env.DEV` and not leak to production builds.
 
@@ -30,7 +30,7 @@ This project is a pnpm workspace monorepo designed as an internal stage-tech too
 - **Deployment**: Supports GitHub Pages via `BASE_PATH` environment variable
 
 ## Authentication
-- **Provider**: Clerk for sign-in and user management. Sign-up is restricted to invitation only, and Google OAuth is disabled.
+- **Provider**: Clerk for sign-in and user management. Sign-up is restricted to invitation only. Google OAuth is the active sign-in method on production (the auth instance currently has email/password disabled — this can be re-enabled from the Auth pane in the Replit Workspace toolbar).
 - **Admin Setup**: Seeded admin account for `olti@ehs.no` provisioned via Clerk Backend API.
 - **Dev Auto-sign-in**: A development-only feature that auto-logs in as Admin via Clerk's ticket strategy, ensuring no admin credentials reach the client. This is strictly guarded by `NODE_ENV`.
 

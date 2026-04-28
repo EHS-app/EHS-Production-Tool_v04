@@ -81,30 +81,44 @@ type SupportedImageMediaType =
   | "image/gif"
   | "image/webp";
 
-const SUPPORTED_MEDIA_TYPES: readonly SupportedImageMediaType[] = [
+type SupportedDocumentMediaType = "application/pdf";
+
+type SupportedMediaType = SupportedImageMediaType | SupportedDocumentMediaType;
+
+const SUPPORTED_IMAGE_MEDIA_TYPES: readonly SupportedImageMediaType[] = [
   "image/jpeg",
   "image/png",
   "image/gif",
   "image/webp",
 ] as const;
 
-function isSupportedMediaType(s: string): s is SupportedImageMediaType {
+const SUPPORTED_MEDIA_TYPES: readonly SupportedMediaType[] = [
+  ...SUPPORTED_IMAGE_MEDIA_TYPES,
+  "application/pdf",
+] as const;
+
+function isSupportedMediaType(s: string): s is SupportedMediaType {
   return (SUPPORTED_MEDIA_TYPES as readonly string[]).includes(s);
 }
 
-/** Extract media-type + base64 payload from a `data:image/...;base64,...` URL. */
+function isImageMediaType(s: SupportedMediaType): s is SupportedImageMediaType {
+  return (SUPPORTED_IMAGE_MEDIA_TYPES as readonly string[]).includes(s);
+}
+
+/** Extract media-type + base64 payload from a `data:<mime>;base64,...` URL.
+ *  Accepts the documented image types plus `application/pdf`. */
 function parseDataUrl(
   url: string,
 ):
-  | { ok: true; mediaType: SupportedImageMediaType; data: string }
+  | { ok: true; mediaType: SupportedMediaType; data: string }
   | { ok: false; error: string } {
   const m = url.match(/^data:([^;,]+);base64,(.+)$/i);
-  if (!m) return { ok: false, error: "imageDataUrl must be a base64 data URL" };
+  if (!m) return { ok: false, error: "fileDataUrl must be a base64 data URL" };
   const mediaType = m[1].toLowerCase();
   if (!isSupportedMediaType(mediaType)) {
     return {
       ok: false,
-      error: `Unsupported image type: ${mediaType}. Use png, jpg, gif or webp.`,
+      error: `Unsupported file type: ${mediaType}. Use a PDF or a PNG/JPG/WebP/GIF image.`,
     };
   }
   return { ok: true, mediaType, data: m[2] };
@@ -315,27 +329,41 @@ router.post("/rigplan/analyze", requireSignedIn, rateLimit, json({ limit: "12mb"
   }
 
   const body = (req.body ?? {}) as {
+    /** Preferred name for image OR PDF data URLs. */
+    fileDataUrl?: unknown;
+    /** Legacy field — kept for backward compatibility with older clients. */
     imageDataUrl?: unknown;
     context?: unknown;
   };
-  const imageDataUrl = typeof body.imageDataUrl === "string" ? body.imageDataUrl : "";
-  if (!imageDataUrl) {
-    res.status(400).json({ ok: false, error: "imageDataUrl is required" });
+  const dataUrlField =
+    typeof body.fileDataUrl === "string" && body.fileDataUrl
+      ? body.fileDataUrl
+      : typeof body.imageDataUrl === "string"
+        ? body.imageDataUrl
+        : "";
+  if (!dataUrlField) {
+    res.status(400).json({ ok: false, error: "fileDataUrl is required" });
     return;
   }
-  const parsed = parseDataUrl(imageDataUrl);
+  const parsed = parseDataUrl(dataUrlField);
   if (!parsed.ok) {
     res.status(400).json({ ok: false, error: parsed.error });
     return;
   }
-  // Anthropic's vision endpoint accepts up to ~5MB per image. Reject
-  // earlier than that (base64 is ~33% larger than the binary) so the user
-  // gets a clear error.
+  // Anthropic's vision endpoint accepts up to ~5 MB per image and ~32 MB per
+  // PDF, but our route-scoped body parser caps the JSON envelope at 12 MB
+  // (see the `json({ limit: "12mb" })` middleware below). Base64 is ~33 %
+  // larger than the binary, so:
+  //   - Images:   binary cap 4.5 MB → ~6 MB of base64 (well under both).
+  //   - PDFs:     binary cap 8.0 MB → ~10.7 MB of base64 (under our 12 MB).
   const approxBinaryBytes = Math.floor(parsed.data.length * 0.75);
-  if (approxBinaryBytes > 4_500_000) {
+  const isImage = isImageMediaType(parsed.mediaType);
+  const binaryCap = isImage ? 4_500_000 : 8_000_000;
+  if (approxBinaryBytes > binaryCap) {
+    const capMb = isImage ? "4.5 MB" : "8 MB";
     res.status(413).json({
       ok: false,
-      error: "Image is too large; please use one under ~4.5 MB.",
+      error: `${isImage ? "Image" : "PDF"} is too large; please use one under ~${capMb}.`,
     });
     return;
   }
@@ -345,6 +373,27 @@ router.post("/rigplan/analyze", requireSignedIn, rateLimit, json({ limit: "12mb"
       ? (body.context as AnalyzeContext)
       : undefined;
 
+  // Anthropic's content-block shape differs for images vs PDFs. Images go
+  // into a `type: "image"` block, PDFs into a `type: "document"` block. The
+  // SDK types are separate so we build the right one per file kind.
+  const fileBlock = isImage
+    ? ({
+        type: "image" as const,
+        source: {
+          type: "base64" as const,
+          media_type: parsed.mediaType as SupportedImageMediaType,
+          data: parsed.data,
+        },
+      })
+    : ({
+        type: "document" as const,
+        source: {
+          type: "base64" as const,
+          media_type: "application/pdf" as const,
+          data: parsed.data,
+        },
+      });
+
   try {
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
@@ -353,14 +402,7 @@ router.post("/rigplan/analyze", requireSignedIn, rateLimit, json({ limit: "12mb"
         {
           role: "user",
           content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: parsed.mediaType,
-                data: parsed.data,
-              },
-            },
+            fileBlock,
             {
               type: "text",
               text: `${SCHEMA_PROMPT}\n\n${contextLine(ctx)}`.trim(),
@@ -398,6 +440,28 @@ router.post("/rigplan/analyze", requireSignedIn, rateLimit, json({ limit: "12mb"
     res.json({ ok: true, data });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
+    // Anthropic SDK errors expose `.status`. A 4xx from upstream usually
+    // means the file itself was rejected (encrypted/corrupt PDF, image
+    // outside supported dimensions, …). Surface that as a user-facing
+    // 400 with a clear hint instead of a generic 500.
+    const status =
+      err && typeof err === "object" && "status" in err
+        ? (err as { status?: unknown }).status
+        : undefined;
+    if (typeof status === "number" && status >= 400 && status < 500) {
+      logger.warn(
+        { err: msg, upstreamStatus: status },
+        "rigplan analyze upstream rejected the file",
+      );
+      res.status(400).json({
+        ok: false,
+        error:
+          isImage
+            ? "The image could not be read. Try a clearer drawing or a different file."
+            : "The PDF could not be read. Make sure it isn't password-protected, scanned at very low resolution, or unusually long, then try again.",
+      });
+      return;
+    }
     logger.error({ err: msg }, "rigplan analyze failed");
     res.status(500).json({ ok: false, error: `Analysis failed: ${msg}` });
   }

@@ -100,18 +100,30 @@ function endpointUrl(): string {
   return `${base}api/rigplan/analyze`;
 }
 
-/** POST the image to the analyzer and return the parsed extracted items.
- *  Throws an Error with a user-friendly message on failure. */
+/** Normalise the data URL's media-type prefix so the backend's strict
+ *  `application/pdf` check succeeds even when the OS / browser left
+ *  `file.type` empty (e.g. some Linux / drag-and-drop scenarios where
+ *  the file is identified only by extension). */
+function withCorrectedMediaType(dataUrl: string, file: File): string {
+  const looksLikePdf = /\.pdf$/i.test(file.name);
+  if (looksLikePdf && !/^data:application\/pdf;/i.test(dataUrl)) {
+    return dataUrl.replace(/^data:[^;]*;/, "data:application/pdf;");
+  }
+  return dataUrl;
+}
+
+/** POST the image or PDF to the analyzer and return the parsed extracted
+ *  items. Throws an Error with a user-friendly message on failure. */
 export async function analyzeDrawing(
   file: File,
   context?: AnalyzeContext,
   signal?: AbortSignal,
 ): Promise<ExtractedItems> {
-  const imageDataUrl = await fileToDataUrl(file);
+  const fileDataUrl = withCorrectedMediaType(await fileToDataUrl(file), file);
   const res = await fetch(endpointUrl(), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ imageDataUrl, context }),
+    body: JSON.stringify({ fileDataUrl, context }),
     signal,
   });
 

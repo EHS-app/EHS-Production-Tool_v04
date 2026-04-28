@@ -18,7 +18,16 @@ type Props = {
   onApply: (extracted: ExtractedItems, selection: ApplySelection) => void;
 };
 
-const ACCEPT = "image/png,image/jpeg,image/jpg,image/webp,image/gif";
+const ACCEPT =
+  "image/png,image/jpeg,image/jpg,image/webp,image/gif,application/pdf,.pdf";
+
+function isPdfFile(f: File): boolean {
+  return f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+}
+
+function isAcceptedFile(f: File): boolean {
+  return f.type.startsWith("image/") || isPdfFile(f);
+}
 
 const fmt = (n: number | null, d = 1): string =>
   n == null ? "—" : n.toLocaleString("en-US", { maximumFractionDigits: d });
@@ -56,8 +65,20 @@ export function DrawingImporter({ currentVenue, projectName, onApply }: Props) {
   }, [file]);
 
   function pickFile(f: File) {
-    if (!f.type.startsWith("image/")) {
-      setError("Please choose an image file (PNG, JPG, WebP or GIF).");
+    if (!isAcceptedFile(f)) {
+      setError("Please choose a PDF or an image file (PNG, JPG, WebP or GIF).");
+      return;
+    }
+    // Size guard mirrors the server-side caps so the user gets immediate
+    // feedback instead of waiting for the upload to fail.
+    const isPdf = isPdfFile(f);
+    const cap = isPdf ? 8_000_000 : 4_500_000;
+    if (f.size > cap) {
+      setError(
+        isPdf
+          ? "PDF is too large; please use one under ~8 MB."
+          : "Image is too large; please use one under ~4.5 MB.",
+      );
       return;
     }
     setError(null);
@@ -147,7 +168,10 @@ export function DrawingImporter({ currentVenue, projectName, onApply }: Props) {
           />
           <div className="drawing-dropzone-inner">
             <strong>Drop a drawing here</strong>
-            <span>or click to choose a PNG, JPG, WebP or GIF (max ~4 MB)</span>
+            <span>
+              or click to choose a PDF (max ~8 MB) or PNG / JPG / WebP / GIF
+              (max ~4 MB)
+            </span>
           </div>
         </label>
       )}
@@ -155,16 +179,22 @@ export function DrawingImporter({ currentVenue, projectName, onApply }: Props) {
       {file && (
         <div className="drawing-preview-row">
           <div className="drawing-preview">
-            {previewUrl ? (
-              <img src={previewUrl} alt={file.name} />
-            ) : (
+            {!previewUrl ? (
               <div className="drawing-preview-empty">Loading preview…</div>
+            ) : isPdfFile(file) ? (
+              <div className="drawing-preview-pdf" aria-label="PDF preview">
+                <span className="drawing-preview-pdf-badge">PDF</span>
+                <span className="drawing-preview-pdf-name">{file.name}</span>
+              </div>
+            ) : (
+              <img src={previewUrl} alt={file.name} />
             )}
           </div>
           <div className="drawing-preview-meta">
             <strong>{file.name}</strong>
             <span className="led-sub">
-              {(file.size / 1024 / 1024).toFixed(2)} MB · {file.type || "image"}
+              {(file.size / 1024 / 1024).toFixed(2)} MB ·{" "}
+              {isPdfFile(file) ? "PDF document" : file.type || "image"}
             </span>
             <div className="drawing-preview-actions">
               <button

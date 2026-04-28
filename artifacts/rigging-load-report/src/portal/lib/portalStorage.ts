@@ -1,3 +1,5 @@
+import { normalizeBrief, type ProjectBrief } from "../../lib/projectBrief";
+
 export type GigStatus =
   | "invited"
   | "confirmed"
@@ -19,6 +21,26 @@ export type Gig = {
   notes: string;
   status: GigStatus;
   createdAt: number;
+  /** When this Gig was created from a shared Project Brief, the brief's
+   *  id is recorded here so the logbook entry links back to the briefing. */
+  briefId?: string;
+};
+
+/** A Project Brief that was shared by a producer and imported into the
+ *  freelancer's portal. The original brief is kept verbatim (so the
+ *  freelancer can re-read every detail) and the freelancer's response
+ *  is layered on top. */
+export type BriefDecision = "pending" | "accepted" | "declined";
+
+export type SharedBrief = {
+  briefId: string;
+  receivedAt: number;
+  decision: BriefDecision;
+  /** Set when `decision === "accepted"` — the id of the Gig that was
+   *  created from this brief, so the UI can link to the logbook entry
+   *  and the user can spot duplicates without re-importing. */
+  acceptedGigId?: string;
+  brief: ProjectBrief;
 };
 
 export type Profile = {
@@ -39,6 +61,7 @@ export type PortalData = {
   profile: Profile;
   availability: Record<string, AvailabilityState>;
   gigs: Gig[];
+  briefs: SharedBrief[];
 };
 
 export const EMPTY_PROFILE: Profile = {
@@ -57,6 +80,7 @@ export const EMPTY_PORTAL_DATA: PortalData = {
   profile: EMPTY_PROFILE,
   availability: {},
   gigs: [],
+  briefs: [],
 };
 
 const STORAGE_PREFIX = "ehs-portal:";
@@ -128,6 +152,35 @@ function normalizeGig(raw: unknown): Gig | null {
       typeof g.createdAt === "number" && isFinite(g.createdAt)
         ? g.createdAt
         : Date.now(),
+    briefId: typeof g.briefId === "string" && g.briefId ? g.briefId : undefined,
+  };
+}
+
+const VALID_DECISIONS: BriefDecision[] = ["pending", "accepted", "declined"];
+
+function normalizeSharedBrief(raw: unknown): SharedBrief | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const b = raw as Partial<SharedBrief>;
+  if (typeof b.briefId !== "string" || !b.briefId) return null;
+  const brief = normalizeBrief(b.brief);
+  if (!brief) return null;
+  const decision: BriefDecision = VALID_DECISIONS.includes(
+    b.decision as BriefDecision,
+  )
+    ? (b.decision as BriefDecision)
+    : "pending";
+  return {
+    briefId: b.briefId,
+    receivedAt:
+      typeof b.receivedAt === "number" && isFinite(b.receivedAt)
+        ? b.receivedAt
+        : Date.now(),
+    decision,
+    acceptedGigId:
+      typeof b.acceptedGigId === "string" && b.acceptedGigId
+        ? b.acceptedGigId
+        : undefined,
+    brief,
   };
 }
 
@@ -162,6 +215,11 @@ export function loadPortalData(
         ? obj.gigs
             .map(normalizeGig)
             .filter((g): g is Gig => g !== null)
+        : [],
+      briefs: Array.isArray(obj.briefs)
+        ? obj.briefs
+            .map(normalizeSharedBrief)
+            .filter((b): b is SharedBrief => b !== null)
         : [],
     };
   } catch {
@@ -219,4 +277,83 @@ export function statusColor(s: GigStatus): { bg: string; fg: string } {
     case "paid":
       return { bg: "rgba(22,163,74,0.18)", fg: "#16a34a" };
   }
+}
+
+/* --------------------------------- Briefs --------------------------------- */
+
+/** Add or refresh a brief in the freelancer's portal. If a brief with the
+ *  same `briefId` already exists, the original `decision` and
+ *  `acceptedGigId` are preserved (so re-opening the share link doesn't
+ *  silently undo an Accept) but the brief payload is refreshed in case
+ *  the producer regenerated the link. Returns the merged SharedBrief. */
+export function upsertBrief(
+  data: PortalData,
+  brief: ProjectBrief,
+): { data: PortalData; entry: SharedBrief } {
+  const existingIdx = data.briefs.findIndex(
+    (b) => b.briefId === brief.briefId,
+  );
+  if (existingIdx >= 0) {
+    const existing = data.briefs[existingIdx];
+    const merged: SharedBrief = {
+      ...existing,
+      brief,
+    };
+    const briefs = data.briefs.slice();
+    briefs[existingIdx] = merged;
+    return { data: { ...data, briefs }, entry: merged };
+  }
+  const entry: SharedBrief = {
+    briefId: brief.briefId,
+    receivedAt: Date.now(),
+    decision: "pending",
+    brief,
+  };
+  return { data: { ...data, briefs: [entry, ...data.briefs] }, entry };
+}
+
+/** Update a single brief by id (preserves identity for everything else). */
+export function updateBrief(
+  data: PortalData,
+  briefId: string,
+  patch: Partial<Omit<SharedBrief, "briefId" | "brief">>,
+): PortalData {
+  return {
+    ...data,
+    briefs: data.briefs.map((b) =>
+      b.briefId === briefId ? { ...b, ...patch } : b,
+    ),
+  };
+}
+
+export function findBrief(
+  data: PortalData,
+  briefId: string,
+): SharedBrief | undefined {
+  return data.briefs.find((b) => b.briefId === briefId);
+}
+
+/** Build a Gig from a SharedBrief, picking the recipient's assignment if
+ *  one is present (otherwise the first assignment, or generic blanks). */
+export function gigFromBrief(brief: ProjectBrief): Gig {
+  const target =
+    brief.assignments.find((a) => a.crewId === brief.recipientCrewId) ??
+    brief.assignments[0];
+  const venue = brief.project.venue || "Untitled show";
+  return {
+    id: newGigId(),
+    projectName: venue,
+    client: brief.project.preparedBy,
+    venue,
+    role: target?.role ?? "",
+    startDate: brief.project.date,
+    endDate: brief.project.date,
+    hours: target ? target.hours : 0,
+    rate: target ? target.dayRate : 0,
+    flatFee: 0,
+    notes: target?.notes ?? "",
+    status: "confirmed",
+    createdAt: Date.now(),
+    briefId: brief.briefId,
+  };
 }

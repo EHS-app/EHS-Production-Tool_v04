@@ -7,6 +7,9 @@ import { Gigs } from "./screens/Gigs";
 import { Availability } from "./screens/Availability";
 import { Earnings } from "./screens/Earnings";
 import { Profile } from "./screens/Profile";
+import { Briefs } from "./screens/Briefs";
+import { BriefDetail } from "./screens/BriefDetail";
+import { BriefImport } from "./screens/BriefImport";
 import {
   loadPortalData,
   savePortalData,
@@ -50,8 +53,14 @@ export function Portal({ theme, onToggleTheme }: PortalProps) {
     if (path.endsWith("/availability")) return "availability";
     if (path.endsWith("/earnings")) return "earnings";
     if (path.endsWith("/profile")) return "profile";
+    if (path.includes("/brief")) return "briefs";
     return "hub";
   }, [location]);
+
+  const pendingBriefCount = useMemo(
+    () => data.briefs.filter((b) => b.decision === "pending").length,
+    [data.briefs],
+  );
 
   // Pre-fill profile name from Clerk on first load if empty.
   useEffect(() => {
@@ -72,6 +81,7 @@ export function Portal({ theme, onToggleTheme }: PortalProps) {
       theme={theme}
       onToggleTheme={onToggleTheme}
       active={active}
+      pendingBriefCount={pendingBriefCount}
       userLabel={
         user?.primaryEmailAddress?.emailAddress ??
         user?.username ??
@@ -91,6 +101,22 @@ export function Portal({ theme, onToggleTheme }: PortalProps) {
         </Route>
         <Route path="/portal/profile">
           <Profile theme={theme} data={data} setData={setData} />
+        </Route>
+        <Route path="/portal/brief/import">
+          <BriefImport theme={theme} setData={setData} />
+        </Route>
+        <Route path="/portal/briefs">
+          <Briefs theme={theme} data={data} />
+        </Route>
+        <Route path="/portal/briefs/:id">
+          {(params) => (
+            <BriefDetail
+              theme={theme}
+              briefId={params.id}
+              data={data}
+              setData={setData}
+            />
+          )}
         </Route>
         <Route>
           <Hub theme={theme} data={data} />

@@ -13,6 +13,7 @@ import {
   defaultLinkedLedMeta,
   defaultPanelKeyOf,
   findPanelKeyForInventoryName,
+  resolveScreenPanel,
   migrateLedPanelKey,
   newLedScreen,
   normalizeLedSettings,
@@ -21,6 +22,9 @@ import {
   type LedScreen,
   type LedSettings,
 } from "./lib/led";
+import { findProcessor } from "./lib/ledProcessors";
+import { ShareBriefModal } from "./components/ShareBriefModal";
+import type { BuildBriefInput } from "./lib/projectBrief";
 import { exportScreenAsPng, getLogoDataUrl } from "./lib/ledExport";
 import { LedScreenReportView } from "./components/LedScreenReportView";
 import {
@@ -766,6 +770,7 @@ function App() {
   const [custArea, setCustArea] = useState("");
 
   const [savedAt, setSavedAt] = useState<string>("");
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -1069,6 +1074,87 @@ function App() {
     () => computeLedTotals(allLedScreens, ledSettings, ledPanels),
     [allLedScreens, ledSettings, ledPanels],
   );
+
+  /** Project state assembled into the shape the brief encoder needs.
+   *  Resolves hoist labels (from the App-level `hoistModels` table) and
+   *  LED panel definitions (from the dynamic `ledPanels` list) here so
+   *  the share modal — and the projectBrief lib — never have to reach
+   *  back into App-level state. Recomputed when any source field changes. */
+  const briefInput = useMemo<BuildBriefInput>(() => {
+    return {
+      venue,
+      reportDate,
+      engineer,
+      // The `recipientCrewId` is overridden per-link by ShareBriefModal.
+      recipientCrewId: null,
+      crew,
+      rigging: {
+        systems: systems.map((s) => {
+          const hoist = hoistModels[s.hoistIndex] ?? hoistModels[0];
+          return {
+            id: s.id,
+            name: s.name,
+            pointCount: s.pointCount,
+            dynamicFactor: s.dynamicFactor,
+            hoistLabel: hoist.label,
+            hoistWatt: hoist.watt,
+            riggingRowCount: s.riggingRows.length,
+            fixtureRowCount: s.fixtureRows.length,
+            ledRowCount: s.ledRows.length,
+          };
+        }),
+      },
+      lighting: {
+        showFixtures: allLightingFixtures.map((f) => ({
+          qty: f.qty,
+          watts: f.watts,
+          universe: f.universe,
+        })),
+        power: {
+          circuits: power.circuits.map((c) => ({
+            voltage: c.voltage,
+            ampsPerPhase: c.ampsPerPhase,
+            items: c.items.map((it) => ({
+              qty: it.qty,
+              wattsPerUnit: it.wattsPerUnit,
+              phase: it.phase,
+            })),
+          })),
+        },
+      },
+      led: {
+        ledScreens: allLedScreens.map((s) => {
+          const panel = resolveScreenPanel(s, ledPanels);
+          return {
+            id: s.id,
+            name: s.name,
+            panelType: panel.name,
+            cols: s.panelsWide,
+            rows: s.panelsTall,
+            panelWatts: panel.power,
+          };
+        }),
+        processor: findProcessor(ledSettings.processorId)?.name ?? "",
+      },
+      stages,
+      sound: soundItems,
+      riggPlan,
+    };
+  }, [
+    venue,
+    reportDate,
+    engineer,
+    crew,
+    systems,
+    allLightingFixtures,
+    power,
+    allLedScreens,
+    ledPanels,
+    ledSettings.processorId,
+    stages,
+    soundItems,
+    riggPlan,
+  ]);
 
   const addLedScreen = () => {
     const idx = ledScreens.length + linkedLedScreens.length;
@@ -2044,6 +2130,13 @@ function App() {
           >
             Export Report
           </button>
+          <button
+            className="btn btn-export"
+            onClick={() => setShareOpen(true)}
+            title="Generate per-crew brief links to share with freelancers"
+          >
+            Share with Crew
+          </button>
           <Link
             href="/portal"
             title="Go to your Freelance Portal"
@@ -2926,6 +3019,13 @@ function App() {
           onDuplicatePowerItem={duplicatePowerItem}
         />
       )}
+
+      {shareOpen ? (
+        <ShareBriefModal
+          state={briefInput}
+          onClose={() => setShareOpen(false)}
+        />
+      ) : null}
 
       <EquipmentPicker
         open={pickerTarget !== null}

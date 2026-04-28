@@ -438,7 +438,12 @@ function AuthGate({
             <Route path="/portal">
               <Portal theme={theme} onToggleTheme={onToggleTheme} />
             </Route>
-            <Route path="/portal/:rest*">
+            {/* Use the wildcard `*` rather than `:rest*` because regexparam
+                v3 (the matcher wouter v3 ships with) parses `:rest*` as a
+                single-segment optional, so multi-segment URLs like
+                `/portal/brief/import` would otherwise fall through to the
+                catchall and render the producer App. */}
+            <Route path="/portal/*">
               <Portal theme={theme} onToggleTheme={onToggleTheme} />
             </Route>
             <Route>

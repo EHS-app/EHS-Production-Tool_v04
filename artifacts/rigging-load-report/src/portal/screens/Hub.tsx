@@ -105,6 +105,14 @@ export function Hub({ theme, data }: { theme: ThemeMode; data: PortalData }) {
 
   const availabilityCount = Object.keys(data.availability).length;
 
+  const pendingBriefs = useMemo(
+    () =>
+      [...data.briefs]
+        .filter((b) => b.decision === "pending")
+        .sort((a, b) => b.receivedAt - a.receivedAt),
+    [data.briefs],
+  );
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <section>
@@ -128,6 +136,38 @@ export function Hub({ theme, data }: { theme: ThemeMode; data: PortalData }) {
           </h1>
         </div>
       </section>
+
+      {pendingBriefs.length > 0 ? (
+        <Link
+          href={
+            pendingBriefs.length === 1
+              ? `/portal/briefs/${pendingBriefs[0].briefId}`
+              : "/portal/briefs"
+          }
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: "14px 16px",
+            background: c.accent,
+            color: "#0b0b0b",
+            borderRadius: 14,
+            textDecoration: "none",
+            boxShadow: c.shadowSoft,
+            fontWeight: 700,
+          }}
+        >
+          <span>
+            {pendingBriefs.length === 1
+              ? `New project briefing: ${pendingBriefs[0].brief.project.venue || "Untitled show"}`
+              : `${pendingBriefs.length} new project briefings waiting`}
+          </span>
+          <span aria-hidden style={{ fontSize: 18 }}>
+            →
+          </span>
+        </Link>
+      ) : null}
 
       <section
         style={{

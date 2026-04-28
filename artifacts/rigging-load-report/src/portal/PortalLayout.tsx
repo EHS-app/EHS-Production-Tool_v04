@@ -6,6 +6,7 @@ import { PALETTE, PORTAL_FONT, type ThemeMode } from "./lib/portalTheme";
 
 export type PortalNavKey =
   | "hub"
+  | "briefs"
   | "gigs"
   | "availability"
   | "earnings"
@@ -20,6 +21,7 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { key: "hub", label: "Hub", href: "/portal", icon: "◉" },
+  { key: "briefs", label: "Briefs", href: "/portal/briefs", icon: "✉" },
   { key: "gigs", label: "Gigs", href: "/portal/gigs", icon: "▤" },
   {
     key: "availability",
@@ -36,12 +38,16 @@ export function PortalLayout({
   onToggleTheme,
   active,
   userLabel,
+  pendingBriefCount,
   children,
 }: {
   theme: ThemeMode;
   onToggleTheme: () => void;
   active: PortalNavKey;
   userLabel: string;
+  /** Number of briefs in `pending` state — surfaced as a badge on the
+   *  Briefs nav item so the freelancer doesn't miss new project briefings. */
+  pendingBriefCount: number;
   children: ReactNode;
 }) {
   const c = PALETTE[theme];
@@ -200,6 +206,7 @@ export function PortalLayout({
         >
           {NAV.map((item) => {
             const isActive = active === item.key;
+            const showBadge = item.key === "briefs" && pendingBriefCount > 0;
             return (
               <Link
                 key={item.key}
@@ -230,7 +237,24 @@ export function PortalLayout({
                 >
                   {item.icon}
                 </span>
-                <span>{item.label}</span>
+                <span style={{ flex: 1 }}>{item.label}</span>
+                {showBadge ? (
+                  <span
+                    aria-label={`${pendingBriefCount} new briefs`}
+                    style={{
+                      minWidth: 22,
+                      padding: "2px 7px",
+                      fontSize: 11,
+                      fontWeight: 800,
+                      borderRadius: 999,
+                      textAlign: "center",
+                      background: isActive ? "#0b0b0b" : c.accent,
+                      color: isActive ? c.accent : "#0b0b0b",
+                    }}
+                  >
+                    {pendingBriefCount}
+                  </span>
+                ) : null}
               </Link>
             );
           })}
@@ -267,6 +291,7 @@ export function PortalLayout({
       >
         {NAV.map((item) => {
           const isActive = active === item.key;
+          const showBadge = item.key === "briefs" && pendingBriefCount > 0;
           return (
             <Link
               key={item.key}
@@ -276,17 +301,41 @@ export function PortalLayout({
                 flexDirection: "column",
                 alignItems: "center",
                 gap: 2,
-                padding: "6px 8px",
+                padding: "6px 6px",
                 fontSize: 11,
                 fontWeight: 600,
                 textDecoration: "none",
                 color: isActive ? c.accent : c.muted,
-                minWidth: 56,
+                minWidth: 48,
+                position: "relative",
               }}
               data-active={isActive}
             >
-              <span style={{ fontSize: 16 }} aria-hidden>
+              <span style={{ fontSize: 16, position: "relative" }} aria-hidden>
                 {item.icon}
+                {showBadge ? (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: -4,
+                      right: -10,
+                      minWidth: 16,
+                      height: 16,
+                      padding: "0 4px",
+                      fontSize: 10,
+                      fontWeight: 800,
+                      borderRadius: 999,
+                      background: c.accent,
+                      color: "#0b0b0b",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {pendingBriefCount}
+                  </span>
+                ) : null}
               </span>
               <span>{item.label}</span>
             </Link>

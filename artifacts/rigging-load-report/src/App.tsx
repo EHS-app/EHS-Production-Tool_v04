@@ -30,6 +30,12 @@ import {
 } from "./lib/stage";
 import { exportStageReport } from "./lib/stageExport";
 import { StageReportView } from "./components/StageReportView";
+import {
+  makeCrewMember,
+  normalizeCrewMember,
+  type CrewMember,
+} from "./lib/crew";
+import { CrewReportView } from "./components/CrewReportView";
 
 type DmxMode = {
   name: string;
@@ -415,7 +421,7 @@ function getRowItem(row: Row): InventoryItem | undefined {
 const STORAGE_KEY_V2 = "ehs-rigging-report-v2";
 const STORAGE_KEY_V1 = "ehs-rigging-report-v1";
 
-type MainView = "rigging" | "lighting" | "led" | "stage";
+type MainView = "rigging" | "lighting" | "led" | "stage" | "crew";
 
 type ShowFixture = {
   id: string;
@@ -510,6 +516,8 @@ type PersistedV2 = {
   ledSettings?: LedSettings;
   /** Stage Report — list of stages (Nivtec deck calculator). */
   stages?: Stage[];
+  /** Crew Report — call-sheet of crew members. */
+  crew?: CrewMember[];
 };
 
 function loadPersisted(): Partial<PersistedV2> | null {
@@ -681,6 +689,9 @@ function App() {
   const [ledSettings, setLedSettings] = useState<LedSettings>(
     normalizeLedSettings(persisted?.ledSettings),
   );
+  const [crew, setCrew] = useState<CrewMember[]>(
+    () => (persisted?.crew ?? []).map(normalizeCrewMember),
+  );
   const [stages, setStages] = useState<Stage[]>(
     () => (persisted?.stages ?? []).map(normalizeStage),
   );
@@ -712,6 +723,7 @@ function App() {
       ledLinkedMeta,
       ledSettings,
       stages,
+      crew,
     };
     try {
       localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(data));
@@ -738,6 +750,7 @@ function App() {
     ledLinkedMeta,
     ledSettings,
     stages,
+    crew,
   ]);
 
   const activeSystem =
@@ -1112,6 +1125,35 @@ function App() {
     }
   };
 
+  // ---- Crew Report ----
+  const addCrew = () => {
+    setCrew((all) => [...all, makeCrewMember()]);
+  };
+  const updateCrew = (id: string, patch: Partial<CrewMember>) => {
+    setCrew((all) => all.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  };
+  const removeCrew = (id: string) => {
+    setCrew((all) => all.filter((m) => m.id !== id));
+  };
+  const duplicateCrew = (id: string) => {
+    setCrew((all) => {
+      const i = all.findIndex((m) => m.id === id);
+      if (i < 0) return all;
+      const src = all[i];
+      const copy: CrewMember = {
+        ...src,
+        id:
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? `crew-${crypto.randomUUID()}`
+            : `crew-${Date.now()}`,
+        name: src.name ? `${src.name} (copy)` : "",
+      };
+      const next = [...all];
+      next.splice(i + 1, 0, copy);
+      return next;
+    });
+  };
+
   // ---- Stage Report ----
   const addStage = () => {
     setStages((all) => [
@@ -1476,6 +1518,7 @@ function App() {
     setLedLinkedMeta({});
     setLedSettings(DEFAULT_LED_SETTINGS);
     setStages([]);
+    setCrew([]);
     setMainView("rigging");
   };
 
@@ -1709,6 +1752,15 @@ function App() {
           Stage Report
           {stages.length > 0 && (
             <span className="view-tab-badge">{stages.length}</span>
+          )}
+        </button>
+        <button
+          className={`view-tab ${mainView === "crew" ? "is-active" : ""}`}
+          onClick={() => setMainView("crew")}
+        >
+          Crew Report
+          {crew.length > 0 && (
+            <span className="view-tab-badge">{crew.length}</span>
           )}
         </button>
       </div>
@@ -2403,6 +2455,16 @@ function App() {
           onRemove={removeStage}
           onDuplicate={duplicateStage}
           onExport={exportStage}
+        />
+      )}
+
+      {mainView === "crew" && (
+        <CrewReportView
+          crew={crew}
+          onAdd={addCrew}
+          onUpdate={updateCrew}
+          onRemove={removeCrew}
+          onDuplicate={duplicateCrew}
         />
       )}
 

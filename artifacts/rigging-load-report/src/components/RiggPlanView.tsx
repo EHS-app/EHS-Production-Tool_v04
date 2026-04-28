@@ -206,9 +206,6 @@ export function RiggPlanView({
       <section className="led-card">
         <div className="led-card-head">
           <h3>Floor plan</h3>
-          <span className="led-hint">
-            Click a truss to select; drag it to move. Position rounds to 0.5 m.
-          </span>
         </div>
 
         {systems.length === 0 ? (

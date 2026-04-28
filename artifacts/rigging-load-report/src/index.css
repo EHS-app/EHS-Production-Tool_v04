@@ -153,9 +153,29 @@ body {
 .theme-seg-btn.is-selected:hover {
   color: #ffffff;
 }
-/* Compact by default: show only icons. When the user is actively interacting
-   with the picker (hovering or focusing inside it), reveal the labels so they
-   know what each option means. */
+/* Compact by default: only the currently-selected icon is visible.
+   When the user hovers or focuses the picker, the other two icons expand
+   into view AND the labels appear next to each icon so the user can see
+   what each option does while choosing. */
+.theme-seg-btn {
+  overflow: hidden;
+  transition: max-width 180ms ease, padding 180ms ease, opacity 140ms ease;
+}
+.theme-seg-btn:not(.is-selected) {
+  max-width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.theme-seg:hover .theme-seg-btn:not(.is-selected),
+.theme-seg:focus-within .theme-seg-btn:not(.is-selected) {
+  max-width: 140px;
+  padding-left: 12px;
+  padding-right: 12px;
+  opacity: 1;
+  pointer-events: auto;
+}
 .theme-seg-label {
   max-width: 0;
   overflow: hidden;

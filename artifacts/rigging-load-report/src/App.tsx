@@ -36,6 +36,18 @@ import {
   type CrewMember,
 } from "./lib/crew";
 import { CrewReportView } from "./components/CrewReportView";
+import {
+  clampTrussToVenue,
+  DEFAULT_RIGG_PLAN,
+  normalizeRiggPlan,
+  type RiggPlan,
+  type RiggPlanTruss,
+  type RiggPlanVenue,
+} from "./lib/riggPlan";
+import {
+  RiggPlanView,
+  type RiggPlanSystemInfo,
+} from "./components/RiggPlanView";
 
 type DmxMode = {
   name: string;
@@ -421,7 +433,13 @@ function getRowItem(row: Row): InventoryItem | undefined {
 const STORAGE_KEY_V2 = "ehs-rigging-report-v2";
 const STORAGE_KEY_V1 = "ehs-rigging-report-v1";
 
-type MainView = "rigging" | "lighting" | "led" | "stage" | "crew";
+type MainView =
+  | "rigging"
+  | "lighting"
+  | "led"
+  | "stage"
+  | "crew"
+  | "riggPlan";
 
 type ShowFixture = {
   id: string;
@@ -518,6 +536,8 @@ type PersistedV2 = {
   stages?: Stage[];
   /** Crew Report — call-sheet of crew members. */
   crew?: CrewMember[];
+  /** Rigg Plan — venue + per-system truss positions. */
+  riggPlan?: RiggPlan;
 };
 
 function loadPersisted(): Partial<PersistedV2> | null {
@@ -695,6 +715,9 @@ function App() {
   const [stages, setStages] = useState<Stage[]>(
     () => (persisted?.stages ?? []).map(normalizeStage),
   );
+  const [riggPlan, setRiggPlan] = useState<RiggPlan>(() =>
+    normalizeRiggPlan(persisted?.riggPlan),
+  );
 
   const [modalTarget, setModalTarget] = useState<Category | null>(null);
   const [custName, setCustName] = useState("");
@@ -724,6 +747,7 @@ function App() {
       ledSettings,
       stages,
       crew,
+      riggPlan,
     };
     try {
       localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(data));
@@ -751,6 +775,7 @@ function App() {
     ledSettings,
     stages,
     crew,
+    riggPlan,
   ]);
 
   const activeSystem =
@@ -1123,6 +1148,61 @@ function App() {
         "Could not generate the PNG. Try a smaller screen or check the console for details.",
       );
     }
+  };
+
+  // ---- Rigg Plan ----
+  // Garbage-collect orphan trusses whenever a system gets deleted, so
+  // the persisted blob never accumulates stale entries from removed
+  // systems. Keyed on the live system-id list (stable string) so this
+  // doesn't fire on every drag.
+  const liveSystemIds = systems.map((s) => s.id).join("|");
+  useEffect(() => {
+    setRiggPlan((p) => {
+      const live = new Set(systems.map((s) => s.id));
+      const next: Record<string, RiggPlanTruss> = {};
+      let changed = false;
+      for (const [id, t] of Object.entries(p.trussById)) {
+        if (live.has(id)) next[id] = t;
+        else changed = true;
+      }
+      return changed ? { ...p, trussById: next } : p;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveSystemIds]);
+
+  const updateRiggPlanVenue = (patch: Partial<RiggPlanVenue>) => {
+    setRiggPlan((p) => {
+      const venue = { ...p.venue, ...patch };
+      // Re-clamp every existing truss into the new venue so shrinking
+      // the venue can never leave trusses dangling outside it.
+      const trussById: Record<string, RiggPlanTruss> = {};
+      for (const [id, t] of Object.entries(p.trussById)) {
+        trussById[id] = clampTrussToVenue(t, venue);
+      }
+      return { venue, trussById };
+    });
+  };
+  const updateRiggPlanTruss = (
+    systemId: string,
+    patch: Partial<RiggPlanTruss>,
+  ) => {
+    setRiggPlan((p) => {
+      const prev = p.trussById[systemId];
+      const next: RiggPlanTruss = prev
+        ? { ...prev, ...patch }
+        : ({
+            x: 0,
+            y: 0,
+            z: 6,
+            lengthM: 6,
+            rotation: 0,
+            ...patch,
+          } as RiggPlanTruss);
+      return {
+        ...p,
+        trussById: { ...p.trussById, [systemId]: next },
+      };
+    });
   };
 
   // ---- Crew Report ----
@@ -1519,6 +1599,7 @@ function App() {
     setLedSettings(DEFAULT_LED_SETTINGS);
     setStages([]);
     setCrew([]);
+    setRiggPlan({ ...DEFAULT_RIGG_PLAN, trussById: {} });
     setMainView("rigging");
   };
 
@@ -1527,6 +1608,22 @@ function App() {
   const allMetrics = useMemo(
     () => systems.map((s) => ({ system: s, metrics: computeMetrics(s) })),
     [systems],
+  );
+
+  /** Per-system summary the Rigg Plan tab needs — id, name, hoist points,
+   *  static/peak load and SWL — derived from the same metrics that drive
+   *  the Rigging Report so the floor plan can never disagree with it. */
+  const riggPlanSystems = useMemo<RiggPlanSystemInfo[]>(
+    () =>
+      allMetrics.map(({ system, metrics }) => ({
+        id: system.id,
+        name: system.name,
+        pointCount: system.pointCount,
+        staticKg: metrics.static,
+        peakKg: metrics.peak,
+        swlKg: metrics.swl,
+      })),
+    [allMetrics],
   );
 
   const projectTotals = useMemo(() => {
@@ -1761,6 +1858,15 @@ function App() {
           Crew Report
           {crew.length > 0 && (
             <span className="view-tab-badge">{crew.length}</span>
+          )}
+        </button>
+        <button
+          className={`view-tab ${mainView === "riggPlan" ? "is-active" : ""}`}
+          onClick={() => setMainView("riggPlan")}
+        >
+          Rigg Plan
+          {systems.length > 0 && (
+            <span className="view-tab-badge">{systems.length}</span>
           )}
         </button>
       </div>
@@ -2465,6 +2571,16 @@ function App() {
           onUpdate={updateCrew}
           onRemove={removeCrew}
           onDuplicate={duplicateCrew}
+        />
+      )}
+
+      {mainView === "riggPlan" && (
+        <RiggPlanView
+          plan={riggPlan}
+          systems={riggPlanSystems}
+          onUpdateVenue={updateRiggPlanVenue}
+          onUpdateTruss={updateRiggPlanTruss}
+          onJumpToRigging={() => setMainView("rigging")}
         />
       )}
 

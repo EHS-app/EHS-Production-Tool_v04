@@ -11,6 +11,7 @@ import {
 type Props = {
   items: SoundItem[];
   onAdd: () => void;
+  onAddFromLibrary?: () => void;
   onUpdate: (id: string, patch: Partial<SoundItem>) => void;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
@@ -25,6 +26,7 @@ const fmtInt = (n: number) =>
 export function SoundReportView({
   items,
   onAdd,
+  onAddFromLibrary,
   onUpdate,
   onRemove,
   onDuplicate,
@@ -80,6 +82,11 @@ export function SoundReportView({
         <div className="led-card-head">
           <h3>Inventory</h3>
           <div className="led-controls">
+            {onAddFromLibrary && (
+              <button className="btn btn-soft" onClick={onAddFromLibrary}>
+                + From EHS Library
+              </button>
+            )}
             <button className="btn btn-primary" onClick={onAdd}>
               + Add item
             </button>

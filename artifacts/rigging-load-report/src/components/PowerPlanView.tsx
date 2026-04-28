@@ -16,6 +16,8 @@ type Props = {
   onUpdateCircuit: (id: string, patch: Partial<Omit<PowerCircuit, "items">>) => void;
   onRemoveCircuit: (id: string) => void;
   onAddItem: (circuitId: string, phase?: PowerPhase) => void;
+  /** Optional: open the EHS library picker for this circuit/phase. */
+  onAddItemFromLibrary?: (circuitId: string, phase: PowerPhase) => void;
   onUpdateItem: (
     circuitId: string,
     itemId: string,
@@ -40,6 +42,7 @@ export function PowerPlanView({
   onUpdateCircuit,
   onRemoveCircuit,
   onAddItem,
+  onAddItemFromLibrary,
   onUpdateItem,
   onRemoveItem,
   onDuplicateItem,
@@ -103,6 +106,11 @@ export function PowerPlanView({
               onUpdate={(patch) => onUpdateCircuit(c.id, patch)}
               onRemove={() => onRemoveCircuit(c.id)}
               onAddItem={(phase) => onAddItem(c.id, phase)}
+              onAddItemFromLibrary={
+                onAddItemFromLibrary
+                  ? (phase) => onAddItemFromLibrary(c.id, phase)
+                  : undefined
+              }
               onUpdateItem={(itemId, patch) =>
                 onUpdateItem(c.id, itemId, patch)
               }
@@ -127,6 +135,7 @@ function CircuitCard({
   onUpdate,
   onRemove,
   onAddItem,
+  onAddItemFromLibrary,
   onUpdateItem,
   onRemoveItem,
   onDuplicateItem,
@@ -135,6 +144,7 @@ function CircuitCard({
   onUpdate: (patch: Partial<Omit<PowerCircuit, "items">>) => void;
   onRemove: () => void;
   onAddItem: (phase?: PowerPhase) => void;
+  onAddItemFromLibrary?: (phase: PowerPhase) => void;
   onUpdateItem: (itemId: string, patch: Partial<PowerItem>) => void;
   onRemoveItem: (itemId: string) => void;
   onDuplicateItem: (itemId: string) => void;
@@ -403,6 +413,37 @@ function CircuitCard({
         >
           + Add to L3
         </button>
+        {onAddItemFromLibrary && (
+          <>
+            <span className="power-circuit-divider" aria-hidden="true">
+              |
+            </span>
+            <button
+              type="button"
+              className="btn btn-soft"
+              onClick={() => onAddItemFromLibrary("L1")}
+              title="Pick from EHS Library to L1"
+            >
+              Lib → L1
+            </button>
+            <button
+              type="button"
+              className="btn btn-soft"
+              onClick={() => onAddItemFromLibrary("L2")}
+              title="Pick from EHS Library to L2"
+            >
+              Lib → L2
+            </button>
+            <button
+              type="button"
+              className="btn btn-soft"
+              onClick={() => onAddItemFromLibrary("L3")}
+              title="Pick from EHS Library to L3"
+            >
+              Lib → L3
+            </button>
+          </>
+        )}
         <span className="power-circuit-total">
           Total {fmtInt(load.totalWatts)} W of {fmtInt(load.totalCapacityWatts)}{" "}
           W ({fmtPct(load.worstRatio)} worst phase)

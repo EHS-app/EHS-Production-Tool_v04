@@ -2775,3 +2775,102 @@ input:focus {
 [data-theme="dark"] .power-phase-bar {
   background: rgba(255, 255, 255, 0.08);
 }
+
+/* ---------- Equipment Library Picker ---------- */
+.equip-picker {
+  width: min(960px, 96vw);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.equip-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+.equip-picker-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.equip-picker-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+.equip-picker-filters input[type="search"] {
+  flex: 2 1 240px;
+  min-width: 200px;
+}
+.equip-picker-filters select {
+  flex: 1 1 200px;
+}
+.equip-picker-count {
+  font-size: 0.85rem;
+  color: var(--text-muted, #6b7280);
+  margin-left: auto;
+}
+.equip-picker-list {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 0 18px 18px;
+}
+.equip-empty {
+  padding: 32px 8px;
+  text-align: center;
+  color: var(--text-muted, #6b7280);
+  font-style: italic;
+}
+.equip-picker-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.equip-picker-table th {
+  position: sticky;
+  top: 0;
+  background: var(--card-bg, #ffffff);
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  color: var(--text-muted, #6b7280);
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.equip-picker-table td {
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border, #f1f5f9);
+  vertical-align: top;
+  color: var(--text-main, #0f172a);
+}
+.equip-picker-table tr:hover td {
+  background: rgba(59, 130, 246, 0.06);
+}
+.equip-name {
+  font-weight: 600;
+}
+.equip-notes,
+.equip-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted, #6b7280);
+  margin-top: 2px;
+}
+[data-theme="dark"] .equip-picker-table th {
+  background: var(--card-bg, #1e293b);
+  border-bottom-color: #334155;
+}
+[data-theme="dark"] .equip-picker-table td {
+  border-bottom-color: #1f2a3a;
+}
+[data-theme="dark"] .equip-picker-table tr:hover td {
+  background: rgba(96, 165, 250, 0.08);
+}

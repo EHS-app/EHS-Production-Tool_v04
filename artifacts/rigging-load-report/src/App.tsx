@@ -42,6 +42,8 @@ import {
   type SoundItem,
 } from "./lib/sound";
 import { SoundReportView } from "./components/SoundReportView";
+import { EquipmentPicker } from "./components/EquipmentPicker";
+import type { LibraryItem } from "./lib/equipmentLibrary";
 import {
   defaultPowerPlan,
   makePowerCircuit,
@@ -705,6 +707,15 @@ function App() {
   });
 
   const [mainView, setMainView] = useState<MainView>(persisted?.mainView ?? "rigging");
+  /** Equipment-library picker state. `target` controls which add-handler the
+   *  picked item flows into; `null` means the picker is closed. */
+  const [pickerTarget, setPickerTarget] = useState<
+    | null
+    | { kind: "sound" }
+    | { kind: "lighting" }
+    | { kind: "power"; circuitId: string; phase: PowerPhase }
+  >(null);
+  const closePicker = () => setPickerTarget(null);
   const [showFixtures, setShowFixtures] = useState<ShowFixture[]>(
     persisted?.showFixtures ?? [],
   );
@@ -1269,6 +1280,108 @@ function App() {
   // ---- Sound Report ----
   const addSoundItem = () => {
     setSoundItems((all) => [...all, makeSoundItem()]);
+  };
+
+  /** Map an EHS library sub-category onto the in-app SoundCategory bucket
+   *  used by the Sound Report. Anything we can't classify falls through to
+   *  "Other" so the row is still visible. */
+  const mapLibrarySoundCategory = (it: LibraryItem) => {
+    const s = it.subCategory.toUpperCase();
+    if (s.includes("PA")) return "PA Mains" as const;
+    if (s.includes("SUB")) return "Subs" as const;
+    if (s.includes("MONITOR")) return "Monitors" as const;
+    if (s.includes("WIRELESS")) return "Mic Wireless" as const;
+    if (s.includes("INPUT")) return "Mic Wired" as const;
+    if (s.includes("CONSOLE")) return "Console" as const;
+    if (s.includes("DI")) return "DI" as const;
+    if (s.includes("STAND")) return "Stand" as const;
+    if (s.includes("CABLE")) return "Cable" as const;
+    if (s.includes("AMPLIFIER") || s.includes("SPEAKER"))
+      return "PA Mains" as const;
+    return "Other" as const;
+  };
+
+  /** Insert a library pick into whichever tab the picker was opened from. */
+  const handleLibraryPick = (it: LibraryItem) => {
+    const target = pickerTarget;
+    if (!target) return;
+    if (target.kind === "sound") {
+      const base = makeSoundItem();
+      setSoundItems((all) => [
+        ...all,
+        {
+          ...base,
+          name: it.name,
+          category: mapLibrarySoundCategory(it),
+          weight: it.weight,
+          watts: it.watts,
+          notes: it.notes ?? "",
+        },
+      ]);
+    } else if (target.kind === "lighting") {
+      const base = makeShowFixture();
+      setShowFixtures((all) => [
+        ...all,
+        {
+          ...base,
+          name: it.name,
+          weight: it.weight,
+          watts: it.watts,
+          notes: it.notes ?? "",
+        },
+      ]);
+    } else if (target.kind === "power") {
+      const circuitId = target.circuitId;
+      const phase = target.phase;
+      setPower((p) => {
+        // Defensive: if the targeted circuit was deleted before the user
+        // could pick, just append the item to the first remaining circuit
+        // (or no-op if the plan is empty).
+        if (!p.circuits.some((c) => c.id === circuitId)) {
+          if (p.circuits.length === 0) return p;
+          const fallback = p.circuits[0];
+          return {
+            ...p,
+            circuits: p.circuits.map((c) =>
+              c.id === fallback.id
+                ? {
+                    ...c,
+                    items: [
+                      ...c.items,
+                      {
+                        ...makePowerItem(phase),
+                        name: it.name,
+                        wattsPerUnit: it.watts,
+                        notes: it.notes ?? "",
+                      },
+                    ],
+                  }
+                : c,
+            ),
+          };
+        }
+        return {
+          ...p,
+          circuits: p.circuits.map((c) =>
+            c.id === circuitId
+              ? {
+                  ...c,
+                  items: [
+                    ...c.items,
+                    {
+                      ...makePowerItem(phase),
+                      name: it.name,
+                      wattsPerUnit: it.watts,
+                      notes: it.notes ?? "",
+                    },
+                  ],
+                }
+              : c,
+          ),
+        };
+      });
+    }
+    closePicker();
   };
   const updateSoundItem = (id: string, patch: Partial<SoundItem>) => {
     setSoundItems((all) =>
@@ -2736,6 +2849,7 @@ function App() {
         <SoundReportView
           items={soundItems}
           onAdd={addSoundItem}
+          onAddFromLibrary={() => setPickerTarget({ kind: "sound" })}
           onUpdate={updateSoundItem}
           onRemove={removeSoundItem}
           onDuplicate={duplicateSoundItem}
@@ -2783,6 +2897,10 @@ function App() {
           onRemove={removeShowFixture}
           onDuplicate={duplicateShowFixture}
           onJumpToRigging={() => setMainView("rigging")}
+          onAddFromLibrary={() => setPickerTarget({ kind: "lighting" })}
+          onAddPowerItemFromLibrary={(circuitId, phase) =>
+            setPickerTarget({ kind: "power", circuitId, phase })
+          }
           power={power}
           onAddPowerCircuit={addPowerCircuit}
           onUpdatePowerCircuit={updatePowerCircuit}
@@ -2793,6 +2911,21 @@ function App() {
           onDuplicatePowerItem={duplicatePowerItem}
         />
       )}
+
+      <EquipmentPicker
+        open={pickerTarget !== null}
+        tab={
+          pickerTarget?.kind === "sound"
+            ? "sound"
+            : pickerTarget?.kind === "lighting"
+              ? "lighting"
+              : pickerTarget?.kind === "power"
+                ? "power"
+                : undefined
+        }
+        onClose={closePicker}
+        onPick={handleLibraryPick}
+      />
 
       {modalTarget && (
         <div className="modal-backdrop" onClick={closeModal}>
@@ -2855,6 +2988,8 @@ type LightingPlanViewProps = {
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
   onJumpToRigging: () => void;
+  onAddFromLibrary: () => void;
+  onAddPowerItemFromLibrary: (circuitId: string, phase: PowerPhase) => void;
   power: PowerPlan;
   onAddPowerCircuit: () => void;
   onUpdatePowerCircuit: (
@@ -2883,6 +3018,8 @@ function LightingPlanView({
   onRemove,
   onDuplicate,
   onJumpToRigging,
+  onAddFromLibrary,
+  onAddPowerItemFromLibrary,
   power,
   onAddPowerCircuit,
   onUpdatePowerCircuit,
@@ -2934,6 +3071,7 @@ function LightingPlanView({
         onUpdateCircuit={onUpdatePowerCircuit}
         onRemoveCircuit={onRemovePowerCircuit}
         onAddItem={onAddPowerItem}
+        onAddItemFromLibrary={onAddPowerItemFromLibrary}
         onUpdateItem={onUpdatePowerItem}
         onRemoveItem={onRemovePowerItem}
         onDuplicateItem={onDuplicatePowerItem}
@@ -3353,12 +3491,15 @@ function LightingPlanView({
             </table>
           </div>
         )}
-        <div style={{ marginTop: 12 }}>
+        <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <button className="btn btn-soft" onClick={onAddFromLibrary}>
+            + From EHS Library
+          </button>
           <button className="btn btn-export" onClick={onAdd}>
             + Add Extra Fixture
           </button>
-          <span className="lighting-help" style={{ marginLeft: 12 }}>
-            Use this for one-off fixtures that aren't on the rigging report.
+          <span className="lighting-help" style={{ marginLeft: 4 }}>
+            Use these for one-off fixtures that aren't on the rigging report.
           </span>
         </div>
       </div>

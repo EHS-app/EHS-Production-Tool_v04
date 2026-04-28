@@ -153,6 +153,188 @@ body {
 .theme-seg-btn.is-selected:hover {
   color: #ffffff;
 }
+
+/* ---- Drawing importer (Rigg Plan tab) ---- */
+.drawing-import {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.drawing-dropzone {
+  display: block;
+  border: 2px dashed var(--border, #cbd5e1);
+  border-radius: 10px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--card-soft, #f8fafc);
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.drawing-dropzone:hover,
+.drawing-dropzone.is-drag {
+  border-color: var(--primary, #1d4ed8);
+  background: rgba(29, 78, 216, 0.06);
+}
+.drawing-dropzone-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted, #64748b);
+}
+.drawing-dropzone-inner strong {
+  color: var(--text, #0f172a);
+  font-size: 15px;
+}
+.drawing-preview-row {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+.drawing-preview {
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  background: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  min-height: 180px;
+  max-height: 260px;
+}
+.drawing-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.drawing-preview-empty {
+  color: #94a3b8;
+  font-size: 13px;
+}
+.drawing-preview-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+}
+.drawing-preview-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.drawing-error {
+  background: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.drawing-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid var(--border, #e2e8f0);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+.drawing-results-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.drawing-results-head h4 {
+  margin: 0;
+  font-size: 16px;
+}
+.drawing-results-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.drawing-applied-banner {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #166534;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.drawing-group {
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--card-soft, #f8fafc);
+}
+.drawing-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.drawing-group-head .led-sub {
+  color: var(--muted, #64748b);
+  font-size: 12px;
+}
+.drawing-group-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted, #64748b);
+}
+.drawing-group-body {
+  font-size: 13px;
+  color: var(--text, #0f172a);
+}
+.drawing-item-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.drawing-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 8px;
+  background: var(--card, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 6px;
+}
+.drawing-item input[type="checkbox"] {
+  margin-top: 2px;
+}
+.drawing-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+.drawing-item-body .led-sub {
+  color: var(--muted, #64748b);
+  font-size: 12px;
+}
+.btn-xs {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+@media (max-width: 700px) {
+  .drawing-preview-row {
+    grid-template-columns: 1fr;
+  }
+}
+@media print {
+  .drawing-import {
+    display: none !important;
+  }
+}
 /* Compact by default: only the currently-selected icon is visible.
    When the user hovers or focuses the picker, the other two icons expand
    into view AND the labels appear next to each icon so the user can see

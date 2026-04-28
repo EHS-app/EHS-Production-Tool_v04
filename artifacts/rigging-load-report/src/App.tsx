@@ -72,6 +72,10 @@ import {
   RiggPlanView,
   type RiggPlanSystemInfo,
 } from "./components/RiggPlanView";
+import type {
+  ApplySelection,
+  ExtractedItems,
+} from "./lib/drawingAnalysis";
 
 type DmxMode = {
   name: string;
@@ -1571,6 +1575,142 @@ function App() {
         trussById: { ...p.trussById, [systemId]: next },
       };
     });
+  };
+
+  /** Apply the user-vetted output of the drawing analyser. Each category
+   *  is added through the same factories the manual "+ New" buttons use,
+   *  so the items appear in their respective tabs as plain editable rows. */
+  const applyExtractedItems = (
+    extracted: ExtractedItems,
+    selection: ApplySelection,
+  ) => {
+    // Venue (Rigg Plan)
+    if (selection.applyVenue) {
+      const venuePatch: Partial<RiggPlanVenue> = {};
+      if (extracted.venue.widthM != null && extracted.venue.widthM > 0) {
+        venuePatch.widthM = Math.max(1, Math.round(extracted.venue.widthM * 2) / 2);
+      }
+      if (extracted.venue.depthM != null && extracted.venue.depthM > 0) {
+        venuePatch.depthM = Math.max(1, Math.round(extracted.venue.depthM * 2) / 2);
+      }
+      if (extracted.venue.ceilingM != null && extracted.venue.ceilingM > 0) {
+        venuePatch.ceilingM = Math.max(
+          1,
+          Math.round(extracted.venue.ceilingM * 2) / 2,
+        );
+      }
+      if (Object.keys(venuePatch).length > 0) updateRiggPlanVenue(venuePatch);
+    }
+
+    // Trusses → new Systems on the Rigging Report
+    if (selection.trussIndexes.size > 0) {
+      const newSystems: System[] = [];
+      // Names that already exist (current state + ones we're about to
+      // add) so we never collide.
+      const usedNames = new Set(systems.map((s) => s.name));
+      extracted.trusses.forEach((t, i) => {
+        if (!selection.trussIndexes.has(i)) return;
+        let name = t.name && t.name.trim() ? t.name.trim() : `LX${systems.length + newSystems.length + 1}`;
+        while (usedNames.has(name)) name += "'";
+        usedNames.add(name);
+        const sys = makeSystem(name);
+        sys.pointCount = Math.min(8, Math.max(1, Math.round(t.pointCount || 3)));
+        newSystems.push(sys);
+      });
+      if (newSystems.length > 0) {
+        setSystems((all) => [...all, ...newSystems]);
+        // Focus the first newly-added one so the user can see the result
+        // when they switch to the Rigging Report.
+        setActiveSystemId(newSystems[0].id);
+      }
+    }
+
+    // Lighting fixtures
+    if (selection.lightingIndexes.size > 0) {
+      const additions: ShowFixture[] = [];
+      extracted.lighting.forEach((f, i) => {
+        if (!selection.lightingIndexes.has(i)) return;
+        const base = makeShowFixture();
+        additions.push({
+          ...base,
+          name: f.name || "Fixture",
+          qty: Math.max(1, Math.round(f.qty || 1)),
+          weight: f.weightKg != null ? Math.max(0, f.weightKg) : 0,
+          watts: f.watts != null ? Math.max(0, Math.round(f.watts)) : 0,
+          notes: f.notes || "",
+        });
+      });
+      if (additions.length > 0) {
+        setShowFixtures((all) => [...all, ...additions]);
+      }
+    }
+
+    // LED screens
+    if (selection.ledIndexes.size > 0) {
+      const additions: LedScreen[] = [];
+      extracted.ledScreens.forEach((s, i) => {
+        if (!selection.ledIndexes.has(i)) return;
+        const idx = ledScreens.length + additions.length;
+        additions.push(
+          newLedScreen(defaultLedPanelKey, {
+            name: s.name || `Screen ${idx + 1}`,
+            color: LED_SCREEN_COLORS[idx % LED_SCREEN_COLORS.length],
+            panelsWide:
+              s.panelsWide != null && s.panelsWide > 0
+                ? Math.round(s.panelsWide)
+                : undefined,
+            panelsTall:
+              s.panelsTall != null && s.panelsTall > 0
+                ? Math.round(s.panelsTall)
+                : undefined,
+            notes: s.notes || "",
+          }),
+        );
+      });
+      if (additions.length > 0) {
+        setLedScreens((all) => [...all, ...additions]);
+      }
+    }
+
+    // Stages
+    if (selection.stageIndexes.size > 0) {
+      const additions: Stage[] = [];
+      extracted.stages.forEach((st, i) => {
+        if (!selection.stageIndexes.has(i)) return;
+        const base = makeDefaultStage(
+          st.name || `Stage ${stages.length + additions.length + 1}`,
+        );
+        additions.push({
+          ...base,
+          width: st.widthM > 0 ? st.widthM : base.width,
+          depth: st.depthM > 0 ? st.depthM : base.depth,
+          notes: st.notes || "",
+        });
+      });
+      if (additions.length > 0) {
+        setStages((all) => [...all, ...additions]);
+      }
+    }
+
+    // Sound
+    if (selection.soundIndexes.size > 0) {
+      const additions: SoundItem[] = [];
+      extracted.sound.forEach((s, i) => {
+        if (!selection.soundIndexes.has(i)) return;
+        const base = makeSoundItem();
+        additions.push({
+          ...base,
+          name: s.name || "Sound",
+          qty: Math.max(1, Math.round(s.qty || 1)),
+          weightPerUnit: s.weightKg != null ? Math.max(0, s.weightKg) : 0,
+          powerPerUnit: s.watts != null ? Math.max(0, Math.round(s.watts)) : 0,
+          notes: s.notes || "",
+        });
+      });
+      if (additions.length > 0) {
+        setSoundItems((all) => [...all, ...additions]);
+      }
+    }
   };
 
   // ---- Crew Report ----
@@ -3223,6 +3363,8 @@ function App() {
           onUpdateVenue={updateRiggPlanVenue}
           onUpdateTruss={updateRiggPlanTruss}
           onJumpToRigging={() => setMainView("rigging")}
+          onApplyExtractedItems={applyExtractedItems}
+          projectName={venue}
         />
       )}
 

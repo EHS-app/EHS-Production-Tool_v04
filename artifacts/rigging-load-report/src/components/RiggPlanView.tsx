@@ -9,6 +9,11 @@ import {
   type RiggPlanVenue,
   type TrussRotation,
 } from "../lib/riggPlan";
+import { DrawingImporter } from "./DrawingImporter";
+import type {
+  ApplySelection,
+  ExtractedItems,
+} from "../lib/drawingAnalysis";
 
 /** Round numeric truss fields to one decimal so JSON storage stays
  *  small and the editor table never displays floating-point fuzz. */
@@ -45,6 +50,13 @@ type Props = {
   onUpdateTruss: (systemId: string, patch: Partial<RiggPlanTruss>) => void;
   /** Jump to the Rigging Report so the user can rename / add systems. */
   onJumpToRigging: () => void;
+  /** Apply items extracted from an uploaded drawing to the report tabs. */
+  onApplyExtractedItems: (
+    extracted: ExtractedItems,
+    selection: ApplySelection,
+  ) => void;
+  /** Project / venue name used as extra context for the analyser. */
+  projectName?: string;
 };
 
 const fmt = (n: number, d = 1) =>
@@ -62,6 +74,8 @@ export function RiggPlanView({
   onUpdateVenue,
   onUpdateTruss,
   onJumpToRigging,
+  onApplyExtractedItems,
+  projectName,
 }: Props) {
   const { venue, trussById } = plan;
 
@@ -117,6 +131,14 @@ export function RiggPlanView({
           </span>
         </div>
       </header>
+
+      {/* Drawing importer — reads a user-uploaded venue plan and lets
+          them apply the extracted items back to the report tabs. */}
+      <DrawingImporter
+        currentVenue={venue}
+        projectName={projectName}
+        onApply={onApplyExtractedItems}
+      />
 
       {/* Venue editor */}
       <section className="led-card">

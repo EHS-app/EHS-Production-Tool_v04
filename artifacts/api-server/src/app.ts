@@ -35,7 +35,20 @@ app.use(
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
 app.use(cors());
-app.use(express.json());
+// Keep the global JSON body limit small. Routes that need to accept larger
+// payloads (e.g. the drawing analyser, which receives base64-encoded images)
+// mount their own express.json() with a higher limit at the route level.
+// We deliberately SKIP the global parser for those routes so the global
+// 256 KB limit doesn't reject their large payloads before the route-scoped
+// parser (and any auth/rate-limit checks that gate it) ever run.
+const PATHS_WITHOUT_GLOBAL_JSON: ReadonlySet<string> = new Set([
+  "/api/rigplan/analyze",
+]);
+const globalJsonParser = express.json({ limit: "256kb" });
+app.use((req, res, next) => {
+  if (PATHS_WITHOUT_GLOBAL_JSON.has(req.path)) return next();
+  return globalJsonParser(req, res, next);
+});
 app.use(express.urlencoded({ extended: true }));
 
 app.use(clerkMiddleware());

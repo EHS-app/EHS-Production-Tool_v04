@@ -1494,10 +1494,38 @@ function StageBreakdown({
         </>
       )}
 
-      <div className="stage-grand-total">
-        <strong>Total weight: {fmt(calc.totalWeight, 1)} kg</strong>
-        <span> · area {fmt(calc.areaM2, 2)} m²</span>
-      </div>
+      {(() => {
+        const manualBounds =
+          stage.editMode === "manual"
+            ? placementsBounds(stage.manualPlacements)
+            : null;
+        const subWidth = manualBounds ? manualBounds.width : stage.width;
+        const subDepth = manualBounds ? manualBounds.depth : stage.depth;
+        const hasDims = subWidth > 0 && subDepth > 0;
+        return (
+          <div className="stage-grand-total">
+            <div className="stage-grand-stat">
+              <span className="stage-grand-label">Stage area</span>
+              <strong className="stage-grand-value">
+                {fmt(calc.areaM2, 2)}{" "}
+                <span className="stage-grand-unit">m²</span>
+              </strong>
+              <span className="stage-grand-sub">
+                {hasDims
+                  ? `${fmt(subWidth, 1)} × ${fmt(subDepth, 1)} m`
+                  : "No decks placed"}
+              </span>
+            </div>
+            <div className="stage-grand-stat">
+              <span className="stage-grand-label">Total weight</span>
+              <strong className="stage-grand-value">
+                {fmt(calc.totalWeight, 1)}{" "}
+                <span className="stage-grand-unit">kg</span>
+              </strong>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

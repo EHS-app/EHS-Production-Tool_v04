@@ -2881,10 +2881,45 @@ input:focus {
 }
 .stage-grand-total {
   margin-top: 0.5rem;
-  padding: 0.4rem 0.6rem;
-  border-radius: 6px;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
   background: var(--accent-soft, rgba(37, 99, 235, 0.08));
-  font-size: 0.82rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  align-items: stretch;
+}
+.stage-grand-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.stage-grand-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted, #64748b);
+}
+.stage-grand-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-main, #0f172a);
+  line-height: 1.2;
+}
+.stage-grand-unit {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted, #64748b);
+}
+.stage-grand-sub {
+  font-size: 0.7rem;
+  color: var(--muted, #64748b);
+  letter-spacing: 0.01em;
+}
+[data-theme="dark"] .stage-grand-value {
+  color: #f1f5f9;
 }
 .stage-warning {
   padding: 0.4rem 0.6rem;

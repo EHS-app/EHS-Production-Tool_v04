@@ -228,7 +228,14 @@ export type BriefRiggingInput = {
 /** Production schedule shipped in the brief — one optional range per
  *  phase. Empty strings allowed for partially-set phases. */
 export type BriefSchedulePhaseKey = "setup" | "rehearsal" | "show" | "downrig";
-export type BriefSchedulePhase = { from: string; to: string };
+/** A schedule phase covers a calendar range (ISO YYYY-MM-DD) and an
+ *  optional time-of-day range (HH:MM 24h). */
+export type BriefSchedulePhase = {
+  from: string;
+  to: string;
+  fromTime?: string;
+  toTime?: string;
+};
 export type BriefSchedule = Partial<
   Record<BriefSchedulePhaseKey, BriefSchedulePhase>
 >;
@@ -509,8 +516,13 @@ function cleanSchedule(schedule: BriefSchedule): BriefSchedule | undefined {
     if (!ph) return;
     const from = asString(ph.from);
     const to = asString(ph.to);
-    if (!from && !to) return;
-    out[k] = { from, to };
+    const fromTime = asString(ph.fromTime ?? "");
+    const toTime = asString(ph.toTime ?? "");
+    if (!from && !to && !fromTime && !toTime) return;
+    const cleaned: BriefSchedulePhase = { from, to };
+    if (fromTime) cleaned.fromTime = fromTime;
+    if (toTime) cleaned.toTime = toTime;
+    out[k] = cleaned;
     any = true;
   });
   return any ? out : undefined;
@@ -529,8 +541,13 @@ function normalizeSchedule(raw: unknown): BriefSchedule | undefined {
     const phObj = ph as Record<string, unknown>;
     const from = asString(phObj.from);
     const to = asString(phObj.to);
-    if (!from && !to) return;
-    out[k] = { from, to };
+    const fromTime = asString(phObj.fromTime ?? "");
+    const toTime = asString(phObj.toTime ?? "");
+    if (!from && !to && !fromTime && !toTime) return;
+    const norm: BriefSchedulePhase = { from, to };
+    if (fromTime) norm.fromTime = fromTime;
+    if (toTime) norm.toTime = toTime;
+    out[k] = norm;
     any = true;
   });
   return any ? out : undefined;

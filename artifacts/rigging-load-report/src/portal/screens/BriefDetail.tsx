@@ -19,7 +19,9 @@ const PHASE_LABELS: Record<BriefSchedulePhaseKey, string> = {
   setup: "Setup",
   rehearsal: "Rehearsal",
   show: "Show",
-  downrig: "Downrig",
+  // Internal key stays "downrig" (legacy from older briefs); user-facing
+  // label is "Load Out" everywhere in the UI.
+  downrig: "Load Out",
 };
 const PHASE_ORDER: BriefSchedulePhaseKey[] = [
   "setup",
@@ -33,6 +35,12 @@ function formatRange(from: string, to: string): string {
     return `${formatDate(from)} → ${formatDate(to)}`;
   }
   return formatDate(from || to);
+}
+
+function formatTimeRange(fromTime?: string, toTime?: string): string {
+  if (!fromTime && !toTime) return "";
+  if (fromTime && toTime) return `${fromTime} → ${toTime}`;
+  return fromTime || toTime || "";
 }
 
 function formatDate(iso: string): string {
@@ -1102,40 +1110,65 @@ function ScheduleList({
   const rows = PHASE_ORDER.flatMap((key) => {
     const ph = schedule[key];
     if (!ph) return [];
-    return [{ key, label: PHASE_LABELS[key], from: ph.from, to: ph.to }];
+    return [
+      {
+        key,
+        label: PHASE_LABELS[key],
+        from: ph.from,
+        to: ph.to,
+        fromTime: ph.fromTime,
+        toTime: ph.toTime,
+      },
+    ];
   });
   if (rows.length === 0) return null;
   return (
     <div style={{ display: "grid", gap: 8 }}>
-      {rows.map((row) => (
-        <div
-          key={row.key}
-          style={{
-            display: "grid",
-            gridTemplateColumns: "100px 1fr",
-            alignItems: "center",
-            gap: 12,
-            padding: "8px 10px",
-            border: `1px solid ${c.border}`,
-            borderRadius: 8,
-          }}
-        >
-          <span
+      {rows.map((row) => {
+        const timeRange = formatTimeRange(row.fromTime, row.toTime);
+        const dateRange = row.from || row.to ? formatRange(row.from, row.to) : "";
+        return (
+          <div
+            key={row.key}
             style={{
-              fontSize: 11,
-              fontWeight: 800,
-              textTransform: "uppercase",
-              letterSpacing: 0.5,
-              color: c.muted,
+              display: "grid",
+              gridTemplateColumns: "100px 1fr",
+              alignItems: "center",
+              gap: 12,
+              padding: "8px 10px",
+              border: `1px solid ${c.border}`,
+              borderRadius: 8,
             }}
           >
-            {row.label}
-          </span>
-          <span style={{ color: c.text, fontSize: 14, fontWeight: 600 }}>
-            {formatRange(row.from, row.to)}
-          </span>
-        </div>
-      ))}
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+                color: c.muted,
+              }}
+            >
+              {row.label}
+            </span>
+            <span style={{ color: c.text, fontSize: 14, fontWeight: 600 }}>
+              {dateRange || "—"}
+              {timeRange ? (
+                <span
+                  style={{
+                    marginLeft: 10,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: c.muted,
+                  }}
+                >
+                  {timeRange}
+                </span>
+              ) : null}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }

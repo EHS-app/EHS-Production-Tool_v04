@@ -63,11 +63,11 @@ function formatDate(iso: string): string {
   });
 }
 
-function formatEur(n: number): string {
-  if (!isFinite(n)) return "€0";
-  return new Intl.NumberFormat("de-DE", {
+function formatNok(n: number): string {
+  if (!isFinite(n)) return "kr 0";
+  return new Intl.NumberFormat("nb-NO", {
     style: "currency",
-    currency: "EUR",
+    currency: "NOK",
     maximumFractionDigits: 0,
   }).format(Math.round(n));
 }
@@ -734,7 +734,7 @@ function AssignmentCard({
         <Field
           theme={theme}
           label="Day rate"
-          value={fee > 0 ? formatEur(fee) : "—"}
+          value={fee > 0 ? formatNok(fee) : "—"}
           strong
         />
       </div>

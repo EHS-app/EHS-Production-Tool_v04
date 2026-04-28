@@ -4,6 +4,7 @@ import {
   CREW_ROLES,
   computeCrewTotals,
   crewHours,
+  formatCrewDayRate,
   type CrewMember,
   type CrewRole,
 } from "../lib/crew";
@@ -18,13 +19,6 @@ type Props = {
 
 const fmtNum = (n: number, d = 1) =>
   n.toLocaleString("en-US", { maximumFractionDigits: d });
-
-const fmtEur = (n: number) =>
-  n.toLocaleString("en-US", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  });
 
 export function CrewReportView({
   crew,
@@ -42,7 +36,7 @@ export function CrewReportView({
           <h2>Crew Report</h2>
           <p className="led-report-sub">
             Call sheet for the show — name, department, call &amp; off times
-            and day rate (€). Hours and costs roll up into the dashboard.
+            and day rate (kr). Hours and costs roll up into the dashboard.
           </p>
         </div>
         <div className="led-report-meta">
@@ -53,7 +47,7 @@ export function CrewReportView({
             <strong>{fmtNum(totals.totalHours, 1)}</strong> person-hours
           </span>
           <span className="badge">
-            <strong>{fmtEur(totals.totalCost)}</strong> total cost
+            <strong>{formatCrewDayRate(totals.totalCost)}</strong> total cost
           </span>
         </div>
       </header>
@@ -66,7 +60,7 @@ export function CrewReportView({
             <div className="led-stat-value">{totals.countsByRole[role]}</div>
             <div className="led-stat-sub">
               {totals.costsByRole[role] > 0
-                ? fmtEur(totals.costsByRole[role])
+                ? formatCrewDayRate(totals.costsByRole[role])
                 : "—"}
             </div>
           </div>
@@ -98,7 +92,7 @@ export function CrewReportView({
                   <th>Call</th>
                   <th>Off</th>
                   <th className="led-num">Hours</th>
-                  <th className="led-num">Day rate (€)</th>
+                  <th className="led-num">Day rate (kr)</th>
                   <th>Notes</th>
                   <th></th>
                 </tr>

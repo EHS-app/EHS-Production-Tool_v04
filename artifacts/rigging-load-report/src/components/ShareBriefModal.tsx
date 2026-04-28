@@ -7,7 +7,7 @@ import {
   type ProjectBrief,
 } from "../lib/projectBrief";
 import { encodeBrief, buildShareUrl } from "../lib/briefShare";
-import { crewHours } from "../lib/crew";
+import { crewHours, formatCrewDayRate } from "../lib/crew";
 import { loadFloorPlan, type FloorPlan } from "../lib/floorPlan";
 import { uploadBriefAttachment } from "../lib/briefAttachmentUpload";
 import { renderScreenPngBlob } from "../lib/ledExport";
@@ -182,7 +182,7 @@ export function ShareBriefModal({ onClose, state }: ShareBriefModalProps) {
           generated.push({
             crewId: m.id,
             label: m.name || "(unnamed)",
-            sublabel: `${m.role} · call ${m.callTime || "—"} → off ${m.offTime || "—"} · €${m.dayRate}/day`,
+            sublabel: `${m.role} · call ${m.callTime || "—"} → off ${m.offTime || "—"} · ${formatCrewDayRate(m.dayRate)}/day`,
             url: buildShareUrl(encoded, baseUrl),
             payloadBytes: encoded.length,
           });

@@ -36,7 +36,7 @@ export type BriefAssignment = {
   callTime: string;
   offTime: string;
   hours: number;
-  /** Day rate in EUR (the Production Tool is Europe-only). */
+  /** Day rate in NOK (Norwegian kroner — the Production Tool is Norway-based). */
   dayRate: number;
   notes: string;
 };

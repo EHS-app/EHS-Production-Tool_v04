@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Link } from "wouter";
 import { PALETTE, type ThemeMode } from "../lib/portalTheme";
 import type { PortalData, SharedBrief, BriefDecision } from "../lib/portalStorage";
+import { formatCrewDayRate } from "../../lib/crew";
 
 function formatDate(iso: string): string {
   if (!iso) return "—";
@@ -243,7 +244,7 @@ function BriefRow({
                 <>
                   <span aria-hidden>·</span>
                   <span style={{ color: c.text, fontWeight: 600 }}>
-                    €{myAssignment.dayRate}
+                    {formatCrewDayRate(myAssignment.dayRate)}
                   </span>
                 </>
               ) : null}

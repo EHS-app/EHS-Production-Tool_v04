@@ -2,17 +2,25 @@
  *
  *  A "crew member" is a single person on the call sheet. The Crew tab is
  *  intentionally simple: a flat list with name, department/role, call &
- *  off times, day rate (€) and free-form notes. Totals are derived
+ *  off times, day rate (NOK) and free-form notes. Totals are derived
  *  (count, person-hours, cost) and shown on the tab dashboard.
  *
- *  All money values are in EUR (the rest of the app is Europe-only). */
+ *  All money values are in NOK (Norwegian kroner). The Production Tool is
+ *  Norway-based; the Freelance Portal continues to display freelancer
+ *  earnings in NOK as well, so the two stay consistent. */
 
 export const CREW_ROLES = [
   "Rigging",
   "Lighting",
+  "Lighting FOH",
   "Video / LED",
-  "Stage",
+  "AV FOH",
   "Sound",
+  "System Tech",
+  "Stage",
+  "Stage Hand",
+  "Driver",
+  "Project Manager",
   "Other",
 ] as const;
 
@@ -29,7 +37,7 @@ export type CrewMember = {
   /** Off time as "HH:MM" 24-h. If earlier than callTime, the shift is
    *  treated as crossing midnight (call 22:00 → off 02:00 = 4 h). */
   offTime: string;
-  /** Day rate in EUR. 0 for unpaid / in-house crew. */
+  /** Day rate in NOK (Norwegian kroner). 0 for unpaid / in-house crew. */
   dayRate: number;
   /** Free-form notes (e.g. "Has IPAF licence", "Half-day"). */
   notes: string;
@@ -118,11 +126,11 @@ export type CrewTotals = {
   count: number;
   /** Sum of every crew member's shift length, in hours. */
   totalHours: number;
-  /** Sum of every crew member's day rate, in EUR. */
+  /** Sum of every crew member's day rate, in NOK. */
   totalCost: number;
   /** Headcount per department. Always contains every CrewRole key. */
   countsByRole: Record<CrewRole, number>;
-  /** Cost per department, in EUR. Always contains every CrewRole key. */
+  /** Cost per department, in NOK. Always contains every CrewRole key. */
   costsByRole: Record<CrewRole, number>;
 };
 
@@ -135,6 +143,19 @@ function emptyTotals(): CrewTotals {
     costsByRole[r] = 0;
   }
   return { count: 0, totalHours: 0, totalCost: 0, countsByRole, costsByRole };
+}
+
+/** Shared NOK day-rate formatter used everywhere a crew member's rate
+ *  is shown to the user (Crew Report dashboard + table, brief share
+ *  modal sublabels, portal "My assignment" pill, portal brief detail).
+ *  Uses the Norwegian Bokmål locale so the output reads as "kr 5 000". */
+export function formatCrewDayRate(n: number): string {
+  if (!Number.isFinite(n)) return "kr 0";
+  return Math.round(n).toLocaleString("nb-NO", {
+    style: "currency",
+    currency: "NOK",
+    maximumFractionDigits: 0,
+  });
 }
 
 export function computeCrewTotals(crew: CrewMember[]): CrewTotals {

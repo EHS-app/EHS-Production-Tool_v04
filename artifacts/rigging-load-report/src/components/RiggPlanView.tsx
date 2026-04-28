@@ -550,14 +550,11 @@ function PlanCanvas({
           </pattern>
         </defs>
 
-        {/* Floor-plan backdrop (the user's uploaded drawing). When the
-            user has uploaded a plan, it is the ONLY backdrop — we skip
-            the synthetic grid / venue rect outline / downstage marker
-            so the canvas stays uncluttered and matches what the user
-            drew. `preserveAspectRatio="xMidYMid meet"` keeps the image
-            from being squashed when its proportions don't match the
-            venue. The user adjusts venue width/depth to align scale. */}
-        {floorPlan ? (
+        {/* Floor-plan backdrop (the user's uploaded drawing). The
+            synthetic grid / venue rect outline / downstage marker were
+            removed — the only backdrop is the user's upload, if any.
+            Trusses still draw on top either way. */}
+        {floorPlan && (
           <image
             href={floorPlan.imageDataUrl}
             x={padM}
@@ -566,38 +563,6 @@ function PlanCanvas({
             height={venue.depthM}
             preserveAspectRatio="xMidYMid meet"
           />
-        ) : (
-          <>
-            {/* No upload yet → fall back to a synthetic grid + venue
-                rect + downstage marker so the user still has spatial
-                reference while placing trusses. */}
-            <rect
-              x={padM}
-              y={padM}
-              width={venue.widthM}
-              height={venue.depthM}
-              fill="url(#rigg-grid)"
-              stroke="#475569"
-              strokeWidth={0.06}
-            />
-            <line
-              x1={padM}
-              y1={padM}
-              x2={padM + venue.widthM}
-              y2={padM}
-              stroke="#dc2626"
-              strokeWidth={0.08}
-            />
-            <text
-              x={padM + venue.widthM / 2}
-              y={padM - 0.2}
-              textAnchor="middle"
-              fontSize={0.5}
-              fill="#dc2626"
-            >
-              Downstage (audience)
-            </text>
-          </>
         )}
 
         {/* Trusses */}

@@ -56,6 +56,7 @@ This project is a pnpm workspace monorepo designed as an internal stage-tech too
     - **Apply Step**: Extracted items can be applied to respective report tabs, generating editable rows.
     - **Motor Capacity Auto-pick**: Automatically suggests motor types based on hoist capacity hints in drawings.
     - **Floor-plan Backdrop**: Uploaded drawings can be used as an SVG image backdrop in the Rigg Plan View.
+    - **Lighting → Rigging Report routing**: Extracted lighting fixtures whose `trussName` resolves to a rigging system (existing or auto-created) are added directly to that system's "Lighting Fixtures" group as `fixtureRows`, so they contribute to the rigging load. Each fixture name is matched against the user's `inventory.Fixtures` library (substring + token-overlap, gated to ≥ 2 meaningful tokens / ≥ 6 chars to avoid false positives); on match the user's calibrated weight/wattage/DMX modes are used, otherwise a Custom row carries the analyser's data verbatim. Analyser notes ride along via `linkedMeta`. Fixtures with no truss tag still land on the Lighting tab as standalone rows so the producer can assign them manually.
 - **Brief Attachments**: Integration with Replit App Storage for handling brief attachments (e.g., drawings).
     - **Object Storage**: API endpoints for requesting presigned PUT URLs and streaming object content, with size and type validations.
     - **Producer Flow**: Producers can upload floor plans or other attachments which are then embedded as metadata in shared briefs.

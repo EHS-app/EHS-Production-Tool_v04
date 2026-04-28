@@ -465,6 +465,75 @@ function getRowItem(row: Row): InventoryItem | undefined {
   return inventory[row.category as Category][row.selectedIndex];
 }
 
+/** Strip "(weight)" parens, lowercase, and collapse non-alphanumerics
+ *  to single spaces. Used so the analyser's "Clay Paky Mythos 2" can
+ *  match the inventory's "Clay Paky Mythos 2 (32.0kg)". */
+function normalizeFixtureName(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+/** Look up an analyser-extracted fixture name in `inventory.Fixtures`.
+ *  Returns the matching index (≥ 0) or `-1` if no confident match.
+ *
+ *  Strategy: normalize both names, then prefer a direct substring
+ *  match (either side) before falling back to a token-overlap score
+ *  that requires ≥ 2 shared tokens AND ≥ 60 % of the inventory item's
+ *  tokens to be present. The thresholds are intentionally conservative
+ *  to avoid linking the wrong model on the Rigging Report — when in
+ *  doubt we leave it as a Custom row carrying the analyser's data. */
+function matchInventoryFixture(name: string): number {
+  const target = normalizeFixtureName(name);
+  if (!target) return -1;
+  const targetTokens = target.split(/\s+/).filter((t) => t.length >= 2);
+  if (targetTokens.length === 0) return -1;
+
+  let bestIdx = -1;
+  let bestScore = 0;
+  inventory.Fixtures.forEach((item, idx) => {
+    const itemNorm = normalizeFixtureName(item.name);
+    if (!itemNorm) return;
+    const itemTokens = itemNorm.split(/\s+/).filter((t) => t.length >= 2);
+    if (itemTokens.length === 0) return;
+
+    // Direct substring either way → strong match, BUT only when the
+    // shorter side is specific enough to be unambiguous. We require
+    // the analyser-extracted name to carry at least 2 meaningful
+    // tokens AND the shorter side to be ≥ 6 characters; this stops
+    // a single-token OCR fragment like "mac" from binding to the
+    // first inventory item that happens to contain it.
+    if (itemNorm.includes(target) || target.includes(itemNorm)) {
+      const minLen = Math.min(itemNorm.length, target.length);
+      if (targetTokens.length >= 2 && minLen >= 6) {
+        const score = 100 + minLen;
+        if (score > bestScore) {
+          bestScore = score;
+          bestIdx = idx;
+        }
+      }
+      return;
+    }
+
+    // Token overlap — must share at least 2 tokens AND cover the
+    // majority of the inventory item to count.
+    const overlap = targetTokens.filter((t) =>
+      itemTokens.includes(t),
+    ).length;
+    if (overlap >= 2 && overlap >= itemTokens.length * 0.6) {
+      const score = overlap * 10;
+      if (score > bestScore) {
+        bestScore = score;
+        bestIdx = idx;
+      }
+    }
+  });
+
+  return bestIdx;
+}
+
 const STORAGE_KEY_V2 = "ehs-rigging-report-v2";
 const STORAGE_KEY_V1 = "ehs-rigging-report-v1";
 
@@ -1721,11 +1790,30 @@ function App() {
     //   3. as a last resort, a fresh system auto-created on the fly so
     //      that "fixtures on the same truss end up on the same system"
     //      even when the user didn't tick the matching truss row.
+    //
+    // Once we have a target system, the fixture goes IN AS A
+    // `fixtureRows` row on that system so it shows up under the
+    // Rigging Report's "Lighting Fixtures" group AND contributes to
+    // the system's load. We try to match the analyser's name against
+    // the user's `inventory.Fixtures` library first — a match means we
+    // use the user's calibrated weight / wattage / DMX modes instead
+    // of the (often rough) PDF numbers. Misses fall back to a custom
+    // row carrying the analyser's data verbatim. Fixtures with no
+    // truss tag still go to the standalone `showFixtures` list so the
+    // user can decide where to assign them.
     if (selection.lightingIndexes.size > 0) {
-      const additions: ShowFixture[] = [];
+      const standaloneAdditions: ShowFixture[] = [];
+      // systemId → Row[] to append for systems that already exist
+      // (newSystems are mutated in place since we hold the references).
+      const fixtureRowPatches = new Map<string, Row[]>();
+      // Notes coming off the analyser need to ride along with the
+      // resulting fixtureRow via linkedMeta (same way the user's own
+      // notes are stored). Collected here, committed once below so we
+      // don't fire one setLinkedMeta per fixture.
+      const noteSeeds: Record<string, string> = {};
+
       extracted.lighting.forEach((f, i) => {
         if (!selection.lightingIndexes.has(i)) return;
-        const base = makeShowFixture();
         let systemId = "";
         const trussRaw = (f.trussName ?? "").trim();
         if (trussRaw) {
@@ -1746,28 +1834,107 @@ function App() {
             systemId = sys.id;
           }
         }
-        additions.push({
-          ...base,
-          name: f.name || "Fixture",
-          qty: Math.max(1, Math.round(f.qty || 1)),
-          weight: f.weightKg != null ? Math.max(0, f.weightKg) : 0,
-          watts: f.watts != null ? Math.max(0, Math.round(f.watts)) : 0,
-          systemId,
-          notes: f.notes || "",
-        });
-      });
-      if (additions.length > 0) {
-        setShowFixtures((all) => [...all, ...additions]);
-      }
-    }
 
-    // Commit any new systems (created from trusses[] and / or auto-
-    // created by the Lighting step) in a single state update so the
-    // truss/fixture wiring stays consistent.
-    if (newSystems.length > 0) {
+        const qty = Math.max(1, Math.round(f.qty || 1));
+        const fixtureName = f.name || "Fixture";
+        const weight = f.weightKg != null ? Math.max(0, f.weightKg) : 0;
+        const watts = f.watts != null ? Math.max(0, Math.round(f.watts)) : 0;
+
+        if (systemId) {
+          // Build a fixtureRow on the target rigging system.
+          const matchedIdx = matchInventoryFixture(fixtureName);
+          const row: Row =
+            matchedIdx >= 0
+              ? {
+                  id: newId("row"),
+                  category: "Fixtures",
+                  selectedIndex: matchedIdx,
+                  qty,
+                }
+              : {
+                  ...makeCustomRow("Fixtures", {
+                    name: fixtureName,
+                    weight,
+                    wattage: watts,
+                    area: 0,
+                  }),
+                  qty,
+                };
+          // newSystems are local objects we still hold a reference to,
+          // so we can push into them directly. Existing systems live
+          // in state, so we collect patches and apply them in the
+          // single setSystems update below.
+          const newSys = newSystems.find((s) => s.id === systemId);
+          if (newSys) {
+            newSys.fixtureRows.push(row);
+          } else {
+            const list = fixtureRowPatches.get(systemId) ?? [];
+            list.push(row);
+            fixtureRowPatches.set(systemId, list);
+          }
+          // Carry the analyser's notes onto the linkedMeta entry so
+          // they survive the showFixtures → fixtureRows routing.
+          if (f.notes && f.notes.trim()) {
+            noteSeeds[row.id] = f.notes.trim();
+          }
+        } else {
+          // No truss tag → leave it as an unassigned standalone fixture
+          // so the user can manually pick a system on the Lighting tab.
+          standaloneAdditions.push({
+            ...makeShowFixture(),
+            name: fixtureName,
+            qty,
+            weight,
+            watts,
+            systemId: "",
+            notes: f.notes || "",
+          });
+        }
+      });
+
+      if (standaloneAdditions.length > 0) {
+        setShowFixtures((all) => [...all, ...standaloneAdditions]);
+      }
+
+      // Commit existing-system patches together with the newSystems
+      // append in a single setSystems update so React only re-renders
+      // once and the wiring stays consistent.
+      if (newSystems.length > 0 || fixtureRowPatches.size > 0) {
+        setSystems((all) => {
+          const patched =
+            fixtureRowPatches.size > 0
+              ? all.map((s) => {
+                  const extra = fixtureRowPatches.get(s.id);
+                  return extra
+                    ? { ...s, fixtureRows: [...s.fixtureRows, ...extra] }
+                    : s;
+                })
+              : all;
+          return [...patched, ...newSystems];
+        });
+        if (newSystems.length > 0) {
+          // Focus the first newly-added one so the user can see the
+          // result when they switch to the Rigging Report.
+          setActiveSystemId(newSystems[0].id);
+        }
+      }
+
+      // Seed analyser-supplied notes onto each linked fixture's meta
+      // so they're visible on the Lighting tab and don't get lost.
+      const noteRowIds = Object.keys(noteSeeds);
+      if (noteRowIds.length > 0) {
+        setLinkedMeta((all) => {
+          const next = { ...all };
+          for (const rowId of noteRowIds) {
+            const prev = next[rowId] ?? defaultLinkedMeta();
+            next[rowId] = { ...prev, notes: noteSeeds[rowId] };
+          }
+          return next;
+        });
+      }
+    } else if (newSystems.length > 0) {
+      // Lighting step skipped, but we still committed new trusses.
       setSystems((all) => [...all, ...newSystems]);
-      // Focus the first newly-added one so the user can see the result
-      // when they switch to the Rigging Report.
       setActiveSystemId(newSystems[0].id);
     }
 

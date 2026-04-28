@@ -153,13 +153,22 @@ body {
 .theme-seg-btn.is-selected:hover {
   color: #ffffff;
 }
-@media (max-width: 700px) {
-  .theme-seg-label {
-    display: none;
-  }
-  .theme-seg-btn {
-    padding: 6px 9px;
-  }
+/* Compact by default: show only icons. When the user is actively interacting
+   with the picker (hovering or focusing inside it), reveal the labels so they
+   know what each option means. */
+.theme-seg-label {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0;
+  margin-left: 0;
+  transition: max-width 180ms ease, opacity 140ms ease, margin-left 180ms ease;
+}
+.theme-seg:hover .theme-seg-label,
+.theme-seg:focus-within .theme-seg-label {
+  max-width: 80px;
+  opacity: 1;
+  margin-left: 4px;
 }
 .autosave-pill {
   font-size: 11px;

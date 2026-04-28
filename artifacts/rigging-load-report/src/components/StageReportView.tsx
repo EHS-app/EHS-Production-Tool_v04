@@ -135,6 +135,11 @@ export function StageReportView(props: Props) {
           <small>pcs</small>
         </div>
         <div className="dash-item">
+          <span>Total area</span>
+          <strong>{fmt(totals.totalArea, 1)}</strong>
+          <small>m²</small>
+        </div>
+        <div className="dash-item">
           <span>Total weight</span>
           <strong>{fmt(totals.totalWeight, 0)}</strong>
           <small>kg</small>

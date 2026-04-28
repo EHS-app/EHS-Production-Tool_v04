@@ -550,12 +550,14 @@ function PlanCanvas({
           </pattern>
         </defs>
 
-        {/* Floor-plan backdrop (the user's uploaded drawing). Drawn
-            BEFORE the venue rect so the rect's outline still frames it,
-            and `preserveAspectRatio="xMidYMid meet"` keeps the drawing
+        {/* Floor-plan backdrop (the user's uploaded drawing). When the
+            user has uploaded a plan, it is the ONLY backdrop — we skip
+            the synthetic grid / venue rect outline / downstage marker
+            so the canvas stays uncluttered and matches what the user
+            drew. `preserveAspectRatio="xMidYMid meet"` keeps the image
             from being squashed when its proportions don't match the
             venue. The user adjusts venue width/depth to align scale. */}
-        {floorPlan && (
+        {floorPlan ? (
           <image
             href={floorPlan.imageDataUrl}
             x={padM}
@@ -563,39 +565,40 @@ function PlanCanvas({
             width={venue.widthM}
             height={venue.depthM}
             preserveAspectRatio="xMidYMid meet"
-            opacity={0.85}
           />
+        ) : (
+          <>
+            {/* No upload yet → fall back to a synthetic grid + venue
+                rect + downstage marker so the user still has spatial
+                reference while placing trusses. */}
+            <rect
+              x={padM}
+              y={padM}
+              width={venue.widthM}
+              height={venue.depthM}
+              fill="url(#rigg-grid)"
+              stroke="#475569"
+              strokeWidth={0.06}
+            />
+            <line
+              x1={padM}
+              y1={padM}
+              x2={padM + venue.widthM}
+              y2={padM}
+              stroke="#dc2626"
+              strokeWidth={0.08}
+            />
+            <text
+              x={padM + venue.widthM / 2}
+              y={padM - 0.2}
+              textAnchor="middle"
+              fontSize={0.5}
+              fill="#dc2626"
+            >
+              Downstage (audience)
+            </text>
+          </>
         )}
-
-        {/* Venue rect */}
-        <rect
-          x={padM}
-          y={padM}
-          width={venue.widthM}
-          height={venue.depthM}
-          fill={floorPlan ? "transparent" : "url(#rigg-grid)"}
-          stroke="#475569"
-          strokeWidth={0.06}
-        />
-
-        {/* Downstage marker — the audience side, at y=0 */}
-        <line
-          x1={padM}
-          y1={padM}
-          x2={padM + venue.widthM}
-          y2={padM}
-          stroke="#dc2626"
-          strokeWidth={0.08}
-        />
-        <text
-          x={padM + venue.widthM / 2}
-          y={padM - 0.2}
-          textAnchor="middle"
-          fontSize={0.5}
-          fill="#dc2626"
-        >
-          Downstage (audience)
-        </text>
 
         {/* Trusses */}
         <g transform={`translate(${padM} ${padM})`}>

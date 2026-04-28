@@ -24,3 +24,9 @@ id = "1Nkl9WzSjvAGpgg3uukPp"
 uri = "file://exports/user-prompts.txt"
 type = "text"
 title = "Your prompt messages"
+
+[[outputs]]
+id = "IMFWkgkv2LCEKStB5iipf"
+uri = "file://exports/conversation.txt"
+type = "text"
+title = "Full conversation transcript"

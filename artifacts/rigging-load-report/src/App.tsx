@@ -538,13 +538,53 @@ function makeShowFixture(): ShowFixture {
   };
 }
 
+/** Phases of a production run. The "show" phase is implicitly stored in
+ *  `reportDate`/`reportEndDate` for backwards compatibility — the other
+ *  three live in `extraSchedule`. */
+export type SchedulePhaseKey = "setup" | "rehearsal" | "show" | "downrig";
+
+/** A single phase's date range. Empty strings mean "not set". */
+export type SchedulePhase = { from: string; to: string };
+
+/** All non-show phases keyed by name. */
+export type ExtraSchedule = Partial<
+  Record<Exclude<SchedulePhaseKey, "show">, SchedulePhase>
+>;
+
+/** A combined schedule including the show phase, derived for downstream
+ *  consumers (brief, exports, etc.). */
+export type ProjectSchedule = Partial<Record<SchedulePhaseKey, SchedulePhase>>;
+
+export const SCHEDULE_PHASE_LABELS: Record<SchedulePhaseKey, string> = {
+  setup: "Setup",
+  rehearsal: "Rehearsal",
+  show: "Show",
+  downrig: "Downrig",
+};
+
+/** Build a unified schedule from the show dates + the extra phases. */
+export function buildProjectSchedule(
+  reportDate: string,
+  reportEndDate: string,
+  extra: ExtraSchedule,
+): ProjectSchedule {
+  const out: ProjectSchedule = { ...extra };
+  if (reportDate || reportEndDate) {
+    out.show = { from: reportDate, to: reportEndDate || reportDate };
+  }
+  return out;
+}
+
 type PersistedV2 = {
   theme: "light" | "dark";
   venue: string;
   reportDate: string;
-  /** Optional end date for multi-day shows. Empty string = single day
-   *  (the report uses just `reportDate`). ISO date (YYYY-MM-DD). */
+  /** Optional end date for the SHOW phase. Empty = single day.
+   *  ISO date (YYYY-MM-DD). */
   reportEndDate?: string;
+  /** Optional ranges for the other production phases — setup, rehearsal,
+   *  downrig. The show phase is stored in reportDate/reportEndDate. */
+  extraSchedule?: ExtraSchedule;
   engineer: string;
   systems: System[];
   activeSystemId: string;
@@ -572,10 +612,38 @@ type PersistedV2 = {
   riggPlan?: RiggPlan;
 };
 
+/** Defensive read of arbitrary persisted JSON into a clean
+ *  ExtraSchedule. Unknown keys / non-string fields are dropped so
+ *  malformed localStorage cannot inject invalid date strings into
+ *  the date-input UI. */
+function sanitizeExtraSchedule(raw: unknown): ExtraSchedule {
+  if (!raw || typeof raw !== "object") return {};
+  const obj = raw as Record<string, unknown>;
+  const out: ExtraSchedule = {};
+  (["setup", "rehearsal", "downrig"] as const).forEach((k) => {
+    const ph = obj[k];
+    if (!ph || typeof ph !== "object") return;
+    const phObj = ph as Record<string, unknown>;
+    const from = typeof phObj.from === "string" ? phObj.from : "";
+    const to = typeof phObj.to === "string" ? phObj.to : "";
+    if (!from && !to) return;
+    out[k] = { from, to };
+  });
+  return out;
+}
+
 function loadPersisted(): Partial<PersistedV2> | null {
   try {
     const rawV2 = localStorage.getItem(STORAGE_KEY_V2);
-    if (rawV2) return JSON.parse(rawV2) as Partial<PersistedV2>;
+    if (rawV2) {
+      const parsed = JSON.parse(rawV2) as Partial<PersistedV2>;
+      // Sanitize the only field whose shape we care to harden — the
+      // rest of PersistedV2 was already trusted before this change.
+      return {
+        ...parsed,
+        extraSchedule: sanitizeExtraSchedule(parsed.extraSchedule),
+      };
+    }
 
     const rawV1 = localStorage.getItem(STORAGE_KEY_V1);
     if (rawV1) {
@@ -705,6 +773,9 @@ function App() {
   const [reportEndDate, setReportEndDate] = useState(
     persisted?.reportEndDate ?? "",
   );
+  const [extraSchedule, setExtraSchedule] = useState<ExtraSchedule>(
+    persisted?.extraSchedule ?? {},
+  );
   const [engineer, setEngineer] = useState(persisted?.engineer ?? "");
   const [systems, setSystems] = useState<System[]>(
     persisted?.systems && persisted.systems.length > 0
@@ -793,6 +864,7 @@ function App() {
       venue,
       reportDate,
       reportEndDate,
+      extraSchedule,
       engineer,
       systems,
       activeSystemId,
@@ -824,6 +896,7 @@ function App() {
     venue,
     reportDate,
     reportEndDate,
+    extraSchedule,
     engineer,
     systems,
     activeSystemId,
@@ -1098,6 +1171,7 @@ function App() {
       venue,
       reportDate,
       reportEndDate,
+      schedule: buildProjectSchedule(reportDate, reportEndDate, extraSchedule),
       engineer,
       // The `recipientCrewId` is overridden per-link by ShareBriefModal.
       recipientCrewId: null,
@@ -1158,6 +1232,7 @@ function App() {
     venue,
     reportDate,
     reportEndDate,
+    extraSchedule,
     engineer,
     crew,
     systems,
@@ -1957,6 +2032,7 @@ function App() {
     setVenue("");
     setReportDate(new Date().toISOString().slice(0, 10));
     setReportEndDate("");
+    setExtraSchedule({});
     setEngineer("");
     setSystems([fresh]);
     setActiveSystemId(fresh.id);
@@ -2189,41 +2265,15 @@ function App() {
             />
           </div>
           <div className="meta-field">
-            <label>Date</label>
-            <div
-              style={{
-                display: "flex",
-                gap: 6,
-                alignItems: "center",
-                flexWrap: "wrap",
-              }}
-            >
-              <input
-                type="date"
-                value={reportDate}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setReportDate(next);
-                  if (reportEndDate && next && reportEndDate < next) {
-                    setReportEndDate(next);
-                  }
-                }}
-                aria-label="From date"
-                style={{ flex: 1, minWidth: 130 }}
-              />
-              <span aria-hidden style={{ opacity: 0.6, padding: "0 2px" }}>
-                →
-              </span>
-              <input
-                type="date"
-                value={reportEndDate}
-                min={reportDate || undefined}
-                onChange={(e) => setReportEndDate(e.target.value)}
-                aria-label="To date (optional)"
-                placeholder="End"
-                style={{ flex: 1, minWidth: 130 }}
-              />
-            </div>
+            <label>Schedule</label>
+            <ScheduleField
+              reportDate={reportDate}
+              reportEndDate={reportEndDate}
+              extraSchedule={extraSchedule}
+              onChangeReportDate={setReportDate}
+              onChangeReportEndDate={setReportEndDate}
+              onChangeExtraSchedule={setExtraSchedule}
+            />
           </div>
           <div className="meta-field">
             <label>Project manager</label>
@@ -3669,6 +3719,344 @@ function LightingPlanView({
         </div>
       </div>
     </>
+  );
+}
+
+/* ───────────── Schedule field (compact popover) ─────────────
+ * Shows a single trigger pill summarising the production schedule
+ * (e.g. "Setup Jun 14 → Downrig Jun 18 · 4 phases"). Clicking the
+ * trigger opens a small popover with one row per phase: Setup,
+ * Rehearsal, Show, and Downrig. Each row has From/To date inputs.
+ * Click-outside or pressing Escape closes the popover. The "Show"
+ * phase writes back to reportDate/reportEndDate; the others live in
+ * extraSchedule. */
+
+const SCHEDULE_PHASES_ORDER: SchedulePhaseKey[] = [
+  "setup",
+  "rehearsal",
+  "show",
+  "downrig",
+];
+
+function fmtShortDate(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function summariseSchedule(
+  reportDate: string,
+  reportEndDate: string,
+  extra: ExtraSchedule,
+): { label: string; phaseCount: number } {
+  const all: Array<{ key: SchedulePhaseKey; from: string; to: string }> = [];
+  if (reportDate || reportEndDate) {
+    all.push({
+      key: "show",
+      from: reportDate,
+      to: reportEndDate || reportDate,
+    });
+  }
+  (["setup", "rehearsal", "downrig"] as const).forEach((k) => {
+    const ph = extra[k];
+    if (ph && (ph.from || ph.to)) all.push({ key: k, from: ph.from, to: ph.to });
+  });
+  if (all.length === 0) return { label: "Add dates", phaseCount: 0 };
+  const fromIso = all
+    .map((p) => p.from || p.to)
+    .filter(Boolean)
+    .sort()[0];
+  const toIso = all
+    .map((p) => p.to || p.from)
+    .filter(Boolean)
+    .sort()
+    .slice(-1)[0];
+  const span =
+    fromIso && toIso && fromIso !== toIso
+      ? `${fmtShortDate(fromIso)} → ${fmtShortDate(toIso)}`
+      : fmtShortDate(fromIso || toIso || "");
+  return { label: span, phaseCount: all.length };
+}
+
+function ScheduleField({
+  reportDate,
+  reportEndDate,
+  extraSchedule,
+  onChangeReportDate,
+  onChangeReportEndDate,
+  onChangeExtraSchedule,
+}: {
+  reportDate: string;
+  reportEndDate: string;
+  extraSchedule: ExtraSchedule;
+  onChangeReportDate: (v: string) => void;
+  onChangeReportEndDate: (v: string) => void;
+  onChangeExtraSchedule: (
+    updater: (prev: ExtraSchedule) => ExtraSchedule,
+  ) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    // Capture phase so native date pickers can't swallow Escape before us.
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+    };
+  }, [open]);
+
+  const summary = summariseSchedule(reportDate, reportEndDate, extraSchedule);
+
+  const setPhase = (key: SchedulePhaseKey, side: "from" | "to", value: string) => {
+    if (key === "show") {
+      if (side === "from") {
+        onChangeReportDate(value);
+        if (reportEndDate && value && reportEndDate < value) {
+          onChangeReportEndDate(value);
+        }
+      } else {
+        onChangeReportEndDate(value);
+      }
+      return;
+    }
+    onChangeExtraSchedule((prev) => {
+      const current: SchedulePhase = prev[key] ?? { from: "", to: "" };
+      const next: SchedulePhase = { ...current, [side]: value };
+      // Auto-bump "to" forward if user pushed "from" past it.
+      if (side === "from" && next.to && value && next.to < value) {
+        next.to = value;
+      }
+      const out: ExtraSchedule = { ...prev };
+      if (!next.from && !next.to) {
+        delete out[key];
+      } else {
+        out[key] = next;
+      }
+      return out;
+    });
+  };
+
+  const getPhase = (key: SchedulePhaseKey): SchedulePhase => {
+    if (key === "show") return { from: reportDate, to: reportEndDate };
+    return extraSchedule[key] ?? { from: "", to: "" };
+  };
+
+  const clearAll = () => {
+    onChangeReportDate(new Date().toISOString().slice(0, 10));
+    onChangeReportEndDate("");
+    onChangeExtraSchedule(() => ({}));
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          width: "100%",
+          padding: "9px 10px",
+          border: "1px solid var(--border-color)",
+          borderRadius: 8,
+          background: "var(--input-bg)",
+          color: "var(--text-main)",
+          font: "inherit",
+          fontWeight: 600,
+          fontSize: 14,
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        <span
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {summary.label}
+          {summary.phaseCount > 1 ? (
+            <span
+              style={{
+                marginLeft: 6,
+                fontSize: 11,
+                fontWeight: 700,
+                color: "var(--text-muted)",
+              }}
+            >
+              · {summary.phaseCount} phases
+            </span>
+          ) : null}
+        </span>
+        <span
+          aria-hidden
+          style={{
+            opacity: 0.6,
+            transform: open ? "rotate(180deg)" : "none",
+            transition: "transform 120ms",
+          }}
+        >
+          ▾
+        </span>
+      </button>
+      {open ? (
+        <>
+          {/* Transparent click-catcher: closes the popover on any
+           *  click outside the dialog without depending on document
+           *  event delegation. */}
+          <div
+            onMouseDown={() => setOpen(false)}
+            aria-hidden
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 49,
+              background: "transparent",
+            }}
+          />
+          <div
+            role="dialog"
+            aria-label="Project schedule"
+            onMouseDown={(e) => e.stopPropagation()}
+            style={{
+              position: "absolute",
+              top: "calc(100% + 6px)",
+              left: 0,
+              zIndex: 50,
+            minWidth: 360,
+            maxWidth: 460,
+            padding: 12,
+            background: "var(--card-bg)",
+            border: "1px solid var(--border-color)",
+            borderRadius: 10,
+            boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
+            display: "grid",
+            gap: 8,
+          }}
+        >
+          {SCHEDULE_PHASES_ORDER.map((key) => {
+            const ph = getPhase(key);
+            return (
+              <div
+                key={key}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "84px 1fr 14px 1fr",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.4,
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  {SCHEDULE_PHASE_LABELS[key]}
+                </span>
+                <input
+                  type="date"
+                  value={ph.from}
+                  aria-label={`${SCHEDULE_PHASE_LABELS[key]} from`}
+                  onChange={(e) => setPhase(key, "from", e.target.value)}
+                  style={{
+                    padding: "6px 8px",
+                    border: "1px solid var(--border-color)",
+                    borderRadius: 6,
+                    background: "var(--input-bg)",
+                    color: "var(--text-main)",
+                    font: "inherit",
+                    fontSize: 13,
+                    width: "100%",
+                  }}
+                />
+                <span
+                  aria-hidden
+                  style={{
+                    color: "var(--text-muted)",
+                    textAlign: "center",
+                  }}
+                >
+                  →
+                </span>
+                <input
+                  type="date"
+                  value={ph.to}
+                  min={ph.from || undefined}
+                  aria-label={`${SCHEDULE_PHASE_LABELS[key]} to`}
+                  onChange={(e) => setPhase(key, "to", e.target.value)}
+                  style={{
+                    padding: "6px 8px",
+                    border: "1px solid var(--border-color)",
+                    borderRadius: 6,
+                    background: "var(--input-bg)",
+                    color: "var(--text-main)",
+                    font: "inherit",
+                    fontSize: 13,
+                    width: "100%",
+                  }}
+                />
+              </div>
+            );
+          })}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginTop: 6,
+              paddingTop: 8,
+              borderTop: "1px dashed var(--border-color)",
+            }}
+          >
+            <button
+              type="button"
+              onClick={clearAll}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--text-muted)",
+                fontSize: 12,
+                cursor: "pointer",
+                padding: "4px 6px",
+              }}
+            >
+              Reset schedule
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              style={{
+                background: "var(--primary)",
+                color: "white",
+                border: "none",
+                borderRadius: 6,
+                padding: "6px 14px",
+                fontWeight: 700,
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              Done
+            </button>
+          </div>
+          </div>
+        </>
+      ) : null}
+    </div>
   );
 }
 

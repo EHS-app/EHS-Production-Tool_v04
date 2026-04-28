@@ -10,12 +10,40 @@ import {
 import type {
   BriefAssignment,
   BriefRiggPlan,
+  BriefSchedule,
+  BriefSchedulePhaseKey,
   ProjectBrief,
 } from "../../lib/projectBrief";
 
+const PHASE_LABELS: Record<BriefSchedulePhaseKey, string> = {
+  setup: "Setup",
+  rehearsal: "Rehearsal",
+  show: "Show",
+  downrig: "Downrig",
+};
+const PHASE_ORDER: BriefSchedulePhaseKey[] = [
+  "setup",
+  "rehearsal",
+  "show",
+  "downrig",
+];
+
+function formatRange(from: string, to: string): string {
+  if (from && to && from !== to) {
+    return `${formatDate(from)} → ${formatDate(to)}`;
+  }
+  return formatDate(from || to);
+}
+
 function formatDate(iso: string): string {
   if (!iso) return "—";
-  const d = new Date(iso);
+  // Parse YYYY-MM-DD as a *local* calendar date, not UTC, so we never
+  // shift by a day in negative-offset timezones. Falls back to the
+  // native parser only if the string isn't a plain calendar date.
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  const d = m
+    ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+    : new Date(iso);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("en-GB", {
     weekday: "long",
@@ -216,6 +244,13 @@ export function BriefDetail({
           onOpenGig={() => setLocation("/portal/gigs")}
         />
       )}
+
+      {/* Production schedule (only shown when at least one phase is set) */}
+      {brief.project.schedule ? (
+        <SectionCard theme={theme} title="Production schedule">
+          <ScheduleList theme={theme} schedule={brief.project.schedule} />
+        </SectionCard>
+      ) : null}
 
       {/* Project context */}
       <SectionCard theme={theme} title="Crew on the call sheet">
@@ -1052,6 +1087,55 @@ function RiggPlanMap({
           })}
         </svg>
       </div>
+    </div>
+  );
+}
+
+function ScheduleList({
+  theme,
+  schedule,
+}: {
+  theme: ThemeMode;
+  schedule: BriefSchedule;
+}) {
+  const c = PALETTE[theme];
+  const rows = PHASE_ORDER.flatMap((key) => {
+    const ph = schedule[key];
+    if (!ph) return [];
+    return [{ key, label: PHASE_LABELS[key], from: ph.from, to: ph.to }];
+  });
+  if (rows.length === 0) return null;
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      {rows.map((row) => (
+        <div
+          key={row.key}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "100px 1fr",
+            alignItems: "center",
+            gap: 12,
+            padding: "8px 10px",
+            border: `1px solid ${c.border}`,
+            borderRadius: 8,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 800,
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+              color: c.muted,
+            }}
+          >
+            {row.label}
+          </span>
+          <span style={{ color: c.text, fontSize: 14, fontWeight: 600 }}>
+            {formatRange(row.from, row.to)}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

@@ -153,6 +153,10 @@ export type ProjectBrief = {
     /** Optional ISO end date (YYYY-MM-DD) for multi-day shows. Omitted /
      *  empty means single-day. */
     endDate?: string;
+    /** Optional production schedule with one entry per phase (setup,
+     *  rehearsal, show, downrig). Each phase has a `from`/`to` ISO date
+     *  range. Omitted phases simply do not appear in the brief view. */
+    schedule?: BriefSchedule;
     preparedBy: string;
   };
   assignments: BriefAssignment[];
@@ -221,11 +225,21 @@ export type BriefRiggingInput = {
   }>;
 };
 
+/** Production schedule shipped in the brief — one optional range per
+ *  phase. Empty strings allowed for partially-set phases. */
+export type BriefSchedulePhaseKey = "setup" | "rehearsal" | "show" | "downrig";
+export type BriefSchedulePhase = { from: string; to: string };
+export type BriefSchedule = Partial<
+  Record<BriefSchedulePhaseKey, BriefSchedulePhase>
+>;
+
 export type BuildBriefInput = {
   venue: string;
   reportDate: string;
   /** Optional ISO end date for multi-day shows. */
   reportEndDate?: string;
+  /** Optional schedule covering setup/rehearsal/show/downrig. */
+  schedule?: BriefSchedule;
   engineer: string;
   recipientCrewId: string | null;
   crew: CrewMember[];
@@ -434,6 +448,7 @@ export function buildBrief(input: BuildBriefInput): ProjectBrief {
       venue: input.venue,
       date: input.reportDate,
       endDate: input.reportEndDate ? input.reportEndDate : undefined,
+      schedule: input.schedule ? cleanSchedule(input.schedule) : undefined,
       preparedBy: input.engineer,
     },
     assignments,
@@ -475,6 +490,50 @@ function asEnum<T extends string | number>(
   )
     ? (v as T)
     : fallback;
+}
+
+const SCHEDULE_PHASE_KEYS: readonly BriefSchedulePhaseKey[] = [
+  "setup",
+  "rehearsal",
+  "show",
+  "downrig",
+] as const;
+
+/** Strip empty phases from a schedule before serialising — saves
+ *  bytes in the share link and keeps Briefs tidy. */
+function cleanSchedule(schedule: BriefSchedule): BriefSchedule | undefined {
+  const out: BriefSchedule = {};
+  let any = false;
+  SCHEDULE_PHASE_KEYS.forEach((k) => {
+    const ph = schedule[k];
+    if (!ph) return;
+    const from = asString(ph.from);
+    const to = asString(ph.to);
+    if (!from && !to) return;
+    out[k] = { from, to };
+    any = true;
+  });
+  return any ? out : undefined;
+}
+
+/** Defensive read of an arbitrary value (e.g. from a decoded share link
+ *  or stored brief) into a `BriefSchedule`. Unknown keys are ignored. */
+function normalizeSchedule(raw: unknown): BriefSchedule | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const obj = raw as Record<string, unknown>;
+  const out: BriefSchedule = {};
+  let any = false;
+  SCHEDULE_PHASE_KEYS.forEach((k) => {
+    const ph = obj[k];
+    if (!ph || typeof ph !== "object") return;
+    const phObj = ph as Record<string, unknown>;
+    const from = asString(phObj.from);
+    const to = asString(phObj.to);
+    if (!from && !to) return;
+    out[k] = { from, to };
+    any = true;
+  });
+  return any ? out : undefined;
 }
 
 // Use the canonical enum lists from the source modules so the brief
@@ -678,6 +737,7 @@ export function normalizeBrief(raw: unknown): ProjectBrief | null {
         typeof project.endDate === "string" && project.endDate
           ? project.endDate
           : undefined,
+      schedule: normalizeSchedule(project.schedule),
       preparedBy: asString(project.preparedBy),
     },
     assignments: asArray(r.assignments).map(normalizeAssignment),

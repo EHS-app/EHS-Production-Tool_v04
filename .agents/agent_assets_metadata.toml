@@ -18,3 +18,9 @@ id = "dUrl3tE1z_CJi7_3VoPBQ"
 uri = "file://exports/ehs-rigging-load-report-BACKUP-2026-04-27-pre-lighting.zip"
 type = "unspecified"
 title = "Backup — before adding lighting tools (135 KB)"
+
+[[outputs]]
+id = "1Nkl9WzSjvAGpgg3uukPp"
+uri = "file://exports/user-prompts.txt"
+type = "text"
+title = "Your prompt messages"

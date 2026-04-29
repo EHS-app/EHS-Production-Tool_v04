@@ -8,6 +8,7 @@ import {
   totalAdded,
   totalItemCount,
   totalSkipped,
+  type AnalyzerMode,
   type ApplySelection,
   type ApplySummary,
   type ExtractedItems,
@@ -72,6 +73,21 @@ export function DrawingImporter({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [extracted, setExtracted] = useState<ExtractedItems | null>(null);
+  // Analyzer mode toggle. Persisted in localStorage so the producer's
+  // preferred mode survives reloads. Defaults to "classic" — the
+  // existing behaviour — so users who never touch the toggle see no
+  // change. Stored alongside the mode that produced the *current*
+  // detections so we can show a small badge on the results header.
+  const [analyzerMode, setAnalyzerMode] = useState<AnalyzerMode>(() => {
+    if (typeof window === "undefined") return "classic";
+    const saved = window.localStorage.getItem("rigplan.analyzerMode");
+    return saved === "geometry" ? "geometry" : "classic";
+  });
+  const [extractedMode, setExtractedMode] = useState<AnalyzerMode | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("rigplan.analyzerMode", analyzerMode);
+  }, [analyzerMode]);
   const [selection, setSelection] = useState<ApplySelection>(selectNone());
   const [applied, setApplied] = useState(false);
   const [appliedSummary, setAppliedSummary] = useState<ApplySummary | null>(
@@ -129,6 +145,7 @@ export function DrawingImporter({
     }
     setError(null);
     setExtracted(null);
+    setExtractedMode(null);
     setSelection(selectNone());
     setApplied(false);
     setAppliedSummary(null);
@@ -164,20 +181,31 @@ export function DrawingImporter({
     setIsAnalyzing(true);
     setError(null);
     setExtracted(null);
+    setExtractedMode(null);
     setApplied(false);
     setAppliedSummary(null);
     setMemorySaved(false);
     memorySaveTokenRef.current += 1;
+    // Snapshot the mode at the moment we kick off the request so a
+    // user toggling Classic ↔ Geometry mid-flight can't make the
+    // results header lie about which prompt actually produced them.
+    const requestMode = analyzerMode;
     try {
-      const result = await analyzeDrawing(file, {
-        venue: currentVenue,
-        projectName,
-        // The venue memory loop is keyed off this name. We use the
-        // project / venue label the host already passed for context;
-        // when it's empty the server simply skips the memory lookup.
-        venueName: projectName,
-      });
+      const result = await analyzeDrawing(
+        file,
+        {
+          venue: currentVenue,
+          projectName,
+          // The venue memory loop is keyed off this name. We use the
+          // project / venue label the host already passed for context;
+          // when it's empty the server simply skips the memory lookup.
+          venueName: projectName,
+        },
+        undefined,
+        requestMode,
+      );
       setExtracted(result);
+      setExtractedMode(requestMode);
       setSelection(selectAll(result));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed.");
@@ -260,6 +288,7 @@ export function DrawingImporter({
   function reset() {
     setFile(null);
     setExtracted(null);
+    setExtractedMode(null);
     setSelection(selectNone());
     setError(null);
     setApplied(false);
@@ -345,6 +374,43 @@ export function DrawingImporter({
               {(file.size / 1024 / 1024).toFixed(2)} MB ·{" "}
               {isPdfFile(file) ? "PDF document" : file.type || "image"}
             </span>
+            <fieldset
+              className="drawing-mode-toggle"
+              disabled={isAnalyzing}
+              title="Classic uses the schema-only prompt. Geometry Expert applies extra rigging-logic rules (truss anchoring, fixture alignment, motor heuristics) while reading the drawing."
+            >
+              <legend>Detection mode</legend>
+              <label
+                className={
+                  "drawing-mode-option" +
+                  (analyzerMode === "classic" ? " is-active" : "")
+                }
+              >
+                <input
+                  type="radio"
+                  name="drawing-analyzer-mode"
+                  value="classic"
+                  checked={analyzerMode === "classic"}
+                  onChange={() => setAnalyzerMode("classic")}
+                />
+                <span>Classic</span>
+              </label>
+              <label
+                className={
+                  "drawing-mode-option" +
+                  (analyzerMode === "geometry" ? " is-active" : "")
+                }
+              >
+                <input
+                  type="radio"
+                  name="drawing-analyzer-mode"
+                  value="geometry"
+                  checked={analyzerMode === "geometry"}
+                  onChange={() => setAnalyzerMode("geometry")}
+                />
+                <span>Geometry Expert</span>
+              </label>
+            </fieldset>
             <div className="drawing-preview-actions">
               <button
                 type="button"
@@ -394,7 +460,17 @@ export function DrawingImporter({
         <div className="drawing-results">
           <header className="drawing-results-head">
             <div>
-              <h4>Found {itemTotal} item{itemTotal === 1 ? "" : "s"}</h4>
+              <h4>
+                Found {itemTotal} item{itemTotal === 1 ? "" : "s"}
+                {extractedMode === "geometry" && (
+                  <span
+                    className="drawing-mode-badge"
+                    title="These detections were produced with the Rigging Geometry Expert prompt"
+                  >
+                    Geometry Expert
+                  </span>
+                )}
+              </h4>
               {extracted.summary && (
                 <p className="led-sub">{extracted.summary}</p>
               )}

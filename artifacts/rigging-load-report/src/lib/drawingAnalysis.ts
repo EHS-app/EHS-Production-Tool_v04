@@ -162,18 +162,26 @@ function withCorrectedMediaType(dataUrl: string, file: File): string {
   return dataUrl;
 }
 
+/** Two interpretation modes the analyser can run in. "classic" is
+ *  the schema-only prompt that has shipped from day one; "geometry"
+ *  prefixes the prompt with the Rigging Geometry Expert rule-set
+ *  (truss anchoring, fixture alignment, motor heuristics, etc.).
+ *  Output schema is identical in both modes. */
+export type AnalyzerMode = "classic" | "geometry";
+
 /** POST the image or PDF to the analyzer and return the parsed extracted
  *  items. Throws an Error with a user-friendly message on failure. */
 export async function analyzeDrawing(
   file: File,
   context?: AnalyzeContext,
   signal?: AbortSignal,
+  mode: AnalyzerMode = "classic",
 ): Promise<ExtractedItems> {
   const fileDataUrl = withCorrectedMediaType(await fileToDataUrl(file), file);
   const res = await fetch(endpointUrl("rigplan/analyze"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fileDataUrl, context }),
+    body: JSON.stringify({ fileDataUrl, context, mode }),
     signal,
   });
 

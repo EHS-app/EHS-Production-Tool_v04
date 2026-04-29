@@ -271,6 +271,63 @@ If the file is NOT a production drawing or you cannot extract anything,
 still return the schema with empty arrays and a summary explaining why.
 Do not include any text outside the JSON code block.`;
 
+/** Optional prefix that turns the analyser into a "Rigging Geometry
+ *  Expert". Layered IN FRONT of SCHEMA_PROMPT when the request body
+ *  asks for `mode: "geometry"`. The downstream JSON shape is
+ *  unchanged — these are interpretation rules, not a new schema —
+ *  so the apply-to-reports / overlay-editor / venue-memory pipeline
+ *  works identically in both modes. */
+const GEOMETRY_RULES_PROMPT = `You are a Rigging Geometry Expert for live events. Apply the
+following "Rigging Logic" while reading the drawing, then fill in
+the JSON schema described further below. Keep the schema and field
+names exactly as specified — these geometry rules change HOW you
+interpret the drawing, not the output shape.
+
+CRITICAL LOGIC RULES:
+1. TRUSS ANCHORING: Every fixture (lighting / sound / led) MUST be
+   associated with a truss. Set "trussName" to the truss it hangs
+   on. If a fixture is genuinely on the floor and not flown, use
+   trussName = "Floor" (treat that as the equivalent of a
+   "floor_package").
+2. ALIGNMENT & SNAPPING: Fixtures and items on the same straight
+   truss MUST share a common axis. Do NOT return crooked
+   coordinates. If lights look aligned along the truss, snap their
+   bbox centres so they line up perfectly along the truss's axis
+   (same y for a horizontal truss, same x for a vertical truss).
+3. MOTOR PLACEMENT: Motors / pickup points are typically at the
+   ends of trusses or at 1/4 points. If you find a truss with
+   fewer than 2 motors, look closer at the intersections and ends
+   of the bar for symbols you may have missed before settling on a
+   final pointCount.
+4. BOX DIMENSIONS: Use a consistent scale. Trusses of the same
+   declared type (e.g. all "30x30" general-purpose trusses) MUST be
+   represented with a CONSISTENT bbox thickness — normalise the
+   short dimension across same-type trusses. The long dimension
+   still reflects the actual labelled or measured length.
+5. CONFIDENCE FLAGGING: Set "confidence" honestly. Items with
+   confidence < 0.7 will be rendered with a "Check Me" indicator in
+   the editor so the user can verify them. Lower confidence does
+   NOT mean omit — it means flag.
+6. TRUSS GROUPING: Fixtures that hang on the same truss should
+   share that truss's "trussName" exactly so they can be moved as a
+   group in the editor.
+
+Now apply those rules while emitting the schema below.`;
+
+/** Prompt selector. The geometry prompt simply prefixes the rules
+ *  in front of the canonical schema spec, so the parser, normaliser,
+ *  overlay editor and venue-memory loop all keep working unchanged. */
+function buildAnalyzePrompt(mode: AnalyzeMode): string {
+  return mode === "geometry"
+    ? `${GEOMETRY_RULES_PROMPT}\n\n${SCHEMA_PROMPT}`
+    : SCHEMA_PROMPT;
+}
+
+/** Two analyser interpretation modes the client can pick between.
+ *  - "classic"  → schema-only prompt, the original behaviour.
+ *  - "geometry" → schema + Rigging Geometry Expert rules. */
+type AnalyzeMode = "classic" | "geometry";
+
 type AnalyzeContext = {
   venue?: { widthM?: number; depthM?: number; ceilingM?: number };
   projectName?: string;
@@ -781,7 +838,12 @@ router.post("/rigplan/analyze", requireSignedIn, rateLimit, json({ limit: "12mb"
     /** Legacy field — kept for backward compatibility with older clients. */
     imageDataUrl?: unknown;
     context?: unknown;
+    /** Interpretation mode. Defaults to "classic" when missing or
+     *  when the value is anything other than the two known strings,
+     *  so older clients keep their existing behaviour. */
+    mode?: unknown;
   };
+  const mode: AnalyzeMode = body.mode === "geometry" ? "geometry" : "classic";
   const dataUrlField =
     typeof body.fileDataUrl === "string" && body.fileDataUrl
       ? body.fileDataUrl
@@ -896,7 +958,7 @@ router.post("/rigplan/analyze", requireSignedIn, rateLimit, json({ limit: "12mb"
             fileBlock,
             {
               type: "text",
-              text: `${SCHEMA_PROMPT}\n\n${contextLine(ctx)}`.trim(),
+              text: `${buildAnalyzePrompt(mode)}\n\n${contextLine(ctx)}`.trim(),
             },
           ],
         },

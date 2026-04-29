@@ -5236,3 +5236,78 @@ input:focus {
 .overlay-delete-btn:hover {
   background: #fee2e2;
 }
+
+/* -------------------------------------------------------------------------
+ * Drawing analyzer mode toggle.
+ *
+ * A small, inline radio-pair shown above the "Analyze drawing" button.
+ * Lets producers A/B between the original schema-only prompt and the
+ * "Rigging Geometry Expert" prompt without leaving the importer. The
+ * matching badge re-appears in the results header so they always know
+ * which mode produced the current detections.
+ * ------------------------------------------------------------------------- */
+
+.drawing-mode-toggle {
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  padding: 6px 10px 8px;
+  margin: 8px 0 6px;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  background: var(--bg-elev, #f8fafc);
+}
+
+.drawing-mode-toggle[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.drawing-mode-toggle > legend {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted, #475569);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0 4px;
+}
+
+.drawing-mode-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 999px;
+  user-select: none;
+}
+
+.drawing-mode-option input {
+  margin: 0;
+}
+
+.drawing-mode-option.is-active {
+  background: color-mix(in srgb, var(--accent, #2563eb) 12%, transparent);
+  color: var(--accent, #2563eb);
+  font-weight: 600;
+}
+
+.drawing-mode-toggle[disabled] .drawing-mode-option {
+  cursor: not-allowed;
+}
+
+.drawing-mode-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: color-mix(in srgb, #2563eb 14%, transparent);
+  color: #1d4ed8;
+  vertical-align: middle;
+}

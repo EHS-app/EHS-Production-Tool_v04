@@ -1,0 +1,97 @@
+Core requirements
+The system must be distro-centric, not circuit-centric.
+Each distro (e.g. HOT1) represents a real physical power source (e.g. 32A 3-phase).
+
+Each distro contains 6 channels, mapped to phases using the standard pattern:
+
+Ch1 + Ch4 → L1
+Ch2 + Ch5 → L2
+Ch3 + Ch6 → L3
+
+This mapping should be the default but configurable per distro.
+Truss / distribution rules
+In most cases, one distro feeds one truss.
+However, the system must support one distro feeding multiple trusses (e.g. via Soca split).
+This must be clearly represented in both:
+The data model
+The UI
+Each channel drop must explicitly reference which truss it feeds (not just the distro globally).
+Fixtures
+Fixtures come from a single source of truth (Lighting tab).
+The Power tab must reference, not duplicate, fixture data.
+Users assign fixtures to channels by:
+selecting a fixture type
+selecting quantity
+selecting the source truss
+Electrical calculations
+Calculate per-channel:
+Watts → Amps using:
+A = (W × qty) / (V × PF)
+Assume:
+230V
+configurable power factor (default ~0.95)
+80% continuous load derating
+Show:
+Amps per channel
+% of breaker capacity
+warnings when exceeding 80% and hard limit at 100%
+Phase and distro calculations
+Sum channels into phases:
+L1 = Ch1 + Ch4
+L2 = Ch2 + Ch5
+L3 = Ch3 + Ch6
+Show:
+Per-phase load
+Phase imbalance warnings
+Total distro load vs feeder capacity
+IMPORTANT:
+The system must detect cases where:
+individual channels are within limits
+but combined phase load exceeds feeder capacity
+Auto-balance behavior
+Do NOT automatically reassign fixtures.
+
+Instead, provide suggestions only, such as:
+
+“Move 2 fixtures from Ch1 → Ch3 to reduce L1 load”
+
+UX requirements
+Each distro is shown as a card with:
+feeder type (preset or custom)
+connected truss(es)
+total load summary
+warnings
+Each channel row shows:
+phase
+breaker rating
+assigned fixtures
+load and utilization
+Clearly indicate when:
+a distro feeds multiple trusses
+fixtures from different trusses share the same channel
+Validation
+The system must:
+Warn about phase imbalance
+Warn about channel overload
+Warn about feeder overload
+Show “fixtures not yet powered”
+Constraints / realism
+Do not assume fixtures can be freely moved once assigned (reflect real cabling constraints).
+Treat auto-balance as advisory only.
+Maintain traceability:
+Fixture → Channel → Phase → Distro
+Deliverables
+
+Provide:
+
+Data model (TypeScript-style)
+UI structure (component breakdown)
+Calculation logic
+Example of a real-world setup (with 2 trusses and a Soca split)
+🔥 Why this prompt works
+It removes ambiguity (this is where most AI outputs go wrong)
+It forces real-world constraints, not just “clean math”
+It protects you from:
+over-automation
+broken phase logic
+messy multi-truss setups

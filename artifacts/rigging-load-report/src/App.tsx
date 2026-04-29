@@ -32,7 +32,9 @@ import {
 } from "./lib/led";
 import { findProcessor } from "./lib/ledProcessors";
 import { NumberField } from "./components/NumberField";
+import { LanguageSelector } from "./components/LanguageSelector";
 import { ShareBriefModal } from "./components/ShareBriefModal";
+import { useT } from "./lib/i18n/I18nContext";
 import type { BuildBriefInput } from "./lib/projectBrief";
 import { exportScreenAsPng, getLogoDataUrl } from "./lib/ledExport";
 import { LedScreenReportView } from "./components/LedScreenReportView";
@@ -1098,6 +1100,10 @@ function ThemeSegmentedControl({
 function App() {
   const persisted = useRef<Partial<PersistedV2> | null>(loadPersisted()).current;
   const initialSystem = makeSystem("LX1");
+  // Aliased to `tr` because this file already uses `t` as a local variable
+  // name in many places (e.g. `const t = persisted?.theme`); using the
+  // translator under a distinct name avoids accidental shadowing.
+  const tr = useT();
 
   const [themePref, setThemePref] = useState<ThemePref>(() => {
     const t = persisted?.theme;
@@ -3634,12 +3640,7 @@ function App() {
   };
 
   const resetAll = () => {
-    if (
-      !confirm(
-        "Reset the entire report? Every tab — systems, lighting fixtures, LED screens, stages, crew, sound, power plan, rigg plan (including the venue), and the project info — will be cleared.",
-      )
-    )
-      return;
+    if (!confirm(tr("reset.confirm"))) return;
     // Truly empty starting system: no truss row, no motor — so the
     // Rigging Report comes up blank instead of carrying over the
     // pre-seeded "4× FD34" row + first hoist.
@@ -3859,8 +3860,16 @@ function App() {
             <span className="autosave-pill" title="Saved locally in your browser">
               ● Saved {savedAt}
             </span>
-            <button className="btn btn-reset" onClick={resetAll} title="Clear report">
-              Reset
+            <LanguageSelector
+              className="btn btn-reset lang-select"
+              ariaLabel={tr("language.label")}
+            />
+            <button
+              className="btn btn-reset"
+              onClick={resetAll}
+              title={tr("header.reset")}
+            >
+              {tr("header.reset")}
             </button>
             <button className="btn btn-csv" onClick={downloadCsv} title="Download CSV">
               CSV
@@ -3878,28 +3887,28 @@ function App() {
                 }
               }}
             >
-              Export Report
+              {tr("header.exportReport")}
             </button>
             <button
               className="btn btn-export"
               onClick={exportClientPackPdf}
               title="Open a printable, client-facing pack covering schedule, crew, rigging, lighting, sound, stage, LED, risks and cost"
             >
-              Client Pack
+              {tr("header.clientPack")}
             </button>
             <button
               className="btn btn-export"
               onClick={simulateShow}
               title="Step through 10 production phases (load-in → show → load-out) with discipline status, risks and a final readiness verdict"
             >
-              Simulate Show
+              {tr("header.simulateShow")}
             </button>
             <button
               className="btn btn-export"
               onClick={() => setShareOpen(true)}
               title="Generate per-crew brief links to share with freelancers"
             >
-              Share with Crew
+              {tr("header.shareWithCrew")}
             </button>
           </div>
         </div>
@@ -3909,25 +3918,25 @@ function App() {
       <div className="system-identity project-card">
         <div className="project-meta">
           <div className="meta-field">
-            <label>Venue / Project</label>
+            <label>{tr("project.venueProject")}</label>
             <input
               type="text"
               value={venue}
               onChange={(e) => setVenue(e.target.value)}
-              placeholder="e.g. Sentrum Scene"
+              placeholder={tr("project.placeholder.venue")}
             />
           </div>
           <div className="meta-field">
-            <label>Client</label>
+            <label>{tr("project.client")}</label>
             <input
               type="text"
               value={client}
               onChange={(e) => setClient(e.target.value)}
-              placeholder="Customer name"
+              placeholder={tr("project.placeholder.client")}
             />
           </div>
           <div className="meta-field">
-            <label>Schedule</label>
+            <label>{tr("project.schedule")}</label>
             <ScheduleField
               reportDate={reportDate}
               reportEndDate={reportEndDate}
@@ -3938,12 +3947,12 @@ function App() {
             />
           </div>
           <div className="meta-field">
-            <label>Project manager</label>
+            <label>{tr("project.projectManager")}</label>
             <input
               type="text"
               value={engineer}
               onChange={(e) => setEngineer(e.target.value)}
-              placeholder="Name"
+              placeholder={tr("project.placeholder.manager")}
             />
           </div>
         </div>
@@ -3955,13 +3964,13 @@ function App() {
           className={`view-tab ${mainView === "rigging" ? "is-active" : ""}`}
           onClick={() => setMainView("rigging")}
         >
-          Rigging Report
+          {tr("view.rigging")}
         </button>
         <button
           className={`view-tab ${mainView === "lighting" ? "is-active" : ""}`}
           onClick={() => setMainView("lighting")}
         >
-          Lighting Report
+          {tr("view.lighting")}
           {allLightingFixtures.length > 0 && (
             <span className="view-tab-badge">
               {allLightingFixtures.length}
@@ -3972,13 +3981,13 @@ function App() {
           className={`view-tab ${mainView === "led" ? "is-active" : ""}`}
           onClick={() => setMainView("led")}
         >
-          LED Screen Report
+          {tr("view.led")}
         </button>
         <button
           className={`view-tab ${mainView === "stage" ? "is-active" : ""}`}
           onClick={() => setMainView("stage")}
         >
-          Stage Report
+          {tr("view.stage")}
           {stages.length > 0 && (
             <span className="view-tab-badge">{stages.length}</span>
           )}
@@ -3987,7 +3996,7 @@ function App() {
           className={`view-tab ${mainView === "crew" ? "is-active" : ""}`}
           onClick={() => setMainView("crew")}
         >
-          Crew Report
+          {tr("view.crew")}
           {crew.length > 0 && (
             <span className="view-tab-badge">{crew.length}</span>
           )}
@@ -3996,7 +4005,7 @@ function App() {
           className={`view-tab ${mainView === "sound" ? "is-active" : ""}`}
           onClick={() => setMainView("sound")}
         >
-          Sound Report
+          {tr("view.sound")}
           {soundItems.length > 0 && (
             <span className="view-tab-badge">{soundItems.length}</span>
           )}
@@ -4005,7 +4014,7 @@ function App() {
           className={`view-tab ${mainView === "riggPlan" ? "is-active" : ""}`}
           onClick={() => setMainView("riggPlan")}
         >
-          Rigg Plan
+          {tr("view.riggPlan")}
           {systems.length > 0 && (
             <span className="view-tab-badge">{systems.length}</span>
           )}

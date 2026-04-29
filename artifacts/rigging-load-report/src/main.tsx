@@ -12,6 +12,7 @@ import { dark } from "@clerk/themes";
 import { Redirect, Route, Router, Switch, useLocation } from "wouter";
 import App from "./App";
 import { Portal } from "./portal/Portal";
+import { I18nProvider } from "./lib/i18n/I18nContext";
 import "./index.css";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as
@@ -696,6 +697,10 @@ function AuthGate({
     <>
       <Show when="signed-in">
         <ClearAuthMode />
+        {/* I18nProvider wraps the Router (and therefore both <App /> and
+            <Portal />) so the producer Production Tool and the freelancer
+            Portal share a single locale state and persistence channel. */}
+        <I18nProvider>
         <Router base={basePath}>
           <PostLoginRedirect />
           <FreelancerGuard />
@@ -721,6 +726,7 @@ function AuthGate({
             </Route>
           </Switch>
         </Router>
+        </I18nProvider>
       </Show>
       <Show when="signed-out">
         <ClearUserRoleOnSignedOut />

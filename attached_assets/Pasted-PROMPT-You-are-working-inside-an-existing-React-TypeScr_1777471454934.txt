@@ -1,0 +1,88 @@
+PROMPT
+
+You are working inside an existing React + TypeScript Production Tool app (EHS) with a tab-based interface.
+
+Add a global “Fart Button” popup feature that works on top of the entire app without breaking existing functionality.
+
+🎯 GOAL
+
+Create a floating UI feature that:
+
+Is always accessible (top bar or floating corner button)
+Opens a full-screen animated popup
+Uses the app’s existing styling (light/dark mode compatible)
+🟢 UI INTEGRATION
+Add a small floating button:
+Position: bottom-right corner
+Icon: 💨
+Tooltip: “Emergency Fart”
+Button must NOT interfere with existing tabs or layouts
+✏️ INPUT
+
+When clicked:
+
+Open a modal/popup
+Show:
+Input field → “Enter name”
+Button → “Fart 💨”
+💥 ON SUBMIT
+
+When user clicks “Fart 💨”:
+
+1. FULLSCREEN OVERLAY
+Covers entire app (z-index above everything)
+Slight dark transparent background
+2. TEXT DISPLAY
+
+Center screen:
+
+[NAME] just farted 💨
+Large bold text
+Slight bounce animation
+3. 💨 ANIMATION
+Generate multiple “fart clouds”:
+Random positions
+Float across screen
+Fade in/out
+Use:
+CSS animations OR Framer Motion
+4. 🔊 SOUND
+Play a fart sound on trigger
+Use 2–3 sound variations randomly
+5. SCREEN EFFECT (IMPORTANT)
+Slight screen shake (short duration)
+Optional greenish tint flash for humor
+❌ CLOSE
+Click anywhere OR press ESC
+Cleanly unmount everything (no memory leaks)
+⚙️ TECH REQUIREMENTS
+React + TypeScript
+Use useState or Zustand (if global state is used)
+Use a Portal (ReactDOM.createPortal) for overlay
+Keep component isolated:
+<FartButton />
+<FartPopup />
+🧠 ARCHITECTURE RULES
+Must NOT break:
+Production Tool state
+Existing tabs (Rigging, Lighting, etc.)
+Must NOT block autosave/localStorage
+Must NOT interfere with keyboard shortcuts
+📁 FILE STRUCTURE
+/components/fart/
+  FartButton.tsx
+  FartPopup.tsx
+  fartSounds.ts
+✨ OPTIONAL (FUN BUT CLEAN)
+Randomize fart intensity:
+small / medium / “nuclear”
+Different text variations:
+“[NAME] destroyed the atmosphere 💨”
+Keep it tasteful — don’t overdo it
+🧾 OUTPUT
+
+Return:
+
+Full React components
+Minimal styling (Tailwind or CSS)
+Sound handling included

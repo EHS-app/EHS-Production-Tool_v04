@@ -5551,23 +5551,22 @@ input:focus {
     padding: 16px;
   }
 
-  /* Tabs row: switch from wrap to a horizontal scroller. Wrapping a
-   * 6-tab strip at narrow widths produces 3 cramped rows; a single
-   * scroll-snapped row is much cleaner on touch. */
+  /* Tabs row: stay wrapped (the original behavior) but make every
+   * tab a flex item that grows to fill the available row width so
+   * each row looks like a clean, even grid instead of a ragged strip
+   * where the last tab gets clipped off the right edge. */
   .tabs-list,
   .view-switcher {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .tabs-list::-webkit-scrollbar,
-  .view-switcher::-webkit-scrollbar {
-    display: none;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
   }
   .system-tab,
   .view-tab {
-    flex: 0 0 auto;
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: center;
+    text-align: center;
     white-space: nowrap;
   }
 }
@@ -5664,6 +5663,33 @@ input:focus {
    * scrolling and doesn't try to compress below readability. */
   .led-table {
     min-width: 720px;
+  }
+}
+
+/* ── Schedule popover (project schedule menu) ──────────────────────── *
+ * The schedule field's popover is rendered with inline styles
+ * (no class), with `min-width: 360px` and `left: 0`. On phones and
+ * narrow tablets the .meta-field column is < 360px wide, so the
+ * popover bleeds 30+ pixels off the right edge of the screen. We
+ * override its width/anchoring via attribute selector — the inline
+ * styles use no `!important`, so any external rule with `!important`
+ * wins. Anchoring to BOTH `left: 0` AND `right: 0` makes the popover
+ * match the parent column width regardless of viewport size. */
+@media (max-width: 900px) {
+  [role="dialog"][aria-label="Project schedule"] {
+    min-width: 0 !important;
+    max-width: calc(100vw - 24px) !important;
+    width: auto !important;
+    left: 0 !important;
+    right: 0 !important;
+  }
+}
+@media (max-width: 640px) {
+  [role="dialog"][aria-label="Project schedule"] {
+    /* On phone, also tighten the inner padding so the date inputs
+     * have enough room without horizontal scrolling. */
+    padding: 10px !important;
+    max-width: calc(100vw - 16px) !important;
   }
 }
 

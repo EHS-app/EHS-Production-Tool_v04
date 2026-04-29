@@ -5319,3 +5319,31 @@ input:focus {
   background: color-mix(in srgb, #16a34a 16%, transparent);
   color: #15803d;
 }
+
+/* Tiny pill-style hint that shows up just above the analyzer toggle
+ * when the server has past corrections saved for the current venue.
+ * Subtle so it doesn't compete with the file metadata, but visible
+ * enough that the user notices the analyzer has prior knowledge. */
+.drawing-memory-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  color: #166534;
+  background: color-mix(in srgb, #16a34a 10%, transparent);
+  border: 1px solid color-mix(in srgb, #16a34a 25%, transparent);
+}
+.drawing-memory-hint-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16a34a;
+  flex: 0 0 auto;
+}
+.drawing-memory-saved {
+  margin-top: 4px;
+  color: #166534;
+}

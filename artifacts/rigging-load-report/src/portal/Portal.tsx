@@ -10,6 +10,7 @@ import { Profile } from "./screens/Profile";
 import { Briefs } from "./screens/Briefs";
 import { BriefDetail } from "./screens/BriefDetail";
 import { BriefImport } from "./screens/BriefImport";
+import { Help } from "./screens/Help";
 import {
   loadPortalData,
   savePortalData,
@@ -53,6 +54,7 @@ export function Portal({ theme, onToggleTheme }: PortalProps) {
     if (path.endsWith("/availability")) return "availability";
     if (path.endsWith("/earnings")) return "earnings";
     if (path.endsWith("/profile")) return "profile";
+    if (path.endsWith("/help")) return "help";
     if (path.includes("/brief")) return "briefs";
     return "hub";
   }, [location]);
@@ -101,6 +103,9 @@ export function Portal({ theme, onToggleTheme }: PortalProps) {
         </Route>
         <Route path="/portal/profile">
           <Profile theme={theme} data={data} setData={setData} />
+        </Route>
+        <Route path="/portal/help">
+          <Help theme={theme} />
         </Route>
         <Route path="/portal/brief/import">
           <BriefImport theme={theme} setData={setData} />

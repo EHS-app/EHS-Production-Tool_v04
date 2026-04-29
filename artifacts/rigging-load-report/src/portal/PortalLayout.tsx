@@ -10,7 +10,8 @@ export type PortalNavKey =
   | "gigs"
   | "availability"
   | "earnings"
-  | "profile";
+  | "profile"
+  | "help";
 
 type NavItem = {
   key: PortalNavKey;
@@ -31,6 +32,7 @@ const NAV: NavItem[] = [
   },
   { key: "earnings", label: "Earnings", href: "/portal/earnings", icon: "kr" },
   { key: "profile", label: "Profile", href: "/portal/profile", icon: "◆" },
+  { key: "help", label: "Help", href: "/portal/help", icon: "?" },
 ];
 
 export function PortalLayout({
@@ -122,6 +124,28 @@ export function PortalLayout({
           <span className="ehs-portal-only-mobile" aria-hidden>
             Tool
           </span>
+        </Link>
+
+        <Link
+          href="/portal/help"
+          title="Help & tips"
+          aria-label="Help"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 34,
+            height: 34,
+            fontSize: 15,
+            fontWeight: 800,
+            borderRadius: 8,
+            background: c.cardBgSubtle,
+            color: c.text,
+            border: `1px solid ${c.border}`,
+            textDecoration: "none",
+          }}
+        >
+          ?
         </Link>
 
         <button

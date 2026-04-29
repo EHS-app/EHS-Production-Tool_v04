@@ -41,7 +41,10 @@ export const no: Translations = {
   "language.short.no": "NO",
 
   // ---------- Producer header (top doc actions) ----------
-  "header.exportReport": "Eksporter rapport",
+  // Header buttons sit in a single row; Norwegian labels here are kept
+  // tight (similar character widths to the English originals) so the
+  // row never wraps onto a second line at the same viewport width.
+  "header.exportReport": "Eksporter",
   "header.clientPack": "Kundepakke",
   "header.simulateShow": "Simuler show",
   "header.shareWithCrew": "Del med crew",

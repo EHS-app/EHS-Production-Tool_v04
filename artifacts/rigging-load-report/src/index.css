@@ -5461,3 +5461,259 @@ input:focus {
   margin-top: 4px;
   color: #166534;
 }
+
+/* ====================================================================
+ * RESPONSIVE LAYER — iPhone & iPad
+ * --------------------------------------------------------------------
+ * One consolidated mobile/tablet pass for BOTH the Production Tool
+ * (default routes) AND the Freelance Portal (/portal/...). Lives at
+ * the very end of the file so its rules win on specificity ties.
+ *
+ * Breakpoints:
+ *   • ≤ 900px  →  iPad portrait (768/810px) and phones
+ *   • ≤ 640px  →  iPhone (320–430px) and small Android phones
+ *
+ * iPad landscape (≥ 1024px) keeps the full desktop layout. The
+ * existing 1024px breakpoints throughout the file (e.g. .main-grid)
+ * already collapse the heavy 3-column grids at iPad-landscape, which
+ * is the right behavior — touch targets need more room than mouse.
+ * ==================================================================== */
+
+/* ── iOS Safari: prevent zoom-on-focus for form inputs ──────────────
+ * Safari on iPhone auto-zooms whenever it focuses an input/textarea
+ * with a font-size below 16px. That snaps the whole layout sideways
+ * and is jarring. We only need this on touch devices. */
+@media (max-width: 900px) {
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="date"],
+  input[type="time"],
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* ── PRODUCTION TOOL — tablet (≤ 900px) ────────────────────────────── */
+@media (max-width: 900px) {
+  body {
+    padding: 12px;
+  }
+  .container {
+    max-width: 100%;
+  }
+
+  /* Header collapses: logo + title on one row, actions wrap below.
+   * The header already has flex-wrap: wrap so this mostly Just Works
+   * once we shrink the padding and let the action group grow to 100%
+   * width on the wrap. */
+  .header {
+    padding: 16px 18px;
+    gap: 12px;
+  }
+  .header-logo-img {
+    height: 44px;
+  }
+  .header-title {
+    padding-left: 14px;
+  }
+  .header-left h1 {
+    font-size: 1.4rem;
+  }
+  .header-actions {
+    align-items: stretch;
+    width: 100%;
+  }
+  .header-account,
+  .header-doc-actions {
+    justify-content: flex-start;
+  }
+
+  /* Identity card */
+  .system-identity {
+    padding: 16px 18px;
+  }
+  .system-identity input[type="text"]:not(.meta-field input),
+  .sys-id-main input {
+    font-size: 1.25rem;
+  }
+
+  /* Cards / sections */
+  .card {
+    padding: 16px;
+  }
+  .led-card {
+    padding: 16px;
+  }
+
+  /* Tabs row: switch from wrap to a horizontal scroller. Wrapping a
+   * 6-tab strip at narrow widths produces 3 cramped rows; a single
+   * scroll-snapped row is much cleaner on touch. */
+  .tabs-list,
+  .view-switcher {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tabs-list::-webkit-scrollbar,
+  .view-switcher::-webkit-scrollbar {
+    display: none;
+  }
+  .system-tab,
+  .view-tab {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+
+/* ── PRODUCTION TOOL — phone (≤ 640px) ─────────────────────────────── */
+@media (max-width: 640px) {
+  body {
+    padding: 8px;
+  }
+
+  /* Stack header content vertically and left-align everything */
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px 14px;
+    border-radius: 10px;
+  }
+  .header-left {
+    gap: 12px;
+  }
+  .header-logo-img {
+    height: 38px;
+  }
+  .header-title {
+    padding-left: 12px;
+  }
+  .header-left h1 {
+    font-size: 1.2rem;
+  }
+  .header-eyebrow {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+  }
+
+  .header-actions {
+    align-items: stretch;
+  }
+  .header-account,
+  .header-doc-actions {
+    justify-content: center;
+    gap: 6px;
+  }
+
+  /* Identity card */
+  .system-identity {
+    padding: 14px;
+    border-radius: 10px;
+  }
+  .sys-id-main {
+    gap: 12px;
+  }
+  .system-identity input[type="text"]:not(.meta-field input),
+  .sys-id-main input {
+    font-size: 1.1rem;
+  }
+  .project-meta {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  /* Cards / sections — tighter padding for limited screen real estate */
+  .card,
+  .led-card {
+    padding: 14px;
+    border-radius: 10px;
+  }
+  .card h2 {
+    font-size: 0.92rem;
+  }
+
+  /* Tabs scale down a bit on phone */
+  .system-tab {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  .view-tab {
+    padding: 8px 14px;
+    font-size: 0.85rem;
+  }
+
+  /* Drawing analyzer: collapse the 240px-preview + content layout
+   * to a single column (already handled at 700px, but we tighten the
+   * gap so it doesn't feel airy on a phone). */
+  .drawing-preview-row {
+    gap: 10px;
+  }
+  .drawing-preview {
+    max-height: 220px;
+  }
+
+  /* LED screens table: at this width the auto-fit table can't really
+   * fit 12 columns — the .led-table-wrap parent already provides
+   * overflow-x: auto, so we just make sure the inner table allows
+   * scrolling and doesn't try to compress below readability. */
+  .led-table {
+    min-width: 720px;
+  }
+}
+
+/* ── FREELANCE PORTAL — desktop (≥ 901px) ──────────────────────────── *
+ * Show the sidebar, hide the bottom nav, and switch the shell into a
+ * 220px + content grid. The PortalLayout sets `display: none` inline
+ * on the sidebar, so we use !important to override that on desktop. */
+@media (min-width: 901px) {
+  .ehs-portal-shell {
+    grid-template-columns: 220px minmax(0, 1fr) !important;
+  }
+  .ehs-portal-sidebar {
+    display: flex !important;
+  }
+  .ehs-portal-bottomnav {
+    display: none !important;
+  }
+  .ehs-portal-only-desktop {
+    display: inline-flex !important;
+  }
+  .ehs-portal-only-mobile {
+    display: none !important;
+  }
+}
+
+/* ── FREELANCE PORTAL — tablet & phone (≤ 900px) ───────────────────── *
+ * Single-column shell, bottom nav visible, sidebar hidden. Most of
+ * this is already the inline-style default — we just need the
+ * desktop/mobile visibility helpers and a little extra bottom padding
+ * on the main scroll area so the bottom nav doesn't cover content. */
+@media (max-width: 900px) {
+  .ehs-portal-only-desktop {
+    display: none !important;
+  }
+  .ehs-portal-only-mobile {
+    display: inline-flex !important;
+  }
+  /* The portal main pane already has 96px bottom padding inline, so
+   * the bottom nav (≈64px tall) doesn't cover content. Nothing extra
+   * needed here. */
+}
+
+/* ── PORTAL — phone-only tweaks (≤ 640px) ──────────────────────────── */
+@media (max-width: 640px) {
+  /* Bottom nav labels can feel crowded on the smallest iPhones —
+   * trim the inter-item padding so 7 nav items still fit edge-to-edge
+   * on a 320px viewport. */
+  .ehs-portal-bottomnav a {
+    padding: 6px 2px !important;
+    min-width: 40px !important;
+    font-size: 10px !important;
+  }
+}

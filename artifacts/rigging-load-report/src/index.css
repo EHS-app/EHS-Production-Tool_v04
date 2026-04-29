@@ -330,42 +330,35 @@ body {
   gap: 6px;
 }
 .drawing-item {
-  display: flex;
-  align-items: flex-start;
+  /* CSS GRID instead of Flexbox: a 2-column grid (`auto 1fr`)
+   * GUARANTEES the body column always fills the remaining row
+   * width after the checkbox column. With Flexbox we hit a Safari
+   * edge case where `flex: 1 1 auto` on the body resolved to a
+   * tiny content-determined width, leaving the parts list pinned
+   * to the right edge as a 1-character vertical strip. Grid's
+   * `1fr` track has no such ambiguity. */
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
   gap: 10px;
   padding: 6px 8px;
   background: var(--card, #fff);
   border: 1px solid var(--border, #e2e8f0);
   border-radius: 6px;
-  /* Without min-width:0 a row with long unbreakable tokens (e.g.
-   * "fd34-300×66, fd34-100×20...") could push its parent wider than
-   * the importer card and force the body content into a tiny strip
-   * pinned against the right edge. Belt-and-braces to make sure
-   * the row stays inside its parent. */
   min-width: 0;
 }
 .drawing-item input[type="checkbox"] {
   margin-top: 2px;
-  flex: 0 0 auto;
+  /* Grid item — no flex sizing needed. */
 }
 .drawing-item-body {
-  /* CRITICAL: flex:1 lets the body fill the remaining row width
-   * after the checkbox, and min-width:0 lets it actually shrink
-   * (the default min-width:auto would refuse to shrink below the
-   * widest unbreakable token, pushing content off-screen).
-   *
-   * Important: the body is a plain BLOCK container, NOT a flex
-   * container. A previous attempt used `display: flex; flex-
-   * direction: column` here, but that combined with the unstyled
-   * <div> wrapper inside (which holds the <strong> + <span>) and
-   * Safari's flex sizing rules let the inner wrapper collapse to
-   * its content's intrinsic width — and once `overflow-wrap:
-   * anywhere` is applied, that collapse renders one character
-   * per line in a thin vertical strip on the right edge. Block
-   * layout is naturally `width: 100%` of its parent and side-
-   * steps that whole class of bug. */
-  flex: 1 1 auto;
+  /* Grid track is `minmax(0, 1fr)` so the body always fills the
+   * remaining row width AND can shrink small enough for long
+   * part-number tokens to wrap. The min-width:0 here is a
+   * belt-and-braces redundancy in case any nested flex/grid
+   * context inherits an `auto` minimum. */
   min-width: 0;
+  width: 100%;
   display: block;
   font-size: 13px;
   /* Force long part numbers / weight-derivation strings to break

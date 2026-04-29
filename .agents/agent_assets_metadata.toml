@@ -54,3 +54,9 @@ id = "tIqfH3XJNPshd9Ij6g4rb"
 uri = "file://docs/system-overview.md"
 type = "text"
 title = "EHS Production Tool & Freelance Portal — System Overview"
+
+[[outputs]]
+id = "yO4iKSJ1WpRoFnqG1eYlL"
+uri = "file://backups/rigging-load-report-source-20260429-211650.zip"
+type = "unspecified"
+title = "EHS Rigging Load Report — Source Backup (Apr 29, 2026)"

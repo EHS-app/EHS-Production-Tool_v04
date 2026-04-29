@@ -44,6 +44,11 @@ import {
 } from "./lib/stage";
 import { exportStageReport } from "./lib/stageExport";
 import { exportPowerPlanToCrew } from "./lib/powerPlanExport";
+import {
+  exportClientPack,
+  type ClientPackSchedulePhase,
+  type ClientPackSystem,
+} from "./lib/clientPackExport";
 import { StageReportView } from "./components/StageReportView";
 import {
   makeCrewMember,
@@ -3153,6 +3158,91 @@ function App() {
     [],
   );
 
+  /** Open a printable Client Pack — a single 11-section client-facing
+   *  PDF combining cover, overview, schedule, crew, rigging, lighting,
+   *  sound, stage, LED, risk summary and cost. Same sync-popup pattern
+   *  as `exportPowerPlan` so pop-up blockers don't swallow the new tab.
+   *
+   *  Maps each App-level state slice into the export's `ClientPackInput`
+   *  shape; per-system rigging metrics are computed via the existing
+   *  `computeMetrics` helper so SWL/peak math stays in one place. */
+  const exportClientPackPdf = async () => {
+    const targetWin = window.open("", "_blank");
+    if (targetWin) {
+      targetWin.document.write(
+        `<!doctype html><meta charset="utf-8"><title>Generating Client Pack…</title><body style="font:14px system-ui;padding:24px;color:#64748b">Generating Client Pack…</body>`,
+      );
+    }
+
+    const schedule = buildProjectSchedule(reportDate, reportEndDate, extraSchedule);
+    const schedulePhases: ClientPackSchedulePhase[] = (
+      ["setup", "rehearsal", "show", "downrig"] as const
+    )
+      .filter((k) => (schedule[k]?.length ?? 0) > 0)
+      .map((k) => ({
+        key: k,
+        label: SCHEDULE_PHASE_LABELS[k],
+        segments: schedule[k] ?? [],
+      }));
+
+    const packSystems: ClientPackSystem[] = systems.map((sys) => {
+      const m = computeMetrics(sys);
+      const trussNames = sys.riggingRows
+        .map((r) => getRowItem(r)?.name ?? "")
+        .filter((n): n is string => !!n);
+      return {
+        id: sys.id,
+        name: sys.name,
+        pointCount: sys.pointCount,
+        hoistName: getHoist(sys.hoistIndex).label,
+        truss: trussNames,
+        metrics: {
+          static: m.static,
+          dynamic: m.dynamic,
+          peak: m.peak,
+          swl: m.swl,
+          headroom: m.headroom,
+        },
+      };
+    });
+
+    let logoDataUrl: string | null = null;
+    try {
+      logoDataUrl = await getLogoDataUrl(ehsLogo);
+    } catch {
+      logoDataUrl = null;
+    }
+
+    const result = exportClientPack({
+      project: {
+        eventName: venue,
+        client: "",
+        venue,
+        date: reportDate,
+        endDate: reportEndDate || undefined,
+        preparedBy: engineer,
+        summary: "",
+      },
+      schedule: schedulePhases,
+      systems: packSystems,
+      power,
+      fixtures: allLightingFixtures,
+      crew,
+      sound: soundItems,
+      stages,
+      ledScreens: allLedScreens,
+      ledSettings,
+      ledPanels,
+      logoDataUrl,
+      targetWin,
+    });
+    if (!result.ok) {
+      alert(
+        "Could not open the Client Pack window. Please allow pop-ups for this site and try again.",
+      );
+    }
+  };
+
   const addShowFixture = () =>
     setShowFixtures((all) => [...all, makeShowFixture()]);
 
@@ -3691,6 +3781,13 @@ function App() {
               }}
             >
               Export Report
+            </button>
+            <button
+              className="btn btn-export"
+              onClick={exportClientPackPdf}
+              title="Open a printable, client-facing pack covering schedule, crew, rigging, lighting, sound, stage, LED, risks and cost"
+            >
+              Client Pack
             </button>
             <button
               className="btn btn-export"

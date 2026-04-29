@@ -48,3 +48,9 @@ id = "ZU2L2lpfOW7RxwSGi2GQS"
 uri = "file://exports/ehs-rigging-load-report-2026-04-28-FULL.tar.gz"
 type = "unspecified"
 title = "EHS Rigging Load Report — FULL backup with node_modules (2026-04-28)"
+
+[[outputs]]
+id = "tIqfH3XJNPshd9Ij6g4rb"
+uri = "file://docs/system-overview.md"
+type = "text"
+title = "EHS Production Tool & Freelance Portal — System Overview"

@@ -66,6 +66,39 @@ export type BriefLightingTotals = {
   circuitCount: number;
   totalCircuitW: number;
   worstCircuitPct: number;
+  /** Distro-centric summary of the new Power Plan v2 model. One entry
+   *  per HOT/distro the producer added in the Lighting → Power tab. */
+  distros: BriefDistroSummary[];
+  /** Aggregate of `distros` — kept on the totals object so the brief
+   *  card can show "3 distros · 12.4 kW · worst feeder 87 %" without
+   *  recomputing on the consumer side. */
+  distroCount: number;
+  totalDistroW: number;
+  worstDistroFeederPct: number;
+};
+
+/** Per-distro line shown in the brief / portal so the recipient knows
+ *  what physical sources are needed and which trusses they feed. */
+export type BriefDistroSummary = {
+  id: string;
+  name: string;
+  source: string;
+  presetLabel: string;
+  feedVoltage: number;
+  feedAmps: number;
+  feedPhases: 1 | 3;
+  /** Truss names this distro feeds (e.g. ["LX1", "LX2"]). Resolved on
+   *  the producer side so the portal doesn't need the rigging plan. */
+  feedsTrusses: string[];
+  totalWatts: number;
+  /** 0..1 — worst leg amps / feeder amps. */
+  feederUtilization: number;
+  worstLegAmps: number;
+  /** 0..1 — phase imbalance ratio. Always 0 on 1-phase distros. */
+  imbalance: number;
+  imbalanceWarn: boolean;
+  channelOverload: boolean;
+  feederOverload: boolean;
 };
 
 export type BriefLedScreen = {
@@ -252,6 +285,27 @@ export type BriefLightingInput = {
       ampsPerPhase: number;
       items: Array<{ qty: number; wattsPerUnit: number; phase: "L1" | "L2" | "L3" }>;
     }>;
+    /** Distro v2 lines pre-computed by the producer side from
+     *  `computeDistroLoad` so the brief module stays free of the
+     *  channel/drop/mapping math. Optional for back-compat with old
+     *  persisted briefs. */
+    distros?: Array<{
+      id: string;
+      name: string;
+      source: string;
+      presetLabel: string;
+      feedVoltage: number;
+      feedAmps: number;
+      feedPhases: 1 | 3;
+      feedsTrusses: string[];
+      totalWatts: number;
+      feederUtilization: number;
+      worstLegAmps: number;
+      imbalance: number;
+      imbalanceWarn: boolean;
+      channelOverload: boolean;
+      feederOverload: boolean;
+    }>;
   };
 };
 
@@ -384,6 +438,30 @@ function summariseLighting(lighting: BriefLightingInput): BriefLightingTotals {
     );
     if (pct > worstPct) worstPct = pct;
   }
+  const distros: BriefDistroSummary[] = (lighting.power.distros ?? []).map(
+    (d) => ({
+      id: d.id,
+      name: d.name,
+      source: d.source,
+      presetLabel: d.presetLabel,
+      feedVoltage: d.feedVoltage,
+      feedAmps: d.feedAmps,
+      feedPhases: d.feedPhases,
+      feedsTrusses: [...d.feedsTrusses],
+      totalWatts: Math.round(d.totalWatts),
+      feederUtilization: Math.round(d.feederUtilization * 100) / 100,
+      worstLegAmps: Math.round(d.worstLegAmps * 10) / 10,
+      imbalance: Math.round(d.imbalance * 100) / 100,
+      imbalanceWarn: d.imbalanceWarn,
+      channelOverload: d.channelOverload,
+      feederOverload: d.feederOverload,
+    }),
+  );
+  const worstDistroFeederPct = distros.reduce(
+    (n, d) => (d.feederUtilization > n ? d.feederUtilization : n),
+    0,
+  );
+  const totalDistroW = distros.reduce((n, d) => n + d.totalWatts, 0);
   return {
     fixtureCount,
     totalFixtureWatts,
@@ -391,6 +469,10 @@ function summariseLighting(lighting: BriefLightingInput): BriefLightingTotals {
     circuitCount: lighting.power.circuits.length,
     totalCircuitW,
     worstCircuitPct: Math.round(worstPct * 100) / 100,
+    distros,
+    distroCount: distros.length,
+    totalDistroW,
+    worstDistroFeederPct,
   };
 }
 
@@ -729,6 +811,29 @@ function normalizeRigging(raw: unknown): BriefRiggingTotals {
 
 function normalizeLighting(raw: unknown): BriefLightingTotals {
   const r = asObject(raw);
+  const distros = asArray(r.distros).map((d): BriefDistroSummary => {
+    const o = asObject(d);
+    const phases = asNumber(o.feedPhases);
+    return {
+      id: asString(o.id),
+      name: asString(o.name),
+      source: asString(o.source),
+      presetLabel: asString(o.presetLabel),
+      feedVoltage: asNumber(o.feedVoltage),
+      feedAmps: asNumber(o.feedAmps),
+      feedPhases: phases === 1 ? 1 : 3,
+      feedsTrusses: asArray(o.feedsTrusses)
+        .map((s) => asString(s))
+        .filter((s) => s.length > 0),
+      totalWatts: asNumber(o.totalWatts),
+      feederUtilization: asNumber(o.feederUtilization),
+      worstLegAmps: asNumber(o.worstLegAmps),
+      imbalance: asNumber(o.imbalance),
+      imbalanceWarn: o.imbalanceWarn === true,
+      channelOverload: o.channelOverload === true,
+      feederOverload: o.feederOverload === true,
+    };
+  });
   return {
     fixtureCount: asNumber(r.fixtureCount),
     totalFixtureWatts: asNumber(r.totalFixtureWatts),
@@ -738,6 +843,13 @@ function normalizeLighting(raw: unknown): BriefLightingTotals {
     circuitCount: asNumber(r.circuitCount),
     totalCircuitW: asNumber(r.totalCircuitW),
     worstCircuitPct: asNumber(r.worstCircuitPct),
+    distros,
+    distroCount: distros.length,
+    totalDistroW: distros.reduce((n, d) => n + d.totalWatts, 0),
+    worstDistroFeederPct: distros.reduce(
+      (n, d) => (d.feederUtilization > n ? d.feederUtilization : n),
+      0,
+    ),
   };
 }
 

@@ -346,15 +346,125 @@ export function BriefDetail({
                 ? brief.lighting.universes.join(", ")
                 : "—",
             },
-            { k: "Power circuits", v: `${brief.lighting.circuitCount}` },
+            { k: "Power distros", v: `${brief.lighting.distroCount}` },
             {
-              k: "Worst phase load",
-              v: brief.lighting.worstCircuitPct > 0
-                ? `${Math.round(brief.lighting.worstCircuitPct * 100)}%`
+              k: "Total distro load",
+              v: brief.lighting.totalDistroW > 0
+                ? watts(brief.lighting.totalDistroW)
                 : "—",
             },
+            {
+              k: "Worst feeder",
+              v: brief.lighting.worstDistroFeederPct > 0
+                ? `${Math.round(brief.lighting.worstDistroFeederPct * 100)}%`
+                : "—",
+            },
+            ...(brief.lighting.circuitCount > 0
+              ? [
+                  {
+                    k: "Legacy circuits",
+                    v: `${brief.lighting.circuitCount}`,
+                  },
+                  {
+                    k: "Worst legacy phase",
+                    v: brief.lighting.worstCircuitPct > 0
+                      ? `${Math.round(brief.lighting.worstCircuitPct * 100)}%`
+                      : "—",
+                  },
+                ]
+              : []),
           ]}
         />
+        {brief.lighting.distros.length > 0 ? (
+          <ul
+            style={{
+              margin: "12px 0 0",
+              padding: 0,
+              listStyle: "none",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            {brief.lighting.distros.map((d) => {
+              const flagged = d.feederOverload || d.channelOverload;
+              const warn = !flagged && (d.imbalanceWarn || d.feederUtilization > 0.8);
+              const accent = flagged
+                ? "#dc2626"
+                : warn
+                  ? "#f59e0b"
+                  : c.border;
+              return (
+                <li
+                  key={d.id}
+                  style={{
+                    padding: "10px 12px",
+                    background: c.cardBgSubtle,
+                    borderRadius: 10,
+                    border: `1px solid ${accent}`,
+                    fontSize: 13,
+                    display: "flex",
+                    flexWrap: "wrap",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: "1 1 200px" }}>
+                    <div style={{ fontWeight: 600 }}>
+                      {d.name}
+                      {d.source ? (
+                        <span style={{ color: c.muted, fontWeight: 400 }}>
+                          {" — "}
+                          {d.source}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div style={{ color: c.muted, fontSize: 12 }}>
+                      {d.presetLabel}
+                    </div>
+                    {d.feedsTrusses.length > 0 ? (
+                      <div style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>
+                        Feeds: {d.feedsTrusses.join(", ")}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div
+                    style={{
+                      textAlign: "right",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    <div>
+                      {watts(d.totalWatts)} ·{" "}
+                      {d.worstLegAmps.toLocaleString("en-US", {
+                        maximumFractionDigits: 1,
+                      })}{" "}
+                      A / {d.feedAmps} A
+                    </div>
+                    <div style={{ color: c.muted, fontSize: 12 }}>
+                      Feeder {Math.round(d.feederUtilization * 100)}%
+                      {d.feedPhases === 3
+                        ? ` · imbalance ${Math.round(d.imbalance * 100)}%`
+                        : ""}
+                    </div>
+                    {flagged ? (
+                      <div style={{ color: "#dc2626", fontSize: 12, fontWeight: 600 }}>
+                        {d.feederOverload ? "Feeder over capacity" : "Channel over capacity"}
+                      </div>
+                    ) : warn ? (
+                      <div style={{ color: "#b45309", fontSize: 12, fontWeight: 600 }}>
+                        {d.imbalanceWarn && d.feederUtilization <= 0.8
+                          ? "Phase imbalance > 20%"
+                          : "Above 80% derate"}
+                      </div>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
       </SectionCard>
 
       <SectionCard theme={theme} title="LED screens">

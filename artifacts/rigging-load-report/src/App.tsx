@@ -66,10 +66,22 @@ import {
   type FloorPlanLibrary,
 } from "./lib/floorPlan";
 import {
+  applyPresetToDistro,
+  computeDistroLoad,
   defaultPowerPlan,
+  DISTRO_PRESETS,
+  makeDistro,
+  makeDrop,
+  makeFixtureWattsLookup,
   makePowerCircuit,
   makePowerItem,
   normalizePowerPlan,
+  type Channel,
+  type ChannelMapping,
+  type Distro,
+  type DistroPresetId,
+  type Drop,
+  type DropCableKind,
   type PowerCircuit,
   type PowerItem,
   type PowerPhase,
@@ -1556,6 +1568,34 @@ function App() {
               phase: it.phase,
             })),
           })),
+          distros: (() => {
+            const lookup = makeFixtureWattsLookup(allLightingFixtures);
+            const trussNameById = new Map(
+              systems.map((s) => [s.id, s.name]),
+            );
+            return power.distros.map((d) => {
+              const load = computeDistroLoad(d, lookup);
+              return {
+                id: d.id,
+                name: d.name,
+                source: d.source,
+                presetLabel: DISTRO_PRESETS[d.preset]?.label ?? d.preset,
+                feedVoltage: d.feedVoltage,
+                feedAmps: d.feedAmps,
+                feedPhases: d.feedPhases,
+                feedsTrusses: d.feedsTrusses
+                  .map((id) => trussNameById.get(id))
+                  .filter((n): n is string => Boolean(n && n.length > 0)),
+                totalWatts: load.totalWatts,
+                feederUtilization: load.feederUtilization,
+                worstLegAmps: load.feederWorstAmps,
+                imbalance: load.imbalance,
+                imbalanceWarn: load.imbalanceWarn,
+                channelOverload: load.hasChannelOverload,
+                feederOverload: load.feederStatus === "over",
+              };
+            });
+          })(),
         },
       },
       led: {
@@ -2651,6 +2691,147 @@ function App() {
         next.splice(i + 1, 0, copy);
         return { ...c, items: next };
       }),
+    }));
+  };
+
+  // ---- Lighting → Power Plan (v2 distros) ----
+  const addDistro = (presetId: DistroPresetId = "cee-32-3ph-6x16") => {
+    setPower((p) => ({
+      ...p,
+      distros: [...p.distros, makeDistro(presetId, p.distros.length + 1)],
+    }));
+  };
+  const updateDistro = (
+    id: string,
+    patch: Partial<Omit<Distro, "channels" | "channelMapping" | "id">>,
+  ) => {
+    setPower((p) => ({
+      ...p,
+      distros: p.distros.map((d) => (d.id === id ? { ...d, ...patch } : d)),
+    }));
+  };
+  const removeDistro = (id: string) => {
+    setPower((p) => ({
+      ...p,
+      distros: p.distros.filter((d) => d.id !== id),
+    }));
+  };
+  const applyDistroPreset = (id: string, presetId: DistroPresetId) => {
+    setPower((p) => ({
+      ...p,
+      distros: p.distros.map((d) =>
+        d.id === id ? applyPresetToDistro(d, presetId) : d,
+      ),
+    }));
+  };
+  const updateDistroChannelMapping = (
+    id: string,
+    mapping: ChannelMapping,
+  ) => {
+    setPower((p) => ({
+      ...p,
+      distros: p.distros.map((d) =>
+        d.id === id ? { ...d, channelMapping: mapping } : d,
+      ),
+    }));
+  };
+  const updateDistroChannel = (
+    distroId: string,
+    channelIndex: number,
+    patch: Partial<Omit<Channel, "drops" | "id" | "index">>,
+  ) => {
+    setPower((p) => ({
+      ...p,
+      distros: p.distros.map((d) =>
+        d.id === distroId
+          ? {
+              ...d,
+              channels: d.channels.map((c) =>
+                c.index === channelIndex ? { ...c, ...patch } : c,
+              ),
+            }
+          : d,
+      ),
+    }));
+  };
+  const addDrop = (
+    distroId: string,
+    channelIndex: number,
+    drop: {
+      trussId: string;
+      fixtureRef: string;
+      qty: number;
+      cable?: DropCableKind;
+    },
+  ) => {
+    setPower((p) => ({
+      ...p,
+      distros: p.distros.map((d) =>
+        d.id === distroId
+          ? {
+              ...d,
+              channels: d.channels.map((c) =>
+                c.index === channelIndex
+                  ? {
+                      ...c,
+                      drops: [
+                        ...c.drops,
+                        makeDrop(drop.trussId, drop.fixtureRef, drop.qty, drop.cable),
+                      ],
+                    }
+                  : c,
+              ),
+            }
+          : d,
+      ),
+    }));
+  };
+  const updateDrop = (
+    distroId: string,
+    channelIndex: number,
+    dropId: string,
+    patch: Partial<Omit<Drop, "id">>,
+  ) => {
+    setPower((p) => ({
+      ...p,
+      distros: p.distros.map((d) =>
+        d.id === distroId
+          ? {
+              ...d,
+              channels: d.channels.map((c) =>
+                c.index === channelIndex
+                  ? {
+                      ...c,
+                      drops: c.drops.map((dr) =>
+                        dr.id === dropId ? { ...dr, ...patch } : dr,
+                      ),
+                    }
+                  : c,
+              ),
+            }
+          : d,
+      ),
+    }));
+  };
+  const removeDrop = (
+    distroId: string,
+    channelIndex: number,
+    dropId: string,
+  ) => {
+    setPower((p) => ({
+      ...p,
+      distros: p.distros.map((d) =>
+        d.id === distroId
+          ? {
+              ...d,
+              channels: d.channels.map((c) =>
+                c.index === channelIndex
+                  ? { ...c, drops: c.drops.filter((dr) => dr.id !== dropId) }
+                  : c,
+              ),
+            }
+          : d,
+      ),
     }));
   };
 
@@ -4243,6 +4424,15 @@ function App() {
           onUpdatePowerItem={updatePowerItem}
           onRemovePowerItem={removePowerItem}
           onDuplicatePowerItem={duplicatePowerItem}
+          onAddDistro={addDistro}
+          onUpdateDistro={updateDistro}
+          onRemoveDistro={removeDistro}
+          onApplyDistroPreset={applyDistroPreset}
+          onUpdateDistroChannelMapping={updateDistroChannelMapping}
+          onUpdateDistroChannel={updateDistroChannel}
+          onAddDrop={addDrop}
+          onUpdateDrop={updateDrop}
+          onRemoveDrop={removeDrop}
         />
       )}
 
@@ -4346,6 +4536,31 @@ type LightingPlanViewProps = {
   ) => void;
   onRemovePowerItem: (circuitId: string, itemId: string) => void;
   onDuplicatePowerItem: (circuitId: string, itemId: string) => void;
+  onAddDistro: (presetId?: DistroPresetId) => void;
+  onUpdateDistro: (
+    id: string,
+    patch: Partial<Omit<Distro, "channels" | "channelMapping" | "id">>,
+  ) => void;
+  onRemoveDistro: (id: string) => void;
+  onApplyDistroPreset: (id: string, presetId: DistroPresetId) => void;
+  onUpdateDistroChannelMapping: (id: string, mapping: ChannelMapping) => void;
+  onUpdateDistroChannel: (
+    distroId: string,
+    channelIndex: number,
+    patch: Partial<Omit<Channel, "drops" | "id" | "index">>,
+  ) => void;
+  onAddDrop: (
+    distroId: string,
+    channelIndex: number,
+    drop: { trussId: string; fixtureRef: string; qty: number; cable?: DropCableKind },
+  ) => void;
+  onUpdateDrop: (
+    distroId: string,
+    channelIndex: number,
+    dropId: string,
+    patch: Partial<Omit<Drop, "id">>,
+  ) => void;
+  onRemoveDrop: (distroId: string, channelIndex: number, dropId: string) => void;
 };
 
 function LightingPlanView({
@@ -4369,6 +4584,15 @@ function LightingPlanView({
   onUpdatePowerItem,
   onRemovePowerItem,
   onDuplicatePowerItem,
+  onAddDistro,
+  onUpdateDistro,
+  onRemoveDistro,
+  onApplyDistroPreset,
+  onUpdateDistroChannelMapping,
+  onUpdateDistroChannel,
+  onAddDrop,
+  onUpdateDrop,
+  onRemoveDrop,
 }: LightingPlanViewProps) {
   const systemNameById = new Map(systems.map((s) => [s.id, s.name]));
 
@@ -4753,6 +4977,8 @@ function LightingPlanView({
 
       <PowerPlanView
         plan={power}
+        fixtures={fixtures}
+        systems={systems}
         onAddCircuit={onAddPowerCircuit}
         onUpdateCircuit={onUpdatePowerCircuit}
         onRemoveCircuit={onRemovePowerCircuit}
@@ -4761,6 +4987,15 @@ function LightingPlanView({
         onUpdateItem={onUpdatePowerItem}
         onRemoveItem={onRemovePowerItem}
         onDuplicateItem={onDuplicatePowerItem}
+        onAddDistro={onAddDistro}
+        onUpdateDistro={onUpdateDistro}
+        onRemoveDistro={onRemoveDistro}
+        onApplyDistroPreset={onApplyDistroPreset}
+        onUpdateDistroChannelMapping={onUpdateDistroChannelMapping}
+        onUpdateDistroChannel={onUpdateDistroChannel}
+        onAddDrop={onAddDrop}
+        onUpdateDrop={onUpdateDrop}
+        onRemoveDrop={onRemoveDrop}
       />
 
       <div className="card">

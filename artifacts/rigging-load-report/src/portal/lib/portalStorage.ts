@@ -1,4 +1,9 @@
-import { normalizeBrief, type ProjectBrief } from "../../lib/projectBrief";
+import {
+  normalizeBrief,
+  type BriefAssignment,
+  type BriefSchedule,
+  type ProjectBrief,
+} from "../../lib/projectBrief";
 
 export type GigStatus =
   | "invited"
@@ -6,6 +11,14 @@ export type GigStatus =
   | "done"
   | "invoiced"
   | "paid";
+
+/** Optional show-day check-in trail. The freelancer taps "On the way"
+ *  when leaving and "Arrived" when on site, and the timestamps stick
+ *  on the gig so production has a lightweight ETA + arrival audit. */
+export type GigCheckIn = {
+  onTheWayAt?: number;
+  arrivedAt?: number;
+};
 
 export type Gig = {
   id: string;
@@ -24,6 +37,10 @@ export type Gig = {
   /** When this Gig was created from a shared Project Brief, the brief's
    *  id is recorded here so the logbook entry links back to the briefing. */
   briefId?: string;
+  /** Optional show-day check-in timestamps. Undefined for the legacy
+   *  gigs that pre-date the feature; the UI treats undefined as "not
+   *  checked in". */
+  checkIn?: GigCheckIn;
 };
 
 /** A Project Brief that was shared by a producer and imported into the
@@ -31,6 +48,17 @@ export type Gig = {
  *  freelancer can re-read every detail) and the freelancer's response
  *  is layered on top. */
 export type BriefDecision = "pending" | "accepted" | "declined";
+
+/** Frozen "I've read this version" snapshot taken when the freelancer
+ *  taps Accept (or Acknowledge changes). The portal compares the live
+ *  brief against this to detect silent producer-side edits and surface
+ *  a yellow "Schedule changed" banner — the single most expensive
+ *  category of error in live production. */
+export type AcceptedSnapshot = {
+  generatedAt: number;
+  project: ProjectBrief["project"];
+  myAssignment?: BriefAssignment;
+};
 
 export type SharedBrief = {
   briefId: string;
@@ -40,8 +68,31 @@ export type SharedBrief = {
    *  created from this brief, so the UI can link to the logbook entry
    *  and the user can spot duplicates without re-importing. */
   acceptedGigId?: string;
+  /** Snapshot of the brief at the moment of accept/acknowledge. Drives
+   *  the "what changed since you accepted" diff banner. Undefined on
+   *  legacy briefs that pre-date the feature — the banner simply does
+   *  not render in that case. */
+  acceptedSnapshot?: AcceptedSnapshot;
   brief: ProjectBrief;
 };
+
+/** Pull the snapshot fields off a brief, scoped to the recipient's
+ *  own assignment when one exists. Used at accept time and again when
+ *  the freelancer taps "Acknowledge changes". */
+export function buildAcceptedSnapshot(brief: ProjectBrief): AcceptedSnapshot {
+  const myAssignment =
+    brief.assignments.find((a) => a.crewId === brief.recipientCrewId) ??
+    undefined;
+  return {
+    generatedAt: brief.generatedAt,
+    project: brief.project,
+    myAssignment,
+  };
+}
+
+// Re-export the schedule type so consumers can import it from here
+// alongside the other portal types they already use.
+export type { BriefSchedule };
 
 export type Profile = {
   fullName: string;
@@ -127,6 +178,21 @@ const VALID_STATUSES: GigStatus[] = [
   "paid",
 ];
 
+function normalizeCheckIn(raw: unknown): GigCheckIn | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const r = raw as Partial<GigCheckIn>;
+  const onTheWayAt =
+    typeof r.onTheWayAt === "number" && isFinite(r.onTheWayAt)
+      ? r.onTheWayAt
+      : undefined;
+  const arrivedAt =
+    typeof r.arrivedAt === "number" && isFinite(r.arrivedAt)
+      ? r.arrivedAt
+      : undefined;
+  if (onTheWayAt === undefined && arrivedAt === undefined) return undefined;
+  return { onTheWayAt, arrivedAt };
+}
+
 function normalizeGig(raw: unknown): Gig | null {
   if (typeof raw !== "object" || raw === null) return null;
   const g = raw as Partial<Gig>;
@@ -153,10 +219,34 @@ function normalizeGig(raw: unknown): Gig | null {
         ? g.createdAt
         : Date.now(),
     briefId: typeof g.briefId === "string" && g.briefId ? g.briefId : undefined,
+    checkIn: normalizeCheckIn(g.checkIn),
   };
 }
 
 const VALID_DECISIONS: BriefDecision[] = ["pending", "accepted", "declined"];
+
+function normalizeAcceptedSnapshot(
+  raw: unknown,
+): AcceptedSnapshot | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const r = raw as Partial<AcceptedSnapshot>;
+  if (typeof r.generatedAt !== "number" || !isFinite(r.generatedAt))
+    return undefined;
+  if (typeof r.project !== "object" || r.project === null) return undefined;
+  // Trust the snapshot shape — it was written by the producer-aware
+  // normalizers in projectBrief.ts when the brief was first decoded.
+  // We do not deeply re-validate here because doing so would require
+  // duplicating the entire BriefProject schema; defensive UI code in
+  // the diff renderer copes with missing fields.
+  return {
+    generatedAt: r.generatedAt,
+    project: r.project as AcceptedSnapshot["project"],
+    myAssignment:
+      typeof r.myAssignment === "object" && r.myAssignment !== null
+        ? (r.myAssignment as BriefAssignment)
+        : undefined,
+  };
+}
 
 function normalizeSharedBrief(raw: unknown): SharedBrief | null {
   if (typeof raw !== "object" || raw === null) return null;
@@ -180,6 +270,7 @@ function normalizeSharedBrief(raw: unknown): SharedBrief | null {
       typeof b.acceptedGigId === "string" && b.acceptedGigId
         ? b.acceptedGigId
         : undefined,
+    acceptedSnapshot: normalizeAcceptedSnapshot(b.acceptedSnapshot),
     brief,
   };
 }

@@ -49,6 +49,11 @@ This project is a pnpm workspace monorepo acting as an internal stage-tech tool 
 - **EHS Equipment Library Picker**: Reusable modal for selecting items from a static JSON catalog.
 - **Persistence**: All view states persist to `localStorage` v2, with transparent migration from v1.
 - **Freelance Portal**: A dedicated interface under `/portal/*` for external freelancers, covering Hub, Briefs, Gigs, Availability, Earnings, and Profile management. Data is stored in `localStorage` namespaced per Clerk user.
+  - **Brief diff banner**: when a producer re-shares a brief that was already accepted, the BriefDetail screen shows a banner of changed fields (venue, dates, schedule, your assignment, notes) that the freelancer can acknowledge.
+  - **iCal export** (`src/lib/icalExport.ts`): one-click "Add to calendar" on briefs and on each accepted gig, emitting one VEVENT per phase segment with RFC 5545-compliant UTF-8 line folding.
+  - **Personal call sheet** (`src/lib/callSheetExport.ts`): one-page printable call sheet (HTML opened via Blob URL + anchor click for popup-blocker resilience) with EHS-styled orange header.
+  - **Conflict warning** (`src/lib/scheduleConflicts.ts`): when accepting a brief, surfaces overlaps with already-accepted gigs and explicit "busy" availability days; Accept button text changes to "Accept anyway".
+  - **On-the-way / Arrived check-in**: per-gig pill buttons on Confirmed/Done gigs that persist timestamps to `Gig.checkIn`.
 - **Production Schedule Picker**: Compact popover for managing multi-phase production schedules.
 - **Production Tool ↔ Portal Brief Bridge**: Enables sharing project context with freelancers via Gzip-compressed, base64url-encoded share URLs, which freelancers can import to create pre-filled Gigs.
 - **Drawing Analyser (Rigg Plan tab)**: AI-powered extraction from PDF/image drawings using Anthropic Claude for venue dimensions, stages, trusses, lighting, LED screens, and sound items. Includes security measures, an apply step, motor capacity auto-pick, and floor-plan backdrop functionality. It routes extracted lighting fixtures to the rigging report when linked to a truss.

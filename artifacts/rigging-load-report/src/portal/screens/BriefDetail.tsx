@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { PALETTE, type ThemeMode } from "../lib/portalTheme";
 import {
+  buildAcceptedSnapshot,
   findBrief,
   gigFromBrief,
   updateBrief,
@@ -16,6 +17,16 @@ import type {
   ProjectBrief,
 } from "../../lib/projectBrief";
 import { attachmentDownloadUrl } from "../../lib/briefAttachmentUpload";
+import {
+  diffBriefAgainstSnapshot,
+  type DiffEntry,
+} from "../../lib/briefDiff";
+import { downloadBriefIcs } from "../../lib/icalExport";
+import { openCallSheet } from "../../lib/callSheetExport";
+import {
+  findScheduleConflicts,
+  type ScheduleConflict,
+} from "../../lib/scheduleConflicts";
 
 const PHASE_LABELS: Record<BriefSchedulePhaseKey, string> = {
   setup: "Setup",
@@ -149,20 +160,44 @@ export function BriefDetail({
 
   const brief = entry.brief;
 
+  // Conflict + diff state — recomputed whenever the brief or surrounding
+  // portal data changes. Both are cheap pure functions.
+  const conflicts = useMemo<ScheduleConflict[]>(
+    () => findScheduleConflicts(brief, data, entry.acceptedGigId),
+    [brief, data, entry.acceptedGigId],
+  );
+  const diffs = useMemo<DiffEntry[]>(() => {
+    if (!entry.acceptedSnapshot) return [];
+    if (entry.acceptedSnapshot.generatedAt >= brief.generatedAt) return [];
+    return diffBriefAgainstSnapshot(entry.acceptedSnapshot, brief);
+  }, [entry.acceptedSnapshot, brief]);
+
   function accept() {
+    const snapshot = buildAcceptedSnapshot(brief);
     setData((prev) => {
       // Don't double-create a Gig if the brief is re-accepted.
       const existing = prev.briefs.find((b) => b.briefId === briefId);
       if (existing?.acceptedGigId) {
-        return updateBrief(prev, briefId, { decision: "accepted" });
+        return updateBrief(prev, briefId, {
+          decision: "accepted",
+          acceptedSnapshot: snapshot,
+        });
       }
       const gig = gigFromBrief(brief);
       const next = updateBrief(prev, briefId, {
         decision: "accepted",
         acceptedGigId: gig.id,
+        acceptedSnapshot: snapshot,
       });
       return { ...next, gigs: [gig, ...next.gigs] };
     });
+  }
+
+  function acknowledgeChanges() {
+    const snapshot = buildAcceptedSnapshot(brief);
+    setData((prev) =>
+      updateBrief(prev, briefId, { acceptedSnapshot: snapshot }),
+    );
   }
 
   function decline() {
@@ -171,6 +206,19 @@ export function BriefDetail({
 
   function resetDecision() {
     setData((prev) => updateBrief(prev, briefId, { decision: "pending" }));
+  }
+
+  function downloadCalendar() {
+    downloadBriefIcs(brief);
+  }
+
+  function openCallSheetWindow() {
+    const result = openCallSheet(brief);
+    if (!result.ok) {
+      alert(
+        "Call Sheet couldn't open — please allow pop-ups for this site and try again.",
+      );
+    }
   }
 
   return (
@@ -231,6 +279,25 @@ export function BriefDetail({
         </div>
       </section>
 
+      {/* "What changed since you accepted" banner — only when there is a
+          newer producer revision than the snapshot we kept locally. */}
+      {diffs.length > 0 ? (
+        <UpdateBanner
+          theme={theme}
+          diffs={diffs}
+          onAcknowledge={acknowledgeChanges}
+        />
+      ) : null}
+
+      {/* One-tap calendar + call-sheet exports. Always available — even
+          before the freelancer accepts — because reviewing dates and
+          printing the call sheet is part of the decision process. */}
+      <BriefActionRow
+        theme={theme}
+        onAddToCalendar={downloadCalendar}
+        onOpenCallSheet={openCallSheetWindow}
+      />
+
       {/* Your assignment */}
       {myAssignment ? (
         <AssignmentCard
@@ -238,6 +305,7 @@ export function BriefDetail({
           assignment={myAssignment}
           decision={entry.decision}
           acceptedGigId={entry.acceptedGigId}
+          conflicts={conflicts}
           onAccept={accept}
           onDecline={decline}
           onReset={resetDecision}
@@ -248,6 +316,7 @@ export function BriefDetail({
           theme={theme}
           decision={entry.decision}
           acceptedGigId={entry.acceptedGigId}
+          conflicts={conflicts}
           onAccept={accept}
           onDecline={decline}
           onReset={resetDecision}
@@ -836,6 +905,7 @@ function AssignmentCard({
   assignment,
   decision,
   acceptedGigId,
+  conflicts,
   onAccept,
   onDecline,
   onReset,
@@ -845,6 +915,7 @@ function AssignmentCard({
   assignment: BriefAssignment;
   decision: "pending" | "accepted" | "declined";
   acceptedGigId?: string;
+  conflicts: ScheduleConflict[];
   onAccept: () => void;
   onDecline: () => void;
   onReset: () => void;
@@ -932,6 +1003,10 @@ function AssignmentCard({
         </div>
       ) : null}
 
+      {decision === "pending" && conflicts.length > 0 ? (
+        <ConflictWarning theme={theme} conflicts={conflicts} />
+      ) : null}
+
       <div
         style={{
           marginTop: 16,
@@ -957,7 +1032,7 @@ function AssignmentCard({
                 cursor: "pointer",
               }}
             >
-              Accept gig
+              {conflicts.length > 0 ? "Accept anyway" : "Accept gig"}
             </button>
             <button
               type="button"
@@ -1054,6 +1129,7 @@ function GenericNoticeCard({
   theme,
   decision,
   acceptedGigId,
+  conflicts,
   onAccept,
   onDecline,
   onReset,
@@ -1062,6 +1138,7 @@ function GenericNoticeCard({
   theme: ThemeMode;
   decision: "pending" | "accepted" | "declined";
   acceptedGigId?: string;
+  conflicts: ScheduleConflict[];
   onAccept: () => void;
   onDecline: () => void;
   onReset: () => void;
@@ -1083,6 +1160,9 @@ function GenericNoticeCard({
         first crew row as a placeholder), or scroll down for the full project
         context.
       </div>
+      {decision === "pending" && conflicts.length > 0 ? (
+        <ConflictWarning theme={theme} conflicts={conflicts} />
+      ) : null}
       <div
         style={{
           marginTop: 12,
@@ -1108,7 +1188,7 @@ function GenericNoticeCard({
                 cursor: "pointer",
               }}
             >
-              Add to logbook
+              {conflicts.length > 0 ? "Add anyway" : "Add to logbook"}
             </button>
             <button
               type="button"
@@ -1465,6 +1545,214 @@ function ScheduleList({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function UpdateBanner({
+  theme,
+  diffs,
+  onAcknowledge,
+}: {
+  theme: ThemeMode;
+  diffs: DiffEntry[];
+  onAcknowledge: () => void;
+}) {
+  const c = PALETTE[theme];
+  const visible = diffs.slice(0, 6);
+  const extra = diffs.length - visible.length;
+  return (
+    <section
+      role="alert"
+      style={{
+        background: "rgba(248,128,0,0.08)",
+        border: `1px solid ${c.accent}`,
+        borderLeft: `4px solid ${c.accent}`,
+        borderRadius: 12,
+        padding: "14px 16px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        <strong style={{ fontSize: 14, color: c.text }}>
+          The producer updated this brief
+        </strong>
+        <span style={{ fontSize: 12, color: c.muted }}>
+          since you last reviewed it
+        </span>
+      </div>
+      <ul
+        style={{
+          margin: "10px 0 0",
+          padding: 0,
+          listStyle: "none",
+          display: "grid",
+          gap: 6,
+        }}
+      >
+        {visible.map((d) => (
+          <li
+            key={d.key}
+            style={{
+              fontSize: 13,
+              lineHeight: 1.45,
+              color: c.text,
+            }}
+          >
+            <strong style={{ color: c.text }}>{d.label}:</strong>{" "}
+            <span style={{ color: c.muted, textDecoration: "line-through" }}>
+              {d.before}
+            </span>{" "}
+            <span style={{ color: c.text, fontWeight: 700 }}>→ {d.after}</span>
+          </li>
+        ))}
+        {extra > 0 ? (
+          <li style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
+            …and {extra} more change{extra === 1 ? "" : "s"}.
+          </li>
+        ) : null}
+      </ul>
+      <div style={{ marginTop: 12 }}>
+        <button
+          type="button"
+          onClick={onAcknowledge}
+          style={{
+            padding: "8px 14px",
+            fontSize: 13,
+            fontWeight: 700,
+            background: c.accent,
+            color: "#0b0b0b",
+            border: "none",
+            borderRadius: 8,
+            cursor: "pointer",
+          }}
+        >
+          Acknowledge changes
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function BriefActionRow({
+  theme,
+  onAddToCalendar,
+  onOpenCallSheet,
+}: {
+  theme: ThemeMode;
+  onAddToCalendar: () => void;
+  onOpenCallSheet: () => void;
+}) {
+  const c = PALETTE[theme];
+  const btnStyle: React.CSSProperties = {
+    flex: 1,
+    minWidth: 160,
+    padding: "10px 14px",
+    fontSize: 13,
+    fontWeight: 700,
+    background: c.cardBg,
+    color: c.text,
+    border: `1px solid ${c.border}`,
+    borderRadius: 10,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  };
+  return (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <button type="button" onClick={onAddToCalendar} style={btnStyle}>
+        <span aria-hidden>📅</span> Add to calendar
+      </button>
+      <button type="button" onClick={onOpenCallSheet} style={btnStyle}>
+        <span aria-hidden>📄</span> Call sheet PDF
+      </button>
+    </div>
+  );
+}
+
+function ConflictWarning({
+  theme,
+  conflicts,
+}: {
+  theme: ThemeMode;
+  conflicts: ScheduleConflict[];
+}) {
+  const c = PALETTE[theme];
+  // Group by date so the freelancer sees one row per conflicting day,
+  // even if multiple sources clash on the same date.
+  const grouped = new Map<string, ScheduleConflict[]>();
+  for (const conflict of conflicts) {
+    const list = grouped.get(conflict.date) ?? [];
+    list.push(conflict);
+    grouped.set(conflict.date, list);
+  }
+  const rows = Array.from(grouped.entries()).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+  return (
+    <div
+      role="alert"
+      style={{
+        marginTop: 14,
+        background: "rgba(220,38,38,0.08)",
+        border: `1px solid ${c.danger}`,
+        borderLeft: `4px solid ${c.danger}`,
+        borderRadius: 10,
+        padding: "12px 14px",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 800,
+          color: c.danger,
+          marginBottom: 6,
+        }}
+      >
+        ⚠ Schedule conflict on {rows.length} day{rows.length === 1 ? "" : "s"}
+      </div>
+      <ul
+        style={{
+          margin: 0,
+          padding: 0,
+          listStyle: "none",
+          display: "grid",
+          gap: 5,
+        }}
+      >
+        {rows.map(([date, items]) => (
+          <li
+            key={date}
+            style={{ fontSize: 12.5, color: c.text, lineHeight: 1.45 }}
+          >
+            <strong>{formatDate(date)}</strong>
+            {" — "}
+            <span style={{ color: c.muted }}>
+              {items[0].phaseLabel}
+              {": "}
+            </span>
+            {items.map((it) => it.detail).join("; ")}
+          </li>
+        ))}
+      </ul>
+      <div
+        style={{
+          marginTop: 8,
+          fontSize: 11.5,
+          color: c.muted,
+          fontStyle: "italic",
+        }}
+      >
+        You can still accept — but double-check before you commit.
+      </div>
     </div>
   );
 }

@@ -3053,16 +3053,22 @@ function App() {
   /** Open a printable Power Plan crew manifest in a new window. The
    *  popup is opened SYNCHRONOUSLY (in the click handler, before any
    *  async work) so browsers don't classify it as a programmatic
-   *  pop-up and block it. The new window includes a "Print / Save as
-   *  PDF" button and a "Download JSON" button so the crew can ingest
-   *  the data into their own tools. We also trigger a brief in-page
-   *  toast so the user gets immediate feedback the share happened. */
-  const exportPowerPlan = () => {
+   *  pop-up and block it. We then load the EHS logo asynchronously
+   *  (same pattern as `exportStageBuildSheet`) so the manifest header
+   *  matches the Stage Build Sheet's branding. The new window
+   *  includes Print / Save as PDF and Download JSON controls. */
+  const exportPowerPlan = async () => {
     const targetWin = window.open("", "_blank");
     if (targetWin) {
       targetWin.document.write(
         `<!doctype html><meta charset="utf-8"><title>Generating Power Plan…</title><body style="font:14px system-ui;padding:24px;color:#64748b">Generating Power Plan crew manifest…</body>`,
       );
+    }
+    let logoDataUrl: string | null = null;
+    try {
+      logoDataUrl = await getLogoDataUrl(ehsLogo);
+    } catch {
+      logoDataUrl = null;
     }
     const result = exportPowerPlanToCrew({
       plan: power,
@@ -3074,6 +3080,7 @@ function App() {
         endDate: reportEndDate || undefined,
         preparedBy: engineer,
       },
+      logoDataUrl,
       targetWin,
     });
     setPowerExportToast(

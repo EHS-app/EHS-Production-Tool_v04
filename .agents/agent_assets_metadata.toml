@@ -36,3 +36,9 @@ id = "QyLdAK_5YW1DFe3N8hgxI"
 uri = "file://exports/ehs-rigging-load-report-backup.tar.gz"
 type = "unspecified"
 title = "Project backup (tar.gz, 23 MB)"
+
+[[outputs]]
+id = "NZ1ewSlQRnP_MlgxFm89b"
+uri = "file://exports/ehs-rigging-load-report-2026-04-28.zip"
+type = "unspecified"
+title = "EHS Rigging Load Report — full project backup (2026-04-28)"

@@ -55,3 +55,7 @@ exports/
 *.sql.bak
 migration_backup*.sql
 db_backup*.sql
+
+# Stray full-project backup zips at the workspace root
+project-backup*.zip
+ehs-rigging-load-report-*.zip

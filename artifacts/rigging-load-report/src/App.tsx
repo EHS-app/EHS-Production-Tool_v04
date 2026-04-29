@@ -49,6 +49,10 @@ import {
   type ClientPackSchedulePhase,
   type ClientPackSystem,
 } from "./lib/clientPackExport";
+import {
+  exportShowSimulation,
+  type ShowSimulationInput,
+} from "./lib/showSimulation";
 import { StageReportView } from "./components/StageReportView";
 import {
   makeCrewMember,
@@ -3243,6 +3247,89 @@ function App() {
     }
   };
 
+  /** Open a printable Show Simulation — walks through 10 phases
+   *  (Load-in, Rigging, Lighting setup, LED setup, Sound setup, Stage
+   *  build, Testing, Rehearsal, Show, Load-out) and emits a readiness
+   *  score + final verdict. Reuses the same data-mapping pattern as
+   *  the Client Pack export. */
+  const simulateShow = async () => {
+    const targetWin = window.open("", "_blank");
+    if (targetWin) {
+      targetWin.document.write(
+        `<!doctype html><meta charset="utf-8"><title>Running Show Simulation…</title><body style="font:14px system-ui;padding:24px;color:#64748b">Running Show Simulation…</body>`,
+      );
+    }
+
+    const schedule = buildProjectSchedule(reportDate, reportEndDate, extraSchedule);
+    const schedulePhases: ClientPackSchedulePhase[] = (
+      ["setup", "rehearsal", "show", "downrig"] as const
+    )
+      .filter((k) => (schedule[k]?.length ?? 0) > 0)
+      .map((k) => ({
+        key: k,
+        label: SCHEDULE_PHASE_LABELS[k],
+        segments: schedule[k] ?? [],
+      }));
+
+    const packSystems: ClientPackSystem[] = systems.map((sys) => {
+      const m = computeMetrics(sys);
+      const trussNames = sys.riggingRows
+        .map((r) => getRowItem(r)?.name ?? "")
+        .filter((n): n is string => !!n);
+      return {
+        id: sys.id,
+        name: sys.name,
+        pointCount: sys.pointCount,
+        hoistName: getHoist(sys.hoistIndex).label,
+        truss: trussNames,
+        metrics: {
+          static: m.static,
+          dynamic: m.dynamic,
+          peak: m.peak,
+          swl: m.swl,
+          headroom: m.headroom,
+        },
+      };
+    });
+
+    let logoDataUrl: string | null = null;
+    try {
+      logoDataUrl = await getLogoDataUrl(ehsLogo);
+    } catch {
+      logoDataUrl = null;
+    }
+
+    const input: ShowSimulationInput = {
+      project: {
+        eventName: venue,
+        client: "",
+        venue,
+        date: reportDate,
+        endDate: reportEndDate || undefined,
+        preparedBy: engineer,
+        summary: "",
+      },
+      schedule: schedulePhases,
+      systems: packSystems,
+      power,
+      fixtures: allLightingFixtures,
+      crew,
+      sound: soundItems,
+      stages,
+      ledScreens: allLedScreens,
+      ledSettings,
+      ledPanels,
+      logoDataUrl,
+      targetWin,
+    };
+    const result = exportShowSimulation(input);
+    if (!result.ok) {
+      alert(
+        "Could not open the Show Simulation window. Please allow pop-ups for this site and try again.",
+      );
+    }
+  };
+
   const addShowFixture = () =>
     setShowFixtures((all) => [...all, makeShowFixture()]);
 
@@ -3788,6 +3875,13 @@ function App() {
               title="Open a printable, client-facing pack covering schedule, crew, rigging, lighting, sound, stage, LED, risks and cost"
             >
               Client Pack
+            </button>
+            <button
+              className="btn btn-export"
+              onClick={simulateShow}
+              title="Step through 10 production phases (load-in → show → load-out) with discipline status, risks and a final readiness verdict"
+            >
+              Simulate Show
             </button>
             <button
               className="btn btn-export"

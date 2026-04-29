@@ -271,6 +271,65 @@ If the file is NOT a production drawing or you cannot extract anything,
 still return the schema with empty arrays and a summary explaining why.
 Do not include any text outside the JSON code block.`;
 
+/** Optional prefix that turns the analyser into a "Production
+ *  Technician" who treats data tables on the drawing as ground
+ *  truth and flags visual / table mismatches. Layered IN FRONT of
+ *  SCHEMA_PROMPT when the request body asks for `mode: "production"`.
+ *  Like the geometry prefix, the output schema is unchanged — the
+ *  rules just change interpretation, and the new pieces of
+ *  information (mismatch flags, fixture mode, mounting type) are
+ *  written into existing fields (notes / name / trussName) so the
+ *  rest of the pipeline works without modification. */
+const PRODUCTION_RULES_PROMPT = `You are an expert Production Technician. Map the provided drawing
+into a structured project manifest, applying the rules below while
+filling in the JSON schema described further below. Keep the schema
+and field names exactly as specified — these rules change HOW you
+read the drawing, not the output shape.
+
+1. RECONCILE DATA TABLES
+   * Locate any "Instrument Count by Position" / "Truss Count by
+     Position" / fixture summary tables on the drawing. Treat those
+     tables as the ABSOLUTE GROUND TRUTH for quantities.
+   * Example: if the table for "Position L&R" lists 34x Rush MH7,
+     you MUST emit qty=34 for that fixture on that position.
+   * If the table and your visual count of the symbols disagree,
+     prefer the table number for "qty" but record the discrepancy
+     (see ERROR HANDLING below).
+
+2. POSITIONAL SEARCHING
+   * Read the drawing zone-by-zone using the "Position" labels in
+     the tables (e.g. "LED TRUSS", "Position L&R", "Position C",
+     "FOH", "Mid"). Map every Position label to the schema's
+     "trussName" field — this becomes the item's Position Group.
+   * For trusses, use the same Position label as the truss "name".
+
+3. ATTRIBUTE ASSIGNMENT
+   * For every fixture, fill in: name (from the legend, e.g. "MAC
+     Viper XIP"), qty (from the table), trussName (the Position
+     label), weightKg / watts (catalogue values when known).
+   * If the legend or the table specifies a fixture MODE / preset
+     (e.g. "Basic", "Extended", "Advanced", "16-bit"), append it to
+     the fixture name in parentheses, e.g. "MAC Viper XIP (Basic)".
+     Do NOT invent a mode if the drawing doesn't show one.
+
+4. ERROR HANDLING
+   * If the visual count on the drawing does NOT match the table
+     "Total" for that fixture-on-position, still emit the row using
+     the table count, but PREFIX the "notes" field with
+     "MISMATCH: drawing shows X, table shows Y." so the producer
+     can investigate in the overlay editor.
+   * If a fixture is genuinely not touching a truss line (floor
+     package, ground stack, pipe-mounted), set trussName to "Floor"
+     or "Pipe" exactly, matching the mounting type shown.
+
+5. CONFIDENCE FLAGGING
+   * Set "confidence" honestly. Items with confidence < 0.7 will be
+     rendered with a "Check Me" indicator in the editor so the user
+     can verify them. Lower confidence does NOT mean omit — it
+     means flag.
+
+Now apply those rules while emitting the schema below.`;
+
 /** Optional prefix that turns the analyser into a "Rigging Geometry
  *  Expert". Layered IN FRONT of SCHEMA_PROMPT when the request body
  *  asks for `mode: "geometry"`. The downstream JSON shape is
@@ -314,19 +373,28 @@ CRITICAL LOGIC RULES:
 
 Now apply those rules while emitting the schema below.`;
 
-/** Prompt selector. The geometry prompt simply prefixes the rules
- *  in front of the canonical schema spec, so the parser, normaliser,
- *  overlay editor and venue-memory loop all keep working unchanged. */
+/** Prompt selector. Each non-classic mode prefixes its rule-set in
+ *  front of the canonical schema spec, so the parser, normaliser,
+ *  overlay editor and venue-memory loop all keep working unchanged
+ *  regardless of which mode produced the response. */
 function buildAnalyzePrompt(mode: AnalyzeMode): string {
-  return mode === "geometry"
-    ? `${GEOMETRY_RULES_PROMPT}\n\n${SCHEMA_PROMPT}`
-    : SCHEMA_PROMPT;
+  if (mode === "geometry") {
+    return `${GEOMETRY_RULES_PROMPT}\n\n${SCHEMA_PROMPT}`;
+  }
+  if (mode === "production") {
+    return `${PRODUCTION_RULES_PROMPT}\n\n${SCHEMA_PROMPT}`;
+  }
+  return SCHEMA_PROMPT;
 }
 
-/** Two analyser interpretation modes the client can pick between.
- *  - "classic"  → schema-only prompt, the original behaviour.
- *  - "geometry" → schema + Rigging Geometry Expert rules. */
-type AnalyzeMode = "classic" | "geometry";
+/** Three analyser interpretation modes the client can pick between.
+ *  - "classic"    → schema-only prompt, the original behaviour.
+ *  - "geometry"   → schema + Rigging Geometry Expert rules
+ *                   (truss anchoring, alignment/snapping, etc.).
+ *  - "production" → schema + Production Technician rules
+ *                   (table-as-ground-truth, mismatch flagging,
+ *                   Position Groups, Floor/Pipe mounting). */
+type AnalyzeMode = "classic" | "geometry" | "production";
 
 type AnalyzeContext = {
   venue?: { widthM?: number; depthM?: number; ceilingM?: number };
@@ -843,7 +911,12 @@ router.post("/rigplan/analyze", requireSignedIn, rateLimit, json({ limit: "12mb"
      *  so older clients keep their existing behaviour. */
     mode?: unknown;
   };
-  const mode: AnalyzeMode = body.mode === "geometry" ? "geometry" : "classic";
+  const mode: AnalyzeMode =
+    body.mode === "geometry"
+      ? "geometry"
+      : body.mode === "production"
+        ? "production"
+        : "classic";
   const dataUrlField =
     typeof body.fileDataUrl === "string" && body.fileDataUrl
       ? body.fileDataUrl

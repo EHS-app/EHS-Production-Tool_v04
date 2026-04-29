@@ -5311,3 +5311,11 @@ input:focus {
   color: #1d4ed8;
   vertical-align: middle;
 }
+
+/* Production Tech variant of the analyzer mode badge — green to
+ * visually distinguish "table-as-ground-truth" runs from the blue
+ * Geometry Expert badge in the results header. */
+.drawing-mode-badge-production {
+  background: color-mix(in srgb, #16a34a 16%, transparent);
+  color: #15803d;
+}

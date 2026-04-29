@@ -162,12 +162,16 @@ function withCorrectedMediaType(dataUrl: string, file: File): string {
   return dataUrl;
 }
 
-/** Two interpretation modes the analyser can run in. "classic" is
+/** Three interpretation modes the analyser can run in. "classic" is
  *  the schema-only prompt that has shipped from day one; "geometry"
  *  prefixes the prompt with the Rigging Geometry Expert rule-set
- *  (truss anchoring, fixture alignment, motor heuristics, etc.).
- *  Output schema is identical in both modes. */
-export type AnalyzerMode = "classic" | "geometry";
+ *  (truss anchoring, fixture alignment, motor heuristics, etc.);
+ *  "production" prefixes the Production Technician rule-set (use
+ *  drawing tables as the source of truth for quantities, flag
+ *  visual/table mismatches in `notes`, group items by Position,
+ *  treat non-truss-mounted fixtures as Floor / Pipe).
+ *  Output schema is identical in all three modes. */
+export type AnalyzerMode = "classic" | "geometry" | "production";
 
 /** POST the image or PDF to the analyzer and return the parsed extracted
  *  items. Throws an Error with a user-friendly message on failure. */

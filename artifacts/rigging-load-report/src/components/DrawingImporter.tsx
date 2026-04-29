@@ -81,7 +81,9 @@ export function DrawingImporter({
   const [analyzerMode, setAnalyzerMode] = useState<AnalyzerMode>(() => {
     if (typeof window === "undefined") return "classic";
     const saved = window.localStorage.getItem("rigplan.analyzerMode");
-    return saved === "geometry" ? "geometry" : "classic";
+    if (saved === "geometry") return "geometry";
+    if (saved === "production") return "production";
+    return "classic";
   });
   const [extractedMode, setExtractedMode] = useState<AnalyzerMode | null>(null);
   useEffect(() => {
@@ -377,39 +379,33 @@ export function DrawingImporter({
             <fieldset
               className="drawing-mode-toggle"
               disabled={isAnalyzing}
-              title="Classic uses the schema-only prompt. Geometry Expert applies extra rigging-logic rules (truss anchoring, fixture alignment, motor heuristics) while reading the drawing."
+              title="Classic uses the schema-only prompt. Geometry Expert applies rigging-logic rules (truss anchoring, fixture alignment, motor heuristics). Production Tech treats Instrument/Truss Count tables as ground truth and flags visual/table mismatches in the notes."
             >
               <legend>Detection mode</legend>
-              <label
-                className={
-                  "drawing-mode-option" +
-                  (analyzerMode === "classic" ? " is-active" : "")
-                }
-              >
-                <input
-                  type="radio"
-                  name="drawing-analyzer-mode"
-                  value="classic"
-                  checked={analyzerMode === "classic"}
-                  onChange={() => setAnalyzerMode("classic")}
-                />
-                <span>Classic</span>
-              </label>
-              <label
-                className={
-                  "drawing-mode-option" +
-                  (analyzerMode === "geometry" ? " is-active" : "")
-                }
-              >
-                <input
-                  type="radio"
-                  name="drawing-analyzer-mode"
-                  value="geometry"
-                  checked={analyzerMode === "geometry"}
-                  onChange={() => setAnalyzerMode("geometry")}
-                />
-                <span>Geometry Expert</span>
-              </label>
+              {(
+                [
+                  { value: "classic", label: "Classic" },
+                  { value: "geometry", label: "Geometry Expert" },
+                  { value: "production", label: "Production Tech" },
+                ] as const
+              ).map((opt) => (
+                <label
+                  key={opt.value}
+                  className={
+                    "drawing-mode-option" +
+                    (analyzerMode === opt.value ? " is-active" : "")
+                  }
+                >
+                  <input
+                    type="radio"
+                    name="drawing-analyzer-mode"
+                    value={opt.value}
+                    checked={analyzerMode === opt.value}
+                    onChange={() => setAnalyzerMode(opt.value)}
+                  />
+                  <span>{opt.label}</span>
+                </label>
+              ))}
             </fieldset>
             <div className="drawing-preview-actions">
               <button
@@ -468,6 +464,14 @@ export function DrawingImporter({
                     title="These detections were produced with the Rigging Geometry Expert prompt"
                   >
                     Geometry Expert
+                  </span>
+                )}
+                {extractedMode === "production" && (
+                  <span
+                    className="drawing-mode-badge drawing-mode-badge-production"
+                    title="These detections were produced with the Production Technician prompt — quantities come from the drawing's count tables; visual/table mismatches are flagged in the item's notes with a 'MISMATCH:' prefix"
+                  >
+                    Production Tech
                   </span>
                 )}
               </h4>

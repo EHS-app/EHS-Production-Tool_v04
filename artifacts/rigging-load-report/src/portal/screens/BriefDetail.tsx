@@ -1376,33 +1376,23 @@ function ScheduleList({
   schedule: BriefSchedule;
 }) {
   const c = PALETTE[theme];
-  const rows = PHASE_ORDER.flatMap((key) => {
-    const ph = schedule[key];
-    if (!ph) return [];
-    return [
-      {
-        key,
-        label: PHASE_LABELS[key],
-        from: ph.from,
-        to: ph.to,
-        fromTime: ph.fromTime,
-        toTime: ph.toTime,
-      },
-    ];
+  const blocks = PHASE_ORDER.flatMap((key) => {
+    const segs = schedule[key];
+    if (!segs || segs.length === 0) return [];
+    return [{ key, label: PHASE_LABELS[key], segments: segs }];
   });
-  if (rows.length === 0) return null;
+  if (blocks.length === 0) return null;
   return (
     <div style={{ display: "grid", gap: 8 }}>
-      {rows.map((row) => {
-        const timeRange = formatTimeRange(row.fromTime, row.toTime);
-        const dateRange = row.from || row.to ? formatRange(row.from, row.to) : "";
+      {blocks.map((block) => {
+        const multi = block.segments.length > 1;
         return (
           <div
-            key={row.key}
+            key={block.key}
             style={{
               display: "grid",
               gridTemplateColumns: "100px 1fr",
-              alignItems: "center",
+              alignItems: "start",
               gap: 12,
               padding: "8px 10px",
               border: `1px solid ${c.border}`,
@@ -1416,25 +1406,62 @@ function ScheduleList({
                 textTransform: "uppercase",
                 letterSpacing: 0.5,
                 color: c.muted,
+                paddingTop: 2,
               }}
             >
-              {row.label}
+              {block.label}
             </span>
-            <span style={{ color: c.text, fontSize: 14, fontWeight: 600 }}>
-              {dateRange || "—"}
-              {timeRange ? (
-                <span
-                  style={{
-                    marginLeft: 10,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: c.muted,
-                  }}
-                >
-                  {timeRange}
-                </span>
-              ) : null}
-            </span>
+            <div style={{ display: "grid", gap: 4 }}>
+              {block.segments.map((seg, idx) => {
+                const timeRange = formatTimeRange(seg.fromTime, seg.toTime);
+                const dateRange =
+                  seg.from || seg.to ? formatRange(seg.from, seg.to) : "";
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      display: "flex",
+                      alignItems: "baseline",
+                      gap: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {multi ? (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 800,
+                          textTransform: "uppercase",
+                          letterSpacing: 0.4,
+                          color: c.muted,
+                          opacity: 0.85,
+                          minWidth: 44,
+                        }}
+                      >
+                        Day {idx + 1}
+                      </span>
+                    ) : null}
+                    <span
+                      style={{ color: c.text, fontSize: 14, fontWeight: 600 }}
+                    >
+                      {dateRange || "—"}
+                      {timeRange ? (
+                        <span
+                          style={{
+                            marginLeft: 10,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: c.muted,
+                          }}
+                        >
+                          {timeRange}
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         );
       })}

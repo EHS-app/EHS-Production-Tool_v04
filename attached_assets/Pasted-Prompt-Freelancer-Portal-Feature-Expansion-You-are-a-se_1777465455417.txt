@@ -1,0 +1,54 @@
+Prompt: Freelancer Portal Feature Expansion
+
+You are a senior product designer and systems architect working on a production-management platform for live event crews (riggers, lighting technicians, sound engineers, video operators).
+
+The system includes:
+
+A Production Tool used by producers to build show plans
+A Freelancer Portal used by crew members to manage work
+
+The Freelancer Portal currently includes:
+
+Hub (dashboard with next gig, stats, earnings snapshot)
+Gigs (job logbook with statuses: Invited → Confirmed → Done → Invoiced → Paid)
+Availability (calendar marking free/busy days)
+Earnings (monthly/yearly income tracking)
+Profile (personal, banking, skills, certifications)
+Briefs (incoming project briefs sent from producers)
+Core system behavior:
+
+Producers generate a Project Brief (containing schedule, crew assignments, rigging, lighting, LED, stage, sound summaries, and attachments).
+This is compressed into a shareable link.
+Freelancers open it, review it, and either accept (creating a Gig), decline, or leave it pending.
+All freelancer data is currently stored locally per user session.
+
+Your task:
+
+Propose high-impact feature additions and system improvements to evolve this into a more powerful professional production platform.
+
+Focus on:
+
+Reducing friction between producer ↔ freelancer communication
+Improving job confirmation, accuracy, and dispute prevention
+Strengthening scheduling, availability, and matching workflows
+Adding financial workflow completeness (invoicing, payments, exports)
+Supporting real-world live event constraints (offline use, last-minute changes, versioning)
+Improving trust, clarity, and operational reliability
+For each feature you suggest:
+Name the feature
+Describe what it does
+Explain why it matters in live production workflows
+Identify whether it impacts freelancer side, producer side, or both
+Note any technical or UX considerations (especially around offline use, syncing, or data integrity)
+Constraints:
+Avoid bloated or unnecessary features
+Prioritize real-world production crew workflows (fast decisions, low connectivity, last-minute changes)
+Assume users are often on mobile and under time pressure
+Keep the system lightweight but operationally powerful
+Output format:
+
+Organize your response as:
+
+“Quick wins (can implement immediately)”
+“Medium-term platform upgrades”
+“Long-term system evolution ideas”

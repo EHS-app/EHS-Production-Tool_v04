@@ -684,25 +684,36 @@ function makeShowFixture(): ShowFixture {
  *  three live in `extraSchedule`. */
 export type SchedulePhaseKey = "setup" | "rehearsal" | "show" | "downrig";
 
-/** A single phase's date range plus optional time-of-day range.
- *  Empty strings mean "not set". `fromTime` / `toTime` are HH:MM
- *  24h strings (matching the value of <input type="time">). */
-export type SchedulePhase = {
+/** A single segment within a phase — one calendar date range plus an
+ *  optional time-of-day range. A phase is an *array* of these so the
+ *  producer can record multiple non-contiguous days for the same
+ *  phase (e.g. Setup Mon + Wed, or Show Fri/Sat/Sun). Empty strings
+ *  mean "not set". `fromTime` / `toTime` are HH:MM 24h strings
+ *  (matching the value of <input type="time">). */
+export type ScheduleSegment = {
   from: string;
   to: string;
   fromTime?: string;
   toTime?: string;
 };
 
-/** All schedule phases keyed by name. The "show" entry only stores
- *  optional time-of-day fields here — its calendar dates live in the
- *  separate `reportDate` / `reportEndDate` state for backwards compat
- *  with the V2 persistence schema. */
-export type ExtraSchedule = Partial<Record<SchedulePhaseKey, SchedulePhase>>;
+/** Legacy single-segment shape kept as a type alias so existing
+ *  downstream consumers that imported `SchedulePhase` continue to
+ *  compile — the value lives inside a `ScheduleSegment[]` now. */
+export type SchedulePhase = ScheduleSegment;
+
+/** All schedule phases keyed by name → array of segments. Empty arrays
+ *  / undefined entries mean "not set". The "show" entry only stores
+ *  optional time-of-day fields and any *additional* show days here —
+ *  the primary show calendar dates live in the separate `reportDate`
+ *  / `reportEndDate` state for backwards compat with the V2
+ *  persistence schema. */
+export type ExtraSchedule = Partial<Record<SchedulePhaseKey, ScheduleSegment[]>>;
 
 /** A combined schedule including the show phase, derived for downstream
- *  consumers (brief, exports, etc.). */
-export type ProjectSchedule = Partial<Record<SchedulePhaseKey, SchedulePhase>>;
+ *  consumers (brief, exports, etc.). Each phase is an array of
+ *  segments so multi-day projects are first-class. */
+export type ProjectSchedule = Partial<Record<SchedulePhaseKey, ScheduleSegment[]>>;
 
 export const SCHEDULE_PHASE_LABELS: Record<SchedulePhaseKey, string> = {
   setup: "Setup",
@@ -715,25 +726,52 @@ export const SCHEDULE_PHASE_LABELS: Record<SchedulePhaseKey, string> = {
 };
 
 /** Build a unified schedule from the show dates + the extra phases.
- *  Times for the show phase are pulled from `extra.show` (where the
- *  popover stores them) and merged onto the date range. */
+ *  Each phase becomes an array of one or more segments. The primary
+ *  Show segment is synthesized from `reportDate`/`reportEndDate` (so
+ *  the rest of the app's date inputs stay the source of truth) and
+ *  any *additional* show days that the producer added in the popover
+ *  are appended after it from `extra.show[1..]`. The first entry of
+ *  `extra.show`, if present, contributes its `fromTime`/`toTime` to
+ *  the primary Show segment.
+ *
+ *  Empty phase arrays are stripped so downstream consumers (brief,
+ *  portal renderer, exports) can do `if (schedule.setup) …`. */
 export function buildProjectSchedule(
   reportDate: string,
   reportEndDate: string,
   extra: ExtraSchedule,
 ): ProjectSchedule {
-  const out: ProjectSchedule = { ...extra };
-  if (reportDate || reportEndDate) {
-    const existingShow = out.show;
-    out.show = {
-      from: reportDate,
-      to: reportEndDate || reportDate,
-      fromTime: existingShow?.fromTime,
-      toTime: existingShow?.toTime,
-    };
-  } else if (out.show && !out.show.fromTime && !out.show.toTime) {
-    delete out.show;
-  }
+  const out: ProjectSchedule = {};
+  (["setup", "rehearsal", "downrig"] as const).forEach((k) => {
+    const arr = extra[k];
+    if (arr && arr.length > 0) {
+      const cleaned = arr.filter(
+        (s) => s.from || s.to || s.fromTime || s.toTime,
+      );
+      if (cleaned.length > 0) out[k] = cleaned;
+    }
+  });
+  const showExtra = extra.show ?? [];
+  // Primary show segment derives its dates from reportDate/reportEndDate;
+  // its times come from the legacy show[0] storage slot.
+  const primary: ScheduleSegment = {
+    from: reportDate,
+    to: reportEndDate || reportDate,
+    fromTime: showExtra[0]?.fromTime,
+    toTime: showExtra[0]?.toTime,
+  };
+  const extraShowSegments = showExtra
+    .slice(1)
+    .filter((s) => s.from || s.to || s.fromTime || s.toTime);
+  const hasPrimary =
+    !!reportDate ||
+    !!reportEndDate ||
+    !!primary.fromTime ||
+    !!primary.toTime;
+  const showSegs: ScheduleSegment[] = [];
+  if (hasPrimary) showSegs.push(primary);
+  showSegs.push(...extraShowSegments);
+  if (showSegs.length > 0) out.show = showSegs;
   return out;
 }
 
@@ -785,22 +823,39 @@ type PersistedV2 = {
  *  ExtraSchedule. Unknown keys / non-string fields are dropped so
  *  malformed localStorage cannot inject invalid date strings into
  *  the date-input UI. */
+function sanitizeSegment(raw: unknown): ScheduleSegment | null {
+  if (!raw || typeof raw !== "object") return null;
+  const phObj = raw as Record<string, unknown>;
+  const from = typeof phObj.from === "string" ? phObj.from : "";
+  const to = typeof phObj.to === "string" ? phObj.to : "";
+  const fromTime =
+    typeof phObj.fromTime === "string" ? phObj.fromTime : undefined;
+  const toTime =
+    typeof phObj.toTime === "string" ? phObj.toTime : undefined;
+  if (!from && !to && !fromTime && !toTime) return null;
+  return { from, to, fromTime, toTime };
+}
+
 function sanitizeExtraSchedule(raw: unknown): ExtraSchedule {
   if (!raw || typeof raw !== "object") return {};
   const obj = raw as Record<string, unknown>;
   const out: ExtraSchedule = {};
   (["setup", "rehearsal", "show", "downrig"] as const).forEach((k) => {
     const ph = obj[k];
-    if (!ph || typeof ph !== "object") return;
-    const phObj = ph as Record<string, unknown>;
-    const from = typeof phObj.from === "string" ? phObj.from : "";
-    const to = typeof phObj.to === "string" ? phObj.to : "";
-    const fromTime =
-      typeof phObj.fromTime === "string" ? phObj.fromTime : undefined;
-    const toTime =
-      typeof phObj.toTime === "string" ? phObj.toTime : undefined;
-    if (!from && !to && !fromTime && !toTime) return;
-    out[k] = { from, to, fromTime, toTime };
+    if (!ph) return;
+    // Legacy single-object shape → wrap into a one-element array so
+    // already-persisted V2 data keeps working with the new multi-day
+    // schema. Producers who never tap "Add Day" simply see that one
+    // segment as before.
+    if (Array.isArray(ph)) {
+      const segs = ph
+        .map(sanitizeSegment)
+        .filter((s): s is ScheduleSegment => s !== null);
+      if (segs.length > 0) out[k] = segs;
+      return;
+    }
+    const seg = sanitizeSegment(ph);
+    if (seg) out[k] = [seg];
   });
   return out;
 }
@@ -3085,7 +3140,7 @@ function App() {
     });
     setPowerExportToast(
       result.ok
-        ? "Data sent to crew — printable manifest opened in a new tab."
+        ? "Synced to crew — Technical Plan + Schedule updated. Printable manifest opened in a new tab."
         : "Couldn't open a new tab — please allow pop-ups and try again.",
     );
   };
@@ -5369,24 +5424,40 @@ function summariseSchedule(
   reportEndDate: string,
   extra: ExtraSchedule,
 ): { label: string; phaseCount: number } {
-  const all: Array<{ key: SchedulePhaseKey; from: string; to: string }> = [];
+  // Flatten every phase's segments into a single (from, to) list and
+  // pick the global min / max so the trigger pill always shows the
+  // full active span — even when the producer entered separate days
+  // across multiple phases (e.g. Setup Apr 29, Show May 5).
+  const segs: Array<{ from: string; to: string }> = [];
   if (reportDate || reportEndDate) {
-    all.push({
-      key: "show",
-      from: reportDate,
-      to: reportEndDate || reportDate,
-    });
+    segs.push({ from: reportDate, to: reportEndDate || reportDate });
   }
+  const phasesUsed = new Set<SchedulePhaseKey>();
+  if (reportDate || reportEndDate) phasesUsed.add("show");
   (["setup", "rehearsal", "downrig"] as const).forEach((k) => {
-    const ph = extra[k];
-    if (ph && (ph.from || ph.to)) all.push({ key: k, from: ph.from, to: ph.to });
+    const arr = extra[k];
+    if (!arr) return;
+    let used = false;
+    for (const ph of arr) {
+      if (ph.from || ph.to) {
+        segs.push({ from: ph.from, to: ph.to });
+        used = true;
+      }
+    }
+    if (used) phasesUsed.add(k);
   });
-  if (all.length === 0) return { label: "Add dates", phaseCount: 0 };
-  const fromIso = all
+  // Show may also have additional days under `extra.show[1..]`.
+  const showExtra = extra.show ?? [];
+  for (let i = 1; i < showExtra.length; i++) {
+    const s = showExtra[i];
+    if (s.from || s.to) segs.push({ from: s.from, to: s.to });
+  }
+  if (segs.length === 0) return { label: "Add dates", phaseCount: 0 };
+  const fromIso = segs
     .map((p) => p.from || p.to)
     .filter(Boolean)
     .sort()[0];
-  const toIso = all
+  const toIso = segs
     .map((p) => p.to || p.from)
     .filter(Boolean)
     .sort()
@@ -5395,7 +5466,7 @@ function summariseSchedule(
     fromIso && toIso && fromIso !== toIso
       ? `${fmtShortDate(fromIso)} → ${fmtShortDate(toIso)}`
       : fmtShortDate(fromIso || toIso || "");
-  return { label: span, phaseCount: all.length };
+  return { label: span, phaseCount: phasesUsed.size };
 }
 
 function ScheduleField({
@@ -5433,55 +5504,132 @@ function ScheduleField({
 
   type PhaseSide = "from" | "to" | "fromTime" | "toTime";
 
-  const setPhase = (key: SchedulePhaseKey, side: PhaseSide, value: string) => {
-    // The show phase routes its calendar dates to reportDate/reportEndDate
-    // and its times into extraSchedule.show (alongside empty date strings).
-    if (key === "show" && side === "from") {
-      onChangeReportDate(value);
-      if (reportEndDate && value && reportEndDate < value) {
-        onChangeReportEndDate(value);
-      }
-      return;
+  const emptySeg = (): ScheduleSegment => ({
+    from: "",
+    to: "",
+    fromTime: "",
+    toTime: "",
+  });
+
+  /** Display-side segments for one phase. Always returns at least one
+   *  segment (the editor never collapses to zero rows). For Show, the
+   *  first segment is synthesized from `reportDate`/`reportEndDate`
+   *  plus the times stored at `extraSchedule.show[0]`; subsequent
+   *  segments come straight from `extraSchedule.show[1..]`. */
+  const getSegments = (key: SchedulePhaseKey): ScheduleSegment[] => {
+    if (key === "show") {
+      const arr = extraSchedule.show ?? [];
+      const primary: ScheduleSegment = {
+        from: reportDate,
+        to: reportEndDate,
+        fromTime: arr[0]?.fromTime ?? "",
+        toTime: arr[0]?.toTime ?? "",
+      };
+      const rest = arr.slice(1);
+      return [primary, ...rest];
     }
-    if (key === "show" && side === "to") {
-      onChangeReportEndDate(value);
+    const arr = extraSchedule[key] ?? [];
+    return arr.length > 0 ? arr : [emptySeg()];
+  };
+
+  const setSegment = (
+    key: SchedulePhaseKey,
+    idx: number,
+    side: PhaseSide,
+    value: string,
+  ) => {
+    // Show segment 0's calendar dates always live on
+    // reportDate/reportEndDate so the rest of the app keeps working
+    // unchanged. Its times live alongside any extra show days in
+    // `extraSchedule.show[0]`.
+    if (key === "show" && idx === 0) {
+      if (side === "from") {
+        onChangeReportDate(value);
+        if (reportEndDate && value && reportEndDate < value) {
+          onChangeReportEndDate(value);
+        }
+        return;
+      }
+      if (side === "to") {
+        onChangeReportEndDate(value);
+        return;
+      }
+      onChangeExtraSchedule((prev) => {
+        const arr = [...(prev.show ?? [])];
+        const cur = arr[0] ?? emptySeg();
+        arr[0] = { ...cur, [side]: value };
+        return { ...prev, show: arr };
+      });
       return;
     }
     onChangeExtraSchedule((prev) => {
-      const current: SchedulePhase = prev[key] ?? {
-        from: "",
-        to: "",
-        fromTime: "",
-        toTime: "",
-      };
-      const next: SchedulePhase = { ...current, [side]: value };
-      // Auto-bump "to" forward if user pushed "from" past it (dates only).
+      const arr = [...(prev[key] ?? [])];
+      // Pad up to idx so the user can edit a freshly added row
+      // even before any other slot is populated.
+      while (arr.length <= idx) arr.push(emptySeg());
+      const cur = arr[idx];
+      const next: ScheduleSegment = { ...cur, [side]: value };
       if (side === "from" && next.to && value && next.to < value) {
         next.to = value;
       }
-      const isEmpty =
-        !next.from && !next.to && !next.fromTime && !next.toTime;
+      arr[idx] = next;
       const out: ExtraSchedule = { ...prev };
-      if (isEmpty) {
+      // Drop trailing empties so we don't accumulate dead segments.
+      while (
+        arr.length > 0 &&
+        !arr[arr.length - 1].from &&
+        !arr[arr.length - 1].to &&
+        !arr[arr.length - 1].fromTime &&
+        !arr[arr.length - 1].toTime
+      ) {
+        // For show, never drop slot 0 — it carries the primary times
+        // even when the row appears empty in storage.
+        if (key === "show" && arr.length === 1) break;
+        arr.pop();
+      }
+      if (arr.length === 0) {
         delete out[key];
       } else {
-        out[key] = next;
+        out[key] = arr;
       }
       return out;
     });
   };
 
-  const getPhase = (key: SchedulePhaseKey): SchedulePhase => {
-    const stored = extraSchedule[key];
-    if (key === "show") {
-      return {
-        from: reportDate,
-        to: reportEndDate,
-        fromTime: stored?.fromTime ?? "",
-        toTime: stored?.toTime ?? "",
-      };
-    }
-    return stored ?? { from: "", to: "", fromTime: "", toTime: "" };
+  const addDay = (key: SchedulePhaseKey) => {
+    onChangeExtraSchedule((prev) => {
+      const arr = [...(prev[key] ?? [])];
+      // For Show the first storage slot is reserved for the primary
+      // times; tap-to-add must always create a *new* row beyond that.
+      if (key === "show" && arr.length === 0) arr.push(emptySeg());
+      arr.push(emptySeg());
+      return { ...prev, [key]: arr };
+    });
+  };
+
+  const removeDay = (key: SchedulePhaseKey, idx: number) => {
+    if (key === "show" && idx === 0) return; // primary show row is fixed
+    onChangeExtraSchedule((prev) => {
+      const arr = [...(prev[key] ?? [])];
+      if (idx < 0 || idx >= arr.length) return prev;
+      arr.splice(idx, 1);
+      const out: ExtraSchedule = { ...prev };
+      // For show, keep the storage slot 0 as long as it carries times,
+      // otherwise drop the whole entry to keep the schedule tidy.
+      if (arr.length === 0) {
+        delete out[key];
+      } else if (
+        key === "show" &&
+        arr.length === 1 &&
+        !arr[0].fromTime &&
+        !arr[0].toTime
+      ) {
+        delete out.show;
+      } else {
+        out[key] = arr;
+      }
+      return out;
+    });
   };
 
   const clearAll = () => {
@@ -5583,7 +5731,7 @@ function ScheduleField({
           }}
         >
           {SCHEDULE_PHASES_ORDER.map((key) => {
-            const ph = getPhase(key);
+            const segments = getSegments(key);
             const inputStyle = {
               padding: "6px 8px",
               border: "1px solid var(--border-color)",
@@ -5630,68 +5778,156 @@ function ScheduleField({
                 >
                   {SCHEDULE_PHASE_LABELS[key]}
                 </span>
-                <div style={{ display: "grid", gap: 6 }}>
-                  {/* Date row */}
-                  <div
+                <div style={{ display: "grid", gap: 10 }}>
+                  {segments.map((ph, idx) => {
+                    const removable = !(key === "show" && idx === 0);
+                    return (
+                      <div
+                        key={idx}
+                        style={{
+                          display: "grid",
+                          gap: 6,
+                          padding:
+                            segments.length > 1 ? "6px 8px" : 0,
+                          border:
+                            segments.length > 1
+                              ? "1px solid var(--border-color)"
+                              : "none",
+                          borderRadius: 6,
+                          background:
+                            segments.length > 1
+                              ? "var(--input-bg)"
+                              : "transparent",
+                        }}
+                      >
+                        {segments.length > 1 ? (
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                            }}
+                          >
+                            <span style={subLabelStyle}>
+                              Day {idx + 1}
+                            </span>
+                            {removable ? (
+                              <button
+                                type="button"
+                                aria-label={`Remove ${SCHEDULE_PHASE_LABELS[key]} day ${idx + 1}`}
+                                onClick={() => removeDay(key, idx)}
+                                style={{
+                                  background: "transparent",
+                                  border: "none",
+                                  color: "var(--text-muted)",
+                                  fontSize: 14,
+                                  lineHeight: 1,
+                                  cursor: "pointer",
+                                  padding: "2px 6px",
+                                }}
+                              >
+                                ×
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {/* Date row */}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "32px 1fr 14px 1fr",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <span style={subLabelStyle}>Day</span>
+                          <input
+                            type="date"
+                            value={ph.from}
+                            aria-label={`${SCHEDULE_PHASE_LABELS[key]} day ${idx + 1} from`}
+                            onChange={(e) =>
+                              setSegment(key, idx, "from", e.target.value)
+                            }
+                            style={inputStyle}
+                          />
+                          <span aria-hidden style={arrowStyle}>
+                            →
+                          </span>
+                          <input
+                            type="date"
+                            value={ph.to}
+                            min={ph.from || undefined}
+                            aria-label={`${SCHEDULE_PHASE_LABELS[key]} day ${idx + 1} to`}
+                            onChange={(e) =>
+                              setSegment(key, idx, "to", e.target.value)
+                            }
+                            style={inputStyle}
+                          />
+                        </div>
+                        {/* Time row */}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "32px 1fr 14px 1fr",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <span style={subLabelStyle}>Time</span>
+                          <input
+                            type="time"
+                            value={ph.fromTime ?? ""}
+                            aria-label={`${SCHEDULE_PHASE_LABELS[key]} day ${idx + 1} start time`}
+                            onChange={(e) =>
+                              setSegment(
+                                key,
+                                idx,
+                                "fromTime",
+                                e.target.value,
+                              )
+                            }
+                            style={inputStyle}
+                          />
+                          <span aria-hidden style={arrowStyle}>
+                            →
+                          </span>
+                          <input
+                            type="time"
+                            value={ph.toTime ?? ""}
+                            aria-label={`${SCHEDULE_PHASE_LABELS[key]} day ${idx + 1} end time`}
+                            onChange={(e) =>
+                              setSegment(
+                                key,
+                                idx,
+                                "toTime",
+                                e.target.value,
+                              )
+                            }
+                            style={inputStyle}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => addDay(key)}
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "32px 1fr 14px 1fr",
-                      alignItems: "center",
-                      gap: 6,
+                      justifySelf: "start",
+                      background: "transparent",
+                      border: "1px dashed var(--border-color)",
+                      borderRadius: 6,
+                      color: "var(--text-muted)",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: 0.3,
+                      padding: "4px 10px",
+                      cursor: "pointer",
                     }}
                   >
-                    <span style={subLabelStyle}>Day</span>
-                    <input
-                      type="date"
-                      value={ph.from}
-                      aria-label={`${SCHEDULE_PHASE_LABELS[key]} from`}
-                      onChange={(e) => setPhase(key, "from", e.target.value)}
-                      style={inputStyle}
-                    />
-                    <span aria-hidden style={arrowStyle}>
-                      →
-                    </span>
-                    <input
-                      type="date"
-                      value={ph.to}
-                      min={ph.from || undefined}
-                      aria-label={`${SCHEDULE_PHASE_LABELS[key]} to`}
-                      onChange={(e) => setPhase(key, "to", e.target.value)}
-                      style={inputStyle}
-                    />
-                  </div>
-                  {/* Time row */}
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "32px 1fr 14px 1fr",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <span style={subLabelStyle}>Time</span>
-                    <input
-                      type="time"
-                      value={ph.fromTime ?? ""}
-                      aria-label={`${SCHEDULE_PHASE_LABELS[key]} start time`}
-                      onChange={(e) =>
-                        setPhase(key, "fromTime", e.target.value)
-                      }
-                      style={inputStyle}
-                    />
-                    <span aria-hidden style={arrowStyle}>
-                      →
-                    </span>
-                    <input
-                      type="time"
-                      value={ph.toTime ?? ""}
-                      aria-label={`${SCHEDULE_PHASE_LABELS[key]} end time`}
-                      onChange={(e) =>
-                        setPhase(key, "toTime", e.target.value)
-                      }
-                      style={inputStyle}
-                    />
-                  </div>
+                    + Add Day
+                  </button>
                 </div>
               </div>
             );

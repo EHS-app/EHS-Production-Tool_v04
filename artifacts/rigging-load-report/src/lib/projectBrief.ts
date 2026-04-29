@@ -360,19 +360,24 @@ export type BriefRiggingInput = {
   }>;
 };
 
-/** Production schedule shipped in the brief — one optional range per
- *  phase. Empty strings allowed for partially-set phases. */
+/** Production schedule shipped in the brief — one or more segments per
+ *  phase so multi-day projects (e.g. Setup spread across two non-
+ *  contiguous days, or a multi-night Show) are first-class. Empty
+ *  strings allowed for partially-set segments. */
 export type BriefSchedulePhaseKey = "setup" | "rehearsal" | "show" | "downrig";
-/** A schedule phase covers a calendar range (ISO YYYY-MM-DD) and an
+/** A schedule segment covers a calendar range (ISO YYYY-MM-DD) and an
  *  optional time-of-day range (HH:MM 24h). */
-export type BriefSchedulePhase = {
+export type BriefScheduleSegment = {
   from: string;
   to: string;
   fromTime?: string;
   toTime?: string;
 };
+/** Backwards-compatible alias for the pre-multi-day type name. New
+ *  callers should reference `BriefScheduleSegment` directly. */
+export type BriefSchedulePhase = BriefScheduleSegment;
 export type BriefSchedule = Partial<
-  Record<BriefSchedulePhaseKey, BriefSchedulePhase>
+  Record<BriefSchedulePhaseKey, BriefScheduleSegment[]>
 >;
 
 export type BuildBriefInput = {
@@ -712,30 +717,58 @@ const SCHEDULE_PHASE_KEYS: readonly BriefSchedulePhaseKey[] = [
   "downrig",
 ] as const;
 
-/** Strip empty phases from a schedule before serialising — saves
- *  bytes in the share link and keeps Briefs tidy. */
+function cleanSegment(
+  raw: BriefScheduleSegment | undefined | null,
+): BriefScheduleSegment | null {
+  if (!raw) return null;
+  const from = asString(raw.from);
+  const to = asString(raw.to);
+  const fromTime = asString(raw.fromTime ?? "");
+  const toTime = asString(raw.toTime ?? "");
+  if (!from && !to && !fromTime && !toTime) return null;
+  const cleaned: BriefScheduleSegment = { from, to };
+  if (fromTime) cleaned.fromTime = fromTime;
+  if (toTime) cleaned.toTime = toTime;
+  return cleaned;
+}
+
+/** Strip empty segments / empty phases from a schedule before
+ *  serialising — saves bytes in the share link and keeps Briefs tidy. */
 function cleanSchedule(schedule: BriefSchedule): BriefSchedule | undefined {
   const out: BriefSchedule = {};
   let any = false;
   SCHEDULE_PHASE_KEYS.forEach((k) => {
-    const ph = schedule[k];
-    if (!ph) return;
-    const from = asString(ph.from);
-    const to = asString(ph.to);
-    const fromTime = asString(ph.fromTime ?? "");
-    const toTime = asString(ph.toTime ?? "");
-    if (!from && !to && !fromTime && !toTime) return;
-    const cleaned: BriefSchedulePhase = { from, to };
-    if (fromTime) cleaned.fromTime = fromTime;
-    if (toTime) cleaned.toTime = toTime;
+    const arr = schedule[k];
+    if (!arr || !Array.isArray(arr)) return;
+    const cleaned = arr
+      .map((s) => cleanSegment(s))
+      .filter((s): s is BriefScheduleSegment => s !== null);
+    if (cleaned.length === 0) return;
     out[k] = cleaned;
     any = true;
   });
   return any ? out : undefined;
 }
 
+function normalizeSegment(raw: unknown): BriefScheduleSegment | null {
+  if (!raw || typeof raw !== "object") return null;
+  const phObj = raw as Record<string, unknown>;
+  const from = asString(phObj.from);
+  const to = asString(phObj.to);
+  const fromTime = asString(phObj.fromTime ?? "");
+  const toTime = asString(phObj.toTime ?? "");
+  if (!from && !to && !fromTime && !toTime) return null;
+  const norm: BriefScheduleSegment = { from, to };
+  if (fromTime) norm.fromTime = fromTime;
+  if (toTime) norm.toTime = toTime;
+  return norm;
+}
+
 /** Defensive read of an arbitrary value (e.g. from a decoded share link
- *  or stored brief) into a `BriefSchedule`. Unknown keys are ignored. */
+ *  or stored brief) into a `BriefSchedule`. Unknown keys are ignored.
+ *  Accepts BOTH the new array shape and the legacy single-object shape
+ *  per phase, so older briefs in the freelancer portal or in
+ *  localStorage continue to decode without a migration. */
 function normalizeSchedule(raw: unknown): BriefSchedule | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const obj = raw as Record<string, unknown>;
@@ -743,18 +776,21 @@ function normalizeSchedule(raw: unknown): BriefSchedule | undefined {
   let any = false;
   SCHEDULE_PHASE_KEYS.forEach((k) => {
     const ph = obj[k];
-    if (!ph || typeof ph !== "object") return;
-    const phObj = ph as Record<string, unknown>;
-    const from = asString(phObj.from);
-    const to = asString(phObj.to);
-    const fromTime = asString(phObj.fromTime ?? "");
-    const toTime = asString(phObj.toTime ?? "");
-    if (!from && !to && !fromTime && !toTime) return;
-    const norm: BriefSchedulePhase = { from, to };
-    if (fromTime) norm.fromTime = fromTime;
-    if (toTime) norm.toTime = toTime;
-    out[k] = norm;
-    any = true;
+    if (!ph) return;
+    if (Array.isArray(ph)) {
+      const segs = ph
+        .map(normalizeSegment)
+        .filter((s): s is BriefScheduleSegment => s !== null);
+      if (segs.length === 0) return;
+      out[k] = segs;
+      any = true;
+      return;
+    }
+    const seg = normalizeSegment(ph);
+    if (seg) {
+      out[k] = [seg];
+      any = true;
+    }
   });
   return any ? out : undefined;
 }

@@ -28,6 +28,27 @@ import {
   outputsForScreen,
   newMarkerId,
   nextMarkerIndex,
+  // Shape / cable / processor — new in this build
+  cellIndex,
+  disabledCellSet,
+  isCellDisabled,
+  enabledPanelCount,
+  computeShapeTemplate,
+  computeScreenCableBOM,
+  computeScreenProcessorCapacity,
+  newPanelMarkerId,
+  nextPanelMarkerIndex,
+  LED_SHAPE_TEMPLATE_OPTIONS,
+  NOVASTAR_PROCESSOR_CATALOG,
+  NOVASTAR_PROCESSOR_OPTIONS,
+  newProcessorId,
+  SIGNAL_CABLE_LENGTH_M,
+  POWER_TRUE1_CABLE_LENGTH_M,
+  type LedShapeTemplate,
+  type LedPanelMarker,
+  type LedScreenProcessor,
+  type ScreenProcessorCapacity,
+  type NovastarProcessorModel,
 } from "../lib/led";
 import {
   LED_PROCESSORS,
@@ -66,13 +87,24 @@ const PIXEL_FMT = new Intl.NumberFormat("en-US");
 const fmt = (n: number, d = 1) =>
   n.toLocaleString("en-US", { maximumFractionDigits: d });
 
-/** Which screen the user is currently placing markers onto, and what
- *  kind. `null` = no active placement. We hoist this state to the
- *  report root so toggling "+P" on row 1 disables a stale "+S" on
- *  row 3, and so the canvas can read it to switch its cursor. */
+/** Which screen the user is currently in cell-edit mode on, and what
+ *  the click action should be. `null` = passive (clicks select).
+ *  Hoisted to the report root so arming a mode on row 1 cancels a
+ *  stale mode on row 3, and so the canvas can read it to switch its
+ *  cursor.
+ *
+ *  - `power` / `signal` → click on a CELL drops an anchored
+ *    `LedPanelMarker` on that (col, row).
+ *  - `shape`            → click on a CELL toggles its index in
+ *    `disabledCells` (freeform shape edit).
+ *
+ *  The legacy free-coord `LedScreenMarker` rendering still works
+ *  (drag/delete remain functional) but new clicks now produce the
+ *  cell-anchored markers the user actually wants. */
+export type PlaceModeKind = "power" | "signal" | "shape";
 export type PlaceMode = {
   screenId: string;
-  kind: LedScreenMarker["kind"];
+  kind: PlaceModeKind;
 } | null;
 
 export function LedScreenReportView(props: Props) {
@@ -105,9 +137,13 @@ export function LedScreenReportView(props: Props) {
 
   const [placeMode, setPlaceMode] = useState<PlaceMode>(null);
 
-  /** Toggle placement: clicking the same `+P` button twice cancels. */
+  /** Toggle the click-mode for a screen: `+P`, `+S`, or "Shape" arm
+   *  cell-edit mode; clicking the same button twice (or arming a
+   *  different button) cancels / replaces. Also called automatically
+   *  whenever the user clicks the screen body so there's no orphaned
+   *  armed state left after dropping a marker. */
   const togglePlaceMode = useCallback(
-    (screenId: string, kind: LedScreenMarker["kind"]) => {
+    (screenId: string, kind: PlaceModeKind) => {
       setPlaceMode((prev) =>
         prev && prev.screenId === screenId && prev.kind === kind
           ? null
@@ -117,32 +153,158 @@ export function LedScreenReportView(props: Props) {
     [],
   );
 
-  /** Drop a new marker at normalized coords inside the screen rect.
-   *  Auto-clears placeMode so the user has to re-arm to place another
-   *  one — keeps stray clicks from peppering the visual. */
-  const addMarker = useCallback(
+  /** Drop a new cell-anchored marker on the (col, row) the producer
+   *  clicked. Replaces any existing marker on the same cell+kind so
+   *  re-clicking a cell re-uses the index instead of stacking. We do
+   *  NOT auto-clear placeMode — the producer can rapid-fire several
+   *  cells in a row without re-arming. */
+  const addPanelMarker = useCallback(
     (
       screenId: string,
-      kind: LedScreenMarker["kind"],
-      x: number,
-      y: number,
+      kind: LedPanelMarker["kind"],
+      col: number,
+      row: number,
     ) => {
       const screen = screens.find((s) => s.id === screenId);
       if (!screen) return;
-      const markers = screen.markers ?? [];
-      const next: LedScreenMarker = {
-        id: newMarkerId(),
+      const list = screen.panelMarkers ?? [];
+      // Replace if there's already a same-kind marker on this cell
+      // (toggle-style; second click on same cell = remove).
+      const existing = list.find(
+        (mk) => mk.kind === kind && mk.col === col && mk.row === row,
+      );
+      if (existing) {
+        onUpdateScreen(screenId, {
+          panelMarkers: list.filter((mk) => mk.id !== existing.id),
+        });
+        return;
+      }
+      const next: LedPanelMarker = {
+        id: newPanelMarkerId(),
         kind,
-        index: nextMarkerIndex(markers, kind),
-        x: Math.min(1, Math.max(0, x)),
-        y: Math.min(1, Math.max(0, y)),
+        index: nextPanelMarkerIndex(list, kind),
+        col,
+        row,
       };
-      onUpdateScreen(screenId, { markers: [...markers, next] });
-      setPlaceMode(null);
+      onUpdateScreen(screenId, { panelMarkers: [...list, next] });
     },
     [screens, onUpdateScreen],
   );
 
+  const removePanelMarker = useCallback(
+    (screenId: string, markerId: string) => {
+      const screen = screens.find((s) => s.id === screenId);
+      if (!screen) return;
+      const next = (screen.panelMarkers ?? []).filter(
+        (m) => m.id !== markerId,
+      );
+      onUpdateScreen(screenId, { panelMarkers: next });
+    },
+    [screens, onUpdateScreen],
+  );
+
+  /** Toggle a single cell's ON/OFF state (freeform shape edit). When
+   *  Shape mode is armed and the producer clicks a cell, we flip its
+   *  index in `disabledCells`. */
+  const toggleCell = useCallback(
+    (screenId: string, col: number, row: number) => {
+      const screen = screens.find((s) => s.id === screenId);
+      if (!screen) return;
+      const idx = cellIndex(col, row, screen.panelsWide);
+      const current = screen.disabledCells ?? [];
+      const set = new Set(current);
+      if (set.has(idx)) set.delete(idx);
+      else set.add(idx);
+      onUpdateScreen(screenId, {
+        disabledCells: Array.from(set).sort((a, b) => a - b),
+        // Hand-toggling a cell diverges from any preset template, so
+        // we clear the saved template name; the brief falls back to
+        // the generic "Custom shape" label as expected.
+        shapeTemplate: undefined,
+      });
+    },
+    [screens, onUpdateScreen],
+  );
+
+  /** Apply a preset shape template (L, U, T, +, stairs, ribbon,
+   *  columns, rectangle). Overwrites any current `disabledCells` so
+   *  the producer gets a clean shape every time. */
+  const applyShapeTemplate = useCallback(
+    (screenId: string, template: LedShapeTemplate) => {
+      const screen = screens.find((s) => s.id === screenId);
+      if (!screen) return;
+      onUpdateScreen(screenId, {
+        disabledCells: computeShapeTemplate(
+          template,
+          screen.panelsWide,
+          screen.panelsTall,
+        ),
+        // Remember the producer's template choice so the brief can
+        // label it (e.g. "L-shape" instead of generic "Custom shape").
+        // Direct cell toggles below clear this back to undefined.
+        shapeTemplate: template === "rectangle" ? undefined : template,
+      });
+    },
+    [screens, onUpdateScreen],
+  );
+
+  /** Build by physical dimensions: round target W/H to whole panels.
+   *  Optionally clears `disabledCells` at the same time so a re-build
+   *  doesn't leave a stale L-shape lying around at the wrong size. */
+  const applyBuildBySize = useCallback(
+    (
+      screenId: string,
+      targetWidthM: number,
+      targetHeightM: number,
+      clearShape: boolean,
+    ) => {
+      const screen = screens.find((s) => s.id === screenId);
+      if (!screen) return;
+      const panel = resolveScreenPanel(screen, panels);
+      if (panel.physicalWidth <= 0 || panel.physicalHeight <= 0) return;
+      const panelsWide = Math.max(
+        1,
+        Math.round(targetWidthM / panel.physicalWidth),
+      );
+      const panelsTall = Math.max(
+        1,
+        Math.round(targetHeightM / panel.physicalHeight),
+      );
+      onUpdateScreen(screenId, {
+        panelsWide,
+        panelsTall,
+        ...(clearShape ? { disabledCells: [] } : {}),
+      });
+    },
+    [screens, panels, onUpdateScreen],
+  );
+
+  const addProcessor = useCallback(
+    (screenId: string, model: NovastarProcessorModel) => {
+      const screen = screens.find((s) => s.id === screenId);
+      if (!screen) return;
+      const list = screen.processors ?? [];
+      const next: LedScreenProcessor = { id: newProcessorId(), model };
+      onUpdateScreen(screenId, { processors: [...list, next] });
+    },
+    [screens, onUpdateScreen],
+  );
+
+  const removeProcessor = useCallback(
+    (screenId: string, processorId: string) => {
+      const screen = screens.find((s) => s.id === screenId);
+      if (!screen) return;
+      onUpdateScreen(screenId, {
+        processors: (screen.processors ?? []).filter(
+          (p) => p.id !== processorId,
+        ),
+      });
+    },
+    [screens, onUpdateScreen],
+  );
+
+  /** Drag-move the LEGACY free-coord markers (LedScreenMarker). Panel
+   *  markers are anchored to a cell so they aren't draggable. */
   const moveMarker = useCallback(
     (screenId: string, markerId: string, x: number, y: number) => {
       const screen = screens.find((s) => s.id === screenId);
@@ -157,6 +319,7 @@ export function LedScreenReportView(props: Props) {
     [screens, onUpdateScreen],
   );
 
+  /** Remove a LEGACY free-coord marker (alt-click / right-click). */
   const removeMarker = useCallback(
     (screenId: string, markerId: string) => {
       const screen = screens.find((s) => s.id === screenId);
@@ -167,10 +330,17 @@ export function LedScreenReportView(props: Props) {
     [screens, onUpdateScreen],
   );
 
+  /** Wipe both legacy free-coord markers AND new cell-anchored panel
+   *  markers in one go. The Clear button counts both kinds so the
+   *  producer can't be left wondering "why is there still a P1?" after
+   *  a clean. */
   const clearMarkers = useCallback(
     (screenId: string) => {
       const screen = screens.find((s) => s.id === screenId);
-      if (!screen || (screen.markers ?? []).length === 0) return;
+      if (!screen) return;
+      const total =
+        (screen.markers ?? []).length + (screen.panelMarkers ?? []).length;
+      if (total === 0) return;
       if (
         !window.confirm(
           `Remove all power & signal markers from "${screen.name || "(unnamed)"}"?`,
@@ -178,7 +348,7 @@ export function LedScreenReportView(props: Props) {
       ) {
         return;
       }
-      onUpdateScreen(screenId, { markers: [] });
+      onUpdateScreen(screenId, { markers: [], panelMarkers: [] });
     },
     [screens, onUpdateScreen],
   );
@@ -242,6 +412,7 @@ export function LedScreenReportView(props: Props) {
                   <th>Panel</th>
                   <th>Wide</th>
                   <th>Tall</th>
+                  <th>Shape</th>
                   <th>Resolution</th>
                   <th>Size (m)</th>
                   <th>Output</th>
@@ -268,6 +439,12 @@ export function LedScreenReportView(props: Props) {
                     onExport={() => onExportScreen(s.id)}
                     onTogglePlaceMode={(kind) => togglePlaceMode(s.id, kind)}
                     onClearMarkers={() => clearMarkers(s.id)}
+                    onApplyShapeTemplate={(t) => applyShapeTemplate(s.id, t)}
+                    onApplyBuildBySize={(w, h, clear) =>
+                      applyBuildBySize(s.id, w, h, clear)
+                    }
+                    onAddProcessor={(model) => addProcessor(s.id, model)}
+                    onRemoveProcessor={(pid) => removeProcessor(s.id, pid)}
                   />
                 ))}
               </tbody>
@@ -312,11 +489,17 @@ export function LedScreenReportView(props: Props) {
             selectedScreenId={selectedScreenId}
             onSelectScreen={onSelectScreen}
             onUpdateScreen={onUpdateScreen}
-            onAddMarker={addMarker}
             onMoveMarker={moveMarker}
             onRemoveMarker={removeMarker}
+            onAddPanelMarker={addPanelMarker}
+            onRemovePanelMarker={removePanelMarker}
+            onToggleCell={toggleCell}
           />
         </section>
+      )}
+
+      {screens.length > 0 && (
+        <CableBracketBomCard screens={screens} panels={panels} />
       )}
     </div>
   );
@@ -503,6 +686,10 @@ function ScreenRow({
   onExport,
   onTogglePlaceMode,
   onClearMarkers,
+  onApplyShapeTemplate,
+  onApplyBuildBySize,
+  onAddProcessor,
+  onRemoveProcessor,
 }: {
   screen: LedScreen;
   panels: LedPanel[];
@@ -514,18 +701,70 @@ function ScreenRow({
   onRemove: () => void;
   onDuplicate: () => void;
   onExport: () => void | Promise<void>;
-  onTogglePlaceMode: (kind: LedScreenMarker["kind"]) => void;
+  onTogglePlaceMode: (kind: PlaceModeKind) => void;
   onClearMarkers: () => void;
+  onApplyShapeTemplate: (template: LedShapeTemplate) => void;
+  onApplyBuildBySize: (
+    targetWidthM: number,
+    targetHeightM: number,
+    clearShape: boolean,
+  ) => void;
+  onAddProcessor: (model: NovastarProcessorModel) => void;
+  onRemoveProcessor: (processorId: string) => void;
 }) {
   const panel = resolveScreenPanel(screen, panels);
   const m = computeScreenMetrics(screen, panels);
   const isCustom = screen.panelKey === CUSTOM_PANEL_KEY;
   const nameScale = clampNameScale(screen.nameScale);
   const markers = screen.markers ?? [];
-  const powerCount = markers.filter((mk) => mk.kind === "power").length;
-  const signalCount = markers.filter((mk) => mk.kind === "signal").length;
-  const armed =
+  const panelMarkers = screen.panelMarkers ?? [];
+  // Counts for the row's +P/+S badges include BOTH legacy free-coord
+  // markers and the new cell-anchored ones, so the producer always
+  // sees an accurate total no matter which kind exists.
+  const powerCount =
+    markers.filter((mk) => mk.kind === "power").length +
+    panelMarkers.filter((mk) => mk.kind === "power").length;
+  const signalCount =
+    markers.filter((mk) => mk.kind === "signal").length +
+    panelMarkers.filter((mk) => mk.kind === "signal").length;
+  const totalMarkerCount = markers.length + panelMarkers.length;
+  const armed: PlaceModeKind | null =
     placeMode && placeMode.screenId === screen.id ? placeMode.kind : null;
+  const [shapeOpen, setShapeOpen] = useState(false);
+  // Build-by-size form state. Pre-fill with the screen's current
+  // physical width/height so the producer can tweak rather than
+  // re-type from scratch on every open.
+  const currentWidthM = screen.panelsWide * panel.physicalWidth;
+  const currentHeightM = screen.panelsTall * panel.physicalHeight;
+  const [targetW, setTargetW] = useState<string>(currentWidthM.toFixed(2));
+  const [targetH, setTargetH] = useState<string>(currentHeightM.toFixed(2));
+  const [clearShapeOnApply, setClearShapeOnApply] = useState(true);
+  // Sync the target inputs whenever the parent screen's panel choice
+  // or panel count changes outside the popover (e.g. user typed in
+  // Wide/Tall directly).
+  useEffect(() => {
+    if (!shapeOpen) {
+      setTargetW(currentWidthM.toFixed(2));
+      setTargetH(currentHeightM.toFixed(2));
+    }
+  }, [shapeOpen, currentWidthM, currentHeightM]);
+  const disabledCount = (screen.disabledCells ?? []).length;
+  const processors = screen.processors ?? [];
+  const cap = computeScreenProcessorCapacity(processors);
+  // Required outputs at the conservative per-output pixel cap from the
+  // attached processors (e.g. 650 000 px/output for Novastar MX series).
+  // We check this in addition to the pixel-cap so a screen that fits in
+  // total pixels but needs more than the available daisy-chain outputs
+  // (e.g. 1× MX30 = 4 outputs but the wall needs 8) still triggers the
+  // warning.
+  const requiredOutputs =
+    processors.length > 0 && cap.worstPixelsPerOutput > 0
+      ? Math.ceil(m.pixels / cap.worstPixelsPerOutput)
+      : 0;
+  const processorUnder =
+    processors.length > 0 &&
+    ((cap.maxPixels > 0 && m.pixels > cap.maxPixels) ||
+      (cap.outputs > 0 && requiredOutputs > cap.outputs));
 
   /** Compose the row class so we can layer "linked" and "selected"
    *  styling without repeating the conditional. */
@@ -634,6 +873,67 @@ function ScreenRow({
             emptyValue={1}
             onCommit={(panelsTall) => onUpdate({ panelsTall })}
           />
+        </td>
+        {/* Shape cell — opens a popover with build-by-size + template
+            chips, and arms a "Shape" cell-toggle mode for freeform
+            on/off cabinets. The "Shape…" button is rendered next to
+            the small "Edit" toggle so the producer can do template
+            work and free-toggle from one place. */}
+        <td className="led-shape-cell">
+          <div className="led-shape-row">
+            <button
+              type="button"
+              className={`btn btn-sm ${shapeOpen ? "btn-primary" : "btn-soft"}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShapeOpen((v) => !v);
+              }}
+              title="Open shape templates and build-by-size controls"
+            >
+              Shape…
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${armed === "shape" ? "is-armed btn-primary" : "btn-soft"}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onTogglePlaceMode("shape");
+              }}
+              title={
+                armed === "shape"
+                  ? "Cancel — click here to stop toggling cells"
+                  : "Click cells on the visual below to toggle them ON/OFF"
+              }
+            >
+              {armed === "shape" ? "Click cells…" : "Edit"}
+            </button>
+          </div>
+          {disabledCount > 0 && (
+            <div className="led-sub" title="Cabinets currently OFF">
+              −{disabledCount} off
+            </div>
+          )}
+          {shapeOpen && (
+            <ShapePopover
+              currentWidthM={currentWidthM}
+              currentHeightM={currentHeightM}
+              targetW={targetW}
+              targetH={targetH}
+              setTargetW={setTargetW}
+              setTargetH={setTargetH}
+              clearShapeOnApply={clearShapeOnApply}
+              setClearShapeOnApply={setClearShapeOnApply}
+              onApplyBuildBySize={() => {
+                const w = Number(targetW);
+                const h = Number(targetH);
+                if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+                  onApplyBuildBySize(w, h, clearShapeOnApply);
+                }
+              }}
+              onApplyTemplate={(t) => onApplyShapeTemplate(t)}
+              onClose={() => setShapeOpen(false)}
+            />
+          )}
         </td>
         <td className="led-num">
           {PIXEL_FMT.format(m.pixelsX)} × {PIXEL_FMT.format(m.pixelsY)}
@@ -763,32 +1063,41 @@ function ScreenRow({
             <button
               type="button"
               className={`btn btn-sm led-marker-btn led-marker-btn-power ${armed === "power" ? "is-armed" : ""}`}
-              onClick={() => onTogglePlaceMode("power")}
+              onClick={(e) => {
+                e.stopPropagation();
+                onTogglePlaceMode("power");
+              }}
               title={
                 armed === "power"
                   ? "Cancel — click here to stop placing power markers"
-                  : "Click, then click on the screen below to drop a power marker (P1, P2…)"
+                  : "Click, then click a CABINET on the visual to mark its power feed (P1, P2…). Click the same cabinet again to remove."
               }
             >
-              {armed === "power" ? "Click screen…" : `+P${powerCount > 0 ? ` (${powerCount})` : ""}`}
+              {armed === "power" ? "Click cell…" : `+P${powerCount > 0 ? ` (${powerCount})` : ""}`}
             </button>
             <button
               type="button"
               className={`btn btn-sm led-marker-btn led-marker-btn-signal ${armed === "signal" ? "is-armed" : ""}`}
-              onClick={() => onTogglePlaceMode("signal")}
+              onClick={(e) => {
+                e.stopPropagation();
+                onTogglePlaceMode("signal");
+              }}
               title={
                 armed === "signal"
                   ? "Cancel — click here to stop placing signal markers"
-                  : "Click, then click on the screen below to drop a signal marker (S1, S2…)"
+                  : "Click, then click a CABINET on the visual to mark its signal feed (S1, S2…). Click the same cabinet again to remove."
               }
             >
-              {armed === "signal" ? "Click screen…" : `+S${signalCount > 0 ? ` (${signalCount})` : ""}`}
+              {armed === "signal" ? "Click cell…" : `+S${signalCount > 0 ? ` (${signalCount})` : ""}`}
             </button>
             <button
               type="button"
               className="btn btn-soft btn-sm"
-              onClick={onClearMarkers}
-              disabled={markers.length === 0}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClearMarkers();
+              }}
+              disabled={totalMarkerCount === 0}
               title="Remove every power & signal marker on this screen"
             >
               Clear
@@ -827,9 +1136,26 @@ function ScreenRow({
           )}
         </td>
       </tr>
+      {/* Per-screen processors strip — sits directly under the main
+          row so the producer can attach 1× MX40 + 1× MX30 to one
+          screen without leaving the table. Capacity is computed live
+          and a red badge appears if the screen exceeds the attached
+          processors' combined pixel cap. */}
+      <tr className="led-row-procs">
+        <td colSpan={12}>
+          <ProcessorsStrip
+            processors={processors}
+            requiredPixels={m.pixels}
+            cap={cap}
+            isUnder={processorUnder}
+            onAdd={onAddProcessor}
+            onRemove={onRemoveProcessor}
+          />
+        </td>
+      </tr>
       {isCustom && (
         <tr className="led-row-custom">
-          <td colSpan={11}>
+          <td colSpan={12}>
             <div className="led-custom-panel">
               <strong>Custom panel:</strong>
               <label>
@@ -924,9 +1250,11 @@ function PixelMapCanvas({
   selectedScreenId,
   onSelectScreen,
   onUpdateScreen,
-  onAddMarker,
   onMoveMarker,
   onRemoveMarker,
+  onAddPanelMarker,
+  onRemovePanelMarker,
+  onToggleCell,
 }: {
   screens: LedScreen[];
   panels: LedPanel[];
@@ -935,14 +1263,16 @@ function PixelMapCanvas({
   selectedScreenId: string | null;
   onSelectScreen: (id: string | null) => void;
   onUpdateScreen: (id: string, patch: Partial<LedScreen>) => void;
-  onAddMarker: (
-    screenId: string,
-    kind: LedScreenMarker["kind"],
-    x: number,
-    y: number,
-  ) => void;
   onMoveMarker: (screenId: string, markerId: string, x: number, y: number) => void;
   onRemoveMarker: (screenId: string, markerId: string) => void;
+  onAddPanelMarker: (
+    screenId: string,
+    kind: LedPanelMarker["kind"],
+    col: number,
+    row: number,
+  ) => void;
+  onRemovePanelMarker: (screenId: string, markerId: string) => void;
+  onToggleCell: (screenId: string, col: number, row: number) => void;
 }) {
   /** Outer SVG ref — used by the drag handler to translate client-pixel
    *  pointer movement into the SVG's user-space units (which is what
@@ -1157,9 +1487,11 @@ function PixelMapCanvas({
             onHandlePointerDown={(e) =>
               handleHandlePointerDown(item.screen.id, item.x, item.y, e)
             }
-            onAddMarker={onAddMarker}
             onMoveMarker={onMoveMarker}
             onRemoveMarker={onRemoveMarker}
+            onAddPanelMarker={onAddPanelMarker}
+            onRemovePanelMarker={onRemovePanelMarker}
+            onToggleCell={onToggleCell}
           />
         ))}
       </svg>
@@ -1192,9 +1524,11 @@ function ScreenSvg({
   isDragging,
   onSelect,
   onHandlePointerDown,
-  onAddMarker,
   onMoveMarker,
   onRemoveMarker,
+  onAddPanelMarker,
+  onRemovePanelMarker,
+  onToggleCell,
 }: {
   item: SvgItem;
   panels: LedPanel[];
@@ -1204,14 +1538,16 @@ function ScreenSvg({
   isDragging: boolean;
   onSelect: () => void;
   onHandlePointerDown: (e: React.PointerEvent) => void;
-  onAddMarker: (
-    screenId: string,
-    kind: LedScreenMarker["kind"],
-    x: number,
-    y: number,
-  ) => void;
   onMoveMarker: (screenId: string, markerId: string, x: number, y: number) => void;
   onRemoveMarker: (screenId: string, markerId: string) => void;
+  onAddPanelMarker: (
+    screenId: string,
+    kind: LedPanelMarker["kind"],
+    col: number,
+    row: number,
+  ) => void;
+  onRemovePanelMarker: (screenId: string, markerId: string) => void;
+  onToggleCell: (screenId: string, col: number, row: number) => void;
 }) {
   const { screen, x, y, width, height, cellW, cellH } = item;
   /** Per-screen panel colours override the global ledSettings ones when
@@ -1220,7 +1556,7 @@ function ScreenSvg({
    *  override only one of the two and inherit the other. */
   const screenColorDark = screen.panelColorDark ?? settings.panelColorDark;
   const screenColorLight = screen.panelColorLight ?? settings.panelColorLight;
-  const armed: LedScreenMarker["kind"] | null =
+  const armed: PlaceModeKind | null =
     placeMode && placeMode.screenId === screen.id ? placeMode.kind : null;
   /** The transparent overlay rect's client bounding box is the source
    *  of truth for "where on the screen did the user click?" — using it
@@ -1233,6 +1569,7 @@ function ScreenSvg({
 
   const screenId = screen.id;
   const markers = screen.markers ?? [];
+  const panelMarkers = screen.panelMarkers ?? [];
 
   /** Convert a pointer event into normalised coords inside the screen
    *  rect. Returns null if the overlay isn't mounted yet (e.g. during
@@ -1249,14 +1586,42 @@ function ScreenSvg({
     [],
   );
 
+  /** Translate a pointer event into the (col, row) of the cell it hit.
+   *  Returns null when the overlay isn't mounted or the click missed
+   *  the screen. Clamps so an off-by-one pixel near the edge still
+   *  registers on the boundary cell instead of returning out-of-range. */
+  const eventToCell = useCallback(
+    (e: { clientX: number; clientY: number }): { col: number; row: number } | null => {
+      const norm = eventToNorm(e);
+      if (!norm) return null;
+      const col = Math.min(
+        screen.panelsWide - 1,
+        Math.max(0, Math.floor(norm.x * screen.panelsWide)),
+      );
+      const row = Math.min(
+        screen.panelsTall - 1,
+        Math.max(0, Math.floor(norm.y * screen.panelsTall)),
+      );
+      return { col, row };
+    },
+    [eventToNorm, screen.panelsWide, screen.panelsTall],
+  );
+
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent<SVGRectElement>) => {
       if (!armed) return;
-      const norm = eventToNorm(e);
-      if (!norm) return;
-      onAddMarker(screenId, armed, norm.x, norm.y);
+      const cell = eventToCell(e);
+      if (!cell) return;
+      if (armed === "shape") {
+        onToggleCell(screenId, cell.col, cell.row);
+      } else {
+        // power / signal — drop a cell-anchored marker. The parent
+        // handler swaps "second click on same cell" for a remove, so
+        // the producer can both place and clear without disarming.
+        onAddPanelMarker(screenId, armed, cell.col, cell.row);
+      }
     },
-    [armed, eventToNorm, onAddMarker, screenId],
+    [armed, eventToCell, onAddPanelMarker, onToggleCell, screenId],
   );
 
   /** Marker pointer-down: alt or right-button = delete, otherwise begin
@@ -1342,10 +1707,47 @@ function ScreenSvg({
   const arrowSize = Math.max(6, minDim * 0.32);
   const arrowStroke = Math.max(1.2, arrowSize * 0.16);
 
+  // Build the disabled-cells lookup ONCE per render (cheap — Set of
+  // ints) and reuse for the cell, label, arrow, and panel-marker
+  // passes so they all agree on which cabinets are actually present.
+  const offCells = disabledCellSet(screen);
   for (let row = 0; row < screen.panelsTall; row++) {
     for (let col = 0; col < screen.panelsWide; col++) {
       const cx = x + col * cellW;
       const cy = y + row * cellH;
+      const isOff = isCellDisabled(offCells, col, row, screen.panelsWide);
+      if (isOff) {
+        // Render the void as a hatched / muted cell so the producer
+        // (and the crew) can still see "no cabinet here" but won't
+        // mistake it for a panel they need to rig. The fill is the
+        // canvas backdrop; a dashed outline + diagonal hint marks it.
+        cells.push(
+          <g key={`${col}-${row}`}>
+            <rect
+              x={cx}
+              y={cy}
+              width={cellW}
+              height={cellH}
+              fill="#e5e7eb"
+              fillOpacity={0.35}
+              stroke="#94a3b8"
+              strokeOpacity={0.7}
+              strokeWidth={1}
+              strokeDasharray="3 3"
+            />
+            <line
+              x1={cx}
+              y1={cy}
+              x2={cx + cellW}
+              y2={cy + cellH}
+              stroke="#94a3b8"
+              strokeOpacity={0.5}
+              strokeWidth={1}
+            />
+          </g>,
+        );
+        continue;
+      }
       const cellFill = panelCellColor(
         col,
         row,
@@ -1353,15 +1755,41 @@ function ScreenSvg({
         screenColorDark,
         screenColorLight,
       );
-      const arrowDir = showArrowsHere
-        ? cellArrowDirection(
-            col,
-            row,
-            screen.panelsWide,
-            screen.panelsTall,
-            settings.wirePath,
-          )
-        : null;
+      let arrowDir: CellArrowDir = null;
+      if (showArrowsHere) {
+        arrowDir = cellArrowDirection(
+          col,
+          row,
+          screen.panelsWide,
+          screen.panelsTall,
+          settings.wirePath,
+        );
+        // Suppress arrows that would point INTO a disabled neighbour;
+        // otherwise the data-flow visual reads as "wire into a void".
+        if (arrowDir) {
+          const nx =
+            arrowDir === "right"
+              ? col + 1
+              : arrowDir === "left"
+                ? col - 1
+                : col;
+          const ny =
+            arrowDir === "down"
+              ? row + 1
+              : arrowDir === "up"
+                ? row - 1
+                : row;
+          if (
+            nx < 0 ||
+            nx >= screen.panelsWide ||
+            ny < 0 ||
+            ny >= screen.panelsTall ||
+            isCellDisabled(offCells, nx, ny, screen.panelsWide)
+          ) {
+            arrowDir = null;
+          }
+        }
+      }
       cells.push(
         <g key={`${col}-${row}`}>
           <rect
@@ -1739,7 +2167,441 @@ function ScreenSvg({
           );
         });
       })()}
+      {/* Cell-anchored panel markers (T004). Drawn as a rounded badge
+          tucked into the top-left corner of the chosen cell so the
+          producer can tell at a glance "this panel takes a power feed"
+          or "data lands at this panel". Click to remove. */}
+      {panelMarkers.length > 0 && (() => {
+        const badgeSide = Math.max(10, Math.min(cellW, cellH) * 0.42);
+        return panelMarkers.map((mk) => {
+          if (
+            mk.col < 0 ||
+            mk.col >= screen.panelsWide ||
+            mk.row < 0 ||
+            mk.row >= screen.panelsTall
+          ) {
+            return null;
+          }
+          const cellX = x + mk.col * cellW;
+          const cellY = y + mk.row * cellH;
+          // Inset 6% from the top-left so the badge doesn't fight the
+          // cell's stroke. Clamp the inset to a sane minimum for tiny
+          // cells.
+          const inset = Math.max(2, Math.min(cellW, cellH) * 0.06);
+          const bx = cellX + inset;
+          const by = cellY + inset;
+          const fill = mk.kind === "power" ? "#dc2626" : "#2563eb";
+          const fontSize = badgeSide * 0.55;
+          const label = `${mk.kind === "power" ? "P" : "S"}${mk.index}`;
+          return (
+            <g
+              key={mk.id}
+              style={{ cursor: "pointer" }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemovePanelMarker(screenId, mk.id);
+              }}
+            >
+              <rect
+                x={bx + badgeSide * 0.06}
+                y={by + badgeSide * 0.06}
+                width={badgeSide}
+                height={badgeSide}
+                rx={badgeSide * 0.18}
+                ry={badgeSide * 0.18}
+                fill="#000"
+                fillOpacity={0.35}
+                pointerEvents="none"
+              />
+              <rect
+                x={bx}
+                y={by}
+                width={badgeSide}
+                height={badgeSide}
+                rx={badgeSide * 0.18}
+                ry={badgeSide * 0.18}
+                fill={fill}
+                stroke="#ffffff"
+                strokeWidth={Math.max(1.5, badgeSide * 0.1)}
+              />
+              <text
+                x={bx + badgeSide / 2}
+                y={by + badgeSide / 2}
+                fontSize={fontSize}
+                fontWeight={700}
+                fill="#ffffff"
+                textAnchor="middle"
+                dominantBaseline="central"
+                fontFamily="system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+                pointerEvents="none"
+              >
+                {label}
+              </text>
+              <title>
+                {mk.kind === "power" ? "Power" : "Signal"} feed at panel
+                {" "}r{mk.row + 1}c{mk.col + 1} — click to remove
+              </title>
+            </g>
+          );
+        });
+      })()}
     </g>
+  );
+}
+
+/** Small popover anchored to the row's "Shape…" button. Producer types
+ *  the target physical width/height (m) and presses Apply to resize the
+ *  panel grid by panel pitch, OR clicks a template chip (L/U/T/+/...)
+ *  to fill the screen's `disabledCells` for that shape. The "Reset
+ *  panel ON/OFF" checkbox controls whether the build-by-size action
+ *  also wipes the current cell pattern (so producers don't accidentally
+ *  blow away a hand-edited shape when they re-target the size). */
+function ShapePopover({
+  currentWidthM,
+  currentHeightM,
+  targetW,
+  targetH,
+  setTargetW,
+  setTargetH,
+  clearShapeOnApply,
+  setClearShapeOnApply,
+  onApplyBuildBySize,
+  onApplyTemplate,
+  onClose,
+}: {
+  currentWidthM: number;
+  currentHeightM: number;
+  targetW: string;
+  targetH: string;
+  setTargetW: (v: string) => void;
+  setTargetH: (v: string) => void;
+  clearShapeOnApply: boolean;
+  setClearShapeOnApply: (v: boolean) => void;
+  onApplyBuildBySize: () => void;
+  onApplyTemplate: (template: LedShapeTemplate) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="led-shape-popover"
+      role="dialog"
+      aria-label="Build by size & shape templates"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="led-shape-popover-head">
+        <strong>Build by size</strong>
+        <button
+          type="button"
+          className="btn btn-ghost btn-xs"
+          onClick={onClose}
+          title="Close"
+        >
+          ×
+        </button>
+      </div>
+      <div className="led-shape-popover-body">
+        <div className="led-shape-current">
+          Current: {currentWidthM.toFixed(2)} × {currentHeightM.toFixed(2)} m
+        </div>
+        <div className="led-shape-build-grid">
+          <label>
+            Target W (m)
+            <input
+              className="led-input led-input-num"
+              type="number"
+              min={0.1}
+              step={0.1}
+              value={targetW}
+              onChange={(e) => setTargetW(e.target.value)}
+            />
+          </label>
+          <label>
+            Target H (m)
+            <input
+              className="led-input led-input-num"
+              type="number"
+              min={0.1}
+              step={0.1}
+              value={targetH}
+              onChange={(e) => setTargetH(e.target.value)}
+            />
+          </label>
+        </div>
+        <label className="led-shape-checkbox">
+          <input
+            type="checkbox"
+            checked={clearShapeOnApply}
+            onChange={(e) => setClearShapeOnApply(e.target.checked)}
+          />
+          Reset panel ON/OFF on apply
+        </label>
+        <div className="led-shape-actions">
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => {
+              onApplyBuildBySize();
+              onClose();
+            }}
+          >
+            Apply size
+          </button>
+        </div>
+      </div>
+      <div className="led-shape-popover-divider" />
+      <div className="led-shape-popover-body">
+        <strong>Shape templates</strong>
+        <div className="led-shape-chips">
+          {LED_SHAPE_TEMPLATE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className="btn btn-ghost btn-xs led-shape-chip"
+              title={opt.description}
+              onClick={() => {
+                onApplyTemplate(opt.value);
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <div className="led-shape-hint">
+          Click a chip to fill the cabinet ON/OFF pattern. Use{" "}
+          <em>Edit</em> on the row to toggle individual cabinets.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Per-screen processors strip. Renders an "Add processor" picker plus
+ *  a chip per attached processor (with × to remove), and a small
+ *  capacity readout — outputs / max pixels combined, vs the screen's
+ *  required pixel count. Producer sees a red "Under capacity" pill if
+ *  the screen exceeds the attached processors' combined cap. */
+function ProcessorsStrip({
+  processors,
+  requiredPixels,
+  cap,
+  isUnder,
+  onAdd,
+  onRemove,
+}: {
+  processors: LedScreenProcessor[];
+  requiredPixels: number;
+  cap: ScreenProcessorCapacity;
+  isUnder: boolean;
+  onAdd: (model: NovastarProcessorModel) => void;
+  onRemove: (processorId: string) => void;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const hasAny = processors.length > 0;
+  return (
+    <div className="led-procs-strip">
+      <div className="led-procs-strip-label">Processors:</div>
+      <div className="led-procs-strip-chips">
+        {processors.map((p) => {
+          const spec = NOVASTAR_PROCESSOR_CATALOG[p.model];
+          return (
+            <span key={p.id} className="led-procs-chip" title={spec?.name}>
+              <strong>{spec?.name ?? p.model}</strong>
+              <button
+                type="button"
+                className="led-procs-chip-x"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove(p.id);
+                }}
+                aria-label={`Remove ${spec?.name ?? p.model}`}
+                title="Remove"
+              >
+                ×
+              </button>
+            </span>
+          );
+        })}
+        <div className="led-procs-add">
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPickerOpen((v) => !v);
+            }}
+            title="Attach a Novastar processor to this screen"
+          >
+            + Add
+          </button>
+          {pickerOpen && (
+            <div
+              className="led-procs-picker"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {NOVASTAR_PROCESSOR_OPTIONS.map((opt) => (
+                <button
+                  key={opt.model}
+                  type="button"
+                  className="led-procs-picker-item"
+                  onClick={() => {
+                    onAdd(opt.model);
+                    setPickerOpen(false);
+                  }}
+                  title={NOVASTAR_PROCESSOR_CATALOG[opt.model].name}
+                >
+                  {opt.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      {hasAny && (
+        <div
+          className={`led-procs-cap ${isUnder ? "is-under" : ""}`}
+          title="Combined Ethernet outputs and pixel cap across attached processors vs this screen's pixel count"
+        >
+          {cap.outputs} outputs · {PIXEL_FMT.format(cap.maxPixels)} px cap
+          {" vs "}
+          {PIXEL_FMT.format(requiredPixels)} px needed
+          {isUnder && (
+            <span className="led-procs-under-pill">Under capacity</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Cable & bracket bill-of-materials card. Lists per-screen the signal
+ *  and TrueOne power jumper count + total length, plus the bracket name
+ *  × cabinet count. A totals row at the bottom sums every screen so the
+ *  producer can pull-list cables and brackets in one glance. */
+function CableBracketBomCard({
+  screens,
+  panels,
+}: {
+  screens: LedScreen[];
+  panels: LedPanel[];
+}) {
+  const rows = screens.map((s) => {
+    const bom = computeScreenCableBOM(s, panels);
+    return { screen: s, bom };
+  });
+  const totalSignalCables = rows.reduce(
+    (sum, r) => sum + r.bom.signalCables,
+    0,
+  );
+  const totalSignalLengthM = rows.reduce(
+    (sum, r) => sum + r.bom.signalLengthM,
+    0,
+  );
+  const totalPowerCables = rows.reduce(
+    (sum, r) => sum + r.bom.powerCables,
+    0,
+  );
+  const totalPowerLengthM = rows.reduce(
+    (sum, r) => sum + r.bom.powerLengthM,
+    0,
+  );
+  // Aggregate brackets by name across all screens so the producer sees
+  // "ProBracket × 18" once instead of one entry per screen.
+  const bracketTotals = new Map<string, number>();
+  for (const r of rows) {
+    for (const b of r.bom.brackets) {
+      bracketTotals.set(b.name, (bracketTotals.get(b.name) ?? 0) + b.count);
+    }
+  }
+  const totalBrackets = Array.from(bracketTotals.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    <section className="led-bom-card">
+      <header className="led-bom-head">
+        <h3>Cable &amp; bracket BOM</h3>
+        <span className="led-bom-sub">
+          Cabinet-to-cabinet jumpers only — signal {SIGNAL_CABLE_LENGTH_M.toFixed(2)} m,
+          TrueOne power {POWER_TRUE1_CABLE_LENGTH_M.toFixed(2)} m
+        </span>
+      </header>
+      <div className="led-bom-table-wrap">
+        <table className="led-table led-bom-table">
+          <thead>
+            <tr>
+              <th>Screen</th>
+              <th className="led-num">Signal</th>
+              <th className="led-num">Power (TrueOne)</th>
+              <th>Brackets</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ screen, bom }) => (
+              <tr key={screen.id}>
+                <td>{screen.name || "(unnamed)"}</td>
+                <td className="led-num">
+                  {bom.signalCables} ×{" "}
+                  <span className="led-sub">
+                    {bom.signalLengthM.toFixed(2)} m
+                  </span>
+                </td>
+                <td className="led-num">
+                  {bom.powerCables} ×{" "}
+                  <span className="led-sub">
+                    {bom.powerLengthM.toFixed(2)} m
+                  </span>
+                </td>
+                <td>
+                  {bom.brackets.length === 0 ? (
+                    <span className="led-sub">—</span>
+                  ) : (
+                    bom.brackets.map((b) => (
+                      <span
+                        key={b.name}
+                        className={`led-bom-bracket ${
+                          bom.bracketsUnset ? "is-unset" : ""
+                        }`}
+                      >
+                        {b.name} × {b.count}
+                      </span>
+                    ))
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>
+                <strong>Totals</strong>
+              </td>
+              <td className="led-num">
+                <strong>{totalSignalCables}</strong>{" "}
+                <span className="led-sub">
+                  ({totalSignalLengthM.toFixed(2)} m)
+                </span>
+              </td>
+              <td className="led-num">
+                <strong>{totalPowerCables}</strong>{" "}
+                <span className="led-sub">
+                  ({totalPowerLengthM.toFixed(2)} m)
+                </span>
+              </td>
+              <td>
+                {totalBrackets.length === 0 ? (
+                  <span className="led-sub">—</span>
+                ) : (
+                  totalBrackets.map((b) => (
+                    <span key={b.name} className="led-bom-bracket">
+                      <strong>{b.name}</strong> × {b.count}
+                    </span>
+                  ))
+                )}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
   );
 }
 

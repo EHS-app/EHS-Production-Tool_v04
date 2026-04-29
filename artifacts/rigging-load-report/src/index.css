@@ -3533,3 +3533,217 @@ input:focus {
 [data-theme="dark"] .equip-picker-table tr:hover td {
   background: rgba(96, 165, 250, 0.08);
 }
+
+/* ─── LED big-tab v2: shape popover, processors strip, BOM card ─── */
+.led-shape-popover {
+  position: absolute;
+  z-index: 30;
+  margin-top: 4px;
+  min-width: 280px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  padding: 0;
+  text-align: left;
+}
+[data-theme="dark"] .led-shape-popover {
+  background: #0f172a;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+.led-shape-popover-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+[data-theme="dark"] .led-shape-popover-head { border-bottom-color: #334155; }
+.led-shape-popover-body {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.led-shape-popover-divider {
+  border-top: 1px solid #e2e8f0;
+}
+[data-theme="dark"] .led-shape-popover-divider { border-top-color: #334155; }
+.led-shape-current { font-size: 12px; color: #64748b; }
+.led-shape-build-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.led-shape-build-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: #475569;
+}
+.led-shape-checkbox {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  color: #475569;
+}
+.led-shape-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.led-shape-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.led-shape-chip { white-space: nowrap; }
+.led-shape-hint { font-size: 11px; color: #94a3b8; }
+
+.led-shape-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+.led-shape-row {
+  display: flex;
+  gap: 4px;
+}
+
+.led-row-procs td {
+  padding: 4px 8px 6px !important;
+  background: rgba(148, 163, 184, 0.08);
+  border-top: none !important;
+}
+.led-procs-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.led-procs-strip-label {
+  font-weight: 600;
+  color: #475569;
+}
+[data-theme="dark"] .led-procs-strip-label { color: #cbd5e1; }
+.led-procs-strip-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.led-procs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 2px 8px;
+  background: #e0e7ff;
+  color: #1e3a8a;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+[data-theme="dark"] .led-procs-chip {
+  background: #1e3a8a;
+  color: #dbeafe;
+}
+.led-procs-chip-x {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.led-procs-add { position: relative; }
+.led-procs-picker {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  z-index: 40;
+}
+[data-theme="dark"] .led-procs-picker {
+  background: #0f172a;
+  border-color: #334155;
+}
+.led-procs-picker-item {
+  padding: 6px 10px;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  font-size: 12px;
+  cursor: pointer;
+  color: inherit;
+}
+.led-procs-picker-item:hover { background: rgba(148, 163, 184, 0.18); }
+.led-procs-cap {
+  margin-left: auto;
+  font-size: 11px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.led-procs-cap.is-under { color: #b91c1c; font-weight: 600; }
+.led-procs-under-pill {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.led-bom-card {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+[data-theme="dark"] .led-bom-card {
+  background: #0f172a;
+  border-color: #334155;
+}
+.led-bom-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.led-bom-head h3 { margin: 0; font-size: 14px; }
+.led-bom-sub { color: #64748b; font-size: 11px; }
+.led-bom-table-wrap { overflow-x: auto; }
+.led-bom-table { width: 100%; }
+.led-bom-bracket {
+  display: inline-block;
+  padding: 1px 6px;
+  margin-right: 4px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  font-size: 11px;
+}
+.led-bom-bracket.is-unset { background: #fef3c7; color: #92400e; }
+[data-theme="dark"] .led-bom-bracket {
+  background: #1e293b;
+  color: #cbd5e1;
+}
+[data-theme="dark"] .led-bom-bracket.is-unset {
+  background: #78350f;
+  color: #fef3c7;
+}

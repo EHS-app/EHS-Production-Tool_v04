@@ -76,6 +76,39 @@ export type BriefLedScreen = {
   rows: number;
   totalPanels: number;
   estimatedWatts: number;
+  /** Number of cabinets turned OFF via shape templates / freeform.
+   *  Defaults to 0 when the screen has no `disabledCells`. The
+   *  `totalPanels` field above already excludes these. */
+  disabledPanels?: number;
+  /** Human shape label for non-rectangular layouts ("L-shape",
+   *  "Stairs", …). Omitted for plain rectangles so the brief stays
+   *  quiet by default. */
+  shape?: string;
+  /** Cabinet-to-cabinet jumper count. Same number for signal & power
+   *  in the current model (one feed per panel). */
+  signalCables?: number;
+  signalLengthM?: number;
+  powerCables?: number;
+  powerLengthM?: number;
+  /** Per-screen bracket BOM rolled up from the panel's `bracketName`
+   *  (or the screen's `bracketOverride` if set). */
+  brackets?: Array<{ name: string; count: number }>;
+  /** Attached Novastar processors for this screen (model labels), and
+   *  the resulting capacity. `processorOutputs` and
+   *  `processorMaxPixels` are the combined cap; `processorPixels` is
+   *  what this screen actually requires. The Portal renders an "under
+   *  capacity" badge when needed > cap. */
+  processors?: string[];
+  processorOutputs?: number;
+  processorMaxPixels?: number;
+  processorPixels?: number;
+  /** Pre-computed "screen exceeds attached-processor capacity" flag.
+   *  Source of truth for the badge — combines BOTH the pixel-cap check
+   *  (`processorPixels > processorMaxPixels`) AND the outputs check
+   *  (`ceil(pixels / worstPixelsPerOutput) > processorOutputs`). The
+   *  Report view and the Portal `BriefDetail` both render off this so
+   *  they never disagree about whether a wall is over-budget. */
+  processorUnderCapacity?: boolean;
 };
 
 export type BriefLedTotals = {
@@ -231,6 +264,27 @@ export type BriefLedInput = {
     cols: number;
     rows: number;
     panelWatts?: number;
+    /** Pre-computed by the producer side from `enabledPanelCount` so
+     *  the brief module doesn't need to know the disabled-cell math. */
+    enabledPanels?: number;
+    disabledPanels?: number;
+    /** Already pretty-printed shape label (e.g. "L-shape"). Empty /
+     *  "rectangle" is treated as no-shape. */
+    shape?: string;
+    cablePixels?: number;
+    signalCables?: number;
+    signalLengthM?: number;
+    powerCables?: number;
+    powerLengthM?: number;
+    brackets?: Array<{ name: string; count: number }>;
+    processors?: string[];
+    processorOutputs?: number;
+    processorMaxPixels?: number;
+    processorPixels?: number;
+    /** Same precomputed flag as `BriefLedScreen.processorUnderCapacity`
+     *  — passed through verbatim so the report-view and the portal
+     *  brief render the badge from the same source of truth. */
+    processorUnderCapacity?: boolean;
   }>;
   processor?: string;
 };
@@ -342,7 +396,19 @@ function summariseLighting(lighting: BriefLightingInput): BriefLightingTotals {
 
 function summariseLed(led: BriefLedInput): BriefLedTotals {
   const screens: BriefLedScreen[] = led.ledScreens.map((s) => {
-    const totalPanels = Math.max(0, s.cols) * Math.max(0, s.rows);
+    // Bounding-box panels = cols × rows; subtract producer-set
+    // disabled cells so the brief reports actual cabinet count (and
+    // therefore actual estimated-watts) rather than the bounding box.
+    const boundingBox = Math.max(0, s.cols) * Math.max(0, s.rows);
+    const disabled = Math.max(0, Math.min(boundingBox, s.disabledPanels ?? 0));
+    const totalPanels =
+      typeof s.enabledPanels === "number"
+        ? Math.max(0, s.enabledPanels)
+        : Math.max(0, boundingBox - disabled);
+    const shape =
+      s.shape && s.shape !== "rectangle" && s.shape !== "Rectangle"
+        ? s.shape
+        : undefined;
     return {
       id: s.id,
       name: s.name,
@@ -351,6 +417,20 @@ function summariseLed(led: BriefLedInput): BriefLedTotals {
       rows: s.rows,
       totalPanels,
       estimatedWatts: Math.round(totalPanels * (s.panelWatts ?? 0)),
+      disabledPanels: disabled || undefined,
+      shape,
+      signalCables: s.signalCables,
+      signalLengthM: s.signalLengthM,
+      powerCables: s.powerCables,
+      powerLengthM: s.powerLengthM,
+      brackets:
+        s.brackets && s.brackets.length > 0 ? s.brackets : undefined,
+      processors:
+        s.processors && s.processors.length > 0 ? s.processors : undefined,
+      processorOutputs: s.processorOutputs,
+      processorMaxPixels: s.processorMaxPixels,
+      processorPixels: s.processorPixels,
+      processorUnderCapacity: s.processorUnderCapacity,
     };
   });
   return {
@@ -663,7 +743,19 @@ function normalizeLighting(raw: unknown): BriefLightingTotals {
 
 function normalizeLedScreen(raw: unknown): BriefLedScreen {
   const r = asObject(raw);
-  return {
+  const brackets = asArray(r.brackets)
+    .map((b) => {
+      const o = asObject(b);
+      const name = asString(o.name);
+      const count = asNumber(o.count);
+      return name && count > 0 ? { name, count } : null;
+    })
+    .filter((b): b is { name: string; count: number } => b !== null);
+  const processors = asArray(r.processors)
+    .map((p) => asString(p))
+    .filter((p) => p.length > 0);
+  const shape = asString(r.shape);
+  const out: BriefLedScreen = {
     id: asString(r.id),
     name: asString(r.name),
     panelType: asString(r.panelType),
@@ -672,6 +764,28 @@ function normalizeLedScreen(raw: unknown): BriefLedScreen {
     totalPanels: asNumber(r.totalPanels),
     estimatedWatts: asNumber(r.estimatedWatts),
   };
+  const disabled = asNumber(r.disabledPanels);
+  if (disabled > 0) out.disabledPanels = disabled;
+  if (shape.length > 0) out.shape = shape;
+  if (typeof r.signalCables === "number") out.signalCables = asNumber(r.signalCables);
+  if (typeof r.signalLengthM === "number") out.signalLengthM = asNumber(r.signalLengthM);
+  if (typeof r.powerCables === "number") out.powerCables = asNumber(r.powerCables);
+  if (typeof r.powerLengthM === "number") out.powerLengthM = asNumber(r.powerLengthM);
+  if (brackets.length > 0) out.brackets = brackets;
+  if (processors.length > 0) out.processors = processors;
+  if (typeof r.processorOutputs === "number") {
+    out.processorOutputs = asNumber(r.processorOutputs);
+  }
+  if (typeof r.processorMaxPixels === "number") {
+    out.processorMaxPixels = asNumber(r.processorMaxPixels);
+  }
+  if (typeof r.processorUnderCapacity === "boolean") {
+    out.processorUnderCapacity = r.processorUnderCapacity;
+  }
+  if (typeof r.processorPixels === "number") {
+    out.processorPixels = asNumber(r.processorPixels);
+  }
+  return out;
 }
 
 function normalizeLed(raw: unknown): BriefLedTotals {

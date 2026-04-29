@@ -7,8 +7,11 @@ import {
   computeScreenMetrics,
   panelCellColor,
   cellArrowDirection,
+  disabledCellSet,
+  isCellDisabled,
   resolveScreenPanel,
   type LedPanel,
+  type LedPanelMarker,
   type LedScreen,
   type LedScreenMarker,
   type LedSettings,
@@ -117,13 +120,26 @@ export function buildScreenSvg(input: BuildSvgInput): string {
 
   // Panel cells — colors are picked via `panelCellColor()` so the on-
   // screen preview and the exported PNG always agree on the pattern
-  // (checker by default; columns optional).
+  // (checker by default; columns optional). Cabinets toggled OFF via
+  // `disabledCells` (L / U / T / freeform shapes) render as a darker
+  // "void" colour so the silhouette of the screen is visible to the
+  // crew but it's obvious those positions aren't loaded.
   const dark = settings.panelColorDark || COLOR_PANEL_DARK;
   const light = settings.panelColorLight || COLOR_PANEL_LIGHT;
+  const offCells = disabledCellSet(screen);
   for (let cy = 0; cy < screen.panelsTall; cy++) {
     for (let cx = 0; cx < screen.panelsWide; cx++) {
       const x = cx * cellW;
       const y = cy * cellH;
+      if (isCellDisabled(offCells, cx, cy, screen.panelsWide)) {
+        // Match the page background so the void reads as "no cabinet
+        // here" — the gridlines below still draw on top so the cell
+        // outline is visible.
+        parts.push(
+          `<rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" fill="${COLOR_BG}"/>`,
+        );
+        continue;
+      }
       const fill = panelCellColor(cx, cy, settings.panelPattern, dark, light);
       parts.push(
         `<rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" fill="${fill}"/>`,
@@ -154,11 +170,13 @@ export function buildScreenSvg(input: BuildSvgInput): string {
   }
 
   // Cell labels: "A,1" "B,1" … in the top-left corner of each panel.
+  // Skipped on disabled cells — no point labelling a void.
   if (settings.showLabels) {
     const padX = Math.max(4, cellW * 0.04);
     const padY = Math.max(4, cellH * 0.04);
     for (let cy = 0; cy < screen.panelsTall; cy++) {
       for (let cx = 0; cx < screen.panelsWide; cx++) {
+        if (isCellDisabled(offCells, cx, cy, screen.panelsWide)) continue;
         const tx = cx * cellW + padX;
         const ty = cy * cellH + padY + labelFont * 0.85;
         const txt = `${colLabel(cx)},${cy + 1}`;
@@ -172,11 +190,15 @@ export function buildScreenSvg(input: BuildSvgInput): string {
   // Per-cell data-flow arrows. Direction is decided centrally in
   // `cellArrowDirection()` so the on-screen preview and this PNG export
   // can never disagree. Each arrow sits in the centre of its cell.
+  // Disabled cells get no arrow, AND any arrow whose target neighbour
+  // is disabled is suppressed too — otherwise the data-flow visual
+  // appears to point into a void.
   if (settings.showArrows) {
     const arrowSize = Math.max(8, Math.min(cellW, cellH) * 0.32);
     const stroke = Math.max(2, arrowSize * 0.16);
     for (let cy = 0; cy < screen.panelsTall; cy++) {
       for (let cx = 0; cx < screen.panelsWide; cx++) {
+        if (isCellDisabled(offCells, cx, cy, screen.panelsWide)) continue;
         const dir = cellArrowDirection(
           cx,
           cy,
@@ -185,6 +207,21 @@ export function buildScreenSvg(input: BuildSvgInput): string {
           settings.wirePath,
         );
         if (!dir) continue;
+        // Compute the neighbour the arrow points to; if it's disabled
+        // (or out of bounds), skip the arrow.
+        const nx =
+          dir === "right" ? cx + 1 : dir === "left" ? cx - 1 : cx;
+        const ny =
+          dir === "down" ? cy + 1 : dir === "up" ? cy - 1 : cy;
+        if (
+          nx < 0 ||
+          nx >= screen.panelsWide ||
+          ny < 0 ||
+          ny >= screen.panelsTall ||
+          isCellDisabled(offCells, nx, ny, screen.panelsWide)
+        ) {
+          continue;
+        }
         const midX = cx * cellW + cellW / 2;
         const midY = cy * cellH + cellH / 2;
         parts.push(cellArrowSvg(midX, midY, arrowSize, stroke, dir));
@@ -293,6 +330,43 @@ export function buildScreenSvg(input: BuildSvgInput): string {
       const cx = clamp(mk.x, 0, 1) * W;
       const cy = clamp(mk.y, 0, 1) * H;
       parts.push(buildMarkerSvg(cx, cy, markerR, mk));
+    }
+  }
+
+  // Panel-anchored markers — pinned to a specific (col, row) cabinet.
+  // Drawn smaller than the free-coord markers and positioned in the
+  // top-left of the cell so they read as a "wire enters here" sticker
+  // on the cabinet, not as a free-floating overlay. Skipped on
+  // disabled cells (the cabinet isn't there).
+  const panelMarkers = screen.panelMarkers ?? [];
+  if (panelMarkers.length > 0) {
+    const pmR = clamp(Math.min(cellW, cellH) * 0.22, 14, 96);
+    const inset = pmR * 1.1;
+    for (const pm of panelMarkers) {
+      if (
+        pm.col < 0 ||
+        pm.col >= screen.panelsWide ||
+        pm.row < 0 ||
+        pm.row >= screen.panelsTall
+      ) {
+        continue;
+      }
+      if (isCellDisabled(offCells, pm.col, pm.row, screen.panelsWide)) {
+        continue;
+      }
+      const cx = pm.col * cellW + inset;
+      const cy = pm.row * cellH + inset;
+      parts.push(
+        buildMarkerSvg(cx, cy, pmR, {
+          // Re-use the same renderer as free-coord markers; only the
+          // (kind, index) fields are read.
+          id: pm.id,
+          kind: pm.kind,
+          index: pm.index,
+          x: 0,
+          y: 0,
+        }),
+      );
     }
   }
 

@@ -13,6 +13,11 @@ export type LedPanel = {
   weight: number;
   /** Maximum cabinet power in W (aka "peak white"). */
   power: number;
+  /** Official manufacturer bracket part-number / name for this cabinet
+   *  type (e.g. Uniview hanging bar). Optional — when blank, the bracket
+   *  BOM line for that screen prints "(set bracket on inventory)" so the
+   *  producer knows to fill it in but the rest of the report still ships. */
+  bracketName?: string;
 };
 
 export type LedCustomPanel = {
@@ -22,6 +27,9 @@ export type LedCustomPanel = {
   physicalHeight: number;
   weight: number;
   power: number;
+  /** Same semantics as `LedPanel.bracketName`, scoped to the per-screen
+   *  custom-panel override. */
+  bracketName?: string;
 };
 
 /** A producer-placed annotation on a screen visual, used to show the
@@ -80,7 +88,135 @@ export type LedScreen = {
    *  by the in-canvas drag handle and cleared by "Reset positions". */
   posX?: number;
   posY?: number;
+  /** Sparse list of cell indexes (= row*panelsWide + col) that have been
+   *  toggled OFF for this screen — used to draw non-rectangular shapes
+   *  like L / U / T / freeform. Disabled cells are excluded from the
+   *  cabinet-count, weight, power and pixel totals (the bounding box
+   *  width × height is still derived from `panelsWide` × `panelsTall`).
+   *  Optional + sparse so older persisted blobs and rectangle screens
+   *  carry zero overhead. */
+  disabledCells?: number[];
+  /** Last `LedShapeTemplate` the producer applied. Used by the brief
+   *  to label non-rectangular screens with their template name (e.g.
+   *  "L-shape" instead of a generic "Custom shape"). Optional — direct
+   *  freeform cell edits leave it undefined so the brief falls back to
+   *  the generic label. */
+  shapeTemplate?: LedShapeTemplate;
+  /** Cell-anchored power / signal markers — distinct from the legacy
+   *  free-coord `markers` field. Each marker pins to a specific (col,
+   *  row) cabinet so it stays accurate when the producer toggles cells
+   *  off or rebuilds the grid. Rendered as small badges in the cell
+   *  corner on both the live preview and the exported PNG; also fed
+   *  into the cable BOM. Optional for back-compat. */
+  panelMarkers?: LedPanelMarker[];
+  /** LED video processors attached to THIS screen. Empty / undefined
+   *  means "fall back to the global `ledSettings.processorId`" so older
+   *  data keeps working. Multi-processor capacity is the sum of each
+   *  attached processor's max-pixels, used to flag under-capacity. */
+  processors?: LedScreenProcessor[];
+  /** Per-screen override of the panel's `bracketName`. Lets a producer
+   *  swap the bracket for a one-off screen without touching the panel
+   *  inventory. Empty / undefined means "use the panel's bracket". */
+  bracketOverride?: string;
 };
+
+/** A marker pinned to a specific cabinet on a screen. Differs from
+ *  `LedScreenMarker` (free x/y) in that toggling cells off, resizing
+ *  the grid, or swapping panel models keeps the marker on the same
+ *  CABINET — important for actual power / signal landing instructions
+ *  to the crew. */
+export type LedPanelMarker = {
+  id: string;
+  /** "power" lands a TrueOne in-feed; "signal" lands a CAT-from-processor
+   *  in-feed. Drives the badge color (red vs blue). */
+  kind: "power" | "signal";
+  /** 1-based per-kind label index (P1, P2, S1…) — same semantics as the
+   *  legacy `LedScreenMarker.index`. */
+  index: number;
+  /** 0-based column of the anchor cell within the screen's panel grid. */
+  col: number;
+  /** 0-based row of the anchor cell within the screen's panel grid. */
+  row: number;
+};
+
+/** A Novastar processor attached to a single LED screen. The full spec
+ *  (output count, per-port pixel cap, total pixel cap) lives in
+ *  `NOVASTAR_PROCESSOR_CATALOG` keyed by `model`; this carries only
+ *  what the user has chosen plus an optional label so the producer can
+ *  distinguish "MX40 #1" from "MX40 #2" on the same screen. */
+export type LedScreenProcessor = {
+  id: string;
+  model: NovastarProcessorModel;
+  /** Optional producer-typed display label (e.g. "Main", "IMAG-A"). */
+  label?: string;
+};
+
+export type NovastarProcessorModel = "novastar-mx30" | "novastar-mx40";
+
+/** Hard-coded specs for the Novastar processors the producer actually
+ *  owns. Sourced from Novastar's official spec sheets:
+ *  - MX30:  https://oss.novastar.tech/.../MX30-LED-Display-Controller-Specifications-V1.0.1.pdf
+ *  - MX40 Pro: https://oss.novastar.tech/.../MX40-Pro-LED-Display-Controller-Specifications-V1.2.2.pdf
+ *  Per-port and total-pixel caps are the 8-bit @ 60 Hz numbers (the
+ *  most permissive); 10-bit / 12-bit / HDR all reduce capacity, so the
+ *  capacity banner is a "best-case" check by design. */
+export const NOVASTAR_PROCESSOR_CATALOG: Record<
+  NovastarProcessorModel,
+  {
+    name: string;
+    outputs: number;
+    pixelsPerOutput: number;
+    maxPixels: number;
+  }
+> = {
+  "novastar-mx30": {
+    name: "Novastar MX30",
+    outputs: 10,
+    pixelsPerOutput: 650_000,
+    maxPixels: 6_500_000,
+  },
+  "novastar-mx40": {
+    name: "Novastar MX40 Pro",
+    outputs: 20,
+    pixelsPerOutput: 650_000,
+    // Spec-sheet hard cap (9.0 M total despite 20×650K theoretical).
+    maxPixels: 9_000_000,
+  },
+};
+
+/** Convenience: list the catalog as an ordered array for menus. */
+export const NOVASTAR_PROCESSOR_OPTIONS: Array<{
+  model: NovastarProcessorModel;
+  name: string;
+}> = (Object.keys(NOVASTAR_PROCESSOR_CATALOG) as NovastarProcessorModel[]).map(
+  (model) => ({ model, name: NOVASTAR_PROCESSOR_CATALOG[model].name }),
+);
+
+/** Generate a stable enough id for a per-screen processor entry. */
+export function newProcessorId(): string {
+  return `proc_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** Generate an id for a panel-anchored marker. Same shape as
+ *  `newMarkerId` so logs stay consistent. */
+export function newPanelMarkerId(): string {
+  return `pm_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** Pick the next 1-based label index for a panel-anchored marker of
+ *  `kind`. Mirrors `nextMarkerIndex` for free-coord markers but
+ *  considers `panelMarkers` only. */
+export function nextPanelMarkerIndex(
+  markers: LedPanelMarker[] | undefined,
+  kind: LedPanelMarker["kind"],
+): number {
+  const used = new Set(
+    (markers ?? []).filter((m) => m.kind === kind).map((m) => m.index),
+  );
+  let i = 1;
+  while (used.has(i)) i++;
+  return i;
+}
 
 export type LedLinkedMeta = {
   panelKey: LedPanelKey;
@@ -100,6 +236,16 @@ export type LedLinkedMeta = {
   nameScale?: number;
   /** Same semantics as `LedScreen.markers`. */
   markers?: LedScreenMarker[];
+  /** Same semantics as `LedScreen.disabledCells`. */
+  disabledCells?: number[];
+  /** Same semantics as `LedScreen.shapeTemplate`. */
+  shapeTemplate?: LedShapeTemplate;
+  /** Same semantics as `LedScreen.panelMarkers`. */
+  panelMarkers?: LedPanelMarker[];
+  /** Same semantics as `LedScreen.processors`. */
+  processors?: LedScreenProcessor[];
+  /** Same semantics as `LedScreen.bracketOverride`. */
+  bracketOverride?: string;
 };
 
 /** Lower / upper bounds for the name-pill multiplier. Values outside this
@@ -470,21 +616,103 @@ export function resolveScreenPanel(
       physicalHeight: screen.customPanel.physicalHeight,
       weight: screen.customPanel.weight,
       power: screen.customPanel.power,
+      bracketName: screen.customPanel.bracketName ?? base.bracketName,
     };
   }
   return base;
+}
+
+/** Compute the cell index for (col, row) in a `panelsWide`-wide grid.
+ *  `disabledCells` stores these indexes sparsely — using a single int
+ *  per disabled cell keeps the persisted blob small even for huge
+ *  screens. */
+export function cellIndex(
+  col: number,
+  row: number,
+  panelsWide: number,
+): number {
+  return row * panelsWide + col;
+}
+
+/** Reverse of `cellIndex` — used by template fills that emit an index
+ *  list. */
+export function cellFromIndex(
+  index: number,
+  panelsWide: number,
+): { col: number; row: number } {
+  return { col: index % panelsWide, row: Math.floor(index / panelsWide) };
+}
+
+/** O(1) "is this cell turned OFF on this screen?" lookup, given the
+ *  Set returned by `disabledCellSet`. Centralised so the live SVG and
+ *  the PNG export can never drift out of sync. */
+export function isCellDisabled(
+  set: ReadonlySet<number>,
+  col: number,
+  row: number,
+  panelsWide: number,
+): boolean {
+  return set.has(cellIndex(col, row, panelsWide));
+}
+
+/** Build the disabled-cells Set for a screen. Empty Set when the
+ *  screen is a clean rectangle (the common case), so the caller can
+ *  cheaply early-exit on `set.size === 0`.
+ *
+ *  IMPORTANT: when the second argument is provided, indices that fall
+ *  OUTSIDE the current `panelsWide × panelsTall` grid are dropped.
+ *  This prevents stale indices (left over from a larger grid that the
+ *  producer later shrunk) from bleeding into the panel/pixel counts
+ *  and the cable BOM. Without this guard, shrinking the grid after a
+ *  template fill could subtract more cabinets than actually exist. */
+export function disabledCellSet(
+  screen:
+    | { disabledCells?: number[]; panelsWide?: number; panelsTall?: number }
+    | undefined,
+): Set<number> {
+  if (!screen || !screen.disabledCells || screen.disabledCells.length === 0) {
+    return new Set();
+  }
+  const w = screen.panelsWide;
+  const h = screen.panelsTall;
+  if (typeof w === "number" && typeof h === "number" && w > 0 && h > 0) {
+    const max = w * h;
+    const out = new Set<number>();
+    for (const idx of screen.disabledCells) {
+      if (Number.isInteger(idx) && idx >= 0 && idx < max) out.add(idx);
+    }
+    return out;
+  }
+  return new Set(screen.disabledCells);
+}
+
+/** Cabinet count after subtracting any disabled cells. Used by metrics
+ *  and the cable / bracket BOMs. Filters out-of-range / duplicate
+ *  indices via `disabledCellSet` so resizing the grid never causes a
+ *  negative or over-subtracted count. */
+export function enabledPanelCount(screen: LedScreen): number {
+  const total = Math.max(0, screen.panelsWide * screen.panelsTall);
+  const disabled = disabledCellSet(screen).size;
+  return Math.max(0, total - Math.min(disabled, total));
 }
 
 export type LedScreenMetrics = {
   panels: number;
   pixelsX: number;
   pixelsY: number;
+  /** Pixel count of the ENABLED cabinets only (disabled cells subtracted). */
   pixels: number;
+  /** Physical width of the bounding box in metres (panelsWide × panel
+   *  width). Note this is the bounding box, not the silhouette of an
+   *  L / U / T shape — the bounding box is what matters for floor /
+   *  truss footprint and cabling estimates. */
   widthM: number;
   heightM: number;
+  /** Surface area of ENABLED cabinets only. */
   areaM2: number;
+  /** Total weight of ENABLED cabinets. */
   weightKg: number;
-  /** Maximum power, summing each cabinet's max draw. */
+  /** Maximum power of ENABLED cabinets. */
   powerW: number;
 };
 
@@ -493,19 +721,241 @@ export function computeScreenMetrics(
   panels: LedPanel[],
 ): LedScreenMetrics {
   const panel = resolveScreenPanel(screen, panels);
-  const panelCount = screen.panelsWide * screen.panelsTall;
+  const enabled = enabledPanelCount(screen);
   const pixelsX = screen.panelsWide * panel.pixelWidth;
   const pixelsY = screen.panelsTall * panel.pixelHeight;
+  const onePanelPixels = panel.pixelWidth * panel.pixelHeight;
   return {
-    panels: panelCount,
+    panels: enabled,
     pixelsX,
     pixelsY,
-    pixels: pixelsX * pixelsY,
+    pixels: enabled * onePanelPixels,
     widthM: screen.panelsWide * panel.physicalWidth,
     heightM: screen.panelsTall * panel.physicalHeight,
-    areaM2: panelCount * (panel.physicalWidth * panel.physicalHeight),
-    weightKg: panelCount * panel.weight,
-    powerW: panelCount * panel.power,
+    areaM2: enabled * (panel.physicalWidth * panel.physicalHeight),
+    weightKg: enabled * panel.weight,
+    powerW: enabled * panel.power,
+  };
+}
+
+// ───────────────────────────────────────────────────────────
+// Shape templates
+// ───────────────────────────────────────────────────────────
+
+export type LedShapeTemplate =
+  | "rectangle"
+  | "l-shape"
+  | "u-shape"
+  | "t-shape"
+  | "plus"
+  | "stairs"
+  | "ribbon"
+  | "columns";
+
+export const LED_SHAPE_TEMPLATE_OPTIONS: Array<{
+  value: LedShapeTemplate;
+  label: string;
+  description: string;
+}> = [
+  { value: "rectangle", label: "Rectangle", description: "All cabinets ON (no disabled cells)" },
+  { value: "l-shape", label: "L-shape", description: "Bottom-left quarter removed" },
+  { value: "u-shape", label: "U-shape", description: "Top-centre column removed" },
+  { value: "t-shape", label: "T-shape", description: "Bottom-left + bottom-right corners removed" },
+  { value: "plus", label: "Plus / cross", description: "Four corner blocks removed" },
+  { value: "stairs", label: "Stairs", description: "Diagonal step removed top-left" },
+  { value: "ribbon", label: "Ribbon", description: "Even rows on, odd rows off (header strip)" },
+  { value: "columns", label: "Columns", description: "Every other column off" },
+];
+
+/** Compute the disabled-cell index list for a given shape on a
+ *  panelsWide × panelsTall grid. Pure / deterministic so the same
+ *  template always produces the same shape — useful for both the
+ *  live preview and the PDF importer. */
+export function computeShapeTemplate(
+  template: LedShapeTemplate,
+  panelsWide: number,
+  panelsTall: number,
+): number[] {
+  if (panelsWide <= 0 || panelsTall <= 0) return [];
+  const w = panelsWide;
+  const h = panelsTall;
+  const out: number[] = [];
+  const off = (col: number, row: number) => {
+    if (col < 0 || col >= w || row < 0 || row >= h) return;
+    out.push(cellIndex(col, row, w));
+  };
+  switch (template) {
+    case "rectangle":
+      return [];
+    case "l-shape": {
+      // Remove the top-right block (so the L sits with its corner at
+      // the bottom-left, the long stroke going right and the tall
+      // stroke going up). Cut size: ceil(w/2) × floor(h/2).
+      const cutW = Math.ceil(w / 2);
+      const cutH = Math.floor(h / 2);
+      for (let r = 0; r < cutH; r++) {
+        for (let c = w - cutW; c < w; c++) off(c, r);
+      }
+      return out;
+    }
+    case "u-shape": {
+      // Remove the centre column from the top down to (h-1) so the U
+      // opens upward. Cut width is ceil(w/3), centred horizontally.
+      const cutW = Math.max(1, Math.floor(w / 3));
+      const cutH = Math.max(1, h - 1);
+      const cutStartC = Math.floor((w - cutW) / 2);
+      for (let r = 0; r < cutH; r++) {
+        for (let c = cutStartC; c < cutStartC + cutW; c++) off(c, r);
+      }
+      return out;
+    }
+    case "t-shape": {
+      // Remove the bottom-left and bottom-right corners — leaves a T
+      // (wide top bar + centre stem). Each corner is floor(w/3) wide
+      // by (h - ceil(h/3)) tall.
+      const armW = Math.max(1, Math.floor(w / 3));
+      const stemH = Math.max(1, Math.ceil(h / 3));
+      for (let r = stemH; r < h; r++) {
+        for (let c = 0; c < armW; c++) off(c, r);
+        for (let c = w - armW; c < w; c++) off(c, r);
+      }
+      return out;
+    }
+    case "plus": {
+      // Cut all four corners. Corner = floor(w/3) × floor(h/3).
+      const cw = Math.max(1, Math.floor(w / 3));
+      const ch = Math.max(1, Math.floor(h / 3));
+      for (let r = 0; r < ch; r++) {
+        for (let c = 0; c < cw; c++) off(c, r);
+        for (let c = w - cw; c < w; c++) off(c, r);
+      }
+      for (let r = h - ch; r < h; r++) {
+        for (let c = 0; c < cw; c++) off(c, r);
+        for (let c = w - cw; c < w; c++) off(c, r);
+      }
+      return out;
+    }
+    case "stairs": {
+      // Diagonal staircase: top-left rises by one column per row.
+      // Cell (c, r) is OFF when c + r < min(w, h) - 1 along the top-
+      // left triangle.
+      const limit = Math.min(w, h);
+      for (let r = 0; r < limit; r++) {
+        for (let c = 0; c < limit - 1 - r; c++) off(c, r);
+      }
+      return out;
+    }
+    case "ribbon": {
+      // Header / status-strip style: keep only the top row and the
+      // bottom row, OFF everything in between. Useful for building a
+      // banner / ribbon shape. Falls back to "all on" if h <= 2.
+      if (h <= 2) return [];
+      for (let r = 1; r < h - 1; r++) {
+        for (let c = 0; c < w; c++) off(c, r);
+      }
+      return out;
+    }
+    case "columns": {
+      // Every other column OFF (vertical pillars / sticks look).
+      for (let c = 1; c < w; c += 2) {
+        for (let r = 0; r < h; r++) off(c, r);
+      }
+      return out;
+    }
+  }
+}
+
+// ───────────────────────────────────────────────────────────
+// Cable + bracket BOM
+// ───────────────────────────────────────────────────────────
+
+/** Standard cable lengths used to wire one cabinet to the next. The
+ *  user provided these as project defaults — exposed as constants so
+ *  the BOM line (and the brief text) all read the same numbers and
+ *  any future swap is a single-line change. */
+export const SIGNAL_CABLE_LENGTH_M = 1.3;
+export const POWER_TRUE1_CABLE_LENGTH_M = 0.6;
+
+export type LedScreenCableBOM = {
+  /** Number of inter-cabinet signal jumpers needed (CAT). */
+  signalCables: number;
+  /** Total signal jumper length in metres. */
+  signalLengthM: number;
+  /** Number of inter-cabinet TrueOne power jumpers needed. */
+  powerCables: number;
+  /** Total TrueOne jumper length in metres. */
+  powerLengthM: number;
+  /** Bracket BOM, one row per distinct bracket (after applying any
+   *  per-screen `bracketOverride`). `count` is the cabinet count for
+   *  that bracket. */
+  brackets: Array<{ name: string; count: number }>;
+  /** True when the producer has not (yet) entered a bracket name on
+   *  the panel inventory and no per-screen override exists. The UI
+   *  uses this to show a soft "(set bracket on inventory)" hint. */
+  bracketsUnset: boolean;
+};
+
+/** Compute the cable & bracket BOM for a single screen. Daisy-chain
+ *  estimate: enabled-panel count - 1, floored at 0 (a single-cabinet
+ *  screen needs no inter-cabinet jumpers). The PER-SCREEN drop from
+ *  the processor / distro is OUT of scope here — this counts only the
+ *  cabinet-to-cabinet jumpers, which is what the user specified. */
+export function computeScreenCableBOM(
+  screen: LedScreen,
+  panels: LedPanel[],
+): LedScreenCableBOM {
+  const enabled = enabledPanelCount(screen);
+  const jumpers = Math.max(0, enabled - 1);
+  const panel = resolveScreenPanel(screen, panels);
+  const bracketName =
+    (screen.bracketOverride && screen.bracketOverride.trim()) ||
+    panel.bracketName ||
+    "";
+  const brackets = enabled > 0
+    ? [{ name: bracketName || "(set bracket on inventory)", count: enabled }]
+    : [];
+  return {
+    signalCables: jumpers,
+    signalLengthM: jumpers * SIGNAL_CABLE_LENGTH_M,
+    powerCables: jumpers,
+    powerLengthM: jumpers * POWER_TRUE1_CABLE_LENGTH_M,
+    brackets,
+    bracketsUnset: enabled > 0 && !bracketName,
+  };
+}
+
+// ───────────────────────────────────────────────────────────
+// Per-screen processor capacity
+// ───────────────────────────────────────────────────────────
+
+export type ScreenProcessorCapacity = {
+  /** Total Ethernet outputs available across all attached processors. */
+  outputs: number;
+  /** Sum of each processor's max-pixels cap. */
+  maxPixels: number;
+  /** Per-output pixel cap (we use the worst of all attached processors
+   *  so the warning stays conservative). */
+  worstPixelsPerOutput: number;
+};
+
+export function computeScreenProcessorCapacity(
+  processors: LedScreenProcessor[] | undefined,
+): ScreenProcessorCapacity {
+  const list = processors ?? [];
+  let outputs = 0;
+  let maxPixels = 0;
+  let worstPpo = Infinity;
+  for (const p of list) {
+    const spec = NOVASTAR_PROCESSOR_CATALOG[p.model];
+    if (!spec) continue;
+    outputs += spec.outputs;
+    maxPixels += spec.maxPixels;
+    if (spec.pixelsPerOutput < worstPpo) worstPpo = spec.pixelsPerOutput;
+  }
+  return {
+    outputs,
+    maxPixels,
+    worstPixelsPerOutput: worstPpo === Infinity ? 0 : worstPpo,
   };
 }
 
@@ -619,6 +1069,14 @@ export function newLedScreen(
     panelColorLight: seed?.panelColorLight,
     posX: seed?.posX,
     posY: seed?.posY,
+    // Pass through any new shape / cable / processor fields so callers
+    // that import a screen with disabled cells, panel markers, or a
+    // pre-attached processor list keep that data intact. All optional —
+    // a vanilla "Add Screen" omits all four.
+    disabledCells: seed?.disabledCells ? [...seed.disabledCells] : undefined,
+    panelMarkers: seed?.panelMarkers ? [...seed.panelMarkers] : undefined,
+    processors: seed?.processors ? [...seed.processors] : undefined,
+    bracketOverride: seed?.bracketOverride,
   };
 }
 

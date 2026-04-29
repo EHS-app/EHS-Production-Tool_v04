@@ -19,6 +19,12 @@ import {
   migrateLedPanelKey,
   newLedScreen,
   normalizeLedSettings,
+  enabledPanelCount,
+  computeScreenMetrics,
+  computeScreenCableBOM,
+  computeScreenProcessorCapacity,
+  LED_SHAPE_TEMPLATE_OPTIONS,
+  NOVASTAR_PROCESSOR_CATALOG,
   type LedCustomPanel,
   type LedLinkedMeta,
   type LedScreen,
@@ -1476,9 +1482,17 @@ function App() {
           sourceRowId: row.id,
           // Project per-screen annotations from the linked meta into the
           // resolved screen so the visual / export / share path treats
-          // linked and manual screens identically.
+          // linked and manual screens identically. Includes the new LED
+          // shape / cell-marker / multi-processor fields so a producer
+          // can edit them on a linked screen and have them survive the
+          // round-trip through `updateLedScreen` and the brief.
           nameScale: meta.nameScale,
           markers: meta.markers,
+          disabledCells: meta.disabledCells,
+          shapeTemplate: meta.shapeTemplate,
+          panelMarkers: meta.panelMarkers,
+          processors: meta.processors,
+          bracketOverride: meta.bracketOverride,
         });
       }
     }
@@ -1547,6 +1561,47 @@ function App() {
       led: {
         ledScreens: allLedScreens.map((s) => {
           const panel = resolveScreenPanel(s, ledPanels);
+          const enabled = enabledPanelCount(s);
+          const bbox = Math.max(0, s.panelsWide) * Math.max(0, s.panelsTall);
+          const disabled = Math.max(0, bbox - enabled);
+          const bom = computeScreenCableBOM(s, ledPanels);
+          const cap = computeScreenProcessorCapacity(s.processors);
+          const metrics = computeScreenMetrics(s, ledPanels);
+          // Resolve the producer's `LedShapeTemplate` choice to a
+          // human-readable label. Only emit a label if the screen has
+          // actual disabled cells — a "rectangle" with no disabled
+          // cells should produce no shape line in the brief. If the
+          // producer applied a preset and didn't hand-toggle, surface
+          // the template name from `LED_SHAPE_TEMPLATE_OPTIONS`;
+          // otherwise fall back to the generic "Custom shape" label.
+          const shapeLabel = (() => {
+            if (disabled === 0) return undefined;
+            if (s.shapeTemplate) {
+              const opt = LED_SHAPE_TEMPLATE_OPTIONS.find(
+                (o) => o.value === s.shapeTemplate,
+              );
+              if (opt) return opt.label;
+            }
+            return "Custom shape";
+          })();
+          const processors = (s.processors ?? [])
+            .map((p) => NOVASTAR_PROCESSOR_CATALOG[p.model]?.name ?? p.model);
+          // Single source of truth for the "Under capacity" badge.
+          // Mirrors the per-row check in `LedScreenReportView` so the
+          // report and the portal brief always agree. Combines the
+          // pixel-cap test AND the outputs test (a screen can fit in
+          // pixels but still need more daisy-chain outputs than the
+          // attached processors offer).
+          const requiredOutputs =
+            (s.processors ?? []).length > 0 && cap.worstPixelsPerOutput > 0
+              ? Math.ceil(metrics.pixels / cap.worstPixelsPerOutput)
+              : 0;
+          const processorUnderCapacity =
+            (s.processors ?? []).length > 0 &&
+            ((cap.maxPixels > 0 && metrics.pixels > cap.maxPixels) ||
+              (cap.outputs > 0 && requiredOutputs > cap.outputs))
+              ? true
+              : undefined;
           return {
             id: s.id,
             name: s.name,
@@ -1554,6 +1609,19 @@ function App() {
             cols: s.panelsWide,
             rows: s.panelsTall,
             panelWatts: panel.power,
+            enabledPanels: enabled,
+            disabledPanels: disabled,
+            shape: shapeLabel,
+            signalCables: bom.signalCables,
+            signalLengthM: bom.signalLengthM,
+            powerCables: bom.powerCables,
+            powerLengthM: bom.powerLengthM,
+            brackets: bom.brackets,
+            processors,
+            processorOutputs: cap.outputs,
+            processorMaxPixels: cap.maxPixels,
+            processorPixels: metrics.pixels,
+            processorUnderCapacity,
           };
         }),
         processor: findProcessor(ledSettings.processorId)?.name ?? "",
@@ -1623,6 +1691,16 @@ function App() {
             outputIndex: current.outputIndex,
             notes: current.notes,
             customPanel: current.customPanel,
+            // Carry the new LED shape / cell-marker / multi-processor
+            // fields into the seed so an edit that touches one of them
+            // doesn't blow away the rest. (Previously only the legacy
+            // fields above were seeded, so the first edit silently
+            // dropped any pre-existing shape/markers/processors.)
+            disabledCells: current.disabledCells,
+            shapeTemplate: current.shapeTemplate,
+            panelMarkers: current.panelMarkers,
+            processors: current.processors,
+            bracketOverride: current.bracketOverride,
           }
         : defaultLinkedLedMeta(1, defaultLedPanelKey);
       setLedLinkedMeta((all) => {
@@ -1653,6 +1731,37 @@ function App() {
             : {}),
           ...("markers" in patch
             ? { markers: patch.markers ? [...patch.markers] : [] }
+            : {}),
+          // New LED shape / cell-marker / multi-processor patches.
+          // Without these branches, edits to a linked screen would
+          // silently drop the new fields and the brief / BOM / capacity
+          // readouts wouldn't reflect the producer's changes.
+          ...("disabledCells" in patch
+            ? {
+                disabledCells: patch.disabledCells
+                  ? [...patch.disabledCells]
+                  : undefined,
+              }
+            : {}),
+          ...("shapeTemplate" in patch
+            ? { shapeTemplate: patch.shapeTemplate }
+            : {}),
+          ...("panelMarkers" in patch
+            ? {
+                panelMarkers: patch.panelMarkers
+                  ? [...patch.panelMarkers]
+                  : undefined,
+              }
+            : {}),
+          ...("processors" in patch
+            ? {
+                processors: patch.processors
+                  ? [...patch.processors]
+                  : undefined,
+              }
+            : {}),
+          ...("bracketOverride" in patch
+            ? { bracketOverride: patch.bracketOverride }
             : {}),
         };
         return { ...all, [sourceRowId]: next };

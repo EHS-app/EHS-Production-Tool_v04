@@ -401,7 +401,63 @@ export function BriefDetail({
                     <div style={{ fontWeight: 700 }}>{s.name}</div>
                     <div style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>
                       {s.panelType || "Panel"} · {s.cols} × {s.rows} ({s.totalPanels} panels)
+                      {s.shape ? ` · ${s.shape}` : ""}
+                      {s.disabledPanels && s.disabledPanels > 0
+                        ? ` · −${s.disabledPanels} off`
+                        : ""}
                     </div>
+                    {(s.signalCables ?? 0) > 0 ||
+                    (s.powerCables ?? 0) > 0 ? (
+                      <div style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>
+                        Cables:{" "}
+                        {(s.signalCables ?? 0)}× signal (
+                        {formatNumber(s.signalLengthM ?? 0, 2)} m){" · "}
+                        {(s.powerCables ?? 0)}× TrueOne (
+                        {formatNumber(s.powerLengthM ?? 0, 2)} m)
+                      </div>
+                    ) : null}
+                    {s.brackets && s.brackets.length > 0 ? (
+                      <div style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>
+                        Brackets:{" "}
+                        {s.brackets
+                          .map((b) => `${b.name} × ${b.count}`)
+                          .join(", ")}
+                      </div>
+                    ) : null}
+                    {s.processors && s.processors.length > 0 ? (
+                      <div style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>
+                        Processors: {s.processors.join(" + ")}
+                        {s.processorOutputs ? (
+                          <>
+                            {" — "}
+                            {s.processorOutputs} outputs ·{" "}
+                            {formatNumber(s.processorMaxPixels ?? 0)} px cap
+                            {s.processorPixels ? (
+                              <> vs {formatNumber(s.processorPixels)} px needed</>
+                            ) : null}
+                            {/* Producer-precomputed flag — combines the
+                                pixel-cap test AND the per-output cap
+                                test (see App.tsx). Falls back to the
+                                pixels-only test for older briefs that
+                                don't carry the flag yet. */}
+                            {(s.processorUnderCapacity ??
+                              (!!s.processorPixels &&
+                                !!s.processorMaxPixels &&
+                                s.processorPixels > s.processorMaxPixels)) ? (
+                              <span
+                                style={{
+                                  marginLeft: 6,
+                                  color: "#dc2626",
+                                  fontWeight: 700,
+                                }}
+                              >
+                                Under capacity
+                              </span>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                   {s.estimatedWatts > 0 ? (
                     <div

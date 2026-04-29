@@ -2503,6 +2503,63 @@ input:focus {
   border-color: var(--text, #0f172a);
 }
 
+/* Per-row dual-color preset picker — sits under the badge swatches in
+   the Color column. Each chip is a tiny diagonal split of the preset's
+   dark/light pair so the producer can see the panel-grid result before
+   clicking. The "Auto" chip uses neutral text instead of a gradient. */
+.led-preset-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.led-preset-chip {
+  width: 22px;
+  height: 18px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+  background: #fff;
+}
+.led-preset-chip:hover {
+  transform: scale(1.12);
+}
+.led-preset-chip.is-active {
+  border-color: var(--text, #0f172a);
+}
+.led-preset-chip.is-auto {
+  width: auto;
+  padding: 0 6px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-soft, #6b7280);
+  background: var(--surface-soft, #f3f4f6);
+  border: 1px solid var(--border, #e5e7eb);
+}
+.led-preset-chip.is-auto.is-active {
+  border-color: var(--text, #0f172a);
+  color: var(--text, #0f172a);
+}
+
+/* Selected screen row in the LED table — also matches the canvas halo
+   color so the relationship between table row and pixel-map screen is
+   obvious. Outranks the linked-row tint by being declared after it. */
+.led-row-selected,
+.led-row-linked.led-row-selected {
+  background: rgba(37, 99, 235, 0.12);
+  outline: 2px solid rgba(37, 99, 235, 0.5);
+  outline-offset: -2px;
+}
+[data-theme="dark"] .led-row-selected,
+[data-theme="dark"] .led-row-linked.led-row-selected {
+  background: rgba(96, 165, 250, 0.18);
+  outline-color: rgba(96, 165, 250, 0.6);
+}
+
 .led-actions {
   white-space: nowrap;
   display: flex;

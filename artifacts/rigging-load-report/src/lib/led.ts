@@ -64,6 +64,22 @@ export type LedScreen = {
   /** Producer-drawn power / signal markers shown to the crew. Optional
    *  for backwards compatibility — readers treat `undefined` as []. */
   markers?: LedScreenMarker[];
+  /** Per-screen panel-grid colors. When set, override the global
+   *  `ledSettings.panelColorDark/Light` for this screen only — used to
+   *  visually distinguish multiple screens on the pixel-map canvas (the
+   *  PDF importer auto-assigns a different `LED_PANEL_COLOR_PRESETS`
+   *  preset to each new screen). Both fields are optional and either
+   *  may be undefined; consumers fall back to the global setting per
+   *  field, so older persisted blobs keep working. */
+  panelColorDark?: string;
+  panelColorLight?: string;
+  /** Explicit position of the screen on the pixel-map canvas, in canvas
+   *  pixels. When set the screen is rendered at (posX, posY) and is
+   *  excluded from the auto-flow layout; when undefined the screen
+   *  flows left-to-right with the other auto-positioned screens. Set
+   *  by the in-canvas drag handle and cleared by "Reset positions". */
+  posX?: number;
+  posY?: number;
 };
 
 export type LedLinkedMeta = {
@@ -596,6 +612,13 @@ export function newLedScreen(
     // predictable for the spread-based update paths.
     nameScale: seed?.nameScale ?? NAME_SCALE_DEFAULT,
     markers: seed?.markers ? [...seed.markers] : [],
+    // Optional per-screen overrides — only forwarded when the seed
+    // provides them, so a freshly-added "Add Screen" stays governed by
+    // the global panel colours and the auto-flow layout.
+    panelColorDark: seed?.panelColorDark,
+    panelColorLight: seed?.panelColorLight,
+    posX: seed?.posX,
+    posY: seed?.posY,
   };
 }
 

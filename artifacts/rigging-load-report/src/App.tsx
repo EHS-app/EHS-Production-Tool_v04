@@ -7,6 +7,7 @@ import {
   CUSTOM_LED_PANEL,
   CUSTOM_PANEL_KEY,
   DEFAULT_LED_SETTINGS,
+  LED_PANEL_COLOR_PRESETS,
   LED_SCREEN_COLORS,
   buildLedPanels,
   computeLedTotals,
@@ -1083,6 +1084,13 @@ function App() {
         panelKey: migrateLedPanelKey(s.panelKey),
       })),
   );
+  /** Currently selected screen on the LED pixel-map canvas (null = none).
+   *  Session-only — intentionally not persisted to localStorage so the
+   *  user opens the tab with a clean visual rather than reviving a stale
+   *  selection from a previous browsing session. */
+  const [selectedLedScreenId, setSelectedLedScreenId] = useState<
+    string | null
+  >(null);
   const [ledLinkedMeta, setLedLinkedMeta] = useState<
     Record<string, LedLinkedMeta>
   >(() => {
@@ -1583,11 +1591,18 @@ function App() {
 
   const addLedScreen = () => {
     const idx = ledScreens.length + linkedLedScreens.length;
+    // Cycle the panel-grid preset alongside the badge color so each
+    // newly-added screen renders with a visually distinct palette on
+    // the pixel-map canvas — same convention as PDF imports.
+    const preset =
+      LED_PANEL_COLOR_PRESETS[idx % LED_PANEL_COLOR_PRESETS.length];
     setLedScreens((all) => [
       ...all,
       newLedScreen(defaultLedPanelKey, {
         name: `Screen ${idx + 1}`,
         color: LED_SCREEN_COLORS[idx % LED_SCREEN_COLORS.length],
+        panelColorDark: preset.dark,
+        panelColorLight: preset.light,
       }),
     ]);
   };
@@ -2182,10 +2197,20 @@ function App() {
           s.panelsTall != null && s.panelsTall > 0
             ? Math.round(s.panelsTall)
             : metresToPanels(s.heightM, panelHm);
+        // Cycle through the curated dual-color presets so each
+        // imported screen renders with its own panel-grid palette on
+        // the pixel-map canvas — important when 3+ screens come in
+        // from the same PDF and the producer needs to tell them apart
+        // at a glance. We also push the preset's `light` value into
+        // the badge color field for visual consistency.
+        const preset =
+          LED_PANEL_COLOR_PRESETS[idx % LED_PANEL_COLOR_PRESETS.length];
         additions.push(
           newLedScreen(defaultLedPanelKey, {
             name: screenName,
-            color: LED_SCREEN_COLORS[idx % LED_SCREEN_COLORS.length],
+            color: preset.light,
+            panelColorDark: preset.dark,
+            panelColorLight: preset.light,
             panelsWide: wide,
             panelsTall: tall,
             notes: s.notes || "",
@@ -4059,6 +4084,8 @@ function App() {
           totals={ledTotals}
           linkedCount={linkedLedScreens.length}
           standaloneCount={ledScreens.length}
+          selectedScreenId={selectedLedScreenId}
+          onSelectScreen={setSelectedLedScreenId}
           onAddScreen={addLedScreen}
           onUpdateScreen={updateLedScreen}
           onUpdateCustomPanel={updateLedCustomPanel}
@@ -4066,6 +4093,19 @@ function App() {
           onDuplicateScreen={duplicateLedScreen}
           onUpdateSettings={updateLedSettings}
           onExportScreen={exportLedScreen}
+          onResetScreenPositions={() => {
+            // Strip every per-screen position override on the canvas in
+            // one go. Linked screens (sourceRowId-keyed in
+            // ledLinkedMeta) currently can't be dragged, so we only
+            // need to clear standalone ledScreens here.
+            setLedScreens((all) =>
+              all.map((s) =>
+                s.posX === undefined && s.posY === undefined
+                  ? s
+                  : { ...s, posX: undefined, posY: undefined },
+              ),
+            );
+          }}
           onJumpToRigging={() => setMainView("rigging")}
         />
       )}

@@ -43,6 +43,12 @@ type Props = {
   totals: LedTotals;
   linkedCount: number;
   standaloneCount: number;
+  /** Currently-selected screen id, or null for "no selection". Drives
+   *  the highlight ring on the canvas and the row highlight in the
+   *  table; also lets the producer click a screen on the visual to jump
+   *  to its row. */
+  selectedScreenId: string | null;
+  onSelectScreen: (id: string | null) => void;
   onAddScreen: () => void;
   onUpdateScreen: (id: string, patch: Partial<LedScreen>) => void;
   onUpdateCustomPanel: (id: string, patch: Partial<LedCustomPanel>) => void;
@@ -50,6 +56,9 @@ type Props = {
   onDuplicateScreen: (id: string) => void;
   onUpdateSettings: (patch: Partial<LedSettings>) => void;
   onExportScreen: (id: string) => void | Promise<void>;
+  /** Clear every per-screen `posX`/`posY` so the canvas reverts to the
+   *  default left-to-right auto-flow layout. */
+  onResetScreenPositions: () => void;
   onJumpToRigging: () => void;
 };
 
@@ -74,6 +83,8 @@ export function LedScreenReportView(props: Props) {
     totals,
     linkedCount,
     standaloneCount,
+    selectedScreenId,
+    onSelectScreen,
     onAddScreen,
     onUpdateScreen,
     onUpdateCustomPanel,
@@ -81,8 +92,16 @@ export function LedScreenReportView(props: Props) {
     onDuplicateScreen,
     onUpdateSettings,
     onExportScreen,
+    onResetScreenPositions,
     onJumpToRigging,
   } = props;
+
+  /** Whether any standalone screen has been manually positioned — drives
+   *  the "Reset positions" button's enabled state above the canvas. */
+  const anyPositioned = useMemo(
+    () => screens.some((s) => s.posX !== undefined || s.posY !== undefined),
+    [screens],
+  );
 
   const [placeMode, setPlaceMode] = useState<PlaceMode>(null);
 
@@ -238,6 +257,8 @@ export function LedScreenReportView(props: Props) {
                     screen={s}
                     panels={panels}
                     placeMode={placeMode}
+                    isSelected={selectedScreenId === s.id}
+                    onSelect={() => onSelectScreen(s.id)}
                     onUpdate={(patch) => onUpdateScreen(s.id, patch)}
                     onUpdateCustomPanel={(patch) =>
                       onUpdateCustomPanel(s.id, patch)
@@ -261,15 +282,36 @@ export function LedScreenReportView(props: Props) {
             <h3>Pixel Map</h3>
             <span className="led-hint">
               Each cell is one panel. Columns are letters (A, B, C…), rows are
-              numbers (1, 2, 3…). Output assignments shown as numbered
-              circles.
+              numbers (1, 2, 3…). Click a screen to select it, drag the ⠿
+              handle to reposition.
             </span>
+            <div className="led-controls">
+              {/* "Reset positions" returns the canvas to the default
+                  left-to-right auto-flow. Disabled when nothing has been
+                  dragged so the button doesn't feel like a noop. */}
+              <button
+                className="btn btn-soft btn-sm"
+                type="button"
+                onClick={onResetScreenPositions}
+                disabled={!anyPositioned}
+                title={
+                  anyPositioned
+                    ? "Clear every dragged position and return to auto-flow"
+                    : "Nothing to reset — no screens have been dragged"
+                }
+              >
+                Reset positions
+              </button>
+            </div>
           </div>
           <PixelMapCanvas
             screens={screens}
             panels={panels}
             settings={settings}
             placeMode={placeMode}
+            selectedScreenId={selectedScreenId}
+            onSelectScreen={onSelectScreen}
+            onUpdateScreen={onUpdateScreen}
             onAddMarker={addMarker}
             onMoveMarker={moveMarker}
             onRemoveMarker={removeMarker}
@@ -452,6 +494,8 @@ function ScreenRow({
   screen,
   panels,
   placeMode,
+  isSelected,
+  onSelect,
   onUpdate,
   onUpdateCustomPanel,
   onRemove,
@@ -463,6 +507,8 @@ function ScreenRow({
   screen: LedScreen;
   panels: LedPanel[];
   placeMode: PlaceMode;
+  isSelected: boolean;
+  onSelect: () => void;
   onUpdate: (patch: Partial<LedScreen>) => void;
   onUpdateCustomPanel: (patch: Partial<LedCustomPanel>) => void;
   onRemove: () => void;
@@ -481,9 +527,26 @@ function ScreenRow({
   const armed =
     placeMode && placeMode.screenId === screen.id ? placeMode.kind : null;
 
+  /** Compose the row class so we can layer "linked" and "selected"
+   *  styling without repeating the conditional. */
+  const rowClass = [
+    screen.linked ? "led-row-linked" : "",
+    isSelected ? "led-row-selected" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <>
-      <tr className={screen.linked ? "led-row-linked" : ""}>
+      <tr
+        className={rowClass}
+        onClick={onSelect}
+        title={
+          isSelected
+            ? "Selected — also highlighted on the pixel-map canvas below"
+            : "Click to select on the pixel-map canvas"
+        }
+      >
         <td>
           {screen.linked ? (
             <span className="badge badge-linked" title="From rigging report">
@@ -599,6 +662,10 @@ function ScreenRow({
           />
         </td>
         <td>
+          {/* Top row — original badge-color swatches. Drives the small
+              circle that shows the screen's processor-output number on
+              the canvas. Kept for backwards compatibility with screens
+              created before per-screen panel presets existed. */}
           <div className="led-color-picker">
             {LED_SCREEN_COLORS.map((c) => (
               <button
@@ -606,10 +673,72 @@ function ScreenRow({
                 type="button"
                 className={`led-color-swatch ${screen.color === c ? "is-active" : ""}`}
                 style={{ background: c }}
-                onClick={() => onUpdate({ color: c })}
+                onClick={(e) => {
+                  // Stop the row-level click handler from firing (which
+                  // would also select the screen — fine, but leave the
+                  // intent unambiguous).
+                  e.stopPropagation();
+                  onUpdate({ color: c });
+                }}
                 aria-label={`Color ${c}`}
               />
             ))}
+          </div>
+          {/* Bottom row — dual-color panel-grid presets. Picking one
+              overrides the global ledSettings panel colours for THIS
+              screen only, which is what makes a 3-screen import look
+              visually distinct on the canvas. The "Auto" chip clears
+              the override and falls back to the global setting. */}
+          <div className="led-preset-picker" aria-label="Panel grid preset">
+            <button
+              type="button"
+              className={`led-preset-chip is-auto ${
+                screen.panelColorDark === undefined &&
+                screen.panelColorLight === undefined
+                  ? "is-active"
+                  : ""
+              }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onUpdate({
+                  panelColorDark: undefined,
+                  panelColorLight: undefined,
+                });
+              }}
+              title="Use the global panel colours from Export options"
+            >
+              Auto
+            </button>
+            {LED_PANEL_COLOR_PRESETS.map((p) => {
+              const active =
+                (screen.panelColorDark ?? "").toLowerCase() ===
+                  p.dark.toLowerCase() &&
+                (screen.panelColorLight ?? "").toLowerCase() ===
+                  p.light.toLowerCase();
+              return (
+                <button
+                  key={p.label}
+                  type="button"
+                  className={`led-preset-chip ${active ? "is-active" : ""}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdate({
+                      panelColorDark: p.dark,
+                      panelColorLight: p.light,
+                      // Mirror the badge color to the preset's light
+                      // value too — keeps the table swatches and the
+                      // visual in sync after a one-click change.
+                      color: p.light,
+                    });
+                  }}
+                  title={`${p.label} preset`}
+                  style={{
+                    background: `linear-gradient(135deg, ${p.dark} 0%, ${p.dark} 50%, ${p.light} 50%, ${p.light} 100%)`,
+                  }}
+                  aria-label={`${p.label} preset`}
+                />
+              );
+            })}
           </div>
         </td>
         <td>
@@ -792,6 +921,9 @@ function PixelMapCanvas({
   panels,
   settings,
   placeMode,
+  selectedScreenId,
+  onSelectScreen,
+  onUpdateScreen,
   onAddMarker,
   onMoveMarker,
   onRemoveMarker,
@@ -800,6 +932,9 @@ function PixelMapCanvas({
   panels: LedPanel[];
   settings: LedSettings;
   placeMode: PlaceMode;
+  selectedScreenId: string | null;
+  onSelectScreen: (id: string | null) => void;
+  onUpdateScreen: (id: string, patch: Partial<LedScreen>) => void;
   onAddMarker: (
     screenId: string,
     kind: LedScreenMarker["kind"],
@@ -809,6 +944,11 @@ function PixelMapCanvas({
   onMoveMarker: (screenId: string, markerId: string, x: number, y: number) => void;
   onRemoveMarker: (screenId: string, markerId: string) => void;
 }) {
+  /** Outer SVG ref — used by the drag handler to translate client-pixel
+   *  pointer movement into the SVG's user-space units (which is what
+   *  `posX`/`posY` are stored in). */
+  const svgRef = useRef<SVGSVGElement | null>(null);
+
   const layout = useMemo(() => {
     const SCALE = 70; // px per meter
     const GAP = 30; // px gap between screens
@@ -817,41 +957,192 @@ function PixelMapCanvas({
 
     let cursorX = PAD;
     let maxBottom = 0;
+    let minLeft = PAD;
+    let minTop = TOP + PAD;
+
+    // First pass — auto-flow positions every screen left-to-right, but
+    // skips the flow advance for screens that carry an explicit
+    // posX/posY override. Those screens are placed at their stored
+    // coordinates and contribute to the canvas bounds rather than the
+    // cursor, so dragging one out of the row doesn't leave a gap in
+    // the auto-flow row.
     const items = screens.map((s) => {
       const panel = resolveScreenPanel(s, panels);
       const screenWidthPx = s.panelsWide * panel.physicalWidth * SCALE;
       const screenHeightPx = s.panelsTall * panel.physicalHeight * SCALE;
       const cellW = panel.physicalWidth * SCALE;
       const cellH = panel.physicalHeight * SCALE;
-      const item = {
+
+      let x: number;
+      let y: number;
+      const positioned = s.posX !== undefined || s.posY !== undefined;
+      if (positioned) {
+        x = s.posX ?? cursorX;
+        y = s.posY ?? TOP + PAD;
+      } else {
+        x = cursorX;
+        y = TOP + PAD;
+        cursorX += screenWidthPx + GAP;
+      }
+
+      maxBottom = Math.max(maxBottom, y + screenHeightPx);
+      minLeft = Math.min(minLeft, x);
+      minTop = Math.min(minTop, y);
+
+      return {
         screen: s,
         panel,
-        x: cursorX,
-        y: TOP + PAD,
+        x,
+        y,
         width: screenWidthPx,
         height: screenHeightPx,
         cellW,
         cellH,
-      };
-      cursorX += screenWidthPx + GAP;
-      maxBottom = Math.max(maxBottom, TOP + PAD + screenHeightPx);
-      return item;
+        positioned,
+      } as SvgItem;
     });
 
-    const totalWidth = Math.max(cursorX - GAP + PAD, 400);
-    const totalHeight = Math.max(maxBottom + PAD, 200);
+    const rightEdge = Math.max(
+      cursorX - GAP + PAD,
+      ...items.map((it) => it.x + it.width + PAD),
+      400,
+    );
+    // Allow negative posX/posY to grow the viewBox to the left/top so
+    // the user can drag a screen anywhere without it disappearing
+    // off-canvas.
+    const minX = Math.min(0, minLeft - PAD);
+    // Reserve TOP above the topmost element so the output badge / drag
+    // handle for that screen still has room.
+    const minY = Math.min(0, minTop - TOP);
+    const totalWidth = Math.max(rightEdge - minX, 400);
+    const totalHeight = Math.max(maxBottom + PAD - minY, 200);
 
-    return { items, totalWidth, totalHeight };
+    return { items, totalWidth, totalHeight, minX, minY };
   }, [screens, panels]);
+
+  /** Drag state lives in a ref to avoid re-installing the window
+   *  pointermove listener on every move (which would otherwise cause
+   *  the listener to drop the rapid stream of move events generated
+   *  during a fast drag). The `dragId` state below is only used for
+   *  the visual "is dragging" halo and updates exactly twice per drag
+   *  (start + end), keeping React renders cheap. */
+  const dragRef = useRef<{
+    screenId: string;
+    pointerId: number;
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+
+  // Latest layout is also captured in a ref so the window pointermove
+  // listener (installed once) can map client coords to SVG user-space
+  // using the freshest viewBox values without needing to re-attach.
+  const layoutRef = useRef(layout);
+  useEffect(() => {
+    layoutRef.current = layout;
+  }, [layout]);
+
+  // onUpdateScreen also goes through a ref so the install-once
+  // listener always calls the freshest patcher, even after parent
+  // re-renders.
+  const onUpdateScreenRef = useRef(onUpdateScreen);
+  useEffect(() => {
+    onUpdateScreenRef.current = onUpdateScreen;
+  }, [onUpdateScreen]);
+
+  /** Map a client-pixel pointer position to the SVG's user-space
+   *  coordinate system using the latest layout. */
+  const clientToSvg = useCallback(
+    (clientX: number, clientY: number): { x: number; y: number } | null => {
+      const svg = svgRef.current;
+      if (!svg) return null;
+      const rect = svg.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return null;
+      const lay = layoutRef.current;
+      const userX =
+        ((clientX - rect.left) / rect.width) * lay.totalWidth + lay.minX;
+      const userY =
+        ((clientY - rect.top) / rect.height) * lay.totalHeight + lay.minY;
+      return { x: userX, y: userY };
+    },
+    [],
+  );
+
+  /** Install pointermove / pointerup listeners exactly once for the
+   *  lifetime of this canvas. They no-op when there is no active drag,
+   *  so they're effectively free when idle. */
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const pt = clientToSvg(e.clientX, e.clientY);
+      if (!pt) return;
+      onUpdateScreenRef.current(d.screenId, {
+        posX: pt.x - d.offsetX,
+        posY: pt.y - d.offsetY,
+      });
+    };
+    const onUp = () => {
+      if (dragRef.current) {
+        dragRef.current = null;
+        setDragId(null);
+      }
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [clientToSvg]);
+
+  const handleHandlePointerDown = useCallback(
+    (
+      screenId: string,
+      itemX: number,
+      itemY: number,
+      e: React.PointerEvent,
+    ) => {
+      // Defense-in-depth — ScreenSvg already hides the handle for
+      // linked screens, but a guard here ensures the drag never
+      // starts even if the handle is somehow still reachable
+      // (browser quirks, future regressions, etc.). Linked screens
+      // don't store posX/posY on the LED tab, so dragging would be
+      // a no-op with confusing visual feedback.
+      if (screenId.startsWith("led-linked-")) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const pt = clientToSvg(e.clientX, e.clientY);
+      if (!pt) return;
+      onSelectScreen(screenId);
+      dragRef.current = {
+        screenId,
+        pointerId: e.pointerId,
+        offsetX: pt.x - itemX,
+        offsetY: pt.y - itemY,
+      };
+      setDragId(screenId);
+    },
+    [clientToSvg, onSelectScreen],
+  );
 
   return (
     <div className="led-canvas-wrap">
       <svg
+        ref={svgRef}
         className="led-canvas"
-        viewBox={`0 0 ${layout.totalWidth} ${layout.totalHeight}`}
+        viewBox={`${layout.minX} ${layout.minY} ${layout.totalWidth} ${layout.totalHeight}`}
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label="Pixel map of LED screens"
+        onClick={(e) => {
+          // Click on empty canvas = clear selection. Children stop
+          // propagation when the user clicks a screen, so this only
+          // fires on the SVG background itself.
+          if (e.target === e.currentTarget) onSelectScreen(null);
+        }}
       >
         {layout.items.map((item) => (
           <ScreenSvg
@@ -860,6 +1151,12 @@ function PixelMapCanvas({
             panels={panels}
             settings={settings}
             placeMode={placeMode}
+            isSelected={selectedScreenId === item.screen.id}
+            isDragging={dragId === item.screen.id}
+            onSelect={() => onSelectScreen(item.screen.id)}
+            onHandlePointerDown={(e) =>
+              handleHandlePointerDown(item.screen.id, item.x, item.y, e)
+            }
             onAddMarker={onAddMarker}
             onMoveMarker={onMoveMarker}
             onRemoveMarker={onRemoveMarker}
@@ -879,6 +1176,11 @@ type SvgItem = {
   height: number;
   cellW: number;
   cellH: number;
+  /** True when the screen has an explicit posX/posY override and is
+   *  rendered outside the auto-flow row. Currently informational —
+   *  reserved for future styling decisions (e.g. a "manually placed"
+   *  hint badge). */
+  positioned: boolean;
 };
 
 function ScreenSvg({
@@ -886,6 +1188,10 @@ function ScreenSvg({
   panels,
   settings,
   placeMode,
+  isSelected,
+  isDragging,
+  onSelect,
+  onHandlePointerDown,
   onAddMarker,
   onMoveMarker,
   onRemoveMarker,
@@ -894,6 +1200,10 @@ function ScreenSvg({
   panels: LedPanel[];
   settings: LedSettings;
   placeMode: PlaceMode;
+  isSelected: boolean;
+  isDragging: boolean;
+  onSelect: () => void;
+  onHandlePointerDown: (e: React.PointerEvent) => void;
   onAddMarker: (
     screenId: string,
     kind: LedScreenMarker["kind"],
@@ -904,6 +1214,12 @@ function ScreenSvg({
   onRemoveMarker: (screenId: string, markerId: string) => void;
 }) {
   const { screen, x, y, width, height, cellW, cellH } = item;
+  /** Per-screen panel colours override the global ledSettings ones when
+   *  present (set via the per-row preset picker, the PDF importer, or
+   *  the Add-Screen action). Falls back per field so a screen can
+   *  override only one of the two and inherit the other. */
+  const screenColorDark = screen.panelColorDark ?? settings.panelColorDark;
+  const screenColorLight = screen.panelColorLight ?? settings.panelColorLight;
   const armed: LedScreenMarker["kind"] | null =
     placeMode && placeMode.screenId === screen.id ? placeMode.kind : null;
   /** The transparent overlay rect's client bounding box is the source
@@ -1034,8 +1350,8 @@ function ScreenSvg({
         col,
         row,
         settings.panelPattern,
-        settings.panelColorDark,
-        settings.panelColorLight,
+        screenColorDark,
+        screenColorLight,
       );
       const arrowDir = showArrowsHere
         ? cellArrowDirection(
@@ -1161,13 +1477,67 @@ function ScreenSvg({
             </text>
           </g>
         )}
-      {/* Screen title */}
+      {/* Drag handle ⠿ — sits to the left of the title. Pointer-down
+          on this group starts a screen drag (not a marker placement)
+          and the cursor signals affordance.
+
+          Hidden for linked screens: their position is derived from the
+          rigging report (not stored on the LED tab), so dragging would
+          have no effect and only confuse the user. The corresponding
+          row in the table also stays inert for movement. */}
+      {!screen.linked && (() => {
+        const handleY = (screen.outputIndex != null ? titleY : y - 18) - 11;
+        const handleX = x;
+        return (
+          <g
+            transform={`translate(${handleX}, ${handleY})`}
+            onPointerDown={onHandlePointerDown}
+            style={{
+              cursor: isDragging ? "grabbing" : "grab",
+              touchAction: "none",
+            }}
+          >
+            <rect
+              x={-2}
+              y={-2}
+              width={18}
+              height={18}
+              rx={4}
+              ry={4}
+              fill="#ffffff"
+              stroke="#0f172a"
+              strokeOpacity={0.4}
+              strokeWidth={1}
+            />
+            <text
+              x={7}
+              y={11}
+              fontSize={14}
+              fontWeight={700}
+              fill="#0f172a"
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontFamily="system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+              pointerEvents="none"
+            >
+              ⠿
+            </text>
+            <title>Drag to reposition this screen on the canvas</title>
+          </g>
+        );
+      })()}
+      {/* Screen title — clickable to select on the canvas */}
       <text
-        x={x}
+        x={x + 22}
         y={screen.outputIndex != null ? titleY : y - 18}
         fontSize={13}
         fontWeight={600}
         fill="currentColor"
+        style={{ cursor: "pointer" }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect();
+        }}
       >
         {screen.name}
       </text>
@@ -1189,16 +1559,49 @@ function ScreenSvg({
       )}
       {/* Panel cells */}
       {cells}
-      {/* Outline */}
+      {/* Outline — also acts as the click-to-select target. We let the
+          click bubble to the SVG only when we explicitly stop it from
+          here on a real selection click; the empty-canvas SVG handler
+          uses `e.target === e.currentTarget` to decide what to do. */}
       <rect
         x={x}
         y={y}
         width={width}
         height={height}
-        fill="none"
+        // `transparent` (vs. `none`) keeps the outline visually empty
+        // but makes the whole interior hit-testable, so the producer
+        // can click anywhere on the screen — not just the 2px stroke —
+        // to select it. The armed-mode marker overlay is drawn after
+        // this rect, so it still wins clicks during marker placement.
+        fill="transparent"
         stroke="#0f172a"
         strokeWidth={2}
+        style={{ cursor: armed ? "crosshair" : "pointer" }}
+        onClick={(e) => {
+          // Marker-arm mode is handled by the dedicated overlay rect
+          // above; this outline only triggers selection when no marker
+          // placement is in flight.
+          if (armed) return;
+          e.stopPropagation();
+          onSelect();
+        }}
       />
+      {/* Selection / drag halo — drawn last so it sits on top of cells
+          and the outline. The pointerEvents=none keeps it from eating
+          clicks meant for the outline / overlay underneath. */}
+      {(isSelected || isDragging) && (
+        <rect
+          x={x - 4}
+          y={y - 4}
+          width={width + 8}
+          height={height + 8}
+          fill="none"
+          stroke={isDragging ? "#f59e0b" : "#2563eb"}
+          strokeWidth={3}
+          strokeDasharray={isDragging ? "6 4" : undefined}
+          pointerEvents="none"
+        />
+      )}
       {/* Click-target overlay for marker placement. Sits above cells but
           below the markers themselves so a click on an existing marker
           is captured by the marker (drag/delete) and a click anywhere

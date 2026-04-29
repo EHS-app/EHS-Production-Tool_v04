@@ -14,6 +14,7 @@ import App from "./App";
 import { Portal } from "./portal/Portal";
 import { I18nProvider } from "./lib/i18n/I18nContext";
 import { FartButton } from "./components/fart/FartButton";
+import { LanguageSelector } from "./components/LanguageSelector";
 import "./index.css";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as
@@ -727,6 +728,13 @@ function AuthGate({
             </Route>
           </Switch>
         </Router>
+        {/* Floating language selector — top-right, compact 2-letter
+            trigger that opens a popup menu. Mounted once at the
+            signed-in root so it appears on every screen (producer
+            Production Tool + freelancer Portal). */}
+        <div className="lang-fab-anchor">
+          <LanguageSelector />
+        </div>
         {/* Floating Fart Button — mounted once at the signed-in root so
             it's available from every screen (producer + portal) without
             each page having to opt in. Self-contained: no Production-Tool

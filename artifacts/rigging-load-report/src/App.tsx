@@ -32,7 +32,6 @@ import {
 } from "./lib/led";
 import { findProcessor } from "./lib/ledProcessors";
 import { NumberField } from "./components/NumberField";
-import { LanguageSelector } from "./components/LanguageSelector";
 import { ShareBriefModal } from "./components/ShareBriefModal";
 import { useT } from "./lib/i18n/I18nContext";
 import type { BuildBriefInput } from "./lib/projectBrief";
@@ -3860,10 +3859,6 @@ function App() {
             <span className="autosave-pill" title="Saved locally in your browser">
               ● Saved {savedAt}
             </span>
-            <LanguageSelector
-              className="btn btn-reset lang-select"
-              ariaLabel={tr("language.label")}
-            />
             <button
               className="btn btn-reset"
               onClick={resetAll}

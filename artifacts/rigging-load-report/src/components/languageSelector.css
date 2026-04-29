@@ -1,0 +1,166 @@
+/* ---------- Language selector (floating top-right) ----------
+ *
+ * All selectors are namespaced under `.lang-fab-*` so this file cannot
+ * collide with the rest of the app's chrome.
+ */
+
+/* The mount-site wrapper applied at the root in main.tsx that pins the
+   selector to the top-right. Kept here (rather than inline) so the
+   placement is co-located with the component's other styles. */
+.lang-fab-anchor {
+  position: fixed;
+  top: 12px;
+  right: 14px;
+  /* Above the portal bottom-nav (z 30) and the fart launcher (z 60),
+     but below the fart popup overlay (z 9999) so a fart-in-progress
+     can't get masked. */
+  z-index: 70;
+}
+
+.lang-fab-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.lang-fab-trigger {
+  width: 40px;
+  height: 32px;
+  padding: 0 8px;
+  font-family:
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  background: rgba(255, 255, 255, 0.92);
+  color: #222;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    background 120ms ease;
+}
+.lang-fab-trigger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+}
+.lang-fab-trigger:focus-visible {
+  outline: 2px solid #f88000;
+  outline-offset: 2px;
+}
+@media (prefers-color-scheme: dark) {
+  .lang-fab-trigger {
+    background: rgba(28, 28, 32, 0.92);
+    color: #f4f4f4;
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+}
+
+.lang-fab-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: #ffffff;
+  color: #1a1a1a;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+  font-family:
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    sans-serif;
+  /* Slight reveal animation. */
+  animation: lang-fab-pop 120ms ease-out;
+  transform-origin: top right;
+}
+@media (prefers-color-scheme: dark) {
+  .lang-fab-menu {
+    background: #1c1c20;
+    color: #f4f4f4;
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+}
+
+.lang-fab-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.lang-fab-option:hover,
+.lang-fab-option:focus-visible {
+  background: rgba(0, 0, 0, 0.06);
+  outline: none;
+}
+@media (prefers-color-scheme: dark) {
+  .lang-fab-option:hover,
+  .lang-fab-option:focus-visible {
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
+.lang-fab-option.selected {
+  font-weight: 700;
+}
+
+.lang-fab-option-short {
+  display: inline-block;
+  min-width: 26px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-align: center;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.08);
+}
+@media (prefers-color-scheme: dark) {
+  .lang-fab-option-short {
+    background: rgba(255, 255, 255, 0.12);
+  }
+}
+.lang-fab-option-label {
+  flex: 1;
+  font-size: 13px;
+}
+.lang-fab-option-check {
+  font-size: 13px;
+  color: #f88000;
+}
+
+@keyframes lang-fab-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Hide while printing — the export shouldn't include the selector. */
+@media print {
+  .lang-fab-anchor {
+    display: none !important;
+  }
+}

@@ -53,7 +53,11 @@ export const no: Translations = {
   "header.shareBrief": "Del brief",
 
   // ---------- Project meta card ----------
-  "project.venueProject": "Spillested / Prosjekt",
+  // Venue / Project is intentionally kept in English even when the
+  // UI language is Norwegian — these labels are industry-standard
+  // production terminology that the EHS team prefers to read in
+  // English regardless of locale.
+  "project.venueProject": "Venue / Project",
   "project.client": "Kunde",
   "project.schedule": "Tidsplan",
   "project.projectManager": "Prosjektleder",
@@ -62,13 +66,18 @@ export const no: Translations = {
   "project.placeholder.manager": "Navn",
 
   // ---------- Main view switcher ----------
-  "view.rigging": "Riggrapport",
-  "view.lighting": "Lysrapport",
-  "view.led": "LED-skjermrapport",
-  "view.stage": "Scenerapport",
-  "view.crew": "Crew-rapport",
-  "view.sound": "Lydrapport",
-  "view.riggPlan": "Riggplan",
+  // The main report tabs are kept in English in Norwegian mode by
+  // explicit request — these are the canonical names of the
+  // report tabs across the EHS production toolset and need to
+  // match what the rest of the team sees in printed reports,
+  // exports, and internal documentation.
+  "view.rigging": "Rigging Report",
+  "view.lighting": "Lighting Report",
+  "view.led": "LED Screen Report",
+  "view.stage": "Stage Report",
+  "view.crew": "Crew Report",
+  "view.sound": "Sound Report",
+  "view.riggPlan": "Rigg Plan",
 
   // ---------- Reset confirm ----------
   "reset.confirm":

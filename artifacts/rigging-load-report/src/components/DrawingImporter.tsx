@@ -503,30 +503,37 @@ export function DrawingImporter({
               title="Classic uses the schema-only prompt. Geometry Expert applies rigging-logic rules (truss anchoring, fixture alignment, motor heuristics). Production Tech treats Instrument/Truss Count tables (Position L&R, LED TRUSS, Position C, etc.) as ground truth, uses Position labels as the grouping for the report, and flags visual/table mismatches in the notes."
             >
               <legend>Detection mode</legend>
-              {(
-                [
-                  { value: "classic", label: "Classic" },
-                  { value: "geometry", label: "Geometry Expert" },
-                  { value: "production", label: "Production Tech" },
-                ] as const
-              ).map((opt) => (
-                <label
-                  key={opt.value}
-                  className={
-                    "drawing-mode-option" +
-                    (analyzerMode === opt.value ? " is-active" : "")
-                  }
-                >
-                  <input
-                    type="radio"
-                    name="drawing-analyzer-mode"
-                    value={opt.value}
-                    checked={analyzerMode === opt.value}
-                    onChange={() => setAnalyzerMode(opt.value)}
-                  />
-                  <span>{opt.label}</span>
-                </label>
-              ))}
+              {/* Wrapping the radio labels in a dedicated row keeps the
+                  fieldset's <legend> on its own line above them. Without
+                  this wrapper, browsers position <legend> as part of the
+                  fieldset's flex flow which can overlap the first radio
+                  option when the options need to wrap. */}
+              <div className="drawing-mode-options">
+                {(
+                  [
+                    { value: "classic", label: "Classic" },
+                    { value: "geometry", label: "Geometry Expert" },
+                    { value: "production", label: "Production Tech" },
+                  ] as const
+                ).map((opt) => (
+                  <label
+                    key={opt.value}
+                    className={
+                      "drawing-mode-option" +
+                      (analyzerMode === opt.value ? " is-active" : "")
+                    }
+                  >
+                    <input
+                      type="radio"
+                      name="drawing-analyzer-mode"
+                      value={opt.value}
+                      checked={analyzerMode === opt.value}
+                      onChange={() => setAnalyzerMode(opt.value)}
+                    />
+                    <span>{opt.label}</span>
+                  </label>
+                ))}
+              </div>
             </fieldset>
             <div className="drawing-preview-actions">
               <button

@@ -1,0 +1,52 @@
+The Final "Production-Ready" Logic & UI Prompt
+
+"I am moving to a 3-PDF Workflow (Stage, LED, and Lighting/Truss files). Update the Production Tech detection mode and the UI layout as follows:
+
+1. Fix UI Overlap (Crucial):
+
+Resolve the layout issue in the 'Import from drawing' card where Detection Mode options are overlapping or misaligned.  
+
+Ensure 'Classic', 'Geometry Expert', and 'Production Tech' are clearly spaced and selectable without jumping or hidden behind other elements.  
+
+2. Phase 1: Rigging & LX (Truss PDF)
+
+Manifest-First: Locate the 'Truss Count by positions' table. Create LX groups (LX1, LX2, etc.) based on these exact table rows.  
++1
+
+Component Breakdown: Instead of generic lines, populate the Rigging Report with the specific inventory listed (e.g., fd34-300, fd34-100).  
++1
+
+Spatial Link: Match these counts to the truss lines on the drawing. Calculate total length and weight based on the specific pieces found in the table.  
++1
+
+3. Phase 2: Lighting (Lighting PDF)
+
+Table Match: Locate the 'Instrument count by Position' table.  
++1
+
+Fixture Assignment: Match each fixture (e.g., MAC Viper XIP, Rush MH7) to its LX number or 'Floor' position as defined in that table.  
++1
+
+Database Sync: Pull all weights and power specs from the internal database. If a fixture is on the 'Floor', assign its weight to the Stage Floor load.  
++1
+
+4. Phase 3: LED Screens (LED PDF)
+
+Surface Extraction: Identify video zones (Main LED, Triangle, Towers) using the labels and 'NOTES LED'.  
+
+Panel Calculation: Read the surface area (e.g., 128m²) and panel type. Calculate the exact number of panels needed to fill that area based on a 0.5m x 0.5m standard.  
+
+Resolution: Include pixel dimensions (e.g., 4096 x 2048p) in the LED Screen Report.  
+
+5. Phase 4: Stage & Floor (Stage PDF)
+
+Perimeter Mapping: Identify 'Main Stage', 'Satelit Scene' (4m circle), and 'Bøyleland' zones.  
++1
+
+Decking Manifest: Extract counts for 2x1m and 1x1m decks from the Stage table and populate the Stage Report.  
++1
+
+6. Conflict Priority:
+
+If visual symbols on the PDF differ from the numbers in the Tables, the Tables are the priority. Use the Table counts for all final reports and exports."  
++1

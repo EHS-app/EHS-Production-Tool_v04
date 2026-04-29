@@ -5248,15 +5248,24 @@ input:focus {
  * ------------------------------------------------------------------------- */
 
 .drawing-mode-toggle {
+  /* Reverted to a plain block fieldset so the browser-default
+   * <legend> placement doesn't fight the flex layout. The radio
+   * options live in a dedicated `.drawing-mode-options` row so they
+   * can wrap on narrow widths without the legend ever overlapping
+   * the first option. */
+  display: block;
   border: 1px solid var(--border, #e2e8f0);
   border-radius: 8px;
   padding: 6px 10px 8px;
   margin: 8px 0 6px;
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 12px;
   background: var(--bg-elev, #f8fafc);
+  /* Critical: contain the fieldset to its parent's width so it
+   * can't push the surrounding meta column wider than expected
+   * and create the appearance of overlap with neighbouring
+   * cards. min-width: 0 lets the inner row wrap correctly when
+   * the column is narrow. */
+  min-width: 0;
+  max-width: 100%;
 }
 
 .drawing-mode-toggle[disabled] {
@@ -5273,15 +5282,27 @@ input:focus {
   padding: 0 4px;
 }
 
+.drawing-mode-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 4px;
+}
+
 .drawing-mode-option {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: 13px;
   cursor: pointer;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 999px;
   user-select: none;
+  /* Each option is its own pill so two-word labels like "Geometry
+   * Expert" or "Production Tech" never wrap mid-label and
+   * collide with adjacent options. */
+  white-space: nowrap;
 }
 
 .drawing-mode-option input {

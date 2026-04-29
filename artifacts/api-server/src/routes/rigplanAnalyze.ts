@@ -286,47 +286,105 @@ filling in the JSON schema described further below. Keep the schema
 and field names exactly as specified — these rules change HOW you
 read the drawing, not the output shape.
 
-1. RECONCILE DATA TABLES
-   * Locate any "Instrument Count by Position" / "Truss Count by
-     Position" / fixture summary tables on the drawing. Treat those
-     tables as the ABSOLUTE GROUND TRUTH for quantities.
-   * Example: if the table for "Position L&R" lists 34x Rush MH7,
-     you MUST emit qty=34 for that fixture on that position.
-   * If the table and your visual count of the symbols disagree,
-     prefer the table number for "qty" but record the discrepancy
-     (see ERROR HANDLING below).
+The producer typically uploads several PDFs in sequence (Stage,
+LED, Lighting/Truss). Each call analyses ONE PDF, but the rules
+below cover all four phases — apply only the phases relevant to
+THIS drawing and leave the other categories empty. The Production
+Tool merges results across uploads on its end.
 
-2. POSITIONAL SEARCHING
-   * Read the drawing zone-by-zone using the "Position" labels in
-     the tables (e.g. "LED TRUSS", "Position L&R", "Position C",
-     "FOH", "Mid"). Map every Position label to the schema's
-     "trussName" field — this becomes the item's Position Group.
-   * For trusses, use the same Position label as the truss "name".
+CONFLICT PRIORITY (HIGHEST AUTHORITY):
+   * Whenever the drawing's tabular data ("Truss Count by Position",
+     "Instrument Count by Position", "NOTES LED", stage decking
+     manifest, etc.) contradicts what visual symbols on the drawing
+     appear to show, the TABLES WIN. Use the table number for every
+     reported quantity. Record the visual mismatch in the "notes"
+     field with the exact form: "MISMATCH: drawing shows X, table
+     shows Y." so the producer can investigate in the overlay
+     editor.
 
-3. ATTRIBUTE ASSIGNMENT
-   * For every fixture, fill in: name (from the legend, e.g. "MAC
-     Viper XIP"), qty (from the table), trussName (the Position
-     label), weightKg / watts (catalogue values when known).
-   * If the legend or the table specifies a fixture MODE / preset
-     (e.g. "Basic", "Extended", "Advanced", "16-bit"), append it to
-     the fixture name in parentheses, e.g. "MAC Viper XIP (Basic)".
-     Do NOT invent a mode if the drawing doesn't show one.
+PHASE 1 — RIGGING & TRUSS (run when the drawing shows truss content):
+   * Locate the "Truss Count by Position" / "Truss Inventory" / similar
+     manifest table. EACH ROW in that table becomes one entry in the
+     output's "trusses[]" array — do not collapse rows.
+   * Use the Position label (e.g. "LX1", "LX2", "LED TRUSS", "FOH",
+     "MID") as the truss "name". Set "trussName" on every fixture /
+     LED / sound item that hangs on that truss to the same string,
+     so downstream grouping works.
+   * Read the manifest's part-number columns (e.g. "fd34-300",
+     "fd34-100", "30x30 0.5m corner") and list them in that truss's
+     "notes" field, comma-separated, so the rigging report can show
+     the exact pieces. Derive "lengthM" by summing the part lengths
+     (fd34-300 = 3.0 m, fd34-200 = 2.0 m, fd34-100 = 1.0 m, "0.5m
+     corner" = 0.5 m, etc.).
+   * "pointCount" = number of motor / pickup points on that truss
+     as shown on the drawing or specified in the table. If a hoist
+     model is labelled (e.g. "Lodestar 1t", "500 kg"), populate
+     "hoistKg" with the per-motor working-load capacity in kg.
 
-4. ERROR HANDLING
-   * If the visual count on the drawing does NOT match the table
-     "Total" for that fixture-on-position, still emit the row using
-     the table count, but PREFIX the "notes" field with
-     "MISMATCH: drawing shows X, table shows Y." so the producer
-     can investigate in the overlay editor.
-   * If a fixture is genuinely not touching a truss line (floor
-     package, ground stack, pipe-mounted), set trussName to "Floor"
-     or "Pipe" exactly, matching the mounting type shown.
+PHASE 2 — LIGHTING (run when the drawing shows fixture content):
+   * Locate the "Instrument Count by Position" table. For every row,
+     emit one entry in "lighting[]" with: name (full fixture model
+     from the legend, e.g. "MAC Viper XIP", "MAC Viper AirFX",
+     "MAC One", "Rush MH7", "Color STRIKE M"), qty (the table
+     count), trussName (the Position column).
+   * Floor-mounted fixtures (Position labelled "Floor", "Stage Floor",
+     "FOH Floor", "Ground"): set trussName="Floor" exactly. The
+     Production Tool groups them into a single "Floor" system in the
+     Rigging Report so the producer can read off the total
+     stage-floor lighting weight at a glance.
+   * Pipe-mounted fixtures (house pipe, balcony rail): set
+     trussName="Pipe" exactly.
+   * For weightKg and watts, prefer the manufacturer's catalogue
+     values for the recognised model. The Production Tool has an
+     internal fixture catalogue and will validate / override on
+     apply, so getting the NAME RIGHT matters more than the exact
+     gram count. Reference values for common Martin / Chauvet /
+     Elation fixtures: MAC Viper XIP 37.8 kg / 1040 W, MAC Viper
+     AirFX 36.7 kg / 1225 W, MAC One 5.4 kg / 160 W, NICK NRG 1201
+     12.9 kg / 340 W, Pulse Panel FX 14.4 kg / 900 W, Color STRIKE
+     M 13.1 kg / 740 W, SnowARC Pro Quad 40 mkII 10.5 kg / 390 W.
+   * If the legend or the table specifies a fixture MODE (e.g.
+     "Basic", "Extended", "Compact", "16-bit"), append it to the
+     name in parentheses, e.g. "MAC Viper XIP (Basic)". Do NOT
+     invent a mode if the drawing doesn't show one.
 
-5. CONFIDENCE FLAGGING
-   * Set "confidence" honestly. Items with confidence < 0.7 will be
-     rendered with a "Check Me" indicator in the editor so the user
-     can verify them. Lower confidence does NOT mean omit — it
-     means flag.
+PHASE 3 — LED SCREENS (run when the drawing shows video / LED content):
+   * Identify each video surface zone using its label and any
+     "NOTES LED" block — typical zones are "Main LED", "Triangle",
+     "Side Towers L/R", "Stage Backdrop". One ledScreens[] entry
+     per zone.
+   * If the notes give a SURFACE AREA in m² (e.g. "128 m²"), use it
+     to compute panel counts assuming a default 0.5 m × 0.5 m panel
+     (4 panels per m²). Fill in widthM / heightM from labelled
+     dimensions when present; otherwise leave them null and put
+     the surface area + computed panel count in "notes" (e.g.
+     "Surface 128 m² — ~512 panels @ 0.5×0.5 m").
+   * If the notes give a PIXEL RESOLUTION (e.g. "4096 × 2048p"),
+     copy it verbatim to "notes" so the LED Screen Report can show
+     it alongside the panel count.
+
+PHASE 4 — STAGE & FLOOR (run when the drawing shows stage content):
+   * Identify each stage zone and emit one stages[] entry per zone:
+     "Main Stage" (the primary deck), "Satelit Scene" (typically a
+     4 m circular B-stage), "Bøyleland" (catwalk / runway), or
+     whatever labels the drawing uses.
+   * For circular zones like Satelit Scene, set widthM = depthM =
+     diameter (e.g. 4 / 4 for a 4 m circle) and put "circular,
+     Ø4 m" in "notes".
+   * Locate the "Decking Manifest" / "Stage Build" / similar table
+     and list the deck-piece counts in the relevant stage's "notes"
+     field (e.g. "12× 2×1 m + 6× 1×1 m decks").
+
+GENERAL:
+   * Read each table TOP-TO-BOTTOM. Don't skip rows even if they
+     look duplicate — they may differ by Position or fixture mode.
+   * Set "confidence" honestly. Items with confidence < 0.7 will
+     be rendered with a "Check Me" indicator in the editor so the
+     user can verify them. Lower confidence does NOT mean omit —
+     it means flag.
+   * If a phase's content isn't present in this particular drawing
+     (e.g. you got the Stage PDF, no lighting), leave that phase's
+     array empty — don't invent items to fill it.
 
 Now apply those rules while emitting the schema below.`;
 

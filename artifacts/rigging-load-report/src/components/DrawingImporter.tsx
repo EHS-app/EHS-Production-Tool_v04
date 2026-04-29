@@ -552,8 +552,8 @@ export function DrawingImporter({
                   disabled={isPreparingFloorPlan || isAnalyzing}
                   title={
                     hasFloorPlan
-                      ? "Replace the current Rigg Plan backdrop"
-                      : "Use this drawing as the Rigg Plan backdrop"
+                      ? "Replace the current Smash It backdrop"
+                      : "Use this drawing as the Smash It backdrop"
                   }
                 >
                   {isPreparingFloorPlan
@@ -720,7 +720,7 @@ export function DrawingImporter({
                   }
                 />
                 <strong>Venue dimensions</strong>
-                <span className="led-sub">→ Rigg Plan</span>
+                <span className="led-sub">→ Smash It</span>
               </label>
               <div className="drawing-group-body">
                 W {fmt(items.venue.widthM)} m · D {fmt(items.venue.depthM)} m ·

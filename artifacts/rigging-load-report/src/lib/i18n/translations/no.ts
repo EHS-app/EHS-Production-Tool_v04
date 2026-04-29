@@ -77,7 +77,7 @@ export const no: Translations = {
   "view.stage": "Stage Report",
   "view.crew": "Crew Report",
   "view.sound": "Sound Report",
-  "view.riggPlan": "Rigg Plan",
+  "view.riggPlan": "Smash It",
 
   // ---------- Reset confirm ----------
   "reset.confirm":

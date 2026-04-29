@@ -171,7 +171,7 @@ export function RiggPlanView({
     <div className="led-report">
       <header className="led-report-header">
         <div>
-          <h2>Rigg Plan</h2>
+          <h2>Smash It</h2>
           <p className="led-report-sub">
             Top-down floor plan of the venue. Each rigging system from the
             Rigging Report appears as a truss — drag to position, edit

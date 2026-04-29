@@ -2503,7 +2503,7 @@ input:focus {
 }
 .led-table th,
 .led-table td {
-  padding: 8px 6px;
+  padding: 10px 10px;
   border-bottom: 1px solid var(--border, #e5e7eb);
   text-align: left;
   vertical-align: middle;
@@ -2514,9 +2514,56 @@ input:focus {
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  /* Headers should never wrap mid-word — "Size (m)" was being
+   * broken into three vertical lines because the column collapsed
+   * to ~30px when the table was crowded. */
+  white-space: nowrap;
 }
 .led-table .led-num {
   font-variant-numeric: tabular-nums;
+  /* Keep the primary numeric value (e.g. "4,096 × 4,096" or
+   * "16 × 16") on a single line so it never collapses into a
+   * 1-character vertical strip when the column gets squeezed. */
+  white-space: nowrap;
+}
+/* The secondary line under each numeric value (px count, panel
+ * count, area) IS allowed to wrap normally — only the primary
+ * value needs to stay on one line. */
+.led-table .led-num .led-sub {
+  white-space: normal;
+  line-height: 1.35;
+}
+/* Per-column min-widths give the squeezable numeric and select
+ * columns a guaranteed amount of breathing room. The rest of the
+ * columns (Name, Notes, etc.) keep their flexible auto width.
+ * Column order, by header: 1.Source 2.Name 3.Panel 4.Wide 5.Tall
+ * 6.Shape 7.Resolution 8.Size 9.Output 10.Color 11.Notes 12.actions
+ */
+.led-table th:nth-child(3),
+.led-table td:nth-child(3) {
+  min-width: 180px; /* Panel model select */
+}
+.led-table th:nth-child(7),
+.led-table td:nth-child(7) {
+  min-width: 110px; /* Resolution */
+}
+.led-table th:nth-child(8),
+.led-table td:nth-child(8) {
+  min-width: 96px;  /* Size (m) — the column the user flagged */
+  text-align: right; /* numbers read better right-aligned */
+}
+.led-table th:nth-child(8) {
+  text-align: right;
+}
+.led-table th:nth-child(7) {
+  text-align: right;
+}
+.led-table td:nth-child(7) {
+  text-align: right;
+}
+.led-table th:nth-child(10),
+.led-table td:nth-child(10) {
+  min-width: 160px; /* Color swatches */
 }
 .led-row-linked {
   background: rgba(96, 165, 250, 0.06);

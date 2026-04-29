@@ -4,4 +4,3 @@
 // Each model/table should define a Drizzle table, insert schema, and types.
 
 export * from "./venueMemory";
-export * from "./freelancerProfiles";

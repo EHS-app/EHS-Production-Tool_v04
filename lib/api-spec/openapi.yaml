@@ -10,8 +10,6 @@ servers:
 tags:
   - name: health
     description: Health operations
-  - name: profiles
-    description: Shared freelancer talent pool
 paths:
   /healthz:
     get:
@@ -26,65 +24,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
-  /profiles:
-    get:
-      operationId: listFreelancerProfiles
-      tags: [profiles]
-      summary: List freelancer profiles
-      description: |
-        Returns every freelancer profile that has a non-empty full name.
-        Used by the Production Tool's Crew tab to render the Live Talent
-        Pool. Requires the caller to be signed in (Clerk).
-      responses:
-        "200":
-          description: Talent pool
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/FreelancerProfile"
-        "401":
-          description: Sign-in required
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
-  /profiles/save:
-    post:
-      operationId: saveFreelancerProfile
-      tags: [profiles]
-      summary: Upsert the signed-in freelancer's profile
-      description: |
-        Upserts the signed-in user's row in the shared freelancer pool.
-        Keyed on the caller's Clerk user id, so a user always has exactly
-        one row. Called by the Freelance Portal whenever the freelancer
-        saves their Profile.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/FreelancerProfileInput"
-      responses:
-        "200":
-          description: Saved
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FreelancerProfile"
-        "400":
-          description: Validation failed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
-        "401":
-          description: Sign-in required
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
 components:
   schemas:
     HealthStatus:
@@ -94,61 +33,4 @@ components:
           type: string
       required:
         - status
-    ApiError:
-      type: object
-      properties:
-        error:
-          type: string
-      required:
-        - error
-    FreelancerProfileInput:
-      type: object
-      description: Payload for POST /profiles/save. The server uses the caller's Clerk user id as the upsert key.
-      properties:
-        fullName:
-          type: string
-        email:
-          type: string
-        skills:
-          type: array
-          items:
-            type: string
-        location:
-          type: string
-        bio:
-          type: string
-      required:
-        - fullName
-        - email
-        - skills
-        - location
-        - bio
-    FreelancerProfile:
-      type: object
-      description: Public talent-pool record. Returned by GET /profiles and POST /profiles/save.
-      properties:
-        id:
-          type: integer
-        fullName:
-          type: string
-        email:
-          type: string
-        skills:
-          type: array
-          items:
-            type: string
-        location:
-          type: string
-        bio:
-          type: string
-        lastUpdated:
-          type: string
-          format: date-time
-      required:
-        - id
-        - fullName
-        - email
-        - skills
-        - location
-        - bio
-        - lastUpdated
+

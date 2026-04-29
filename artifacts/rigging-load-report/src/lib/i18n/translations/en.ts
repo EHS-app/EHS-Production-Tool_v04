@@ -120,4 +120,12 @@ export const en = {
   "notif.briefShared": "Brief shared.",
   "notif.briefAccepted": "Brief accepted.",
   "notif.briefDeclined": "Brief declined.",
+
+  // ---------- Fart button (lighthearted feature) ----------
+  "fart.tooltip": "Emergency Fart",
+  "fart.input.placeholder": "Enter name",
+  "fart.submit": "Fart 💨",
+  "fart.title.default": "{name} just farted 💨",
+  "fart.title.destroyed": "{name} destroyed the atmosphere 💨",
+  "fart.title.nuclear": "{name} unleashed a nuclear blast 💨",
 } as const;

@@ -1,0 +1,308 @@
+/* ---------- Fart feature styles ----------
+ *
+ * All selectors are namespaced under `.fart-*` so this file cannot
+ * collide with anything else in the production tool. The feature
+ * relies entirely on CSS animations (no Framer Motion, no extra
+ * dependencies) so it stays cheap and self-contained.
+ */
+
+/* The floating launcher in the bottom-right corner. */
+.fart-launcher {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  background: rgba(255, 255, 255, 0.92);
+  color: #222;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  /* Sit above the portal bottom-nav (z-index 30) but below the popup
+     overlay (z-index 9999) so the popup always wins clicks. */
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
+  font-family: inherit;
+}
+.fart-launcher:hover {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24);
+}
+.fart-launcher:focus-visible {
+  outline: 2px solid #f88000;
+  outline-offset: 3px;
+}
+@media (prefers-color-scheme: dark) {
+  .fart-launcher {
+    background: rgba(28, 28, 32, 0.92);
+    color: #f4f4f4;
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+}
+
+/* ---------- Popup (input modal) ---------- */
+
+.fart-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 8, 12, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fart-fade-in 140ms ease-out;
+}
+
+.fart-popup-card {
+  width: min(360px, calc(100vw - 32px));
+  background: #ffffff;
+  color: #1a1a1a;
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+  font-family:
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  .fart-popup-card {
+    background: #1c1c20;
+    color: #f4f4f4;
+  }
+}
+
+.fart-popup-title {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.fart-popup-input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 15px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.03);
+  color: inherit;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+@media (prefers-color-scheme: dark) {
+  .fart-popup-input {
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.06);
+  }
+}
+.fart-popup-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  justify-content: flex-end;
+}
+.fart-popup-button {
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+.fart-popup-button.primary {
+  background: #f88000;
+  color: #111;
+}
+.fart-popup-button.primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.fart-popup-button.secondary {
+  background: transparent;
+  color: inherit;
+  border-color: rgba(0, 0, 0, 0.18);
+}
+@media (prefers-color-scheme: dark) {
+  .fart-popup-button.secondary {
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+}
+
+/* ---------- Effect overlay (after submit) ---------- */
+
+.fart-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 9999;
+  overflow: hidden;
+  animation: fart-fade-in 200ms ease-out;
+}
+
+.fart-overlay-text {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  color: #ffffff;
+  font-family:
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    sans-serif;
+  font-weight: 900;
+  font-size: clamp(28px, 6vw, 56px);
+  letter-spacing: 0.5px;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+  padding: 0 16px;
+  animation: fart-bounce 700ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Greenish humour flash, tucked under the text but above the dark
+   backdrop. Pointer events disabled so it never swallows clicks. */
+.fart-overlay-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at center,
+    rgba(120, 220, 100, 0.55) 0%,
+    rgba(120, 220, 100, 0) 70%
+  );
+  mix-blend-mode: screen;
+  pointer-events: none;
+  animation: fart-green-flash 900ms ease-out forwards;
+}
+
+/* Individual cloud — JS positions and times each one randomly. */
+.fart-cloud {
+  position: absolute;
+  font-size: clamp(40px, 8vw, 90px);
+  opacity: 0;
+  pointer-events: none;
+  animation-name: fart-cloud-float;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.35));
+}
+
+@keyframes fart-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fart-bounce {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes fart-cloud-float {
+  0% {
+    transform: translate(0, 0) scale(0.6) rotate(0deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.95;
+  }
+  100% {
+    transform: translate(var(--fart-dx, 80px), var(--fart-dy, -120px))
+      scale(1.4) rotate(var(--fart-rot, 18deg));
+    opacity: 0;
+  }
+}
+
+@keyframes fart-green-flash {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Screen shake — applied to <html> for the duration of the burst.
+   Kept short so it's funny, not nausea-inducing. */
+@keyframes fart-shake {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  10% {
+    transform: translate(-4px, 2px);
+  }
+  20% {
+    transform: translate(4px, -2px);
+  }
+  30% {
+    transform: translate(-3px, -3px);
+  }
+  40% {
+    transform: translate(3px, 3px);
+  }
+  50% {
+    transform: translate(-2px, 1px);
+  }
+  60% {
+    transform: translate(2px, -1px);
+  }
+  70% {
+    transform: translate(-2px, 2px);
+  }
+  80% {
+    transform: translate(2px, 2px);
+  }
+  90% {
+    transform: translate(-1px, -1px);
+  }
+}
+html.fart-shake {
+  animation: fart-shake 600ms ease-in-out 1;
+}
+html.fart-shake-nuclear {
+  animation: fart-shake 900ms ease-in-out 2;
+}
+
+/* Respect users who've opted out of motion: skip shake + dampen
+   the cloud animation timing so nothing is jarring. */
+@media (prefers-reduced-motion: reduce) {
+  html.fart-shake,
+  html.fart-shake-nuclear {
+    animation: none;
+  }
+  .fart-cloud,
+  .fart-overlay-text,
+  .fart-overlay-flash {
+    animation-duration: 1ms !important;
+  }
+}

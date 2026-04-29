@@ -125,4 +125,12 @@ export const no: Translations = {
   "notif.briefShared": "Brief delt.",
   "notif.briefAccepted": "Brief akseptert.",
   "notif.briefDeclined": "Brief avslått.",
+
+  // ---------- Fart button (lighthearted feature) ----------
+  "fart.tooltip": "Akutt promp",
+  "fart.input.placeholder": "Skriv inn navn",
+  "fart.submit": "Promp 💨",
+  "fart.title.default": "{name} prompet nettopp 💨",
+  "fart.title.destroyed": "{name} ødela atmosfæren 💨",
+  "fart.title.nuclear": "{name} slapp løs en atombombe 💨",
 };

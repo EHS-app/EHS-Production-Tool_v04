@@ -80,12 +80,14 @@ import {
   type ChannelMapping,
   type Distro,
   type DistroPresetId,
+  type DistroSuggestion,
   type Drop,
   type DropCableKind,
   type PowerCircuit,
   type PowerItem,
   type PowerPhase,
   type PowerPlan,
+  type SuggestedDistro,
 } from "./lib/power";
 import { PowerPlanView } from "./components/PowerPlanView";
 import {
@@ -2835,6 +2837,113 @@ function App() {
     }));
   };
 
+  // Apply an advisory rebalance suggestion: move N units of a fixture
+  // from the source channel to the destination channel. If the
+  // destination already has a drop of the same fixture+truss+cable,
+  // merge into it; otherwise create a new drop. If the source drop
+  // reaches 0 it is removed.
+  const applyDistroSuggestion = (
+    distroId: string,
+    suggestion: DistroSuggestion,
+  ) => {
+    setPower((p) => ({
+      ...p,
+      distros: p.distros.map((d) => {
+        if (d.id !== distroId) return d;
+        // Locate the source drop and the destination channel up-front
+        // so this is transactional: if either is missing (suggestion
+        // went stale because mapping/preset changed), we no-op rather
+        // than half-applying and silently losing fixtures.
+        const src = d.channels.find((c) => c.index === suggestion.fromChannelIndex);
+        if (!src) return d;
+        const dst = d.channels.find((c) => c.index === suggestion.toChannelIndex);
+        if (!dst) return d;
+        const srcDrop = src.drops.find(
+          (dr) =>
+            dr.fixtureRef === suggestion.fixtureRef &&
+            dr.trussId === suggestion.trussId,
+        );
+        if (!srcDrop) return d;
+        const moveQty = Math.min(srcDrop.qty, Math.max(1, suggestion.qty));
+        if (moveQty <= 0) return d;
+        const cable = srcDrop.cable;
+        return {
+          ...d,
+          channels: d.channels.map((c) => {
+            if (c.index === suggestion.fromChannelIndex) {
+              const remaining = srcDrop.qty - moveQty;
+              return {
+                ...c,
+                drops:
+                  remaining > 0
+                    ? c.drops.map((dr) =>
+                        dr.id === srcDrop.id ? { ...dr, qty: remaining } : dr,
+                      )
+                    : c.drops.filter((dr) => dr.id !== srcDrop.id),
+              };
+            }
+            if (c.index === suggestion.toChannelIndex) {
+              const existing = c.drops.find(
+                (dr) =>
+                  dr.fixtureRef === suggestion.fixtureRef &&
+                  dr.trussId === suggestion.trussId &&
+                  (dr.cable ?? "") === (cable ?? ""),
+              );
+              if (existing) {
+                return {
+                  ...c,
+                  drops: c.drops.map((dr) =>
+                    dr.id === existing.id
+                      ? { ...dr, qty: dr.qty + moveQty }
+                      : dr,
+                  ),
+                };
+              }
+              return {
+                ...c,
+                drops: [
+                  ...c.drops,
+                  makeDrop(
+                    suggestion.trussId,
+                    suggestion.fixtureRef,
+                    moveQty,
+                    cable,
+                  ),
+                ],
+              };
+            }
+            return c;
+          }),
+        };
+      }),
+    }));
+  };
+
+  // Apply an auto-suggested layout: append N new distros to the plan,
+  // each pre-filled with channels and drops. Preserves all existing
+  // distros + legacy circuits. The user can edit/remove afterwards.
+  const applyPowerLayoutSuggestion = (suggested: SuggestedDistro[]) => {
+    if (suggested.length === 0) return;
+    setPower((p) => {
+      const startIndex = p.distros.length + 1;
+      const newDistros: Distro[] = suggested.map((s, i) => {
+        const base = makeDistro(s.presetId, startIndex + i);
+        // Apply feedsTrusses + drop blueprints onto channels.
+        return {
+          ...base,
+          feedsTrusses: [...s.feedsTrusses],
+          channels: base.channels.map((c) => {
+            const drops = s.drops
+              .filter((d) => d.channelIndex === c.index)
+              .map((d) => makeDrop(d.trussId, d.fixtureRef, d.qty));
+            return drops.length > 0 ? { ...c, drops } : c;
+          }),
+        };
+      });
+      return { ...p, distros: [...p.distros, ...newDistros] };
+    });
+  };
+
   // ---- Stage Report ----
   const addStage = () => {
     setStages((all) => [
@@ -4433,6 +4542,8 @@ function App() {
           onAddDrop={addDrop}
           onUpdateDrop={updateDrop}
           onRemoveDrop={removeDrop}
+          onApplyDistroSuggestion={applyDistroSuggestion}
+          onApplyPowerLayoutSuggestion={applyPowerLayoutSuggestion}
         />
       )}
 
@@ -4561,6 +4672,8 @@ type LightingPlanViewProps = {
     patch: Partial<Omit<Drop, "id">>,
   ) => void;
   onRemoveDrop: (distroId: string, channelIndex: number, dropId: string) => void;
+  onApplyDistroSuggestion: (distroId: string, suggestion: DistroSuggestion) => void;
+  onApplyPowerLayoutSuggestion: (suggested: SuggestedDistro[]) => void;
 };
 
 function LightingPlanView({
@@ -4593,6 +4706,8 @@ function LightingPlanView({
   onAddDrop,
   onUpdateDrop,
   onRemoveDrop,
+  onApplyDistroSuggestion,
+  onApplyPowerLayoutSuggestion,
 }: LightingPlanViewProps) {
   const systemNameById = new Map(systems.map((s) => [s.id, s.name]));
 
@@ -4996,6 +5111,8 @@ function LightingPlanView({
         onAddDrop={onAddDrop}
         onUpdateDrop={onUpdateDrop}
         onRemoveDrop={onRemoveDrop}
+        onApplyDistroSuggestion={onApplyDistroSuggestion}
+        onApplyPowerLayoutSuggestion={onApplyPowerLayoutSuggestion}
       />
 
       <div className="card">

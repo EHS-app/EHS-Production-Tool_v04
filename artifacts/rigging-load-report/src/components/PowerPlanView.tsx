@@ -19,6 +19,8 @@ import {
   computeDistroLoad,
   computeDistroPlanTotals,
   computeDistroSuggestions,
+  computeDistroTrussSplit,
+  computeTrussPowerSummary,
   computeUnpoweredFixtures,
   DEFAULT_CHANNEL_MAPPING,
   DISTRO_PRESETS,
@@ -29,12 +31,15 @@ import {
   POWER_PHASES,
   severityForRatio,
   SINGLE_PHASE_MAPPING,
+  suggestPowerLayout,
   type Channel,
   type ChannelLoad,
   type ChannelMapping,
   type Distro,
   type DistroLoad,
   type DistroPresetId,
+  type DistroSuggestion,
+  type DistroTrussShare,
   type Drop,
   type DropCableKind,
   type FixtureRef,
@@ -43,6 +48,8 @@ import {
   type PowerItem,
   type PowerPhase,
   type PowerPlan,
+  type SuggestedDistro,
+  type TrussPowerRow,
 } from "../lib/power";
 
 type SystemLite = { id: string; name: string };
@@ -78,6 +85,8 @@ type Props = {
     patch: Partial<Omit<Drop, "id">>,
   ) => void;
   onRemoveDrop: (distroId: string, channelIndex: number, dropId: string) => void;
+  onApplyDistroSuggestion: (distroId: string, suggestion: DistroSuggestion) => void;
+  onApplyPowerLayoutSuggestion: (suggested: SuggestedDistro[]) => void;
 
   // Legacy v1 handlers (kept for the read-only Legacy panel)
   onAddCircuit: () => void;
@@ -126,6 +135,16 @@ export function PowerPlanView(props: Props) {
     () => computeDistroPlanTotals(distroLoads, unpowered),
     [distroLoads, unpowered],
   );
+  const trussRows = useMemo(
+    () => computeTrussPowerSummary(plan.distros, systems, fixtures, wattsLookup),
+    [plan.distros, systems, fixtures, wattsLookup],
+  );
+  const suggestedLayout = useMemo(
+    () => suggestPowerLayout(unpowered, systems),
+    [unpowered, systems],
+  );
+
+  const [autoSuggestOpen, setAutoSuggestOpen] = useState(false);
 
   return (
     <section className="power-plan">
@@ -179,8 +198,39 @@ export function PowerPlanView(props: Props) {
               <strong>{totals.unpoweredFixtureCount}</strong> fixtures not powered
             </span>
           )}
+          <button
+            type="button"
+            className="btn btn-soft btn-sm"
+            onClick={() => setAutoSuggestOpen(true)}
+            disabled={unpowered.length === 0}
+            title={
+              unpowered.length === 0
+                ? "No unpowered fixtures — nothing to auto-suggest"
+                : "Propose distros for the trusses with unpowered fixtures"
+            }
+          >
+            ⚡ Auto-suggest layout
+          </button>
         </div>
       </div>
+
+      {/* Truss-first workflow layer: producers think trusses → fixtures →
+          power. This panel surfaces that mental model above the distro
+          editor so the rig drives the power, not the other way around. */}
+      {trussRows.length > 0 && (
+        <TrussPowerPanel
+          rows={trussRows}
+          unpowered={unpowered}
+          onAutoAssignTruss={(trussId) => {
+            const trussUnpowered = unpowered.filter((u) => u.trussId === trussId);
+            if (trussUnpowered.length === 0) return;
+            const proposals = suggestPowerLayout(trussUnpowered, systems);
+            if (proposals.length > 0) {
+              props.onApplyPowerLayoutSuggestion(proposals);
+            }
+          }}
+        />
+      )}
 
       {plan.distros.length === 0 ? (
         <div className="led-empty">
@@ -226,6 +276,9 @@ export function PowerPlanView(props: Props) {
                 onRemoveDrop={(idx, dropId) =>
                   props.onRemoveDrop(d.id, idx, dropId)
                 }
+                onApplySuggestion={(s) =>
+                  props.onApplyDistroSuggestion(d.id, s)
+                }
               />
             );
           })}
@@ -250,6 +303,17 @@ export function PowerPlanView(props: Props) {
         <LegacyCircuitsPanel
           circuits={plan.circuits}
           onRemoveCircuit={props.onRemoveCircuit}
+        />
+      )}
+
+      {autoSuggestOpen && (
+        <AutoSuggestModal
+          suggested={suggestedLayout}
+          onApply={(picks) => {
+            props.onApplyPowerLayoutSuggestion(picks);
+            setAutoSuggestOpen(false);
+          }}
+          onClose={() => setAutoSuggestOpen(false)}
         />
       )}
     </section>
@@ -327,6 +391,7 @@ type DistroCardProps = {
     patch: Partial<Omit<Drop, "id">>,
   ) => void;
   onRemoveDrop: (channelIndex: number, dropId: string) => void;
+  onApplySuggestion: (suggestion: DistroSuggestion) => void;
 };
 
 function DistroCard(props: DistroCardProps) {
@@ -339,6 +404,12 @@ function DistroCard(props: DistroCardProps) {
 
   const systemNameById = new Map(systems.map((s) => [s.id, s.name]));
   const suggestions = useMemo(() => computeDistroSuggestions(load), [load]);
+  const trussSplit = useMemo(
+    () => computeDistroTrussSplit(load),
+    [load],
+  );
+  const topSuggestion = suggestions[0];
+  const restSuggestions = suggestions.slice(1);
   const [mappingOpen, setMappingOpen] = useState(false);
 
   return (
@@ -420,6 +491,35 @@ function DistroCard(props: DistroCardProps) {
         </button>
       </div>
 
+      {/* === v2.1 LIGHTING WORKFLOW LAYER ====================================
+          Producers want to see at-a-glance:  phase stress  →  what feeds
+          where  →  what to do next.  We render those THREE things first,
+          before any electrician-style channel/mapping editor. */}
+
+      {/* 1. Per-phase + feeder summary (big bars) */}
+      <FeederSummary load={load} />
+
+      {/* 2. "HOT1 → LX1 60% · LX2 40%" feed graph */}
+      {trussSplit.length > 0 && (
+        <FeedGraph
+          distroName={distro.name || "Distro"}
+          split={trussSplit}
+          systems={systems}
+        />
+      )}
+
+      {/* 3. Top suggestion banner with one-click Apply */}
+      {topSuggestion && (
+        <SuggestionBanner
+          suggestion={topSuggestion}
+          load={load}
+          systems={systems}
+          onApply={() => props.onApplySuggestion(topSuggestion)}
+        />
+      )}
+
+      {/* === Editor layer (mapping + remaining warnings) ================ */}
+
       {mappingOpen && (
         <ChannelMappingEditor
           mapping={distro.channelMapping}
@@ -436,11 +536,9 @@ function DistroCard(props: DistroCardProps) {
         />
       )}
 
-      {/* Per-phase + feeder summary */}
-      <FeederSummary load={load} />
-
-      {/* Warnings */}
-      <WarningsPanel load={load} suggestions={suggestions} />
+      {/* Remaining warnings (overloads, etc) — top suggestion already
+          shown in the banner above. */}
+      <WarningsPanel load={load} suggestions={restSuggestions} />
 
       {/* Channel grid */}
       <div className="power-channel-grid">
@@ -772,6 +870,312 @@ function WarningsPanel({
           </span>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Feed graph — "HOT1 → LX1 60% · LX2 40%"
+// ──────────────────────────────────────────────────────────────────────
+
+function FeedGraph({
+  distroName,
+  split,
+  systems,
+}: {
+  distroName: string;
+  split: DistroTrussShare[];
+  systems: SystemLite[];
+}) {
+  const trussNameById = new Map(systems.map((s) => [s.id, s.name]));
+  return (
+    <div className="power-feed-graph" aria-label="Soca split — distro to truss feed shares">
+      <div className="power-feed-graph-head">
+        <span className="power-feed-graph-from">{distroName}</span>
+        <span className="power-feed-graph-arrow" aria-hidden="true">→</span>
+        <span className="power-feed-graph-summary">
+          {split
+            .map(
+              (s) =>
+                `${trussNameById.get(s.trussId) ?? s.trussId} ${Math.round(s.ratio * 100)}%`,
+            )
+            .join(" · ")}
+        </span>
+      </div>
+      <div className="power-feed-graph-bar" role="img" aria-label="Feed share bar">
+        {split.map((s, i) => (
+          <div
+            key={s.trussId}
+            className={`power-feed-graph-seg power-feed-graph-seg--${i % 4}`}
+            style={{ width: `${Math.max(2, s.ratio * 100)}%` }}
+            title={`${trussNameById.get(s.trussId) ?? s.trussId}: ${fmtInt(s.watts)} W (${Math.round(s.ratio * 100)}%)`}
+          >
+            <span className="power-feed-graph-seg-label">
+              {trussNameById.get(s.trussId) ?? s.trussId}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Suggestion banner — top-of-card, one-click "Apply"
+// ──────────────────────────────────────────────────────────────────────
+
+function SuggestionBanner({
+  suggestion,
+  load,
+  systems,
+  onApply,
+}: {
+  suggestion: DistroSuggestion;
+  load: DistroLoad;
+  systems: SystemLite[];
+  onApply: () => void;
+}) {
+  const trussName =
+    systems.find((s) => s.id === suggestion.trussId)?.name ?? suggestion.trussId;
+  // Severity colour follows the distro's worst state so the banner
+  // matches the urgency of the card.
+  const sev =
+    load.feederStatus === "over" || load.hasChannelOverload
+      ? "over"
+      : load.feederStatus === "warn" ||
+          load.hasChannelWarning ||
+          load.imbalanceWarn
+        ? "warn"
+        : "ok";
+  return (
+    <div className={severityClass(sev, "power-suggestion-banner")}>
+      <div className="power-suggestion-banner-icon" aria-hidden="true">💡</div>
+      <div className="power-suggestion-banner-text">
+        <strong>Suggested fix:</strong> {suggestion.message}{" "}
+        <span className="power-suggestion-banner-truss">on {trussName}</span>
+      </div>
+      <button
+        type="button"
+        className="btn btn-primary btn-sm"
+        onClick={onApply}
+        title="Apply this rebalance now"
+      >
+        Apply
+      </button>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Truss-first panel — fixtures → power, above the distro list
+// ──────────────────────────────────────────────────────────────────────
+
+function TrussPowerPanel({
+  rows,
+  unpowered,
+  onAutoAssignTruss,
+}: {
+  rows: TrussPowerRow[];
+  unpowered: ReturnType<typeof computeUnpoweredFixtures>;
+  onAutoAssignTruss: (trussId: string) => void;
+}) {
+  const unpoweredByTruss = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const u of unpowered) {
+      m.set(u.trussId, (m.get(u.trussId) ?? 0) + u.remainingQty);
+    }
+    return m;
+  }, [unpowered]);
+
+  return (
+    <section className="power-truss-panel led-card">
+      <header className="power-truss-panel-head">
+        <h3>Trusses</h3>
+        <span className="power-truss-panel-hint">
+          Each row is a rig position. Power is what the fixtures on it need.
+        </span>
+      </header>
+      <div className="power-truss-panel-rows">
+        {rows.map((row) => {
+          const unpoweredOnRow = unpoweredByTruss.get(row.trussId) ?? 0;
+          const ratioFed =
+            row.totalWatts > 0 ? row.assignedWatts / row.totalWatts : 0;
+          const sev: LoadSeverity =
+            unpoweredOnRow > 0 ? "warn" : row.totalQty === 0 ? "ok" : "ok";
+          return (
+            <div
+              key={row.trussId}
+              className={severityClass(sev, "power-truss-row")}
+            >
+              <div className="power-truss-row-head">
+                <strong className="power-truss-row-name">{row.trussName}</strong>
+                <span className="power-truss-row-totals">
+                  {fmtInt(row.totalWatts)} W
+                  <span className="power-truss-row-cap">
+                    {" "}
+                    · {fmtInt(row.assignedWatts)} W fed ({fmtPct(ratioFed)})
+                  </span>
+                </span>
+                {unpoweredOnRow > 0 ? (
+                  <button
+                    type="button"
+                    className="btn btn-soft btn-sm"
+                    onClick={() => onAutoAssignTruss(row.trussId)}
+                    title={`Add a distro for the ${unpoweredOnRow} unpowered fixtures on ${row.trussName}`}
+                  >
+                    ⚡ Auto-assign
+                  </button>
+                ) : (
+                  <span className="power-truss-row-ok-badge" title="All fixtures on this truss are powered">
+                    ✓ powered
+                  </span>
+                )}
+              </div>
+              {row.fixtures.length > 0 ? (
+                <ul className="power-truss-row-fixtures">
+                  {row.fixtures.map((f) => (
+                    <li key={f.name} className="power-truss-row-fixture">
+                      <span className="power-truss-row-fixture-qty">
+                        {f.qty}×
+                      </span>{" "}
+                      <span className="power-truss-row-fixture-name">
+                        {f.name}
+                      </span>{" "}
+                      <span className="power-truss-row-fixture-w">
+                        ({fmtInt(f.watts)} W)
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="power-truss-row-empty">No fixtures on this truss.</div>
+              )}
+              {row.feedingDistros.length > 0 ? (
+                <div className="power-truss-row-feeders">
+                  <span className="power-truss-row-feeders-label">Fed by:</span>
+                  {row.feedingDistros.map((fd) => (
+                    <span key={fd.distroId} className="power-truss-feeder-chip">
+                      {fd.distroName}
+                      {fd.watts > 0 && (
+                        <span className="power-truss-feeder-share">
+                          {" "}
+                          {Math.round(fd.ratio * 100)}%
+                        </span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              ) : row.totalQty > 0 ? (
+                <div className="power-truss-row-feeders power-truss-row-feeders--empty">
+                  <span className="power-truss-row-feeders-label">Fed by:</span>
+                  <span className="power-truss-feeder-chip power-truss-feeder-chip--missing">
+                    nothing yet
+                  </span>
+                </div>
+              ) : null}
+              {unpoweredOnRow > 0 && (
+                <div className="power-truss-row-unpowered">
+                  {unpoweredOnRow} fixture{unpoweredOnRow === 1 ? "" : "s"} not powered
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Auto-suggest modal — confirms the proposed power layout before append
+// ──────────────────────────────────────────────────────────────────────
+
+function AutoSuggestModal({
+  suggested,
+  onApply,
+  onClose,
+}: {
+  suggested: SuggestedDistro[];
+  onApply: (picks: SuggestedDistro[]) => void;
+  onClose: () => void;
+}) {
+  const totalWatts = suggested.reduce((s, x) => s + x.totalWatts, 0);
+  const totalUnits = suggested.reduce((s, x) => s + x.fixtureUnits, 0);
+  return (
+    <div
+      className="power-modal-backdrop"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="power-modal power-auto-suggest-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="power-modal-head">
+          <h3>Auto-suggest power layout</h3>
+          <button
+            type="button"
+            className="btn btn-soft btn-sm"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </header>
+        {suggested.length === 0 ? (
+          <p className="power-modal-intro">
+            No proposal could be generated. The unpowered fixtures don't
+            have wattage on file yet — set a non-zero watts value on each
+            fixture row in the Lighting Report and try again.
+          </p>
+        ) : (
+          <p className="power-modal-intro">
+            Proposed <strong>{suggested.length}</strong> new distro
+            {suggested.length === 1 ? "" : "s"} to power{" "}
+            <strong>{totalUnits}</strong> currently-unpowered fixture
+            {totalUnits === 1 ? "" : "s"} (<strong>{fmtInt(totalWatts)}</strong> W
+            total). Existing distros are left untouched.
+          </p>
+        )}
+        <ul className="power-auto-suggest-list">
+          {suggested.map((s) => (
+            <li key={s.key} className="power-auto-suggest-item">
+              <div className="power-auto-suggest-item-head">
+                <strong>{s.trussName}</strong>{" "}
+                <span className="power-auto-suggest-item-preset">
+                  → {s.presetLabel}
+                </span>
+              </div>
+              <div className="power-auto-suggest-item-stats">
+                {fmtInt(s.totalWatts)} W · {s.fixtureUnits} fixture
+                {s.fixtureUnits === 1 ? "" : "s"} · {s.drops.length} drop
+                {s.drops.length === 1 ? "" : "s"}
+              </div>
+              <ul className="power-auto-suggest-item-drops">
+                {s.drops.map((d, i) => (
+                  <li key={i}>
+                    Ch{d.channelIndex}: {d.qty} × {d.fixtureRef}
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+        <footer className="power-modal-foot">
+          <button type="button" className="btn btn-soft" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => onApply(suggested)}
+            disabled={suggested.length === 0}
+          >
+            Apply all ({suggested.length})
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }

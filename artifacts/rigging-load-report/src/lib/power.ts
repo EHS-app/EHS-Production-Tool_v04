@@ -1118,6 +1118,413 @@ export function computeDistroPlanTotals(
   };
 }
 
+// ─── Truss split (per-distro per-truss watts share) ───────────────────
+
+export type DistroTrussShare = {
+  trussId: string;
+  watts: number;
+  amps: number;
+  /** Share of this distro's total watts, 0..1. */
+  ratio: number;
+  /** Number of drops on this truss across the distro. */
+  dropCount: number;
+};
+
+/** Per-truss split of a single distro's load — what proportion of HOT1's
+ *  total watts goes to LX1 vs LX2 etc. Used for the visible "feed graph"
+ *  badge so soca-split distribution is no longer ambiguous. */
+export function computeDistroTrussSplit(load: DistroLoad): DistroTrussShare[] {
+  const byTruss = new Map<
+    string,
+    { watts: number; amps: number; dropCount: number }
+  >();
+  for (const ch of load.channels) {
+    for (const dl of ch.drops) {
+      const t = dl.drop.trussId;
+      const cur = byTruss.get(t) ?? { watts: 0, amps: 0, dropCount: 0 };
+      cur.watts += dl.watts;
+      cur.amps += dl.amps;
+      cur.dropCount += 1;
+      byTruss.set(t, cur);
+    }
+  }
+  const total = Math.max(1e-9, load.totalWatts);
+  return Array.from(byTruss.entries())
+    .map(([trussId, v]) => ({
+      trussId,
+      watts: v.watts,
+      amps: v.amps,
+      ratio: v.watts / total,
+      dropCount: v.dropCount,
+    }))
+    .sort((a, b) => b.watts - a.watts);
+}
+
+// ─── Per-truss power summary (truss-first workflow layer) ─────────────
+
+export type TrussFeedingDistro = {
+  distroId: string;
+  distroName: string;
+  watts: number;
+  /** Share of this truss's total watts fed by this distro, 0..1. */
+  ratio: number;
+};
+
+export type TrussPowerRow = {
+  trussId: string;
+  trussName: string;
+  /** All distinct fixtures (by name) on this truss with qty + W/unit. */
+  fixtures: Array<{
+    name: string;
+    qty: number;
+    wattsPerUnit: number;
+    watts: number;
+  }>;
+  totalWatts: number;
+  assignedWatts: number;
+  /** Total qty of fixtures on the truss vs assigned (in units). */
+  totalQty: number;
+  assignedQty: number;
+  unpoweredQty: number;
+  /** Distros that touch this truss (either via feedsTrusses or via a
+   *  drop on this truss). */
+  feedingDistros: TrussFeedingDistro[];
+  hasUnpowered: boolean;
+};
+
+type TrussLite = { id: string; name: string };
+
+/** One row per truss, with fixtures, totals, and the distros that feed
+ *  it. The producer thinks truss-first, so this is the table they
+ *  actually want above the distro list. */
+export function computeTrussPowerSummary(
+  distros: Distro[],
+  systems: TrussLite[],
+  fixtures: FixtureRef[],
+  lookup: FixtureWattsLookup,
+): TrussPowerRow[] {
+  // 1. Aggregate fixtures per truss.
+  const byTruss = new Map<
+    string,
+    Map<string, { qty: number; watts: number }>
+  >();
+  for (const f of fixtures) {
+    const name = f.name.trim();
+    if (!name || !f.systemId) continue;
+    const w = lookup(name, f.systemId);
+    const inner =
+      byTruss.get(f.systemId) ?? new Map<string, { qty: number; watts: number }>();
+    const cur = inner.get(name.toLowerCase()) ?? { qty: 0, watts: w };
+    cur.qty += Math.max(0, f.qty);
+    cur.watts = w;
+    inner.set(name.toLowerCase(), cur);
+    byTruss.set(f.systemId, inner);
+  }
+
+  // 2. Aggregate assigned qty + watts per (truss, fixture key).
+  const assigned = new Map<string, { qty: number; watts: number }>();
+  for (const d of distros) {
+    for (const ch of d.channels) {
+      for (const drop of ch.drops) {
+        const key = fixtureKey(drop.fixtureRef, drop.trussId);
+        const w = lookup(drop.fixtureRef, drop.trussId);
+        const cur = assigned.get(key) ?? { qty: 0, watts: 0 };
+        cur.qty += drop.qty;
+        cur.watts += drop.qty * w;
+        assigned.set(key, cur);
+      }
+    }
+  }
+
+  // 3. Aggregate per-distro watts touching each truss.
+  const distrosByTruss = new Map<string, Map<string, number>>();
+  for (const d of distros) {
+    for (const ch of d.channels) {
+      for (const drop of ch.drops) {
+        const w = drop.qty * lookup(drop.fixtureRef, drop.trussId);
+        const inner = distrosByTruss.get(drop.trussId) ?? new Map();
+        inner.set(d.id, (inner.get(d.id) ?? 0) + w);
+        distrosByTruss.set(drop.trussId, inner);
+      }
+    }
+    // Also list distros that declare this truss in feedsTrusses but have
+    // no drops on it yet (so the producer sees the intent).
+    for (const tId of d.feedsTrusses) {
+      const inner = distrosByTruss.get(tId) ?? new Map();
+      if (!inner.has(d.id)) inner.set(d.id, 0);
+      distrosByTruss.set(tId, inner);
+    }
+  }
+
+  // 4. Build rows. Include every truss in `systems`, plus any truss that
+  //    has drops referencing it but is no longer in systems (orphaned).
+  const allTrussIds = new Set<string>(systems.map((s) => s.id));
+  for (const t of byTruss.keys()) allTrussIds.add(t);
+  for (const t of distrosByTruss.keys()) allTrussIds.add(t);
+
+  const out: TrussPowerRow[] = [];
+  const distroById = new Map(distros.map((d) => [d.id, d]));
+  for (const trussId of allTrussIds) {
+    const trussName =
+      systems.find((s) => s.id === trussId)?.name ?? trussId;
+    const fixturesMap = byTruss.get(trussId) ?? new Map();
+    const fxList = Array.from(fixturesMap.entries())
+      .map(([nameKey, v]) => {
+        // Recover original casing from the first fixture row.
+        const orig = fixtures.find(
+          (f) => f.systemId === trussId && f.name.trim().toLowerCase() === nameKey,
+        );
+        const name = (orig?.name ?? nameKey).trim();
+        return {
+          name,
+          qty: v.qty,
+          wattsPerUnit: v.watts,
+          watts: v.qty * v.watts,
+        };
+      })
+      .sort((a, b) => b.watts - a.watts);
+
+    const totalWatts = fxList.reduce((s, x) => s + x.watts, 0);
+    const totalQty = fxList.reduce((s, x) => s + x.qty, 0);
+
+    let assignedWatts = 0;
+    let assignedQty = 0;
+    for (const f of fxList) {
+      const a = assigned.get(fixtureKey(f.name, trussId));
+      if (a) {
+        assignedWatts += Math.min(a.watts, f.watts);
+        assignedQty += Math.min(a.qty, f.qty);
+      }
+    }
+    const unpoweredQty = Math.max(0, totalQty - assignedQty);
+
+    const distrosOnTruss = distrosByTruss.get(trussId);
+    const totalFeedW = distrosOnTruss
+      ? Array.from(distrosOnTruss.values()).reduce((s, w) => s + w, 0)
+      : 0;
+    const feedingDistros: TrussFeedingDistro[] = distrosOnTruss
+      ? Array.from(distrosOnTruss.entries())
+          .map(([distroId, watts]) => ({
+            distroId,
+            distroName: distroById.get(distroId)?.name ?? distroId,
+            watts,
+            ratio: totalFeedW > 0 ? watts / totalFeedW : 0,
+          }))
+          .sort((a, b) => b.watts - a.watts)
+      : [];
+
+    out.push({
+      trussId,
+      trussName,
+      fixtures: fxList,
+      totalWatts,
+      assignedWatts,
+      totalQty,
+      assignedQty,
+      unpoweredQty,
+      feedingDistros,
+      hasUnpowered: unpoweredQty > 0,
+    });
+  }
+  // Sort: trusses with fixtures first (heaviest first), then empty
+  // trusses by name.
+  out.sort((a, b) => {
+    if (a.totalWatts !== b.totalWatts) return b.totalWatts - a.totalWatts;
+    return a.trussName.localeCompare(b.trussName);
+  });
+  return out;
+}
+
+// ─── Auto-suggest power layout ────────────────────────────────────────
+
+/** Pick a reasonable distro preset for a given total wattage. */
+export function pickPresetForLoad(totalWatts: number): DistroPresetId {
+  // Capacity headroom is the 80% derate of the feed.
+  // schuko 16A 1ph @ 230V = ~3.5kW, derated ~2.8kW
+  // cee 32A 1ph @ 230V = ~7kW, derated ~5.6kW
+  // cee 32A 3ph @ 400V = ~22kW, derated ~17.6kW
+  // cee 63A 3ph @ 400V = ~43kW, derated ~34.4kW
+  // cee 125A 3ph @ 400V = ~86kW, derated ~68.8kW
+  if (totalWatts <= 2_500) return "schuko-16-1ph";
+  if (totalWatts <= 5_500) return "cee-32-1ph";
+  if (totalWatts <= 17_000) return "cee-32-3ph-6x16";
+  if (totalWatts <= 34_000) return "cee-63-3ph-6x32";
+  return "cee-125-3ph-6x63";
+}
+
+export type SuggestedDistro = {
+  /** Stable signature so callers can dedupe / display. */
+  key: string;
+  presetId: DistroPresetId;
+  presetLabel: string;
+  feedsTrusses: string[];
+  trussName: string;
+  totalWatts: number;
+  /** Drop blueprints, indexed by channel index (1-based). */
+  drops: Array<{
+    channelIndex: number;
+    trussId: string;
+    fixtureRef: string;
+    qty: number;
+  }>;
+  /** Number of fixture units this layout would power. */
+  fixtureUnits: number;
+};
+
+/** Build a "what if I ran this rig?" power layout from the leftover
+ *  unpowered fixtures. One distro per truss with leftover load; preset
+ *  picked from total W; drops distributed across channels by lowest
+ *  current phase load (round-robin-ish) so the proposed distro is
+ *  pre-balanced. The producer can accept all, edit, or ignore.
+ *
+ *  This is intentionally conservative: it never modifies existing
+ *  distros, never reassigns previously assigned drops, and never
+ *  exceeds breaker derate on a channel — overflow rolls into a second
+ *  fixture row on the next channel. */
+export function suggestPowerLayout(
+  unpowered: UnpoweredFixture[],
+  systems: TrussLite[],
+): SuggestedDistro[] {
+  // Group by truss.
+  const byTruss = new Map<string, UnpoweredFixture[]>();
+  for (const u of unpowered) {
+    if (u.remainingQty <= 0) continue;
+    const arr = byTruss.get(u.trussId) ?? [];
+    arr.push(u);
+    byTruss.set(u.trussId, arr);
+  }
+
+  const out: SuggestedDistro[] = [];
+  const trussNameById = new Map(systems.map((s) => [s.id, s.name]));
+
+  for (const [trussId, items] of byTruss) {
+    const totalWatts = items.reduce(
+      (s, u) => s + u.remainingQty * u.wattsPerUnit,
+      0,
+    );
+    if (totalWatts <= 0) continue;
+
+    const presetId = pickPresetForLoad(totalWatts);
+    const preset = DISTRO_PRESETS[presetId];
+    const channelCount = preset.channelCount;
+    const breakerAmps = preset.channelBreakerAmps;
+    const channelMaxAmps = breakerAmps * POWER_DERATE_FACTOR;
+    const channelMaxWatts = channelMaxAmps * DEFAULT_CHANNEL_VOLTAGE * DEFAULT_POWER_FACTOR;
+
+    // Channel → mapped phase, using preset defaults.
+    const mapping: ChannelMapping =
+      preset.feedPhases === 3
+        ? cloneMapping(DEFAULT_CHANNEL_MAPPING)
+        : cloneMapping(SINGLE_PHASE_MAPPING);
+    const phaseOf = (idx: number): PowerPhase => {
+      if (mapping.L1.includes(idx)) return "L1";
+      if (mapping.L2.includes(idx)) return "L2";
+      if (mapping.L3.includes(idx)) return "L3";
+      return "L1";
+    };
+
+    // Track current load per channel + per phase.
+    const channelW = new Array(channelCount).fill(0);
+    const phaseW: Record<PowerPhase, number> = { L1: 0, L2: 0, L3: 0 };
+
+    // Sort fixtures heaviest first for better packing.
+    const sorted = [...items].sort(
+      (a, b) =>
+        b.remainingQty * b.wattsPerUnit - a.remainingQty * a.wattsPerUnit,
+    );
+
+    const drops: SuggestedDistro["drops"] = [];
+    let fixtureUnits = 0;
+
+    /** Pick the best channel for a unit of `wPerUnit` watts.
+     *  Strategy: prefer channels that can fit ≥1 unit within derate,
+     *  tie-broken by lowest phase load → lowest channel load. Only when
+     *  no channel has positive headroom do we fall back to the
+     *  globally-lowest-loaded channel (and accept the overload — caller
+     *  sees the warning and can pick a bigger preset). */
+    const pickChannel = (wPerUnit: number): number => {
+      const wantHeadroom = wPerUnit > 0 ? wPerUnit : 0;
+      const tryPick = (requireFit: boolean): number | null => {
+        let bestCh: number | null = null;
+        let bestPhaseLoad = Infinity;
+        let bestChLoad = Infinity;
+        for (let i = 1; i <= channelCount; i++) {
+          const headroom = channelMaxWatts - channelW[i - 1];
+          if (requireFit && headroom < wantHeadroom) continue;
+          const p = phaseOf(i);
+          const pl = phaseW[p];
+          const cl = channelW[i - 1];
+          if (
+            bestCh === null ||
+            pl < bestPhaseLoad ||
+            (pl === bestPhaseLoad && cl < bestChLoad)
+          ) {
+            bestPhaseLoad = pl;
+            bestChLoad = cl;
+            bestCh = i;
+          }
+        }
+        return bestCh;
+      };
+      return tryPick(true) ?? tryPick(false) ?? 1;
+    };
+
+    for (const fx of sorted) {
+      let remaining = fx.remainingQty;
+      const wPerUnit = Math.max(0, fx.wattsPerUnit);
+      while (remaining > 0) {
+        const bestCh = pickChannel(wPerUnit);
+        // How many units fit before we trip the channel derate?
+        const headroom = Math.max(0, channelMaxWatts - channelW[bestCh - 1]);
+        const fits =
+          wPerUnit > 0 ? Math.floor(headroom / wPerUnit) : remaining;
+        const placeQty = Math.min(remaining, fits);
+        if (placeQty <= 0) {
+          // Even the best channel can't hold one more unit at derate.
+          // Place 1 unit anyway as overflow — the resulting card will
+          // visibly warn so the producer bumps the preset. Without this
+          // overflow we'd loop forever.
+          drops.push({
+            channelIndex: bestCh,
+            trussId,
+            fixtureRef: fx.fixtureRef,
+            qty: 1,
+          });
+          channelW[bestCh - 1] += wPerUnit;
+          phaseW[phaseOf(bestCh)] += wPerUnit;
+          remaining -= 1;
+          fixtureUnits += 1;
+          continue;
+        }
+        drops.push({
+          channelIndex: bestCh,
+          trussId,
+          fixtureRef: fx.fixtureRef,
+          qty: placeQty,
+        });
+        const w = placeQty * wPerUnit;
+        channelW[bestCh - 1] += w;
+        phaseW[phaseOf(bestCh)] += w;
+        remaining -= placeQty;
+        fixtureUnits += placeQty;
+      }
+    }
+
+    out.push({
+      key: `auto:${trussId}:${presetId}:${fixtureUnits}`,
+      presetId,
+      presetLabel: preset.label,
+      feedsTrusses: [trussId],
+      trussName: trussNameById.get(trussId) ?? trussId,
+      totalWatts,
+      drops,
+      fixtureUnits,
+    });
+  }
+
+  return out;
+}
+
 /** Convenience helper for building a watts lookup from a Show Fixture
  *  list. Falls back to 0 W when a fixture is missing (so the caller
  *  doesn't have to defend against bad references). */

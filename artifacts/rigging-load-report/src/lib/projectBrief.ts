@@ -237,6 +237,12 @@ export type ProjectBrief = {
   recipientCrewId: string | null;
   project: {
     venue: string;
+    /** Client / customer the show is being delivered for. Optional —
+     *  empty string when the producer hasn't filled it in. Surfaced on
+     *  the Client Pack cover, the Show Simulation cover, the Freelancer
+     *  Portal brief detail/list, and persisted into accepted Gigs so
+     *  freelancers see who the work is for. */
+    client: string;
     /** ISO date (YYYY-MM-DD) of the show — start date when a range is set. */
     date: string;
     /** Optional ISO end date (YYYY-MM-DD) for multi-day shows. Omitted /
@@ -382,6 +388,8 @@ export type BriefSchedule = Partial<
 
 export type BuildBriefInput = {
   venue: string;
+  /** Client / customer name. Empty string when not yet filled in. */
+  client: string;
   reportDate: string;
   /** Optional ISO end date for multi-day shows. */
   reportEndDate?: string;
@@ -663,6 +671,7 @@ export function buildBrief(input: BuildBriefInput): ProjectBrief {
     recipientCrewId: input.recipientCrewId,
     project: {
       venue: input.venue,
+      client: input.client,
       date: input.reportDate,
       endDate: input.reportEndDate ? input.reportEndDate : undefined,
       schedule: input.schedule ? cleanSchedule(input.schedule) : undefined,
@@ -1055,6 +1064,7 @@ export function normalizeBrief(raw: unknown): ProjectBrief | null {
       typeof r.recipientCrewId === "string" ? r.recipientCrewId : null,
     project: {
       venue: asString(project.venue),
+      client: asString(project.client),
       date: asString(project.date),
       endDate:
         typeof project.endDate === "string" && project.endDate

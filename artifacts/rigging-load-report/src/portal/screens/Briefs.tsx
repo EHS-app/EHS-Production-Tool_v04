@@ -222,6 +222,14 @@ function BriefRow({
             flexWrap: "wrap",
           }}
         >
+          {brief.brief.project.client ? (
+            <>
+              <span style={{ color: c.text, fontWeight: 700 }}>
+                {brief.brief.project.client}
+              </span>
+              <span aria-hidden>·</span>
+            </>
+          ) : null}
           <span>
             {brief.brief.project.endDate &&
             brief.brief.project.endDate !== brief.brief.project.date

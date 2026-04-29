@@ -24,9 +24,13 @@ function synthesizeBriefFromGig(gig: Gig): ProjectBrief {
     recipientCrewId: null,
     project: {
       venue: gig.venue || gig.projectName,
+      client: gig.client,
       date: gig.startDate,
       endDate: gig.endDate || gig.startDate,
-      preparedBy: gig.client,
+      // Manual Gigs (not created from a producer brief) don't track a
+      // separate project manager — leave it blank rather than copying
+      // the client name into both fields.
+      preparedBy: "",
     },
     assignments: [],
     rigging: { systemCount: 0, hoistCount: 0, totalMotorW: 0, systems: [] },

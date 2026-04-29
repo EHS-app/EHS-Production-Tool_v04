@@ -263,6 +263,21 @@ export function BriefDetail({
         >
           {brief.project.venue || "Untitled show"}
         </h1>
+        {brief.project.client ? (
+          <div
+            style={{
+              color: c.text,
+              fontSize: 14,
+              fontWeight: 700,
+              marginTop: 2,
+            }}
+          >
+            for{" "}
+            <span style={{ color: c.text, fontWeight: 800 }}>
+              {brief.project.client}
+            </span>
+          </div>
+        ) : null}
         <div style={{ color: c.muted, fontSize: 14 }}>
           {brief.project.endDate &&
           brief.project.endDate !== brief.project.date

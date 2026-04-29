@@ -794,6 +794,11 @@ type ThemePref = "light" | "dark" | "system";
 type PersistedV2 = {
   theme: ThemePref;
   venue: string;
+  /** Client / customer name. Optional — empty string when not yet set.
+   *  Lives next to the venue in the project meta card and flows through
+   *  to the Client Pack cover, the Show Simulation cover, and every
+   *  Freelancer Portal brief / accepted Gig. */
+  client?: string;
   reportDate: string;
   /** Optional end date for the SHOW phase. Empty = single day.
    *  ISO date (YYYY-MM-DD). */
@@ -1120,6 +1125,7 @@ function App() {
   const theme: "light" | "dark" =
     themePref === "system" ? systemTheme : themePref;
   const [venue, setVenue] = useState(persisted?.venue ?? "");
+  const [client, setClient] = useState(persisted?.client ?? "");
   const [reportDate, setReportDate] = useState(
     persisted?.reportDate ?? new Date().toISOString().slice(0, 10),
   );
@@ -1272,6 +1278,7 @@ function App() {
     const data: PersistedV2 = {
       theme: themePref,
       venue,
+      client,
       reportDate,
       reportEndDate,
       extraSchedule,
@@ -1304,6 +1311,7 @@ function App() {
   }, [
     themePref,
     venue,
+    client,
     reportDate,
     reportEndDate,
     extraSchedule,
@@ -1602,6 +1610,7 @@ function App() {
   const briefInput = useMemo<BuildBriefInput>(() => {
     return {
       venue,
+      client,
       reportDate,
       reportEndDate,
       schedule: buildProjectSchedule(reportDate, reportEndDate, extraSchedule),
@@ -1754,6 +1763,7 @@ function App() {
     };
   }, [
     venue,
+    client,
     reportDate,
     reportEndDate,
     extraSchedule,
@@ -3220,7 +3230,7 @@ function App() {
     const result = exportClientPack({
       project: {
         eventName: venue,
-        client: "",
+        client,
         venue,
         date: reportDate,
         endDate: reportEndDate || undefined,
@@ -3302,7 +3312,7 @@ function App() {
     const input: ShowSimulationInput = {
       project: {
         eventName: venue,
-        client: "",
+        client,
         venue,
         date: reportDate,
         endDate: reportEndDate || undefined,
@@ -3635,6 +3645,7 @@ function App() {
     // pre-seeded "4× FD34" row + first hoist.
     const fresh = makeEmptySystem("LX1");
     setVenue("");
+    setClient("");
     setReportDate(new Date().toISOString().slice(0, 10));
     setReportEndDate("");
     setExtraSchedule({});
@@ -3904,6 +3915,15 @@ function App() {
               value={venue}
               onChange={(e) => setVenue(e.target.value)}
               placeholder="e.g. Sentrum Scene"
+            />
+          </div>
+          <div className="meta-field">
+            <label>Client</label>
+            <input
+              type="text"
+              value={client}
+              onChange={(e) => setClient(e.target.value)}
+              placeholder="Customer name"
             />
           </div>
           <div className="meta-field">

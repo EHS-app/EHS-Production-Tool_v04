@@ -3988,21 +3988,21 @@ function App() {
           )}
         </button>
         <button
-          className={`view-tab ${mainView === "crew" ? "is-active" : ""}`}
-          onClick={() => setMainView("crew")}
-        >
-          {tr("view.crew")}
-          {crew.length > 0 && (
-            <span className="view-tab-badge">{crew.length}</span>
-          )}
-        </button>
-        <button
           className={`view-tab ${mainView === "sound" ? "is-active" : ""}`}
           onClick={() => setMainView("sound")}
         >
           {tr("view.sound")}
           {soundItems.length > 0 && (
             <span className="view-tab-badge">{soundItems.length}</span>
+          )}
+        </button>
+        <button
+          className={`view-tab ${mainView === "crew" ? "is-active" : ""}`}
+          onClick={() => setMainView("crew")}
+        >
+          {tr("view.crew")}
+          {crew.length > 0 && (
+            <span className="view-tab-badge">{crew.length}</span>
           )}
         </button>
         <button

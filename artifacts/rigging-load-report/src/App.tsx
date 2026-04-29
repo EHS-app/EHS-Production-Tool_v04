@@ -4371,6 +4371,351 @@ function LightingPlanView({
   onDuplicatePowerItem,
 }: LightingPlanViewProps) {
   const systemNameById = new Map(systems.map((s) => [s.id, s.name]));
+
+  // Group the fixture list by the rigging system (LX) each fixture is
+  // assigned to, so the producer sees one collapsible block per truss
+  // instead of one long flat table. The order mirrors the order of
+  // systems on the Rigging Report (LX1 first, LX2 next…) and an
+  // "Unassigned" bucket is appended for rows with no systemId. Groups
+  // with no fixtures are not rendered at all. We track *collapsed*
+  // ids (not expanded ids) so newly-added groups default to open.
+  const UNASSIGNED_ID = "__unassigned__";
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const toggleGroup = (id: string) =>
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const isGroupOpen = (id: string) => !collapsedGroups.has(id);
+
+  type FixtureGroup = {
+    id: string;
+    name: string;
+    fixtures: ShowFixture[];
+  };
+  const fixtureGroups: FixtureGroup[] = (() => {
+    const groupMap = new Map<string, ShowFixture[]>();
+    for (const f of fixtures) {
+      const key = f.systemId || UNASSIGNED_ID;
+      const list = groupMap.get(key);
+      if (list) list.push(f);
+      else groupMap.set(key, [f]);
+    }
+    const ordered: FixtureGroup[] = [];
+    // 1. Real systems in their Rigging Report order.
+    for (const sys of systems) {
+      const list = groupMap.get(sys.id);
+      if (list && list.length > 0) {
+        ordered.push({ id: sys.id, name: sys.name, fixtures: list });
+        groupMap.delete(sys.id);
+      }
+    }
+    // 2. Orphan systemIds (fixture references a deleted system) so the
+    //    rows still surface — labelled with "—" if we have no name.
+    for (const [id, list] of groupMap) {
+      if (id === UNASSIGNED_ID) continue;
+      ordered.push({
+        id,
+        name: systemNameById.get(id) || "—",
+        fixtures: list,
+      });
+    }
+    // 3. Unassigned bucket goes last (typically extra/standalone fixtures
+    //    that haven't picked a truss yet).
+    const unassigned = groupMap.get(UNASSIGNED_ID);
+    if (unassigned && unassigned.length > 0) {
+      ordered.push({
+        id: UNASSIGNED_ID,
+        name: "Unassigned",
+        fixtures: unassigned,
+      });
+    }
+    return ordered;
+  })();
+
+  // Single per-fixture <tr> renderer. Hoisted out of the inline `.map`
+  // so the same JSX is reused for every group without duplication. All
+  // edit / overflow / linked-row logic stays identical to the previous
+  // ungrouped table.
+  const renderFixtureRow = (f: ShowFixture) => {
+    const totalChans = f.dmxChannels * f.qty;
+    const endAddr = totalChans > 0 ? f.startAddress + totalChans - 1 : 0;
+    const overflow = endAddr > 512;
+    const totalWt = f.weight * f.qty;
+    const totalW = f.watts * f.qty;
+    const linkedSysName = f.linked
+      ? systemNameById.get(f.systemId) ?? "—"
+      : "";
+    return (
+      <tr
+        key={f.id}
+        className={f.linked ? "fx-row-linked" : undefined}
+      >
+        <td>
+          {f.linked ? (
+            <div className="fx-linked-cell">
+              <span
+                className="fx-link-badge"
+                title={`From rigging system ${linkedSysName}`}
+              >
+                {linkedSysName}
+              </span>
+              <span className="fx-linked-name" title={f.name}>
+                {f.name}
+              </span>
+            </div>
+          ) : (
+            <input
+              type="text"
+              value={f.name}
+              onChange={(e) => onUpdate(f.id, { name: e.target.value })}
+              placeholder="e.g. Martin MAC Aura PXL"
+              className="fx-input fx-input-name"
+              aria-label="Fixture name"
+            />
+          )}
+        </td>
+        <td>
+          {f.linked ? (
+            <span className="fx-readonly fx-readonly-num">{f.qty}</span>
+          ) : (
+            <NumberField
+              min={1}
+              step={1}
+              value={f.qty}
+              transform={(n) => Math.max(1, Math.floor(n || 1))}
+              emptyValue={1}
+              onCommit={(qty) => onUpdate(f.id, { qty })}
+              className="fx-input fx-input-num"
+              aria-label="Quantity"
+            />
+          )}
+        </td>
+        <td>
+          {f.linked ? (
+            <span className="fx-readonly fx-readonly-num">
+              {f.weight.toFixed(1)}
+            </span>
+          ) : (
+            <NumberField
+              step="0.1"
+              min={0}
+              value={f.weight}
+              transform={(n) => Math.max(0, n || 0)}
+              emptyValue={0}
+              onCommit={(weight) => onUpdate(f.id, { weight })}
+              className="fx-input fx-input-num"
+              aria-label="Weight per fixture in kilograms"
+            />
+          )}
+        </td>
+        <td>
+          {f.linked ? (
+            <span className="fx-readonly fx-readonly-num">{f.watts}</span>
+          ) : (
+            <NumberField
+              min={0}
+              value={f.watts}
+              transform={(n) => Math.max(0, n || 0)}
+              emptyValue={0}
+              onCommit={(watts) => onUpdate(f.id, { watts })}
+              className="fx-input fx-input-num"
+              aria-label="Power per fixture in watts"
+            />
+          )}
+        </td>
+        <td>
+          {f.availableDmxModes && f.availableDmxModes.length > 0 ? (
+            <div className="fx-mode-cell">
+              <select
+                value={
+                  f.dmxModeIndex === null || f.dmxModeIndex === undefined
+                    ? -1
+                    : f.dmxModeIndex
+                }
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  if (v === -1) {
+                    onUpdate(f.id, {
+                      dmxModeIndex: null,
+                      dmxChannels: f.dmxChannels,
+                    });
+                  } else {
+                    onUpdate(f.id, { dmxModeIndex: v });
+                  }
+                }}
+                className="fx-input fx-input-select fx-mode-select"
+                aria-label="DMX mode"
+              >
+                {f.availableDmxModes.map((m, i) => (
+                  <option key={i} value={i}>
+                    {m.name} ({m.channels}ch)
+                  </option>
+                ))}
+                <option value={-1}>Custom…</option>
+              </select>
+              {f.dmxModeIndex === null ? (
+                <NumberField
+                  min={0}
+                  step={1}
+                  value={f.dmxChannels}
+                  transform={(n) => Math.max(0, Math.floor(n || 0))}
+                  emptyValue={0}
+                  onCommit={(dmxChannels) =>
+                    onUpdate(f.id, { dmxChannels })
+                  }
+                  className="fx-input fx-input-num fx-mode-custom"
+                  aria-label="DMX channels per fixture (custom)"
+                />
+              ) : (
+                <span
+                  className="fx-mode-channels"
+                  aria-label="DMX channels per fixture"
+                >
+                  {f.dmxChannels}
+                </span>
+              )}
+            </div>
+          ) : (
+            <NumberField
+              min={0}
+              step={1}
+              value={f.dmxChannels}
+              transform={(n) => Math.max(0, Math.floor(n || 0))}
+              emptyValue={0}
+              onCommit={(dmxChannels) =>
+                onUpdate(f.id, { dmxChannels })
+              }
+              className="fx-input fx-input-num"
+              aria-label="DMX channels per fixture"
+            />
+          )}
+        </td>
+        <td>
+          {f.linked ? (
+            <span className="fx-readonly">{linkedSysName}</span>
+          ) : (
+            <select
+              value={f.systemId}
+              onChange={(e) => onUpdate(f.id, { systemId: e.target.value })}
+              className="fx-input fx-input-select"
+              aria-label="Truss assignment"
+            >
+              <option value="">—</option>
+              {systems.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </td>
+        <td>
+          <NumberField
+            step="0.1"
+            value={f.position}
+            transform={(n) => n || 0}
+            emptyValue={0}
+            onCommit={(position) => onUpdate(f.id, { position })}
+            className="fx-input fx-input-num"
+            aria-label="Position on truss in meters"
+          />
+        </td>
+        <td>
+          <input
+            type="text"
+            value={f.circuit}
+            onChange={(e) => onUpdate(f.id, { circuit: e.target.value })}
+            placeholder="—"
+            className="fx-input fx-input-circuit"
+            aria-label="Power circuit"
+          />
+        </td>
+        <td>
+          <NumberField
+            min={1}
+            step={1}
+            value={f.universe}
+            transform={(n) => Math.max(1, Math.floor(n || 1))}
+            emptyValue={1}
+            onCommit={(universe) => onUpdate(f.id, { universe })}
+            className="fx-input fx-input-num"
+            aria-label="DMX universe"
+          />
+        </td>
+        <td>
+          <NumberField
+            min={1}
+            max={512}
+            step={1}
+            value={f.startAddress}
+            transform={(n) =>
+              Math.max(1, Math.min(512, Math.floor(n || 1)))
+            }
+            emptyValue={1}
+            onCommit={(startAddress) =>
+              onUpdate(f.id, { startAddress })
+            }
+            className="fx-input fx-input-num"
+            aria-label="DMX start address"
+          />
+        </td>
+        <td
+          className={`fx-end ${overflow ? "fx-end-over" : ""}`}
+          title={
+            overflow
+              ? "Exceeds 512 channels — bump start address or universe"
+              : ""
+          }
+        >
+          {endAddr || "—"}
+          {overflow && " ⚠"}
+        </td>
+        <td className="fx-total">{totalWt.toFixed(1)}</td>
+        <td className="fx-total">{totalW.toLocaleString()}</td>
+        <td className="fx-actions">
+          <button
+            className="fx-row-btn"
+            onClick={() => onDuplicate(f.id)}
+            title={
+              f.linked
+                ? "Copy as a standalone editable row"
+                : "Duplicate row"
+            }
+            aria-label={
+              f.linked ? "Copy as standalone row" : "Duplicate row"
+            }
+          >
+            ⎘
+          </button>
+          {f.linked ? (
+            <button
+              className="fx-row-btn fx-row-btn-jump"
+              onClick={onJumpToRigging}
+              title="Edit qty/weight on the Rigging Report"
+              aria-label="Edit on Rigging Report"
+            >
+              ↗
+            </button>
+          ) : (
+            <button
+              className="fx-row-btn fx-row-btn-del"
+              onClick={() => onRemove(f.id)}
+              title="Delete row"
+              aria-label="Delete row"
+            >
+              ×
+            </button>
+          )}
+        </td>
+      </tr>
+    );
+  };
+
   return (
     <>
       <div className="dashboard project-summary">
@@ -4477,324 +4822,52 @@ function LightingPlanView({
                   <th></th>
                 </tr>
               </thead>
-              <tbody>
-                {fixtures.map((f) => {
-                  const totalChans = f.dmxChannels * f.qty;
-                  const endAddr =
-                    totalChans > 0
-                      ? f.startAddress + totalChans - 1
-                      : 0;
-                  const overflow = endAddr > 512;
-                  const totalWt = f.weight * f.qty;
-                  const totalW = f.watts * f.qty;
-                  const linkedSysName = f.linked
-                    ? systemNameById.get(f.systemId) ?? "—"
-                    : "";
-                  return (
+              {fixtureGroups.map((g) => {
+                const open = isGroupOpen(g.id);
+                const gQty = g.fixtures.reduce((n, f) => n + f.qty, 0);
+                const gWt = g.fixtures.reduce(
+                  (n, f) => n + f.weight * f.qty,
+                  0,
+                );
+                const gW = g.fixtures.reduce(
+                  (n, f) => n + f.watts * f.qty,
+                  0,
+                );
+                const gChans = g.fixtures.reduce(
+                  (n, f) => n + f.dmxChannels * f.qty,
+                  0,
+                );
+                return (
+                  <tbody key={g.id} className="fx-group">
                     <tr
-                      key={f.id}
-                      className={f.linked ? "fx-row-linked" : undefined}
+                      className={`fx-group-header ${open ? "is-open" : "is-closed"}`}
+                      onClick={() => toggleGroup(g.id)}
                     >
-                      <td>
-                        {f.linked ? (
-                          <div className="fx-linked-cell">
-                            <span
-                              className="fx-link-badge"
-                              title={`From rigging system ${linkedSysName}`}
-                            >
-                              {linkedSysName}
-                            </span>
-                            <span
-                              className="fx-linked-name"
-                              title={f.name}
-                            >
-                              {f.name}
-                            </span>
-                          </div>
-                        ) : (
-                          <input
-                            type="text"
-                            value={f.name}
-                            onChange={(e) =>
-                              onUpdate(f.id, { name: e.target.value })
-                            }
-                            placeholder="e.g. Martin MAC Aura PXL"
-                            className="fx-input fx-input-name"
-                            aria-label="Fixture name"
-                          />
-                        )}
-                      </td>
-                      <td>
-                        {f.linked ? (
-                          <span className="fx-readonly fx-readonly-num">
-                            {f.qty}
-                          </span>
-                        ) : (
-                          <NumberField
-                            min={1}
-                            step={1}
-                            value={f.qty}
-                            transform={(n) => Math.max(1, Math.floor(n || 1))}
-                            emptyValue={1}
-                            onCommit={(qty) =>
-                              onUpdate(f.id, {
-                                qty,
-                              })
-                            }
-                            className="fx-input fx-input-num"
-                            aria-label="Quantity"
-                          />
-                        )}
-                      </td>
-                      <td>
-                        {f.linked ? (
-                          <span className="fx-readonly fx-readonly-num">
-                            {f.weight.toFixed(1)}
-                          </span>
-                        ) : (
-                          <NumberField
-                            step="0.1"
-                            min={0}
-                            value={f.weight}
-                            transform={(n) => Math.max(0, n || 0)}
-                            emptyValue={0}
-                            onCommit={(weight) =>
-                              onUpdate(f.id, {
-                                weight,
-                              })
-                            }
-                            className="fx-input fx-input-num"
-                            aria-label="Weight per fixture in kilograms"
-                          />
-                        )}
-                      </td>
-                      <td>
-                        {f.linked ? (
-                          <span className="fx-readonly fx-readonly-num">
-                            {f.watts}
-                          </span>
-                        ) : (
-                          <NumberField
-                            min={0}
-                            value={f.watts}
-                            transform={(n) => Math.max(0, n || 0)}
-                            emptyValue={0}
-                            onCommit={(watts) =>
-                              onUpdate(f.id, {
-                                watts,
-                              })
-                            }
-                            className="fx-input fx-input-num"
-                            aria-label="Power per fixture in watts"
-                          />
-                        )}
-                      </td>
-                      <td>
-                        {f.availableDmxModes &&
-                        f.availableDmxModes.length > 0 ? (
-                          <div className="fx-mode-cell">
-                            <select
-                              value={
-                                f.dmxModeIndex === null ||
-                                f.dmxModeIndex === undefined
-                                  ? -1
-                                  : f.dmxModeIndex
-                              }
-                              onChange={(e) => {
-                                const v = Number(e.target.value);
-                                if (v === -1) {
-                                  // Switch to Custom — keep current channel
-                                  // count as the starting custom value.
-                                  onUpdate(f.id, {
-                                    dmxModeIndex: null,
-                                    dmxChannels: f.dmxChannels,
-                                  });
-                                } else {
-                                  onUpdate(f.id, { dmxModeIndex: v });
-                                }
-                              }}
-                              className="fx-input fx-input-select fx-mode-select"
-                              aria-label="DMX mode"
-                            >
-                              {f.availableDmxModes.map((m, i) => (
-                                <option key={i} value={i}>
-                                  {m.name} ({m.channels}ch)
-                                </option>
-                              ))}
-                              <option value={-1}>Custom…</option>
-                            </select>
-                            {f.dmxModeIndex === null ? (
-                              <NumberField
-                                min={0}
-                                step={1}
-                                value={f.dmxChannels}
-                                transform={(n) => Math.max(0, Math.floor(n || 0))}
-                                emptyValue={0}
-                                onCommit={(dmxChannels) =>
-                                  onUpdate(f.id, {
-                                    dmxChannels,
-                                  })
-                                }
-                                className="fx-input fx-input-num fx-mode-custom"
-                                aria-label="DMX channels per fixture (custom)"
-                              />
-                            ) : (
-                              <span
-                                className="fx-mode-channels"
-                                aria-label="DMX channels per fixture"
-                              >
-                                {f.dmxChannels}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <NumberField
-                            min={0}
-                            step={1}
-                            value={f.dmxChannels}
-                            transform={(n) => Math.max(0, Math.floor(n || 0))}
-                            emptyValue={0}
-                            onCommit={(dmxChannels) =>
-                              onUpdate(f.id, {
-                                dmxChannels,
-                              })
-                            }
-                            className="fx-input fx-input-num"
-                            aria-label="DMX channels per fixture"
-                          />
-                        )}
-                      </td>
-                      <td>
-                        {f.linked ? (
-                          <span className="fx-readonly">{linkedSysName}</span>
-                        ) : (
-                          <select
-                            value={f.systemId}
-                            onChange={(e) =>
-                              onUpdate(f.id, { systemId: e.target.value })
-                            }
-                            className="fx-input fx-input-select"
-                            aria-label="Truss assignment"
+                      <td colSpan={14}>
+                        <div className="fx-group-row">
+                          <span
+                            className="fx-group-toggle"
+                            aria-hidden="true"
                           >
-                            <option value="">—</option>
-                            {systems.map((s) => (
-                              <option key={s.id} value={s.id}>
-                                {s.name}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                      </td>
-                      <td>
-                        <NumberField
-                          step="0.1"
-                          value={f.position}
-                          transform={(n) => n || 0}
-                          emptyValue={0}
-                          onCommit={(position) =>
-                            onUpdate(f.id, { position })
-                          }
-                          className="fx-input fx-input-num"
-                          aria-label="Position on truss in meters"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="text"
-                          value={f.circuit}
-                          onChange={(e) =>
-                            onUpdate(f.id, { circuit: e.target.value })
-                          }
-                          placeholder="—"
-                          className="fx-input fx-input-circuit"
-                          aria-label="Power circuit"
-                        />
-                      </td>
-                      <td>
-                        <NumberField
-                          min={1}
-                          step={1}
-                          value={f.universe}
-                          transform={(n) => Math.max(1, Math.floor(n || 1))}
-                          emptyValue={1}
-                          onCommit={(universe) =>
-                            onUpdate(f.id, { universe })
-                          }
-                          className="fx-input fx-input-num"
-                          aria-label="DMX universe"
-                        />
-                      </td>
-                      <td>
-                        <NumberField
-                          min={1}
-                          max={512}
-                          step={1}
-                          value={f.startAddress}
-                          transform={(n) =>
-                            Math.max(1, Math.min(512, Math.floor(n || 1)))
-                          }
-                          emptyValue={1}
-                          onCommit={(startAddress) =>
-                            onUpdate(f.id, { startAddress })
-                          }
-                          className="fx-input fx-input-num"
-                          aria-label="DMX start address"
-                        />
-                      </td>
-                      <td
-                        className={`fx-end ${overflow ? "fx-end-over" : ""}`}
-                        title={
-                          overflow
-                            ? "Exceeds 512 channels — bump start address or universe"
-                            : ""
-                        }
-                      >
-                        {endAddr || "—"}
-                        {overflow && " ⚠"}
-                      </td>
-                      <td className="fx-total">{totalWt.toFixed(1)}</td>
-                      <td className="fx-total">{totalW.toLocaleString()}</td>
-                      <td className="fx-actions">
-                        <button
-                          className="fx-row-btn"
-                          onClick={() => onDuplicate(f.id)}
-                          title={
-                            f.linked
-                              ? "Copy as a standalone editable row"
-                              : "Duplicate row"
-                          }
-                          aria-label={
-                            f.linked
-                              ? "Copy as standalone row"
-                              : "Duplicate row"
-                          }
-                        >
-                          ⎘
-                        </button>
-                        {f.linked ? (
-                          <button
-                            className="fx-row-btn fx-row-btn-jump"
-                            onClick={onJumpToRigging}
-                            title="Edit qty/weight on the Rigging Report"
-                            aria-label="Edit on Rigging Report"
-                          >
-                            ↗
-                          </button>
-                        ) : (
-                          <button
-                            className="fx-row-btn fx-row-btn-del"
-                            onClick={() => onRemove(f.id)}
-                            title="Delete row"
-                            aria-label="Delete row"
-                          >
-                            ×
-                          </button>
-                        )}
+                            {open ? "▾" : "▸"}
+                          </span>
+                          <strong className="fx-group-name">{g.name}</strong>
+                          <span className="fx-group-meta">
+                            {g.fixtures.length}{" "}
+                            {g.fixtures.length === 1 ? "line" : "lines"} ·{" "}
+                            {gQty} fixtures · {gWt.toFixed(1)} kg ·{" "}
+                            {gW.toLocaleString()} W
+                            {gChans > 0 ? (
+                              <> · {gChans.toLocaleString()} ch</>
+                            ) : null}
+                          </span>
+                        </div>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
+                    {open && g.fixtures.map((f) => renderFixtureRow(f))}
+                  </tbody>
+                );
+              })}
               {fixtures.length > 0 && (
                 <tfoot>
                   <tr>

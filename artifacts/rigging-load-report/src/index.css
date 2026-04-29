@@ -4678,3 +4678,250 @@ input:focus {
   background: #78350f;
   color: #fef3c7;
 }
+
+/* ─── Power Plan v2.2: collapsible distros + condensed drops ─── */
+
+/* Distro chevron — sits on the far left of the header. */
+.power-distro-chevron {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  font-size: 14px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  flex: 0 0 auto;
+  margin-right: 4px;
+}
+.power-distro-chevron:hover { background: #f1f5f9; color: #0f172a; }
+.power-distro-chevron:focus-visible {
+  outline: 2px solid #1e40af;
+  outline-offset: 1px;
+}
+
+/* Collapsed-state visual: tighter padding so a stack of folded
+   distros stays compact in the rack list. */
+.power-distro--collapsed {
+  padding-bottom: 12px;
+}
+.power-distro--collapsed .power-distro-head {
+  margin-bottom: 0;
+  padding-bottom: 4px;
+  border-bottom: none;
+}
+
+/* Quick load summary chip shown in the header when a distro is
+   collapsed — gives the user a one-line load read without expanding. */
+.power-distro-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+/* Channel-row collapse — entire header is a click target. */
+.power-channel-head--toggle {
+  appearance: none;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+}
+.power-channel-head--toggle:hover { background: rgba(15, 23, 42, 0.04); }
+.power-channel-head--toggle:focus-visible {
+  outline: 2px solid #1e40af;
+  outline-offset: 1px;
+}
+.power-channel-chevron {
+  display: inline-flex;
+  width: 14px;
+  color: #475569;
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+.power-channel--collapsed .power-channel-bar { opacity: 0.6; }
+.power-channel-fixtures {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+/* Condensed drop chip — primary line is Name, ×Qty, Total Watts.
+   Secondary fields (truss, cable, amps, edit qty) appear in the
+   detail row when the chip is expanded. */
+.power-drop-chip-summary {
+  appearance: none;
+  border: none;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+.power-drop-chip-summary:hover { background: rgba(15, 23, 42, 0.04); }
+.power-drop-chip-summary:focus-visible {
+  outline: 2px solid #1e40af;
+  outline-offset: 1px;
+}
+.power-drop-chevron {
+  color: #94a3b8;
+  font-size: 11px;
+  width: 12px;
+  flex: 0 0 auto;
+}
+.power-drop-fx {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.power-drop-qty-pill {
+  display: inline-flex;
+  padding: 1px 8px;
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+.power-drop-load {
+  color: #475569;
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-weight: 500;
+}
+.power-drop-chip--expanded {
+  flex-direction: column;
+  align-items: stretch;
+}
+.power-drop-chip-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px 12px;
+  padding: 8px 10px 6px;
+  border-top: 1px dashed #e2e8f0;
+  margin-top: 4px;
+  width: 100%;
+}
+.power-drop-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: #64748b;
+}
+.power-drop-detail-field > span:first-child {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+.power-drop-detail-stats {
+  font-size: 11px;
+  color: #475569;
+  align-self: end;
+  font-variant-numeric: tabular-nums;
+}
+.power-drop-remove {
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: center;
+}
+.power-drop-chip--expanded .power-drop-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+.power-drop-chip--expanded { position: relative; padding-right: 28px; }
+
+/* Power Plan export toast — sits inline in the Power Plan header. */
+.power-export-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 0;
+  padding: 8px 14px;
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  color: #065f46;
+  border-radius: 8px;
+  font-size: 13px;
+  animation: power-toast-fade-in 0.18s ease-out;
+}
+.power-export-toast > span:first-child {
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+.power-export-toast-close {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+.power-export-toast-close:hover { background: rgba(6, 95, 70, 0.12); }
+@keyframes power-toast-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Dark theme for v2.2 */
+[data-theme="dark"] .power-distro-chevron { color: #94a3b8; }
+[data-theme="dark"] .power-distro-chevron:hover { background: #1e293b; color: #f1f5f9; }
+[data-theme="dark"] .power-distro-summary-chip {
+  background: #312e81; color: #c7d2fe;
+}
+[data-theme="dark"] .power-channel-head--toggle:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+[data-theme="dark"] .power-channel-fixtures { color: #94a3b8; }
+[data-theme="dark"] .power-drop-chip-summary:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+[data-theme="dark"] .power-drop-qty-pill {
+  background: #312e81; color: #c7d2fe;
+}
+[data-theme="dark"] .power-drop-load { color: #cbd5e1; }
+[data-theme="dark"] .power-drop-chip-detail { border-top-color: #334155; }
+[data-theme="dark"] .power-drop-detail-field { color: #94a3b8; }
+[data-theme="dark"] .power-drop-detail-stats { color: #cbd5e1; }
+[data-theme="dark"] .power-export-toast {
+  background: #064e3b; border-color: #047857; color: #d1fae5;
+}
+[data-theme="dark"] .power-export-toast-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+}

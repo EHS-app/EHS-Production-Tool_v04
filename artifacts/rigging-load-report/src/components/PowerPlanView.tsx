@@ -11,7 +11,7 @@
  *    UnpoweredFixturesPanel (only if there are leftovers)
  *    LegacyCircuitsPanel (only if legacy v1 circuits exist) */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NumberField } from "./NumberField";
 import {
   applyPresetToDistro,
@@ -66,6 +66,10 @@ type Props = {
     patch: Partial<Omit<Distro, "channels" | "channelMapping" | "id">>,
   ) => void;
   onRemoveDistro: (id: string) => void;
+  onResetDistro: (id: string) => void;
+  onExportPowerPlan: () => void;
+  powerExportToast: string | null;
+  onDismissPowerExportToast: () => void;
   onApplyDistroPreset: (id: string, presetId: DistroPresetId) => void;
   onUpdateDistroChannelMapping: (id: string, mapping: ChannelMapping) => void;
   onUpdateDistroChannel: (
@@ -211,8 +215,32 @@ export function PowerPlanView(props: Props) {
           >
             ⚡ Auto-suggest layout
           </button>
+          {/* Mirrors the "Export" button on Stage Report cards. Opens a
+              new tab with a printable / JSON crew manifest. */}
+          <button
+            type="button"
+            className="btn btn-tab-action"
+            onClick={props.onExportPowerPlan}
+            disabled={plan.distros.length === 0}
+            title={
+              plan.distros.length === 0
+                ? "Add at least one distro before exporting"
+                : "Open a printable Power Plan crew manifest (PDF + JSON)"
+            }
+          >
+            Export
+          </button>
         </div>
       </div>
+
+      {/* Transient toast — auto-dismisses after 4 s. The state lives on
+          the App level so the export handler can fire it without
+          re-rendering a separate provider. */}
+      <PowerExportToast
+        message={props.powerExportToast}
+        onDismiss={props.onDismissPowerExportToast}
+      />
+      
 
       {/* Truss-first workflow layer: producers think trusses → fixtures →
           power. This panel surfaces that mental model above the distro
@@ -260,6 +288,7 @@ export function PowerPlanView(props: Props) {
                 wattsLookup={wattsLookup}
                 onUpdate={(patch) => props.onUpdateDistro(d.id, patch)}
                 onRemove={() => props.onRemoveDistro(d.id)}
+                onReset={() => props.onResetDistro(d.id)}
                 onApplyPreset={(presetId) =>
                   props.onApplyDistroPreset(d.id, presetId)
                 }
@@ -375,6 +404,7 @@ type DistroCardProps = {
     patch: Partial<Omit<Distro, "channels" | "channelMapping" | "id">>,
   ) => void;
   onRemove: () => void;
+  onReset: () => void;
   onApplyPreset: (presetId: DistroPresetId) => void;
   onUpdateMapping: (mapping: ChannelMapping) => void;
   onUpdateChannel: (
@@ -400,7 +430,6 @@ function DistroCard(props: DistroCardProps) {
   const sevForCard = load.feederStatus === "over"
     ? "over"
     : (load.hasChannelOverload ? "over" : (load.feederStatus === "warn" || load.hasChannelWarning ? "warn" : "ok"));
-  const cardClass = severityClass(sevForCard, "led-card power-distro");
 
   const systemNameById = new Map(systems.map((s) => [s.id, s.name]));
   const suggestions = useMemo(() => computeDistroSuggestions(load), [load]);
@@ -412,10 +441,34 @@ function DistroCard(props: DistroCardProps) {
   const restSuggestions = suggestions.slice(1);
   const [mappingOpen, setMappingOpen] = useState(false);
 
+  // Accordion-style collapse for the whole distro card. Default state
+  // depends on whether the distro is carrying any load — empty distros
+  // (0 W) auto-collapse to reduce visual noise on a fresh project.
+  // Once the user toggles, we honour their choice and don't re-derive
+  // from load (which would feel "fighting back" if they expand a 0 W
+  // distro to add fixtures).
+  const [collapsed, setCollapsed] = useState<boolean>(load.totalWatts === 0);
+  const cardClass = severityClass(
+    sevForCard,
+    `led-card power-distro${collapsed ? " power-distro--collapsed" : ""}`,
+  );
+
   return (
     <section className={cardClass}>
-      {/* Header */}
+      {/* Header — always visible. The chevron toggles the body. */}
       <div className="power-distro-head">
+        <button
+          type="button"
+          className="power-distro-chevron"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-expanded={!collapsed}
+          aria-label={
+            collapsed ? `Expand ${distro.name || "distro"}` : `Collapse ${distro.name || "distro"}`
+          }
+          title={collapsed ? "Expand distro" : "Collapse distro"}
+        >
+          <span aria-hidden="true">{collapsed ? "▸" : "▾"}</span>
+        </button>
         <div className="power-distro-id">
           <input
             className="led-input power-distro-name"
@@ -435,6 +488,16 @@ function DistroCard(props: DistroCardProps) {
           />
         </div>
         <div className="power-distro-rating">
+          {/* Collapsed-state summary chip — keeps the row scannable
+              when many distros are folded. */}
+          {collapsed && (
+            <span
+              className="power-distro-summary-chip"
+              title={`${fmtInt(load.totalWatts)} W on ${distro.feedAmps} A · ${distro.feedPhases}ph`}
+            >
+              {fmtInt(load.totalWatts)} W
+            </span>
+          )}
           <label className="power-preset-label">
             <span>Preset</span>
             <select
@@ -454,6 +517,24 @@ function DistroCard(props: DistroCardProps) {
           </label>
           <button
             type="button"
+            className="btn btn-soft btn-sm"
+            onClick={() => {
+              if (load.totalWatts === 0) {
+                props.onReset();
+                return;
+              }
+              const ok = window.confirm(
+                `Reset ${distro.name || "this distro"}? This empties every channel but keeps the distro shell, preset and mapping.`,
+              );
+              if (ok) props.onReset();
+            }}
+            title="Empty every channel on this distro (keeps the distro shell)"
+            disabled={load.totalWatts === 0}
+          >
+            Reset
+          </button>
+          <button
+            type="button"
             className="btn btn-danger btn-sm"
             onClick={props.onRemove}
             title="Remove distro"
@@ -462,6 +543,11 @@ function DistroCard(props: DistroCardProps) {
           </button>
         </div>
       </div>
+
+      {/* Everything below the header is hidden when collapsed. */}
+      {!collapsed && (
+      <>
+      
 
       {/* Feed badge + truss chips */}
       <div className="power-distro-feed">
@@ -540,7 +626,9 @@ function DistroCard(props: DistroCardProps) {
           shown in the banner above. */}
       <WarningsPanel load={load} suggestions={restSuggestions} />
 
-      {/* Channel grid */}
+      {/* Channel grid — each channel renders as a collapsible group so
+          the user sees the channel load FIRST and can dropdown to see
+          the specific fixtures (drops) on that line. */}
       <div className="power-channel-grid">
         {load.channels.map((cl) => (
           <ChannelRow
@@ -563,7 +651,45 @@ function DistroCard(props: DistroCardProps) {
           />
         ))}
       </div>
+      </>
+      )}
     </section>
+  );
+}
+
+/** Self-dismissing toast that lives inline in the Power Plan header.
+ *  Auto-clears after 4 s; also exposes a manual close (×). Renders
+ *  nothing when message is null so it doesn't reserve layout space. */
+function PowerExportToast({
+  message,
+  onDismiss,
+}: {
+  message: string | null;
+  onDismiss: () => void;
+}) {
+  useEffect(() => {
+    if (!message) return;
+    const t = window.setTimeout(onDismiss, 4000);
+    return () => window.clearTimeout(t);
+  }, [message, onDismiss]);
+  if (!message) return null;
+  return (
+    <div
+      className="power-export-toast"
+      role="status"
+      aria-live="polite"
+    >
+      <span aria-hidden="true">✓</span>
+      <span>{message}</span>
+      <button
+        type="button"
+        className="power-export-toast-close"
+        onClick={onDismiss}
+        aria-label="Dismiss notification"
+      >
+        ×
+      </button>
+    </div>
   );
 }
 
@@ -1208,23 +1334,57 @@ function ChannelRow(props: ChannelRowProps) {
   const channel = cl.channel;
   const sev = cl.status;
   const phaseLabel = cl.phase ?? "—";
+  const dropCount = cl.drops.length;
+  const fixtureCount = cl.drops.reduce((s, d) => s + d.drop.qty, 0);
+
+  // Channel-level accordion: header (Ch1 · phase · breaker · summary
+  // load) is always shown; drop list + add-drop form collapse. Empty
+  // channels default to collapsed so the user sees the channel grid
+  // as a scannable strip first; channels with drops default open.
+  const [open, setOpen] = useState<boolean>(dropCount > 0);
 
   return (
-    <div className={severityClass(sev, "power-channel")}>
-      <div className="power-channel-head">
-        <div className="power-channel-id">
+    <div
+      className={severityClass(
+        sev,
+        `power-channel${open ? "" : " power-channel--collapsed"}`,
+      )}
+    >
+      {/* Channel header is a single click-target so the whole row is
+          easy to expand/collapse. We use a button so keyboard users
+          can toggle with Enter / Space. */}
+      <button
+        type="button"
+        className="power-channel-head power-channel-head--toggle"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label={
+          open
+            ? `Collapse Ch${channel.index} details`
+            : `Expand Ch${channel.index} details`
+        }
+      >
+        <span className="power-channel-chevron" aria-hidden="true">
+          {open ? "▾" : "▸"}
+        </span>
+        <span className="power-channel-id">
           <strong>Ch{channel.index}</strong>
           <span className="power-channel-phase">{phaseLabel}</span>
           <span className="power-channel-breaker">
             {channel.breakerAmps} A
           </span>
-        </div>
-        <div className="power-channel-stats">
+        </span>
+        <span className="power-channel-stats">
           <span>{fmtInt(cl.watts)} W</span>
           <span>{fmtNum(cl.amps, 1)} A</span>
           <span>{fmtPct(cl.utilization)}</span>
-        </div>
-      </div>
+          <span className="power-channel-fixtures">
+            {fixtureCount === 0
+              ? "no fixtures"
+              : `${fixtureCount} fixture${fixtureCount === 1 ? "" : "s"}`}
+          </span>
+        </span>
+      </button>
 
       <div className="power-channel-bar">
         <div
@@ -1238,33 +1398,37 @@ function ChannelRow(props: ChannelRowProps) {
         />
       </div>
 
-      <div className="power-drops">
-        {cl.drops.length === 0 ? (
-          <div className="power-drops-empty">No drops on this channel.</div>
-        ) : (
-          cl.drops.map((dl) => (
-            <DropChip
-              key={dl.drop.id}
-              drop={dl.drop}
-              watts={dl.watts}
-              amps={dl.amps}
-              trussName={systemNameById.get(dl.drop.trussId) ?? "—"}
-              onChangeQty={(qty) => props.onUpdateDrop(dl.drop.id, { qty })}
-              onChangeCable={(cable) =>
-                props.onUpdateDrop(dl.drop.id, { cable })
-              }
-              onRemove={() => props.onRemoveDrop(dl.drop.id)}
-            />
-          ))
-        )}
-      </div>
+      {open && (
+        <>
+          <div className="power-drops">
+            {cl.drops.length === 0 ? (
+              <div className="power-drops-empty">No drops on this channel.</div>
+            ) : (
+              cl.drops.map((dl) => (
+                <DropChip
+                  key={dl.drop.id}
+                  drop={dl.drop}
+                  watts={dl.watts}
+                  amps={dl.amps}
+                  trussName={systemNameById.get(dl.drop.trussId) ?? "—"}
+                  onChangeQty={(qty) => props.onUpdateDrop(dl.drop.id, { qty })}
+                  onChangeCable={(cable) =>
+                    props.onUpdateDrop(dl.drop.id, { cable })
+                  }
+                  onRemove={() => props.onRemoveDrop(dl.drop.id)}
+                />
+              ))
+            )}
+          </div>
 
-      <AddDropForm
-        distro={distro}
-        systems={systems}
-        fixtures={fixtures}
-        onAdd={(drop) => props.onAddDrop(drop)}
-      />
+          <AddDropForm
+            distro={distro}
+            systems={systems}
+            fixtures={fixtures}
+            onAdd={(drop) => props.onAddDrop(drop)}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -1290,48 +1454,86 @@ function DropChip({
   onChangeCable: (cable: DropCableKind | undefined) => void;
   onRemove: () => void;
 }) {
+  // Condensed by default — show only Fixture name, Qty, Total Load.
+  // Click reveals secondary metadata (source truss, per-unit amps,
+  // cable type) and editor controls. The remove (×) button always
+  // sits on the right so destructive action stays predictable.
+  const [expanded, setExpanded] = useState(false);
   return (
-    <div className="power-drop-chip">
-      <span className="power-drop-truss">{trussName}</span>
-      <NumberField
-        className="led-input led-input-num power-drop-qty"
-        min={1}
-        step={1}
-        value={drop.qty}
-        transform={(n) => Math.max(1, Math.round(n || 1))}
-        emptyValue={1}
-        onCommit={(qty) => onChangeQty(qty)}
-        aria-label="Drop quantity"
-      />
-      <span className="power-drop-x">×</span>
-      <span className="power-drop-fx" title={drop.fixtureRef}>
-        {drop.fixtureRef || "—"}
-      </span>
-      <span className="power-drop-stats">
-        {fmtInt(watts)} W · {fmtNum(amps, 1)} A
-      </span>
-      <select
-        className="led-input power-drop-cable"
-        value={drop.cable ?? ""}
-        onChange={(e) =>
-          onChangeCable(
-            e.target.value
-              ? (e.target.value as DropCableKind)
-              : undefined,
-          )
-        }
-        aria-label="Cable type"
-      >
-        <option value="">cable…</option>
-        {DROP_CABLE_KINDS.map((c) => (
-          <option key={c} value={c}>
-            {c}
-          </option>
-        ))}
-      </select>
+    <div
+      className={`power-drop-chip${expanded ? " power-drop-chip--expanded" : ""}`}
+    >
       <button
         type="button"
-        className="btn btn-danger btn-sm"
+        className="power-drop-chip-summary"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        title={
+          expanded
+            ? "Collapse drop details"
+            : "Click to edit qty, cable, source truss"
+        }
+      >
+        <span className="power-drop-chevron" aria-hidden="true">
+          {expanded ? "▾" : "▸"}
+        </span>
+        <span className="power-drop-fx" title={drop.fixtureRef}>
+          {drop.fixtureRef || "—"}
+        </span>
+        <span className="power-drop-qty-pill">×{drop.qty}</span>
+        <span className="power-drop-load">{fmtInt(watts)} W</span>
+      </button>
+
+      {expanded && (
+        <div className="power-drop-chip-detail">
+          <label className="power-drop-detail-field">
+            <span>Truss</span>
+            <span className="power-drop-truss">{trussName}</span>
+          </label>
+          <label className="power-drop-detail-field">
+            <span>Qty</span>
+            <NumberField
+              className="led-input led-input-num power-drop-qty"
+              min={1}
+              step={1}
+              value={drop.qty}
+              transform={(n) => Math.max(1, Math.round(n || 1))}
+              emptyValue={1}
+              onCommit={(qty) => onChangeQty(qty)}
+              aria-label="Drop quantity"
+            />
+          </label>
+          <label className="power-drop-detail-field">
+            <span>Cable</span>
+            <select
+              className="led-input power-drop-cable"
+              value={drop.cable ?? ""}
+              onChange={(e) =>
+                onChangeCable(
+                  e.target.value
+                    ? (e.target.value as DropCableKind)
+                    : undefined,
+                )
+              }
+              aria-label="Cable type"
+            >
+              <option value="">cable…</option>
+              {DROP_CABLE_KINDS.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="power-drop-detail-stats">
+            {fmtNum(amps, 1)} A draw
+          </span>
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="btn btn-danger btn-sm power-drop-remove"
         onClick={onRemove}
         title="Remove drop"
       >

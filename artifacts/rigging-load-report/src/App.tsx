@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useClerk, useUser } from "@clerk/react";
 import { Link } from "wouter";
 import "./index.css";
@@ -43,6 +43,7 @@ import {
   normalizeStage,
 } from "./lib/stage";
 import { exportStageReport } from "./lib/stageExport";
+import { exportPowerPlanToCrew } from "./lib/powerPlanExport";
 import { StageReportView } from "./components/StageReportView";
 import {
   makeCrewMember,
@@ -1192,6 +1193,12 @@ function App() {
 
   const [savedAt, setSavedAt] = useState<string>("");
   const [shareOpen, setShareOpen] = useState(false);
+  // Transient toast text for the Power Plan "Export to crew" action.
+  // Cleared by the PowerPlanView after its auto-fade timer fires, or
+  // when the user clicks the close (×) on the toast itself.
+  const [powerExportToast, setPowerExportToast] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -2718,6 +2725,23 @@ function App() {
       distros: p.distros.filter((d) => d.id !== id),
     }));
   };
+  /** Empty every channel's drops on a distro while keeping the distro
+   *  shell, preset, mapping, and "feeds" selections. Used by the
+   *  per-distro "Reset distro" button to quickly start a card over
+   *  without losing its identity / placement in the rack list. */
+  const resetDistro = (id: string) => {
+    setPower((p) => ({
+      ...p,
+      distros: p.distros.map((d) =>
+        d.id === id
+          ? {
+              ...d,
+              channels: d.channels.map((c) => ({ ...c, drops: [] })),
+            }
+          : d,
+      ),
+    }));
+  };
   const applyDistroPreset = (id: string, presetId: DistroPresetId) => {
     setPower((p) => ({
       ...p,
@@ -3025,6 +3049,47 @@ function App() {
       targetWin,
     });
   };
+
+  /** Open a printable Power Plan crew manifest in a new window. The
+   *  popup is opened SYNCHRONOUSLY (in the click handler, before any
+   *  async work) so browsers don't classify it as a programmatic
+   *  pop-up and block it. The new window includes a "Print / Save as
+   *  PDF" button and a "Download JSON" button so the crew can ingest
+   *  the data into their own tools. We also trigger a brief in-page
+   *  toast so the user gets immediate feedback the share happened. */
+  const exportPowerPlan = () => {
+    const targetWin = window.open("", "_blank");
+    if (targetWin) {
+      targetWin.document.write(
+        `<!doctype html><meta charset="utf-8"><title>Generating Power Plan…</title><body style="font:14px system-ui;padding:24px;color:#64748b">Generating Power Plan crew manifest…</body>`,
+      );
+    }
+    const result = exportPowerPlanToCrew({
+      plan: power,
+      fixtures: allLightingFixtures,
+      systems,
+      project: {
+        venue,
+        date: reportDate,
+        endDate: reportEndDate || undefined,
+        preparedBy: engineer,
+      },
+      targetWin,
+    });
+    setPowerExportToast(
+      result.ok
+        ? "Data sent to crew — printable manifest opened in a new tab."
+        : "Couldn't open a new tab — please allow pop-ups and try again.",
+    );
+  };
+
+  /** Stable dismiss callback for the inline Power export toast. We
+   *  memoize so the toast's auto-dismiss timer effect doesn't reset
+   *  on unrelated parent rerenders. */
+  const dismissPowerExportToast = useCallback(
+    () => setPowerExportToast(null),
+    [],
+  );
 
   const addShowFixture = () =>
     setShowFixtures((all) => [...all, makeShowFixture()]);
@@ -4536,6 +4601,10 @@ function App() {
           onAddDistro={addDistro}
           onUpdateDistro={updateDistro}
           onRemoveDistro={removeDistro}
+          onResetDistro={resetDistro}
+          onExportPowerPlan={exportPowerPlan}
+          powerExportToast={powerExportToast}
+          onDismissPowerExportToast={dismissPowerExportToast}
           onApplyDistroPreset={applyDistroPreset}
           onUpdateDistroChannelMapping={updateDistroChannelMapping}
           onUpdateDistroChannel={updateDistroChannel}
@@ -4653,6 +4722,10 @@ type LightingPlanViewProps = {
     patch: Partial<Omit<Distro, "channels" | "channelMapping" | "id">>,
   ) => void;
   onRemoveDistro: (id: string) => void;
+  onResetDistro: (id: string) => void;
+  onExportPowerPlan: () => void;
+  powerExportToast: string | null;
+  onDismissPowerExportToast: () => void;
   onApplyDistroPreset: (id: string, presetId: DistroPresetId) => void;
   onUpdateDistroChannelMapping: (id: string, mapping: ChannelMapping) => void;
   onUpdateDistroChannel: (
@@ -4700,6 +4773,10 @@ function LightingPlanView({
   onAddDistro,
   onUpdateDistro,
   onRemoveDistro,
+  onResetDistro,
+  onExportPowerPlan,
+  powerExportToast,
+  onDismissPowerExportToast,
   onApplyDistroPreset,
   onUpdateDistroChannelMapping,
   onUpdateDistroChannel,
@@ -5105,6 +5182,10 @@ function LightingPlanView({
         onAddDistro={onAddDistro}
         onUpdateDistro={onUpdateDistro}
         onRemoveDistro={onRemoveDistro}
+        onResetDistro={onResetDistro}
+        onExportPowerPlan={onExportPowerPlan}
+        powerExportToast={powerExportToast}
+        onDismissPowerExportToast={onDismissPowerExportToast}
         onApplyDistroPreset={onApplyDistroPreset}
         onUpdateDistroChannelMapping={onUpdateDistroChannelMapping}
         onUpdateDistroChannel={onUpdateDistroChannel}

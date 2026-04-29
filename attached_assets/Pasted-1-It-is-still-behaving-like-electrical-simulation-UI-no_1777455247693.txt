@@ -1,0 +1,140 @@
+1. It is still behaving like “electrical simulation UI”, not “touring workflow UI”
+
+Right now the system assumes:
+
+“You manually build power allocation per channel from scratch”
+
+But in real life:
+
+You rarely think in empty channels first
+You start from truss → fixtures → then power gets solved
+
+👉 What’s missing:
+
+A stronger truss-centric workflow layer
+2. Missing Soca split logic visibility
+
+You said:
+
+HOT can feed multiple trusses via Soca split
+
+But in the UI:
+
+I do NOT see any explicit indication of:
+LX1
+LX2
+shared feed
+
+Right now it looks like:
+
+“HOT1 exists, channels exist”
+
+But not:
+
+“HOT1 → LX1 + LX2 (shared load path)”
+
+👉 This is a big conceptual gap
+
+3. Channels feel “empty-first” instead of “fixture-first”
+
+Right now you have:
+
+“No drops on this channel”
+“+ Add fixtures”
+
+That pushes users into:
+
+thinking like an electrician first
+
+But your system should push:
+
+thinking like a lighting designer first
+
+Better mental model:
+
+Pick fixtures on truss
+Then assign power automatically or assisted
+4. No phase stress visibility yet
+
+Even though the model supports it, I don’t see:
+
+“L1 overloaded” warning
+“Phase imbalance” indicator
+or any cross-channel aggregation feedback
+
+👉 This is critical for real-world use
+
+Right now it’s:
+
+per-channel view only
+
+But real issue is:
+
+per-phase failure
+
+5. Auto-balance (if exists) is not visible
+
+If it exists in backend logic:
+
+It’s not surfaced clearly in UI
+
+And if it’s not implemented yet:
+
+That’s fine, but it’s a key missing feature from earlier spec
+🧠 The core issue (important)
+
+What you currently have is:
+
+⚡ “Accurate electrical breakdown tool”
+
+But what you want is:
+
+🎛 “Lighting rig planning tool that solves power”
+
+Those are subtly but fundamentally different.
+
+🔧 What I would change next (high impact)
+1. Add a “Truss view layer”
+
+Above distros, show:
+
+LX1
+LX2
+
+Each showing:
+
+fixtures
+total load
+assigned distro(s)
+
+Then power flows downward.
+
+2. Make distro a result, not a starting point
+
+Right now:
+
+user builds power → assigns fixtures
+
+Better:
+
+user builds fixtures → system suggests power layout
+
+3. Add explicit “Feed graph”
+
+Something like:
+
+HOT1
+ ├── LX1 (60%)
+ └── LX2 (40%)
+
+This instantly fixes your Soca-split ambiguity.
+
+4. Add phase summary bar at top of distro
+
+Not just channels:
+
+L1: ██████ 78%
+L2: ███ 32%
+L3: ██████████ 110% ⚠️
+
+This is what techs actually look at under pressure.

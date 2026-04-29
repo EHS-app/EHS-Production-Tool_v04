@@ -1,8 +1,18 @@
 import { Router, type IRouter, type RequestHandler, json } from "express";
 import Anthropic from "@anthropic-ai/sdk";
+import { and, eq } from "drizzle-orm";
+import { db, venueMemoryTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
+
+/** Normalise a venue name to a stable lookup key. The same producer
+ *  uploading "Sentrum  Scene", "Sentrum Scene" and "sentrum scene"
+ *  should hit the same memory entry — otherwise the learning loop
+ *  starts from scratch every time they retype the venue field. */
+export function venueKeyFor(venueName: string): string {
+  return venueName.trim().toLowerCase().replace(/\s+/g, " ");
+}
 
 /** Require an authenticated Clerk session. We only ever call the upstream
  *  Anthropic API on behalf of a signed-in user — otherwise this endpoint
@@ -139,11 +149,11 @@ nothing of that kind is shown.
 
 {
   "venue":      { "widthM": number|null, "depthM": number|null, "ceilingM": number|null },
-  "stages":     [ { "name": string, "widthM": number, "depthM": number, "notes": string } ],
-  "trusses":    [ { "name": string, "lengthM": number, "pointCount": number, "hoistKg": number|null, "trimM": number|null, "notes": string } ],
-  "lighting":   [ { "name": string, "qty": number, "weightKg": number|null, "watts": number|null, "trussName": string, "notes": string } ],
-  "ledScreens": [ { "name": string, "panelsWide": number|null, "panelsTall": number|null, "widthM": number|null, "heightM": number|null, "notes": string } ],
-  "sound":      [ { "name": string, "qty": number, "weightKg": number|null, "watts": number|null, "notes": string } ],
+  "stages":     [ { "name": string, "widthM": number, "depthM": number, "notes": string, "confidence": number, "bbox": {"x":number,"y":number,"width":number,"height":number}|null } ],
+  "trusses":    [ { "name": string, "lengthM": number, "pointCount": number, "hoistKg": number|null, "trimM": number|null, "notes": string, "confidence": number, "bbox": {"x":number,"y":number,"width":number,"height":number}|null } ],
+  "lighting":   [ { "name": string, "qty": number, "weightKg": number|null, "watts": number|null, "trussName": string, "notes": string, "confidence": number, "bbox": {"x":number,"y":number,"width":number,"height":number}|null } ],
+  "ledScreens": [ { "name": string, "panelsWide": number|null, "panelsTall": number|null, "widthM": number|null, "heightM": number|null, "notes": string, "confidence": number, "bbox": {"x":number,"y":number,"width":number,"height":number}|null } ],
+  "sound":      [ { "name": string, "qty": number, "weightKg": number|null, "watts": number|null, "notes": string, "confidence": number, "bbox": {"x":number,"y":number,"width":number,"height":number}|null } ],
   "summary":    string
 }
 
@@ -233,6 +243,26 @@ Conventions:
   2 x 2 m"). \`name\` should match the label on the drawing.
 - "summary" is one short sentence describing what the drawing depicts.
 
+- "confidence" is your self-assessed certainty for that item, in the
+  range [0, 1]. Use 0.9-1.0 only when the drawing explicitly labels
+  the value (e.g. a truss tagged "LX3 — 12 m, 4 motors"); 0.6-0.8
+  when you inferred it from a symbol, extent, or fixture-key entry;
+  0.3-0.5 when you genuinely guessed; do NOT emit items below 0.3.
+  Lower confidence does NOT mean omit the item — it means flag it
+  so the user can verify or correct it in the overlay editor.
+
+- "bbox" is the bounding box of the item on the drawing, in
+  NORMALISED image coordinates with origin at the TOP-LEFT corner
+  of the file (or the first page of a multi-page PDF): x, y are the
+  box's top-left corner, width and height are its size, all in
+  [0, 1] (so x + width <= 1 and y + height <= 1). A truss bar gets
+  a long thin bbox along the bar; a lighting cluster covers the
+  symbols on its truss; an LED screen covers the screen rectangle;
+  a stage covers the deck; a sound array covers the speaker cluster.
+  Use null only when you genuinely cannot point at one place on the
+  drawing (e.g. info read only from a legend, fixture key or
+  spec-sheet annotation with no on-plan symbol).
+
 Be precise — if the drawing labels something "LX3" with a length of
 12 m and 4 motors, the output truss MUST be name="LX3", lengthM=12,
 pointCount=4. Do NOT invent items that are not in the drawing.
@@ -244,6 +274,11 @@ Do not include any text outside the JSON code block.`;
 type AnalyzeContext = {
   venue?: { widthM?: number; depthM?: number; ceilingM?: number };
   projectName?: string;
+  /** Free-form text built from saved venue memory. Injected verbatim
+   *  into the prompt as a "previously-known about this venue" hint
+   *  so Claude can prefer past truss / fixture names over reinvention.
+   *  Keep this short — a few hundred characters at most. */
+  venueMemoryHint?: string;
 };
 
 function contextLine(ctx: AnalyzeContext | undefined): string {
@@ -258,7 +293,115 @@ function contextLine(ctx: AnalyzeContext | undefined): string {
       );
     }
   }
-  return parts.length ? `Additional context: ${parts.join(" — ")}.` : "";
+  const ctxLine = parts.length
+    ? `Additional context: ${parts.join(" — ")}.`
+    : "";
+  const hint = ctx.venueMemoryHint?.trim();
+  if (hint) {
+    return `${ctxLine}\n\nWhat we have learned about this venue from past\nanalyses (use as a HINT — always prefer what is actually visible\nin THIS drawing; correct any past mistake the user changed):\n${hint}`.trim();
+  }
+  return ctxLine;
+}
+
+/** Build the venue-memory hint string from the saved JSON blob. We
+ *  format it as a few terse bullet lines so the model can scan it
+ *  quickly. The blob is intentionally typed loosely — extra fields
+ *  the client adds in future versions are tolerated. */
+type SavedMemoryShape = {
+  lastCorrected?: {
+    trusses?: Array<{ name?: unknown; lengthM?: unknown; pointCount?: unknown }>;
+    lighting?: Array<{ name?: unknown; qty?: unknown; trussName?: unknown }>;
+    ledScreens?: Array<{
+      name?: unknown;
+      widthM?: unknown;
+      heightM?: unknown;
+      panelsWide?: unknown;
+      panelsTall?: unknown;
+    }>;
+    stages?: Array<{ name?: unknown; widthM?: unknown; depthM?: unknown }>;
+    sound?: Array<{ name?: unknown; qty?: unknown }>;
+  };
+};
+
+function buildVenueMemoryHint(raw: unknown): string {
+  if (!raw || typeof raw !== "object") return "";
+  const memory = raw as SavedMemoryShape;
+  const last = memory.lastCorrected;
+  if (!last) return "";
+  const lines: string[] = [];
+  const trusses = (last.trusses ?? []).filter(Boolean).slice(0, 8);
+  if (trusses.length) {
+    const items = trusses
+      .map((t) => {
+        const name = typeof t.name === "string" ? t.name : "Truss";
+        const len = typeof t.lengthM === "number" ? `${t.lengthM} m` : null;
+        const pts =
+          typeof t.pointCount === "number" ? `${t.pointCount} pts` : null;
+        const tail = [len, pts].filter(Boolean).join(", ");
+        return tail ? `${name} (${tail})` : name;
+      })
+      .join("; ");
+    lines.push(`- Trusses usually present: ${items}.`);
+  }
+  const lighting = (last.lighting ?? []).filter(Boolean).slice(0, 10);
+  if (lighting.length) {
+    const items = lighting
+      .map((f) => {
+        const name = typeof f.name === "string" ? f.name : "Fixture";
+        const qty = typeof f.qty === "number" ? `${f.qty}× ` : "";
+        const truss =
+          typeof f.trussName === "string" && f.trussName
+            ? ` on ${f.trussName}`
+            : "";
+        return `${qty}${name}${truss}`;
+      })
+      .join("; ");
+    lines.push(`- Lighting often used: ${items}.`);
+  }
+  const led = (last.ledScreens ?? []).filter(Boolean).slice(0, 4);
+  if (led.length) {
+    const items = led
+      .map((s) => {
+        const name = typeof s.name === "string" ? s.name : "LED";
+        if (typeof s.widthM === "number" && typeof s.heightM === "number") {
+          return `${name} (${s.widthM} × ${s.heightM} m)`;
+        }
+        if (
+          typeof s.panelsWide === "number" &&
+          typeof s.panelsTall === "number"
+        ) {
+          return `${name} (${s.panelsWide} × ${s.panelsTall} panels)`;
+        }
+        return name;
+      })
+      .join("; ");
+    lines.push(`- LED screens typically: ${items}.`);
+  }
+  const stages = (last.stages ?? []).filter(Boolean).slice(0, 4);
+  if (stages.length) {
+    const items = stages
+      .map((s) => {
+        const name = typeof s.name === "string" ? s.name : "Stage";
+        if (typeof s.widthM === "number" && typeof s.depthM === "number") {
+          return `${name} (${s.widthM} × ${s.depthM} m)`;
+        }
+        return name;
+      })
+      .join("; ");
+    lines.push(`- Stages / decks typically: ${items}.`);
+  }
+  const sound = (last.sound ?? []).filter(Boolean).slice(0, 6);
+  if (sound.length) {
+    const items = sound
+      .map((s) => {
+        const name = typeof s.name === "string" ? s.name : "Sound";
+        const qty = typeof s.qty === "number" ? `${s.qty}× ` : "";
+        return `${qty}${name}`;
+      })
+      .join("; ");
+    lines.push(`- Sound often: ${items}.`);
+  }
+  return lines.join("\n");
 }
 
 /** Pull the first ```json ... ``` block from the model's text output. */
@@ -272,51 +415,110 @@ function extractJsonBlock(text: string): string | null {
   return null;
 }
 
+/** Bounding box of an item on the (first page of the) drawing, in
+ *  normalised image coordinates with origin at top-left. All four
+ *  numbers are clamped to [0, 1] by `normaliseBbox` before being
+ *  returned to the client, so the overlay editor can blindly trust
+ *  them. */
+type Bbox = { x: number; y: number; width: number; height: number };
+
+/** Fields every item carries: a self-assessed confidence in [0, 1]
+ *  (null when the model omitted it) and an optional bbox for the
+ *  overlay editor. Adding these as a shared base keeps the per-type
+ *  rows below readable. */
+type ItemMeta = { confidence: number | null; bbox: Bbox | null };
+
 type ExtractedItems = {
   venue: { widthM: number | null; depthM: number | null; ceilingM: number | null };
-  stages: Array<{ name: string; widthM: number; depthM: number; notes: string }>;
-  trusses: Array<{
-    name: string;
-    lengthM: number;
-    pointCount: number;
-    /** Per-motor working-load capacity in kg, when labelled on the
-     *  drawing. Currently mapped on the client to one of the two
-     *  configured hoist models (500 kg / 1000 kg). null when unknown. */
-    hoistKg: number | null;
-    trimM: number | null;
-    notes: string;
-  }>;
-  lighting: Array<{
-    name: string;
-    qty: number;
-    weightKg: number | null;
-    watts: number | null;
-    /** Truss / system label this fixture is hung on, copied from one of
-     *  trusses[].name when the model recognised a hang. Empty when the
-     *  drawing didn't show one. */
-    trussName: string;
-    notes: string;
-  }>;
-  ledScreens: Array<{
-    name: string;
-    panelsWide: number | null;
-    panelsTall: number | null;
-    /** Physical screen size in metres, when the drawing labels metres
-     *  rather than panel counts (e.g. "5 x 3 m"). Falls back to null
-     *  when only panel counts are visible. */
-    widthM: number | null;
-    heightM: number | null;
-    notes: string;
-  }>;
-  sound: Array<{
-    name: string;
-    qty: number;
-    weightKg: number | null;
-    watts: number | null;
-    notes: string;
-  }>;
+  stages: Array<
+    { name: string; widthM: number; depthM: number; notes: string } & ItemMeta
+  >;
+  trusses: Array<
+    {
+      name: string;
+      lengthM: number;
+      pointCount: number;
+      /** Per-motor working-load capacity in kg, when labelled on the
+       *  drawing. Currently mapped on the client to one of the two
+       *  configured hoist models (500 kg / 1000 kg). null when unknown. */
+      hoistKg: number | null;
+      trimM: number | null;
+      notes: string;
+    } & ItemMeta
+  >;
+  lighting: Array<
+    {
+      name: string;
+      qty: number;
+      weightKg: number | null;
+      watts: number | null;
+      /** Truss / system label this fixture is hung on, copied from one of
+       *  trusses[].name when the model recognised a hang. Empty when the
+       *  drawing didn't show one. */
+      trussName: string;
+      notes: string;
+    } & ItemMeta
+  >;
+  ledScreens: Array<
+    {
+      name: string;
+      panelsWide: number | null;
+      panelsTall: number | null;
+      /** Physical screen size in metres, when the drawing labels metres
+       *  rather than panel counts (e.g. "5 x 3 m"). Falls back to null
+       *  when only panel counts are visible. */
+      widthM: number | null;
+      heightM: number | null;
+      notes: string;
+    } & ItemMeta
+  >;
+  sound: Array<
+    {
+      name: string;
+      qty: number;
+      weightKg: number | null;
+      watts: number | null;
+      notes: string;
+    } & ItemMeta
+  >;
   summary: string;
 };
+
+/** Coerce a model-returned `bbox` blob into our strict shape. We
+ *  silently clamp out-of-range numbers and return null whenever the
+ *  result wouldn't represent a usable rectangle, so the overlay
+ *  editor never has to defensively re-validate. */
+function normaliseBbox(v: unknown): Bbox | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  const numIn01 = (n: unknown): number | null => {
+    if (typeof n === "number" && Number.isFinite(n)) {
+      if (n < 0) return 0;
+      if (n > 1) return 1;
+      return n;
+    }
+    return null;
+  };
+  const x = numIn01(o.x);
+  const y = numIn01(o.y);
+  const width = numIn01(o.width);
+  const height = numIn01(o.height);
+  if (x == null || y == null || width == null || height == null) return null;
+  if (width <= 0 || height <= 0) return null;
+  // Clamp the box so it never extends past the right / bottom edge.
+  const w = Math.min(width, 1 - x);
+  const h = Math.min(height, 1 - y);
+  if (w <= 0 || h <= 0) return null;
+  return { x, y, width: w, height: h };
+}
+
+/** Coerce a model-returned `confidence` number into [0, 1] or null. */
+function normaliseConfidence(v: unknown): number | null {
+  if (typeof v !== "number" || !Number.isFinite(v)) return null;
+  if (v < 0) return 0;
+  if (v > 1) return 1;
+  return v;
+}
 
 /** Build a stable lookup key for a (fixture-name, truss) pair. We
  *  normalise whitespace, casing and a few trivial separators so that
@@ -337,6 +539,8 @@ type LightingRow = {
   watts: number | null;
   trussName: string;
   notes: string;
+  confidence: number | null;
+  bbox: Bbox | null;
 };
 
 /** Collapse duplicate (fixture-name, truss) rows produced by the model.
@@ -363,6 +567,20 @@ function mergeLightingRows(rows: LightingRow[]): LightingRow[] {
       existing.notes = existing.notes
         ? `${existing.notes}; ${row.notes}`
         : row.notes;
+    }
+    // Keep the lowest confidence — merging means we believe the
+    // combined claim only as strongly as its weakest contributor.
+    if (row.confidence != null) {
+      existing.confidence =
+        existing.confidence == null
+          ? row.confidence
+          : Math.min(existing.confidence, row.confidence);
+    }
+    // Keep the first non-null bbox; the merged row points at the
+    // first cluster we saw and the user can re-position it in the
+    // overlay editor if needed.
+    if (existing.bbox == null && row.bbox != null) {
+      existing.bbox = row.bbox;
     }
   }
   return Array.from(byKey.values());
@@ -439,6 +657,8 @@ function normalizeExtracted(raw: unknown): ExtractedItems {
         widthM: numOrZero(o.widthM),
         depthM: numOrZero(o.depthM),
         notes: str(o.notes),
+        confidence: normaliseConfidence(o.confidence),
+        bbox: normaliseBbox(o.bbox),
       };
     }),
     trusses: arr(r.trusses).map((s) => {
@@ -460,6 +680,8 @@ function normalizeExtracted(raw: unknown): ExtractedItems {
         hoistKg,
         trimM: num(o.trimM),
         notes: str(o.notes),
+        confidence: normaliseConfidence(o.confidence),
+        bbox: normaliseBbox(o.bbox),
       };
     }),
     // Lighting rows are merged downstream — see `mergeLightingRows`.
@@ -484,6 +706,8 @@ function normalizeExtracted(raw: unknown): ExtractedItems {
             watts: num(o.watts),
             trussName: str(o.trussName).trim(),
             notes: str(o.notes),
+            confidence: normaliseConfidence(o.confidence),
+            bbox: normaliseBbox(o.bbox),
           };
         })
         .filter((row) => row.qRaw == null || row.qRaw <= 200)
@@ -514,6 +738,8 @@ function normalizeExtracted(raw: unknown): ExtractedItems {
         widthM: positive(num(o.widthM)) ?? lifted.widthM,
         heightM: positive(num(o.heightM)) ?? lifted.heightM,
         notes,
+        confidence: normaliseConfidence(o.confidence),
+        bbox: normaliseBbox(o.bbox),
       };
     }),
     sound: arr(r.sound).map((s) => {
@@ -526,6 +752,8 @@ function normalizeExtracted(raw: unknown): ExtractedItems {
         weightKg: num(o.weightKg),
         watts: num(o.watts),
         notes: str(o.notes),
+        confidence: normaliseConfidence(o.confidence),
+        bbox: normaliseBbox(o.bbox),
       };
     }),
     summary: str(r.summary),
@@ -587,9 +815,53 @@ router.post("/rigplan/analyze", requireSignedIn, rateLimit, json({ limit: "12mb"
     return;
   }
 
-  const ctx =
+  const incomingCtx =
     body.context && typeof body.context === "object"
-      ? (body.context as AnalyzeContext)
+      ? (body.context as AnalyzeContext & { venueName?: unknown })
+      : undefined;
+
+  // Per-user, per-venue learning memory: if the producer has saved
+  // corrections for this venue before, we look them up and add a short
+  // hint to the prompt. Failures here are silent on purpose — a missing
+  // memory entry just means "no hint", and a DB hiccup must never
+  // block the analyser.
+  let venueMemoryHint: string | undefined;
+  if (incomingCtx && typeof incomingCtx.venueName === "string") {
+    const venueName = incomingCtx.venueName.trim();
+    const userId = (req as unknown as { _userId?: string })._userId ?? "";
+    if (venueName && userId) {
+      try {
+        const rows = await db
+          .select({ data: venueMemoryTable.data })
+          .from(venueMemoryTable)
+          .where(
+            and(
+              eq(venueMemoryTable.userId, userId),
+              eq(venueMemoryTable.venueKey, venueKeyFor(venueName)),
+            ),
+          )
+          .limit(1);
+        if (rows.length > 0) {
+          const hint = buildVenueMemoryHint(rows[0].data);
+          if (hint) venueMemoryHint = hint;
+        }
+      } catch (err) {
+        logger.warn(
+          { err: err instanceof Error ? err.message : String(err) },
+          "venue memory lookup failed; continuing without hint",
+        );
+      }
+    }
+  }
+
+  const ctx: AnalyzeContext | undefined = incomingCtx
+    ? {
+        venue: incomingCtx.venue,
+        projectName: incomingCtx.projectName,
+        venueMemoryHint,
+      }
+    : venueMemoryHint
+      ? { venueMemoryHint }
       : undefined;
 
   // Anthropic's content-block shape differs for images vs PDFs. Images go

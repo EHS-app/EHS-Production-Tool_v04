@@ -1,0 +1,127 @@
+You are working inside an existing monorepo:
+
+- Frontend: React + TypeScript + Vite
+- Backend: Express + PostgreSQL + Drizzle
+- Auth: Clerk
+
+There is already a "Drawing Analyzer" feature that uploads PDFs/images and sends them to Claude.
+
+Your task is to UPGRADE this feature with:
+
+1) Structured AI prompt
+2) Interactive overlay editor
+3) Learning memory system per venue
+
+Do NOT break existing functionality.
+
+---
+
+### PART 1 — BACKEND: AI ANALYZER UPGRADE
+
+Update the analyzer endpoint to send this SYSTEM + USER prompt to Claude:
+
+SYSTEM PROMPT:
+[PASTE SYSTEM PROMPT HERE]
+
+USER PROMPT:
+[PASTE USER PROMPT HERE]
+
+Requirements:
+- Return strict JSON only
+- Validate response before sending to frontend
+- If parsing fails, return error safely
+
+---
+
+### PART 2 — FRONTEND: OVERLAY EDITOR
+
+Create new components:
+
+/components/analyzer/
+  OverlayEditor.tsx
+  OverlayBox.tsx
+  useOverlayState.ts
+
+Requirements:
+
+- Render uploaded image or PDF page
+- Draw bounding boxes from AI response
+- Each box:
+  - draggable
+  - resizable
+  - clickable
+
+Data model:
+
+type OverlayItem = {
+  id: string
+  type: "truss" | "lighting" | "led" | "stage" | "sound"
+  x: number
+  y: number
+  width: number
+  height: number
+  label: string
+  confidence: number
+}
+
+Features:
+- Click → open side panel editor
+- Edit label, values
+- Delete item
+- Add new item (toolbar)
+
+Use react-konva if available, otherwise absolute positioned divs.
+
+---
+
+### PART 3 — SAVE CORRECTIONS
+
+When user clicks "Apply":
+
+- Send corrected overlay data to backend
+- Store it in database
+
+Create table:
+
+venue_memory:
+- id
+- venue_name
+- data (jsonb)
+- created_at
+
+---
+
+### PART 4 — LEARNING SYSTEM
+
+Before sending new drawing to AI:
+
+- Check if venue exists
+- If yes, include context:
+
+"This venue usually has:
+- [list trusses]
+- [known fixtures]"
+
+Inject into USER prompt
+
+---
+
+### PART 5 — INTEGRATION
+
+- Hook OverlayEditor into existing Drawing Analyzer flow
+- Keep current "Apply to reports" step
+- Ensure:
+  - Rigging report receives trusses
+  - Lighting report receives fixtures
+
+---
+
+### OUTPUT
+
+Return:
+- All new files
+- Updated backend route
+- Example API request/response
+- Minimal styling (match existing app)
+
+Do not explain — just implement.

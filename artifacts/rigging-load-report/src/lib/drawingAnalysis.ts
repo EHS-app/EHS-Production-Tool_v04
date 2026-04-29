@@ -7,6 +7,34 @@
  *
  *  Keep these types in sync with `artifacts/api-server/src/routes/rigplanAnalyze.ts`. */
 
+/** Bounding box of an item on the (first page of the) uploaded drawing,
+ *  in normalised image coordinates with the origin at the TOP-LEFT
+ *  corner of the file. All four numbers are in [0, 1]; the analyser
+ *  guarantees `x + width <= 1` and `y + height <= 1`. The overlay
+ *  editor uses these to render a draggable / resizable rectangle on
+ *  top of the rendered image. */
+export type Bbox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+/** Fields every extracted item carries, regardless of category. The
+ *  analyser fills both for AI-extracted items; user-added items in the
+ *  overlay editor get `confidence: null` and a freshly-drawn bbox. */
+export type ItemMeta = {
+  /** Self-assessed certainty in [0, 1]. null when the model omitted
+   *  the field (older payloads) or when the user added the item by
+   *  hand in the overlay editor. */
+  confidence: number | null;
+  /** Position of the item on the drawing for the overlay editor.
+   *  null when the model could not pin it to one place (e.g. info
+   *  read only from a legend) or when the item was created without
+   *  positional data. */
+  bbox: Bbox | null;
+};
+
 export type ExtractedVenue = {
   widthM: number | null;
   depthM: number | null;
@@ -18,7 +46,7 @@ export type ExtractedStage = {
   widthM: number;
   depthM: number;
   notes: string;
-};
+} & ItemMeta;
 
 export type ExtractedTruss = {
   name: string;
@@ -33,7 +61,7 @@ export type ExtractedTruss = {
   hoistKg: number | null;
   trimM: number | null;
   notes: string;
-};
+} & ItemMeta;
 
 export type ExtractedLighting = {
   name: string;
@@ -45,7 +73,7 @@ export type ExtractedLighting = {
    *  Used to group fixtures onto the same Rigging system on apply. */
   trussName: string;
   notes: string;
-};
+} & ItemMeta;
 
 export type ExtractedLedScreen = {
   name: string;
@@ -58,7 +86,7 @@ export type ExtractedLedScreen = {
   widthM: number | null;
   heightM: number | null;
   notes: string;
-};
+} & ItemMeta;
 
 export type ExtractedSound = {
   name: string;
@@ -66,7 +94,7 @@ export type ExtractedSound = {
   weightKg: number | null;
   watts: number | null;
   notes: string;
-};
+} & ItemMeta;
 
 export type ExtractedItems = {
   venue: ExtractedVenue;
@@ -107,14 +135,19 @@ export function fileToDataUrl(file: File): Promise<string> {
 export type AnalyzeContext = {
   venue?: { widthM?: number; depthM?: number; ceilingM?: number };
   projectName?: string;
+  /** Venue name used to look up saved corrections from past analyses
+   *  of the same place. Sent to the server, which injects a short
+   *  hint into the prompt before calling Claude. Optional — leave
+   *  unset for one-off analyses. */
+  venueName?: string;
 };
 
 /** Endpoint URL — uses the artifact's base path so it survives the
  *  workspace path-rewrite proxy. */
-function endpointUrl(): string {
+function endpointUrl(path: string): string {
   // BASE_URL has a trailing slash, e.g. "/" or "/rigging-load-report/".
   const base = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? "/";
-  return `${base}api/rigplan/analyze`;
+  return `${base}api/${path.replace(/^\//, "")}`;
 }
 
 /** Normalise the data URL's media-type prefix so the backend's strict
@@ -137,7 +170,7 @@ export async function analyzeDrawing(
   signal?: AbortSignal,
 ): Promise<ExtractedItems> {
   const fileDataUrl = withCorrectedMediaType(await fileToDataUrl(file), file);
-  const res = await fetch(endpointUrl(), {
+  const res = await fetch(endpointUrl("rigplan/analyze"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ fileDataUrl, context }),
@@ -258,4 +291,109 @@ export function totalAdded(s: ApplySummary): number {
     s.stages.added +
     s.sound.added
   );
+}
+
+// ---------------------------------------------------------------------
+// Venue memory (per-venue learning)
+// ---------------------------------------------------------------------
+//
+// We persist the last set of corrected items per (Clerk user, venue)
+// pair on the server. On the next analysis of the same venue, the
+// server reads the saved blob and injects a short hint into the
+// prompt ("this venue usually has trusses LX1, LX2, FOH..."). The
+// shape below is intentionally loose — older saves with missing
+// fields still load, and the server's hint builder copes with
+// unknown fields by skipping them.
+
+export type VenueMemoryData = {
+  /** The last `ExtractedItems` blob the user applied for this venue.
+   *  Stored verbatim so we can both show it back ("you previously
+   *  saved …") and feed it to the prompt builder. */
+  lastCorrected?: ExtractedItems;
+  /** Bumped every time we save. Useful for cache-busting if we ever
+   *  add an in-memory cache of memory blobs. */
+  savedAt?: string;
+};
+
+export type LoadedVenueMemory = {
+  venueName: string;
+  data: VenueMemoryData;
+  updatedAt: string | null;
+};
+
+/** GET the saved memory blob for a venue, or null if none exists. */
+export async function loadVenueMemory(
+  venueName: string,
+  signal?: AbortSignal,
+): Promise<LoadedVenueMemory | null> {
+  const trimmed = venueName.trim();
+  if (!trimmed) return null;
+  const url =
+    endpointUrl("rigplan/memory") + `?venue=${encodeURIComponent(trimmed)}`;
+  let res: Response;
+  try {
+    res = await fetch(url, { method: "GET", signal });
+  } catch {
+    return null;
+  }
+  if (!res.ok) return null;
+  let payload: unknown;
+  try {
+    payload = await res.json();
+  } catch {
+    return null;
+  }
+  if (!payload || typeof payload !== "object") return null;
+  const ok = (payload as { ok?: unknown }).ok;
+  if (ok !== true) return null;
+  const data = (payload as { data?: unknown }).data;
+  if (!data || typeof data !== "object") return null;
+  return {
+    venueName:
+      typeof (payload as { venueName?: unknown }).venueName === "string"
+        ? (payload as { venueName: string }).venueName
+        : trimmed,
+    data: data as VenueMemoryData,
+    updatedAt:
+      typeof (payload as { updatedAt?: unknown }).updatedAt === "string"
+        ? (payload as { updatedAt: string }).updatedAt
+        : null,
+  };
+}
+
+/** PUT the corrected items as the new memory blob for the venue.
+ *  Best-effort — failures resolve to false rather than throw, because
+ *  the user's primary action ("Apply to reports") must never depend
+ *  on the memory write succeeding. */
+export async function saveVenueMemory(
+  venueName: string,
+  corrected: ExtractedItems,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const trimmed = venueName.trim();
+  if (!trimmed) return false;
+  const data: VenueMemoryData = {
+    lastCorrected: corrected,
+    savedAt: new Date().toISOString(),
+  };
+  let res: Response;
+  try {
+    res = await fetch(endpointUrl("rigplan/memory"), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ venueName: trimmed, data }),
+      signal,
+    });
+  } catch {
+    return false;
+  }
+  if (!res.ok) return false;
+  let payload: unknown;
+  try {
+    payload = await res.json();
+  } catch {
+    return false;
+  }
+  if (!payload || typeof payload !== "object") return false;
+  return (payload as { ok?: unknown }).ok === true;
 }

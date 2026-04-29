@@ -1,0 +1,160 @@
+You are working inside an existing app:
+
+- React + TypeScript + Vite (frontend)
+- Express + PostgreSQL + Drizzle (backend)
+- There is already a PDF/Image Drawing Analyzer using Claude
+
+Upgrade this feature with:
+1) Better AI prompt (structured JSON)
+2) Overlay editor (click + edit boxes)
+3) Learning memory per venue
+
+Do NOT break existing functionality.
+
+---
+
+PART 1 — AI PROMPT
+
+Use this SYSTEM PROMPT:
+
+You are an expert live event production technician analyzing a venue technical drawing.
+
+Extract:
+- Rigging (trusses)
+- Lighting
+- LED screens
+- Stage
+- Sound
+
+Rules:
+- NEVER guess (use "unknown")
+- Return ONLY valid JSON
+- Include confidence (0–1)
+- Prefer accuracy over quantity
+
+Domain:
+- Trusses = straight lines with length
+- Lighting = repeated symbols on trusses
+- LED = rectangular grids
+- Stage = large rectangle
+- Sound = labeled PA/subs
+
+---
+
+Use this USER PROMPT:
+
+Analyze this drawing and return:
+
+{
+  "trusses": [
+    {
+      "id": "string",
+      "length": number,
+      "position": { "x": number, "y": number },
+      "confidence": number
+    }
+  ],
+  "lighting": [
+    {
+      "type": "string",
+      "quantity": number,
+      "attachedTo": "trussId | unknown",
+      "confidence": number
+    }
+  ],
+  "ledScreens": [
+    {
+      "width": number,
+      "height": number,
+      "position": { "x": number, "y": number },
+      "confidence": number
+    }
+  ],
+  "stage": {
+    "width": number,
+    "depth": number,
+    "position": { "x": number, "y": number },
+    "confidence": number
+  },
+  "sound": [
+    {
+      "type": "string",
+      "quantity": number,
+      "confidence": number
+    }
+  ]
+}
+
+Return JSON only.
+
+---
+
+PART 2 — OVERLAY EDITOR
+
+Create:
+
+/components/analyzer/
+- OverlayEditor.tsx
+- OverlayBox.tsx
+
+Features:
+- Render uploaded image
+- Draw boxes from AI response
+- Boxes are draggable, resizable, clickable
+- Click → edit panel (label, values, delete)
+- Add new items
+
+Data:
+
+type OverlayItem = {
+  id: string
+  type: "truss" | "lighting" | "led" | "stage" | "sound"
+  x: number
+  y: number
+  width: number
+  height: number
+  label: string
+  confidence: number
+}
+
+---
+
+PART 3 — SAVE CORRECTIONS
+
+Create DB table:
+
+venue_memory:
+- id
+- venue_name
+- data (jsonb)
+
+On "Apply":
+- Save corrected overlay data
+
+---
+
+PART 4 — LEARNING SYSTEM
+
+Before sending to AI:
+- Check venue_memory
+- If exists, inject:
+
+"This venue usually has:
+- [trusses]
+- [fixtures]"
+
+---
+
+PART 5 — INTEGRATION
+
+- Hook into existing Drawing Analyzer
+- Keep "Apply to reports"
+- Map:
+  - trusses → Rigging
+  - lighting → Lighting
+
+---
+
+OUTPUT:
+- Code only
+- No explanations

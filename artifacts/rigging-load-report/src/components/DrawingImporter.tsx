@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   analyzeDrawing,
   emptyExtractedItems,
+  saveVenueMemory,
   selectAll,
   selectNone,
   totalAdded,
@@ -12,6 +13,7 @@ import {
   type ExtractedItems,
 } from "../lib/drawingAnalysis";
 import { fileToFloorPlan, type FloorPlan } from "../lib/floorPlan";
+import { OverlayEditor } from "./analyzer/OverlayEditor";
 
 type Props = {
   /** Current venue dimensions, sent as context to the analyser so it
@@ -78,6 +80,22 @@ export function DrawingImporter({
   const [isDragOver, setIsDragOver] = useState(false);
   const [isPreparingFloorPlan, setIsPreparingFloorPlan] = useState(false);
   const [floorPlanApplied, setFloorPlanApplied] = useState(false);
+  // Overlay editor state. `editorImageUrl` is set on open by reading
+  // the file (image → object URL, PDF → rasterised page 1). Holding
+  // both flags lets us show a brief loading state while a PDF is
+  // being rasterised on the worker thread.
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorImageUrl, setEditorImageUrl] = useState<string | null>(null);
+  const [isPreparingEditor, setIsPreparingEditor] = useState(false);
+  // Set true once we successfully PUT the venue memory after Apply.
+  // Drives a small confirmation line under the success banner so the
+  // user knows the learning loop happened.
+  const [memorySaved, setMemorySaved] = useState(false);
+  // Monotonic counter we bump on reset / re-analyze / file change so a
+  // late-resolving venue-memory save from a previous attempt never
+  // flips the "Saved as venue memory…" banner on after the user has
+  // already moved on to a new file or cleared the form.
+  const memorySaveTokenRef = useRef(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Revoke the object URL when we swap files / unmount, otherwise the
@@ -115,6 +133,10 @@ export function DrawingImporter({
     setApplied(false);
     setAppliedSummary(null);
     setFloorPlanApplied(false);
+    setEditorOpen(false);
+    setEditorImageUrl(null);
+    setMemorySaved(false);
+    memorySaveTokenRef.current += 1;
     setFile(f);
   }
 
@@ -144,10 +166,16 @@ export function DrawingImporter({
     setExtracted(null);
     setApplied(false);
     setAppliedSummary(null);
+    setMemorySaved(false);
+    memorySaveTokenRef.current += 1;
     try {
       const result = await analyzeDrawing(file, {
         venue: currentVenue,
         projectName,
+        // The venue memory loop is keyed off this name. We use the
+        // project / venue label the host already passed for context;
+        // when it's empty the server simply skips the memory lookup.
+        venueName: projectName,
       });
       setExtracted(result);
       setSelection(selectAll(result));
@@ -158,11 +186,75 @@ export function DrawingImporter({
     }
   }
 
+  /** Prepare the renderable image URL for the overlay editor.
+   *  - Plain images: use the existing object URL we already created
+   *    for the inline preview (no re-decode).
+   *  - PDFs: rasterise page 1 via `fileToFloorPlan` (same path used
+   *    for the Rigg Plan backdrop) so the editor has a flat raster
+   *    to overlay boxes on. */
+  async function openEditor() {
+    if (!file || !extracted) return;
+    setError(null);
+    if (!isPdfFile(file)) {
+      setEditorImageUrl(previewUrl);
+      setEditorOpen(true);
+      return;
+    }
+    setIsPreparingEditor(true);
+    try {
+      const plan = await fileToFloorPlan(file);
+      setEditorImageUrl(plan.imageDataUrl);
+      setEditorOpen(true);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not prepare this drawing for editing.",
+      );
+    } finally {
+      setIsPreparingEditor(false);
+    }
+  }
+
+  function closeEditor() {
+    setEditorOpen(false);
+  }
+
+  /** Commit the editor's corrected items back to our state and
+   *  refresh the per-category selection so newly-added items are
+   *  selected by default and removed items don't leave dangling
+   *  indexes in the selection set. */
+  function saveEditorChanges(corrected: ExtractedItems) {
+    setExtracted(corrected);
+    setSelection(selectAll(corrected));
+    setEditorOpen(false);
+    // The user just made deliberate corrections; clear any stale
+    // "Applied" banner so they're prompted to apply the new version.
+    setApplied(false);
+    setAppliedSummary(null);
+    setMemorySaved(false);
+  }
+
   function applyAll() {
     if (!extracted) return;
     const result = onApply(extracted, selection);
     setApplied(true);
     setAppliedSummary(result);
+    // Best-effort: save the corrected items as venue memory so the
+    // next analysis of the same venue gets a hint. We don't await —
+    // a slow or failing memory write must never block the UI. Token
+    // guards against a stale write resolving after the user has
+    // already reset / chosen another file / re-analyzed.
+    if (projectName && projectName.trim()) {
+      const token = memorySaveTokenRef.current;
+      void saveVenueMemory(projectName, extracted)
+        .then((ok) => {
+          if (memorySaveTokenRef.current === token) setMemorySaved(ok);
+        })
+        .catch(() => {
+          if (memorySaveTokenRef.current === token) setMemorySaved(false);
+        });
+    }
   }
 
   function reset() {
@@ -173,6 +265,10 @@ export function DrawingImporter({
     setApplied(false);
     setAppliedSummary(null);
     setFloorPlanApplied(false);
+    setEditorOpen(false);
+    setEditorImageUrl(null);
+    setMemorySaved(false);
+    memorySaveTokenRef.current += 1;
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -307,6 +403,15 @@ export function DrawingImporter({
               <button
                 type="button"
                 className="btn btn-soft btn-sm"
+                onClick={openEditor}
+                disabled={isPreparingEditor}
+                title="Open the overlay editor to verify or correct the detected items on the drawing"
+              >
+                {isPreparingEditor ? "Preparing…" : "Edit detections"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-soft btn-sm"
                 onClick={() => setSelection(selectAll(extracted))}
               >
                 Select all
@@ -383,6 +488,13 @@ export function DrawingImporter({
                 Open Rigging / Lighting / LED / Stage / Sound to review and
                 edit.
               </div>
+              {memorySaved && projectName && projectName.trim() && (
+                <div className="led-sub" style={{ marginTop: 4 }}>
+                  Saved as venue memory for <strong>{projectName}</strong> —
+                  the next analysis of this venue will use these corrections
+                  as a hint.
+                </div>
+              )}
             </div>
           )}
 
@@ -596,6 +708,15 @@ export function DrawingImporter({
             </div>
           )}
         </div>
+      )}
+
+      {editorOpen && extracted && editorImageUrl && (
+        <OverlayEditor
+          imageUrl={editorImageUrl}
+          extracted={extracted}
+          onClose={closeEditor}
+          onSave={saveEditorChanges}
+        />
       )}
     </section>
   );

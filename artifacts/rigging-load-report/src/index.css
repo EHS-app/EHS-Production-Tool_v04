@@ -352,34 +352,50 @@ body {
   /* CRITICAL: flex:1 lets the body fill the remaining row width
    * after the checkbox, and min-width:0 lets it actually shrink
    * (the default min-width:auto would refuse to shrink below the
-   * widest unbreakable token, pushing content off-screen). Combined
-   * these make long parts-lists wrap left-justified under the
-   * heading instead of spilling into a vertical column on the
-   * right edge. */
+   * widest unbreakable token, pushing content off-screen).
+   *
+   * Important: the body is a plain BLOCK container, NOT a flex
+   * container. A previous attempt used `display: flex; flex-
+   * direction: column` here, but that combined with the unstyled
+   * <div> wrapper inside (which holds the <strong> + <span>) and
+   * Safari's flex sizing rules let the inner wrapper collapse to
+   * its content's intrinsic width — and once `overflow-wrap:
+   * anywhere` is applied, that collapse renders one character
+   * per line in a thin vertical strip on the right edge. Block
+   * layout is naturally `width: 100%` of its parent and side-
+   * steps that whole class of bug. */
   flex: 1 1 auto;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: block;
   font-size: 13px;
   /* Force long part numbers / weight-derivation strings to break
    * inside the body rather than overflowing it. */
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+/* The unstyled wrapper <div> the importer renders for each item
+ * (<div><strong>name</strong><span class="led-sub">details</span></div>)
+ * needs to be forced to full width so block-level <strong> and
+ * <span> children fill the row, even if a Safari quirk gives the
+ * div a smaller intrinsic width. */
+.drawing-item-body > div {
+  display: block;
+  width: 100%;
+}
 .drawing-item-body .led-sub {
   color: var(--muted, #64748b);
   font-size: 12px;
 }
-/* Each item's content is rendered as <strong>title</strong>
- * followed by <span class="led-sub">details</span> inside an
- * unstyled wrapper div. Forcing the <strong> to its own line
- * gives a clean two-row layout — bold title on top, gray details
- * wrapping left-justified beneath — instead of the title being
- * swallowed by a wall of inline details text. */
+/* Forcing the <strong> title and the gray <span> details to be
+ * block-level gives a clean two-row layout — bold title on top,
+ * details wrapping left-justified beneath — instead of the title
+ * being swallowed by a wall of inline details text. The 2px
+ * margin between them replaces the gap we used to set on a flex
+ * column container. */
 .drawing-item-body > div > strong {
   display: block;
   line-height: 1.25;
+  margin-bottom: 2px;
 }
 .drawing-item-body > div > .led-sub {
   display: block;
@@ -5330,22 +5346,36 @@ input:focus {
 }
 
 .drawing-mode-option {
+  /* Pill-shaped container that keeps the radio button glued to
+   * its label. The 8px gap is between the radio and the label
+   * INSIDE the pill — this is intentionally smaller than the 24px
+   * outer gap between pills so each pair reads as a single unit
+   * rather than four separated radios + labels. */
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1;
   cursor: pointer;
-  padding: 3px 10px;
+  padding: 5px 12px;
   border-radius: 999px;
   user-select: none;
   /* Each option is its own pill so two-word labels like "Geometry
-   * Expert" or "Production Tech" never wrap mid-label and
-   * collide with adjacent options. */
+   * Expert" or "Production Tech" never wrap mid-label and collide
+   * with adjacent options. */
   white-space: nowrap;
 }
 
-.drawing-mode-option input {
+/* Explicit radio sizing prevents browser-default sizing from
+ * leaving a tiny dot floating awkwardly beside a much larger
+ * label, and `flex: 0 0 auto` keeps the radio at its own width
+ * when the pill needs to shrink. */
+.drawing-mode-option input[type="radio"] {
+  width: 14px;
+  height: 14px;
   margin: 0;
+  flex: 0 0 auto;
+  cursor: pointer;
 }
 
 .drawing-mode-option.is-active {

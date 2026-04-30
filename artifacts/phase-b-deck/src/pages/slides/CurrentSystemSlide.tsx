@@ -53,7 +53,7 @@ export default function CurrentSystemSlide() {
       <img src={ehsLogo} alt="EHS" className="absolute bottom-[6vh] left-[6vw] h-[4.5vh] w-auto object-contain" />
 
       <div className="absolute bottom-[6vh] right-[6vw] text-[1.5vw] tracking-widest text-muted font-medium">
-        02 / 10
+        02 / 11
       </div>
     </div>
   );

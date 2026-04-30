@@ -5,7 +5,7 @@ export default function BuildOrderSlide() {
     <div className="w-screen h-screen overflow-hidden relative bg-bg text-text font-body">
       <div className="absolute top-[8vh] left-[6vw] right-[6vw]">
         <div className="text-[1.5vw] tracking-[0.3em] uppercase text-accent font-bold">
-          10 / Plan
+          11 / Plan
         </div>
         <h2 className="text-[4.4vw] leading-[1.05] font-extrabold tracking-tight mt-[2.5vh] [text-wrap:balance]">
           Build order
@@ -47,6 +47,13 @@ export default function BuildOrderSlide() {
         <p className="text-[1.5vw] leading-snug font-semibold [text-wrap:pretty]">
           Itinerary tab in the Portal
         </p>
+
+        <div className="text-[1.6vw] font-extrabold text-accent leading-none pt-[0.3vh]">
+          6
+        </div>
+        <p className="text-[1.5vw] leading-snug font-semibold [text-wrap:pretty]">
+          Drawing Analyser — AI extraction + per-venue learning
+        </p>
       </div>
 
       <div className="absolute right-[6vw] top-[36vh] w-[40vw]">
@@ -55,7 +62,7 @@ export default function BuildOrderSlide() {
             Already shipped
           </div>
           <p className="text-[1.55vw] leading-snug font-medium text-muted [text-wrap:pretty]">
-            Database fields for all five already shipped in Phase A — we're building UI and rules, not schema.
+            Database fields for all six already shipped — the first five in Phase A, venue-memory earlier in Phase B. We're building UI and rules, not schema.
           </p>
         </div>
       </div>
@@ -63,7 +70,7 @@ export default function BuildOrderSlide() {
       <img src={ehsLogo} alt="EHS" className="absolute bottom-[6vh] left-[6vw] h-[4.5vh] w-auto object-contain" />
 
       <div className="absolute bottom-[6vh] right-[6vw] text-[1.5vw] tracking-widest text-muted font-medium">
-        10 / 10
+        11 / 11
       </div>
     </div>
   );

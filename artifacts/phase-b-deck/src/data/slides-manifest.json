@@ -27,8 +27,8 @@
     "id": "11111111-1111-4111-8111-000000000004",
     "position": 4,
     "filepath": "src/pages/slides/ChainSlide.tsx",
-    "title": "Five features, one chain",
-    "description": "Overview of the five Phase B features as a single end-to-end chain.",
+    "title": "Six features, one chain",
+    "description": "Overview of the six Phase B features as a single end-to-end chain.",
     "speakerNotes": ""
   },
   {
@@ -72,8 +72,16 @@
     "speakerNotes": ""
   },
   {
-    "id": "11111111-1111-4111-8111-000000000009",
+    "id": "11111111-1111-4111-8111-00000000000b",
     "position": 10,
+    "filepath": "src/pages/slides/Feature5DrawingAnalyserSlide.tsx",
+    "title": "Drawing Analyser",
+    "description": "Feature 6 — AI extraction from venue drawings with per-venue learning memory.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000009",
+    "position": 11,
     "filepath": "src/pages/slides/BuildOrderSlide.tsx",
     "title": "Build order",
     "description": "Suggested build sequence and reminder that database fields already shipped in Phase A.",

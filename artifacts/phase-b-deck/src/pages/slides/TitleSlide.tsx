@@ -29,7 +29,7 @@ export default function TitleSlide() {
       </div>
 
       <div className="absolute bottom-[6vh] right-[6vw] text-[1.5vw] tracking-widest text-muted font-medium">
-        01 / 10
+        01 / 11
       </div>
     </div>
   );

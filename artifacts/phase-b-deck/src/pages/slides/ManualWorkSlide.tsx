@@ -40,6 +40,13 @@ export default function ManualWorkSlide() {
         </p>
       </div>
 
+      <div className="absolute bottom-[6vh] left-[6vw] flex items-center gap-[0.8vw]">
+        <div className="w-[1.4vw] h-[1.4vw] bg-accent"></div>
+        <div className="text-[1.5vw] font-extrabold tracking-tight text-text leading-none">
+          EHS
+        </div>
+      </div>
+
       <div className="absolute bottom-[6vh] right-[6vw] text-[1.5vw] tracking-widest text-muted font-medium">
         03 / 09
       </div>

@@ -1,7 +1,13 @@
 export default function TitleSlide() {
   return (
     <div className="w-screen h-screen overflow-hidden relative bg-bg text-text font-body">
-      <div className="absolute top-[6vh] left-[6vw] right-[6vw] flex items-start justify-end">
+      <div className="absolute top-[6vh] left-[6vw] right-[6vw] flex items-center justify-between">
+        <div className="flex items-center gap-[1vw]">
+          <div className="w-[2vw] h-[2vw] bg-accent"></div>
+          <div className="text-[2vw] font-extrabold tracking-tight text-text leading-none">
+            EHS
+          </div>
+        </div>
         <div className="text-[1.5vw] tracking-[0.3em] uppercase text-accent font-bold">
           Phase B
         </div>

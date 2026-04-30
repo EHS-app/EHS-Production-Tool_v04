@@ -1,1 +1,74 @@
-[]
+[
+  {
+    "id": "11111111-1111-4111-8111-000000000001",
+    "position": 1,
+    "filepath": "src/pages/slides/TitleSlide.tsx",
+    "title": "Phase B — Automation Layer",
+    "description": "Title slide introducing the Phase B automation layer briefing.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000002",
+    "position": 2,
+    "filepath": "src/pages/slides/CurrentSystemSlide.tsx",
+    "title": "Where we are today",
+    "description": "Recap of the three pieces already in place: Production Tool, Freelance Portal and shared database.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000003",
+    "position": 3,
+    "filepath": "src/pages/slides/ManualWorkSlide.tsx",
+    "title": "The hidden manual work",
+    "description": "The four kinds of manual logistics work that happen outside the system today.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000004",
+    "position": 4,
+    "filepath": "src/pages/slides/ChainSlide.tsx",
+    "title": "Four features, one chain",
+    "description": "Overview of the four Phase B features as a single end-to-end chain.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000005",
+    "position": 5,
+    "filepath": "src/pages/slides/Feature1AutoAssignSlide.tsx",
+    "title": "Auto-Assign Schedules → Gigs",
+    "description": "Feature 1 — automatically write working days into each freelancer's gig.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000006",
+    "position": 6,
+    "filepath": "src/pages/slides/Feature2CateringSlide.tsx",
+    "title": "Catering Aggregation",
+    "description": "Feature 2 — per-day, per-venue catering rollup with allergies attached to names.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000007",
+    "position": 7,
+    "filepath": "src/pages/slides/Feature3HotelsSlide.tsx",
+    "title": "Hotel Logistics",
+    "description": "Feature 3 — hotel rooming lists derived from assigned days with twin-share suggestions.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000008",
+    "position": 8,
+    "filepath": "src/pages/slides/Feature4ItinerarySlide.tsx",
+    "title": "Freelancer Itinerary",
+    "description": "Feature 4 — per-day Portal view combining call times, hotel, meals and venue info.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "11111111-1111-4111-8111-000000000009",
+    "position": 9,
+    "filepath": "src/pages/slides/BuildOrderSlide.tsx",
+    "title": "Build order",
+    "description": "Suggested build sequence and reminder that database fields already shipped in Phase A.",
+    "speakerNotes": ""
+  }
+]

@@ -6,19 +6,22 @@
   --color-bg: var(--slide-bg);
   --color-text: var(--slide-text);
   --color-muted: var(--slide-muted);
+  --color-rule: var(--slide-rule);
+  --color-ink: var(--slide-ink);
   --font-display: var(--font-display-family);
   --font-body: var(--font-body-family);
 }
 
 :root {
-  /* Replace these with brand colors */
-  --slide-primary: #4f46e5;
-  --slide-accent: #06b6d4;
-  --slide-bg: #f8fafc;
-  --slide-text: #0f172a;
-  --slide-muted: #64748b;
-  --font-display-family: "Inter", system-ui, sans-serif;
-  --font-body-family: "Inter", system-ui, sans-serif;
+  --slide-bg: #f4f2ed;
+  --slide-text: #161a22;
+  --slide-ink: #161a22;
+  --slide-primary: #161a22;
+  --slide-accent: #bc4a1f;
+  --slide-muted: #6f6f76;
+  --slide-rule: #d9d4c8;
+  --font-display-family: "Manrope", system-ui, sans-serif;
+  --font-body-family: "Manrope", system-ui, sans-serif;
   color-scheme: light;
 }
 
@@ -33,6 +36,9 @@ body,
 body {
   background: var(--slide-bg);
   color: var(--slide-text);
+  font-family: var(--font-body-family);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .slide {

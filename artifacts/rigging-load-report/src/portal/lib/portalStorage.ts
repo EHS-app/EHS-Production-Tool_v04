@@ -41,6 +41,14 @@ export type Gig = {
    *  gigs that pre-date the feature; the UI treats undefined as "not
    *  checked in". */
   checkIn?: GigCheckIn;
+  /** Wall-clock timestamp of the most recent local mutation (save,
+   *  status change, check-in toggle). The 60-second poll loop in
+   *  `Portal.tsx` uses it as a freshness window — within ~60s of a
+   *  local edit the server snapshot is *not* allowed to overwrite the
+   *  local fields, so a slow PATCH/POST or a transient 5xx never
+   *  visibly reverts a fresh edit. After the window the server is the
+   *  source of truth again, so multi-device convergence still wins. */
+  lastEditedAt?: number;
 };
 
 /** A Project Brief that was shared by a producer and imported into the
@@ -139,6 +147,14 @@ export type PortalData = {
   availability: Record<string, AvailabilityState>;
   gigs: Gig[];
   briefs: SharedBrief[];
+  /** Tombstones for gigs the freelancer just deleted on this device.
+   *  Keyed by gig id with the deletion epoch-ms as the value. The
+   *  60-second poll loop in `Portal.tsx` skips re-adding a server
+   *  gig whose id is in here within the freshness window — closes
+   *  the race where DELETE is in flight when a poll lands and the
+   *  gig would otherwise resurrect itself. Expired entries are
+   *  swept on every merge so the map cannot grow unboundedly. */
+  recentlyDeletedGigIds?: Record<string, number>;
 };
 
 export const EMPTY_PROFILE: Profile = {
@@ -250,7 +266,34 @@ function normalizeGig(raw: unknown): Gig | null {
         : Date.now(),
     briefId: typeof g.briefId === "string" && g.briefId ? g.briefId : undefined,
     checkIn: normalizeCheckIn(g.checkIn),
+    // Preserve the freshness-window timestamp across reloads. Without
+    // this, a hard refresh would reopen the window for nothing
+    // (everything looks server-fresh again) — but more importantly,
+    // a refresh shortly after a local edit would let the next poll
+    // overwrite the still-in-flight POST/PATCH.
+    lastEditedAt:
+      typeof g.lastEditedAt === "number" && isFinite(g.lastEditedAt)
+        ? g.lastEditedAt
+        : undefined,
   };
+}
+
+/** Normalize the `recentlyDeletedGigIds` map: only keep entries with
+ *  a string key and a finite numeric timestamp. Sweeping expired
+ *  entries is mergeServerGigs's responsibility, not the loader's
+ *  (it doesn't have the wall-clock context). */
+function normalizeRecentlyDeleted(
+  raw: unknown,
+): Record<string, number> | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof k !== "string" || !k) continue;
+    if (typeof v === "number" && isFinite(v)) {
+      out[k] = v;
+    }
+  }
+  return Object.keys(out).length === 0 ? undefined : out;
 }
 
 const VALID_DECISIONS: BriefDecision[] = [
@@ -338,7 +381,10 @@ export function loadPortalData(
       return { ...EMPTY_PORTAL_DATA };
     }
     const obj = parsed as Partial<PortalData>;
-    return {
+    const recentlyDeletedGigIds = normalizeRecentlyDeleted(
+      obj.recentlyDeletedGigIds,
+    );
+    const out: PortalData = {
       profile: normalizeProfile(obj.profile),
       availability: normalizeAvailability(obj.availability),
       gigs: Array.isArray(obj.gigs)
@@ -352,6 +398,10 @@ export function loadPortalData(
             .filter((b): b is SharedBrief => b !== null)
         : [],
     };
+    if (recentlyDeletedGigIds) {
+      out.recentlyDeletedGigIds = recentlyDeletedGigIds;
+    }
+    return out;
   } catch {
     return { ...EMPTY_PORTAL_DATA };
   }

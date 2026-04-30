@@ -287,6 +287,21 @@ function serverRowToSharedBrief(row: ServerBriefRow): SharedBrief | null {
  *  retry loop is still in flight. */
 const FRESH_DECISION_WINDOW_MS = 60_000;
 
+/** Predicate guarding all freshness-window comparisons in this file.
+ *  Returns true only when the timestamp is in the past *and* younger
+ *  than the window. The `age >= 0` guard matters because clock skew,
+ *  a manually-set system clock, or a tampered/persisted-from-another-
+ *  device localStorage payload can produce future timestamps — and
+ *  without the guard `now - future` is negative, which trivially
+ *  satisfies `< window` and would lock a row in local-authoritative
+ *  mode forever (or suppress server re-add via tombstone forever),
+ *  defeating multi-device convergence. */
+function isFresh(ts: number | undefined): boolean {
+  if (typeof ts !== "number" || !Number.isFinite(ts)) return false;
+  const age = Date.now() - ts;
+  return age >= 0 && age < FRESH_DECISION_WINDOW_MS;
+}
+
 /** Merge server-originated briefs into the local PortalData. Server
  *  rows win on conflict — *except* for the freelancer's own decision
  *  fields when the local copy was set within the freshness window
@@ -374,38 +389,42 @@ function serverRowToGig(row: ServerGigRow): Gig | null {
   };
 }
 
-/** Merge server-originated gigs into the local PortalData. Three cases:
+/** Merge server-originated gigs into the local PortalData.
  *
- *  1. **Server gig that already exists locally** — the local copy wins
- *     on every field. The freelancer may be mid-edit (status change,
- *     show-day check-in, hours/rate tweak) and the local Gigs screen
- *     doesn't yet push those edits to the server, so a server poll
- *     must never overwrite them.
- *  2. **Server-only gig** — added in place (a fresh device, or another
- *     device created the gig since this one last polled).
- *  3. **Brief-linked local gig that's missing from the server** — this
- *     means the server has authoritatively *removed* the booking
- *     (winner reversed their accept; producer cancelled the brief).
- *     We drop it locally too, otherwise stale "confirmed" gigs would
- *     linger forever in the freelancer's calendar / Gigs screen.
+ *  Slice 4 (this version) makes the merge converge across devices:
+ *  the local copy is no longer kept *unconditionally* — it only wins
+ *  inside a freshness window keyed on the gig's `lastEditedAt`. After
+ *  the window, the server snapshot takes over field-by-field, so a
+ *  status change on device A actually shows up on device B.
  *
- *     The exception: if the owning brief was decided locally within
- *     the freshness window, the corresponding /respond POST may still
- *     be in flight — removing the gig under us would cause it to
- *     vanish-then-reappear once the server catches up. So we keep
- *     brief-linked local gigs whose SharedBrief carries a fresh
- *     `decidedLocallyAt`.
+ *  Cases:
  *
- *     Local-only gigs (no `briefId` — manual logbook entries) are
- *     never removed by this merge regardless. */
+ *  1. **Server gig that already exists locally**
+ *     - If the local row was edited within `FRESH_DECISION_WINDOW_MS`,
+ *       the local copy wins on every field. This protects an
+ *       in-flight POST/PATCH from getting clobbered by a poll that
+ *       races it to the merge.
+ *     - Otherwise the server snapshot is taken.
+ *  2. **Server-only gig** — added in place, *unless* its id appears in
+ *     `recentlyDeletedGigIds` within the freshness window. That
+ *     tombstone closes the race where a freelancer deletes a gig and
+ *     a poll lands before DELETE reaches the server.
+ *  3. **Brief-linked local gig that's missing from the server** — the
+ *     server has authoritatively removed the booking; we drop the
+ *     orphan locally too. Exception: if the owning brief was decided
+ *     locally within the freshness window the /respond POST is
+ *     probably still landing, so we keep it until the next poll.
+ *
+ *  Local-only gigs (no `briefId` — manual logbook entries) are never
+ *  removed by this merge regardless. */
 function mergeServerGigs(
   prev: PortalData,
   server: Gig[],
   briefs: SharedBrief[] | undefined,
 ): PortalData {
   const now = Date.now();
-  const serverIds = new Set<string>();
-  for (const s of server) serverIds.add(s.id);
+  const serverById = new Map<string, Gig>();
+  for (const s of server) serverById.set(s.id, s);
   const freshBriefIds = new Set<string>();
   // Older persisted PortalData payloads (pre-Slice-2) may have no
   // `briefs` array at all — this hook still has to be safe to call
@@ -413,54 +432,99 @@ function mergeServerGigs(
   // crash on first load.
   const briefsList = Array.isArray(briefs) ? briefs : [];
   for (const b of briefsList) {
-    if (
-      typeof b.decidedLocallyAt === "number" &&
-      now - b.decidedLocallyAt < FRESH_DECISION_WINDOW_MS
-    ) {
+    if (isFresh(b.decidedLocallyAt)) {
       freshBriefIds.add(b.briefId);
     }
   }
+  // Sweep expired tombstones up-front so the map stays bounded.
+  const rawTombstones = prev.recentlyDeletedGigIds ?? {};
+  const liveTombstones: Record<string, number> = {};
+  for (const [id, deletedAt] of Object.entries(rawTombstones)) {
+    if (typeof deletedAt === "number" && isFresh(deletedAt)) {
+      liveTombstones[id] = deletedAt;
+    }
+  }
+  const tombstoneIds = new Set(Object.keys(liveTombstones));
+  const tombstonesChanged =
+    Object.keys(rawTombstones).length !== Object.keys(liveTombstones).length;
+
   const kept: Gig[] = [];
-  let changed = false;
+  let changed = tombstonesChanged;
   for (const g of prev.gigs) {
-    // Local-only gigs (no brief link): keep unconditionally.
+    const serverRow = serverById.get(g.id);
+    const fresh = isFresh(g.lastEditedAt);
+    if (serverRow) {
+      if (fresh) {
+        // Local edit is in flight — keep our copy verbatim.
+        kept.push(g);
+      } else {
+        // Server is authoritative: take its fields, but preserve the
+        // local-only `lastEditedAt` so a re-render doesn't re-key the
+        // freshness window incorrectly.
+        const merged: Gig = { ...serverRow, lastEditedAt: g.lastEditedAt };
+        // Detect any field-level diff so the parent only re-renders
+        // on real changes.
+        const diff =
+          merged.status !== g.status ||
+          merged.checkIn?.onTheWayAt !== g.checkIn?.onTheWayAt ||
+          merged.checkIn?.arrivedAt !== g.checkIn?.arrivedAt ||
+          merged.projectName !== g.projectName ||
+          merged.client !== g.client ||
+          merged.venue !== g.venue ||
+          merged.role !== g.role ||
+          merged.startDate !== g.startDate ||
+          merged.endDate !== g.endDate ||
+          merged.hours !== g.hours ||
+          merged.rate !== g.rate ||
+          merged.flatFee !== g.flatFee ||
+          merged.notes !== g.notes ||
+          merged.briefId !== g.briefId;
+        kept.push(merged);
+        if (diff) changed = true;
+      }
+      continue;
+    }
+    // No matching server row.
     if (!g.briefId) {
+      // Local-only manual gig: keep unconditionally.
       kept.push(g);
       continue;
     }
-    // Server still has it: keep our local copy (preserves in-flight edits).
-    if (serverIds.has(g.id)) {
-      kept.push(g);
-      continue;
-    }
-    // Server doesn't have it. If the owning brief was decided locally
-    // within the freshness window, our /respond POST is probably still
-    // landing — keep the gig until the next poll proves otherwise.
     if (freshBriefIds.has(g.briefId)) {
+      // /respond is still landing — keep until next poll proves otherwise.
       kept.push(g);
       continue;
     }
-    // Otherwise: server is authoritative. Drop the orphan.
+    // Brief-linked orphan: server cleared it, drop locally too.
     changed = true;
   }
-  // Add any server-only gigs.
+  // Add server-only gigs, except tombstoned ones (the local DELETE
+  // hasn't reached the server yet, but we know it will).
   const localIds = new Set<string>();
   for (const g of kept) localIds.add(g.id);
   for (const s of server) {
     if (localIds.has(s.id)) continue;
+    if (tombstoneIds.has(s.id)) continue;
     kept.push(s);
     changed = true;
   }
   if (!changed) return prev;
   kept.sort((a, b) => b.createdAt - a.createdAt);
-  return { ...prev, gigs: kept };
+  const next: PortalData = { ...prev, gigs: kept };
+  if (tombstonesChanged) {
+    if (Object.keys(liveTombstones).length === 0) {
+      delete next.recentlyDeletedGigIds;
+    } else {
+      next.recentlyDeletedGigIds = liveTombstones;
+    }
+  }
+  return next;
 }
 
 function mergeServerBriefs(
   prev: PortalData,
   server: SharedBrief[],
 ): PortalData {
-  const now = Date.now();
   const byId = new Map<string, SharedBrief>();
   for (const b of prev.briefs) byId.set(b.briefId, b);
   for (const s of server) {
@@ -477,9 +541,7 @@ function mergeServerBriefs(
       ...s,
       decidedLocallyAt: local.decidedLocallyAt,
     };
-    const fresh =
-      typeof local.decidedLocallyAt === "number" &&
-      now - local.decidedLocallyAt < FRESH_DECISION_WINDOW_MS;
+    const fresh = isFresh(local.decidedLocallyAt);
     if (fresh && local.decision !== s.decision) {
       // Within the freshness window the local decision wins. We also
       // keep the locally-staged acceptedGigId / acceptedSnapshot so

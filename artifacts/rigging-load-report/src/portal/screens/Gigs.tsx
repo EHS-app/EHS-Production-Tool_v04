@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useAuth } from "@clerk/react";
 import { PALETTE, type ThemeMode } from "../lib/portalTheme";
 import {
   findBrief,
@@ -7,6 +8,7 @@ import {
   statusColor,
   statusLabel,
   type Gig,
+  type GigCheckIn,
   type GigStatus,
   type PortalData,
 } from "../lib/portalStorage";
@@ -121,8 +123,17 @@ export function Gigs({
   setData: React.Dispatch<React.SetStateAction<PortalData>>;
 }) {
   const c = PALETTE[theme];
+  const { isSignedIn, getToken } = useAuth();
   const [editing, setEditing] = useState<Gig | null>(null);
   const [filter, setFilter] = useState<GigStatus | "all">("all");
+  // Surfaces a banner when a server sync fails. Cleared on the next
+  // successful sync. We deliberately leave the *local* edit applied
+  // even after rollback wouldn't be possible — the freelancer can
+  // always retry by re-doing the edit, and we don't want to lose
+  // their typing. (Status / check-in / delete *do* roll back, since
+  // those are single-shot toggles where the previous value is
+  // unambiguous.)
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const visible = useMemo(() => {
     const items =
@@ -134,55 +145,286 @@ export function Gigs({
     );
   }, [data.gigs, filter]);
 
-  function saveGig(g: Gig) {
+  /** Resolve the API base path — same shape as Portal.tsx and
+   *  BriefDetail.tsx use. Pulled out so each sync helper doesn't
+   *  duplicate the conditional. */
+  const apiBaseUrl = (): string =>
+    (typeof import.meta !== "undefined" &&
+      (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+    "/";
+
+  type SyncResult =
+    | { ok: true }
+    | { ok: false; status?: number; error: string };
+
+  /** POST `/api/portal/gigs` — full upsert for create / edit-modal
+   *  saves. Server already enforces ownership when the client
+   *  supplies an id, so we don't need to gate by `isSignedIn`
+   *  beyond the Authorization header. Soft-success on 404: not
+   *  expected for a POST, but we treat any non-network failure as
+   *  retryable. */
+  async function syncSaveGig(gig: Gig): Promise<SyncResult> {
+    if (!isSignedIn) return { ok: true };
+    try {
+      const token = await getToken();
+      const res = await fetch(`${apiBaseUrl()}api/portal/gigs`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          id: gig.id,
+          projectName: gig.projectName,
+          client: gig.client,
+          venue: gig.venue,
+          role: gig.role,
+          startDate: gig.startDate,
+          endDate: gig.endDate,
+          hours: gig.hours,
+          rate: gig.rate,
+          flatFee: gig.flatFee,
+          notes: gig.notes,
+          status: gig.status,
+          briefId: gig.briefId ?? null,
+          checkIn: gig.checkIn ?? null,
+        }),
+      });
+      if (!res.ok) {
+        return {
+          ok: false,
+          status: res.status,
+          error: `Server returned ${res.status}`,
+        };
+      }
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "Network" };
+    }
+  }
+
+  /** PATCH `/api/portal/gigs/:id` — partial update for the show-day
+   *  check-in toggle and the status-advance button. */
+  async function syncPatchGig(
+    id: string,
+    patch: Record<string, unknown>,
+  ): Promise<SyncResult> {
+    if (!isSignedIn) return { ok: true };
+    try {
+      const token = await getToken();
+      const res = await fetch(`${apiBaseUrl()}api/portal/gigs/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(patch),
+      });
+      // 404 means this gig has no server row (legacy local-only gig
+      // from a pre-sync session). That's fine — local-only is still
+      // a valid state; the next time the freelancer saves the gig
+      // via the edit modal it'll be POSTed and acquire a server row.
+      if (res.status === 404) return { ok: true };
+      if (!res.ok) {
+        return {
+          ok: false,
+          status: res.status,
+          error: `Server returned ${res.status}`,
+        };
+      }
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "Network" };
+    }
+  }
+
+  /** DELETE `/api/portal/gigs/:id`. Same 404-as-soft-success logic
+   *  as the PATCH path above, for the same reason. */
+  async function syncDeleteGig(id: string): Promise<SyncResult> {
+    if (!isSignedIn) return { ok: true };
+    try {
+      const token = await getToken();
+      const res = await fetch(`${apiBaseUrl()}api/portal/gigs/${id}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.status === 404) return { ok: true };
+      if (!res.ok) {
+        return {
+          ok: false,
+          status: res.status,
+          error: `Server returned ${res.status}`,
+        };
+      }
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "Network" };
+    }
+  }
+
+  async function saveGig(g: Gig) {
+    // Optimistic apply: the edit modal closes immediately and the
+    // freelancer sees their changes reflected in the list. We don't
+    // attempt a rollback on sync failure for full edits — the user
+    // would lose their typing — but we surface the error banner so
+    // they can retry by editing again. `lastEditedAt` opens the
+    // freshness window so the next poll won't clobber the edit
+    // before the POST lands.
+    const stamped: Gig = { ...g, lastEditedAt: Date.now() };
     setData((prev) => {
-      const exists = prev.gigs.some((x) => x.id === g.id);
+      const exists = prev.gigs.some((x) => x.id === stamped.id);
       const gigs = exists
-        ? prev.gigs.map((x) => (x.id === g.id ? g : x))
-        : [...prev.gigs, g];
+        ? prev.gigs.map((x) => (x.id === stamped.id ? stamped : x))
+        : [...prev.gigs, stamped];
       return { ...prev, gigs };
     });
     setEditing(null);
+    setSyncError(null);
+    const result = await syncSaveGig(stamped);
+    if (!result.ok) {
+      setSyncError(
+        "Saved locally, but couldn't reach the server — please try editing again to retry.",
+      );
+    }
   }
 
-  function deleteGig(id: string) {
+  async function deleteGig(id: string) {
+    // Capture the row up-front so we can restore on sync failure.
+    const removed = data.gigs.find((x) => x.id === id) ?? null;
+    if (!removed) return;
+    // Brief-linked gigs are owned by an accepted assignment row on
+    // the server. Plain DELETE on the gig leaves the assignment
+    // pointing at a missing row (`accepted_gig_id` dangles) and the
+    // producer-side progress view breaks. The product-correct path
+    // is to decline the brief from BriefDetail, which the server
+    // handles transactionally. Block the action here and explain.
+    if (removed.briefId) {
+      setSyncError(
+        "This gig was confirmed from a producer brief. Open the brief and tap Decline to release the booking — that keeps the producer's roster in sync.",
+      );
+      return;
+    }
+    const deletedAt = Date.now();
     setData((prev) => ({
       ...prev,
       gigs: prev.gigs.filter((g) => g.id !== id),
+      recentlyDeletedGigIds: {
+        ...(prev.recentlyDeletedGigIds ?? {}),
+        [id]: deletedAt,
+      },
     }));
     setEditing(null);
+    setSyncError(null);
+    const result = await syncDeleteGig(id);
+    if (!result.ok) {
+      // Restore the row and clear the tombstone so a poll doesn't
+      // also suppress the resurrected copy.
+      setData((prev) => {
+        const tombstones = { ...(prev.recentlyDeletedGigIds ?? {}) };
+        delete tombstones[id];
+        const next: PortalData = {
+          ...prev,
+          gigs: [removed, ...prev.gigs],
+        };
+        if (Object.keys(tombstones).length === 0) {
+          delete next.recentlyDeletedGigIds;
+        } else {
+          next.recentlyDeletedGigIds = tombstones;
+        }
+        return next;
+      });
+      setSyncError(
+        "Couldn't delete the gig — please check your connection and try again.",
+      );
+    }
   }
 
-  function advanceStatus(g: Gig) {
+  async function advanceStatus(g: Gig) {
     const i = STATUS_ORDER.indexOf(g.status);
     const next = STATUS_ORDER[(i + 1) % STATUS_ORDER.length];
+    const prevStatus = g.status;
     setData((prev) => ({
       ...prev,
       gigs: prev.gigs.map((x) =>
-        x.id === g.id ? { ...x, status: next } : x,
+        x.id === g.id
+          ? { ...x, status: next, lastEditedAt: Date.now() }
+          : x,
       ),
     }));
+    setSyncError(null);
+    const result = await syncPatchGig(g.id, { status: next });
+    if (!result.ok) {
+      // Only roll back if the user (or another sync) hasn't already
+      // moved off the optimistic value — otherwise we'd be reverting
+      // a status they explicitly changed again, which would feel
+      // ghostly. Captured by inspecting the latest state via the
+      // setData updater.
+      setData((prev) => {
+        const current = prev.gigs.find((x) => x.id === g.id);
+        if (!current || current.status !== next) return prev;
+        return {
+          ...prev,
+          gigs: prev.gigs.map((x) =>
+            x.id === g.id ? { ...x, status: prevStatus } : x,
+          ),
+        };
+      });
+      setSyncError(
+        "Couldn't update the status — please try again in a moment.",
+      );
+    }
   }
 
-  function setCheckIn(
+  async function setCheckIn(
     g: Gig,
     field: "onTheWayAt" | "arrivedAt",
     value: number | undefined,
   ) {
+    const prevCheckIn = g.checkIn;
+    // Compute the next checkIn deterministically *before* setData so
+    // the PATCH call below isn't reading a value mutated by a setter
+    // that may run twice in StrictMode.
+    const nextCheckInRaw = { ...(prevCheckIn ?? {}), [field]: value };
+    const nextCheckIn: GigCheckIn | undefined =
+      nextCheckInRaw.onTheWayAt === undefined &&
+      nextCheckInRaw.arrivedAt === undefined
+        ? undefined
+        : nextCheckInRaw;
     setData((prev) => ({
       ...prev,
-      gigs: prev.gigs.map((x) => {
-        if (x.id !== g.id) return x;
-        const nextCheckIn = { ...(x.checkIn ?? {}), [field]: value };
-        // Drop empty objects so localStorage stays tidy.
-        const checkIn =
-          nextCheckIn.onTheWayAt === undefined &&
-          nextCheckIn.arrivedAt === undefined
-            ? undefined
-            : nextCheckIn;
-        return { ...x, checkIn };
-      }),
+      gigs: prev.gigs.map((x) =>
+        x.id === g.id
+          ? { ...x, checkIn: nextCheckIn, lastEditedAt: Date.now() }
+          : x,
+      ),
     }));
+    setSyncError(null);
+    const result = await syncPatchGig(g.id, {
+      checkIn: nextCheckIn ?? null,
+    });
+    if (!result.ok) {
+      setData((prev) => {
+        const current = prev.gigs.find((x) => x.id === g.id);
+        // Same guard as advanceStatus: only roll back if the
+        // optimistic value is still in place.
+        if (
+          !current ||
+          current.checkIn?.onTheWayAt !== nextCheckIn?.onTheWayAt ||
+          current.checkIn?.arrivedAt !== nextCheckIn?.arrivedAt
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          gigs: prev.gigs.map((x) =>
+            x.id === g.id ? { ...x, checkIn: prevCheckIn } : x,
+          ),
+        };
+      });
+      setSyncError(
+        "Couldn't save the check-in — please try again in a moment.",
+      );
+    }
   }
 
   function exportGigToCalendar(g: Gig) {
@@ -225,6 +467,43 @@ export function Gigs({
           + Log a gig
         </button>
       </header>
+
+      {syncError && (
+        <div
+          role="alert"
+          style={{
+            background: "#fef3c7",
+            color: "#78350f",
+            border: "1px solid #f59e0b",
+            borderRadius: 10,
+            padding: "10px 14px",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 10,
+            fontSize: 13,
+            lineHeight: 1.4,
+          }}
+        >
+          <span style={{ flex: 1 }}>{syncError}</span>
+          <button
+            type="button"
+            onClick={() => setSyncError(null)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#78350f",
+              cursor: "pointer",
+              fontSize: 16,
+              fontWeight: 700,
+              padding: 0,
+              lineHeight: 1,
+            }}
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {(["all", ...STATUS_ORDER] as const).map((s) => {

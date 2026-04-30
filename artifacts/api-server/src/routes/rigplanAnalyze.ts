@@ -6,6 +6,7 @@ import { logger } from "../lib/logger";
 import { buildVenueMemoryHint } from "../lib/venueMemoryHint";
 import { venueKeyFor } from "../lib/venueKey";
 import { mergeLightingRows } from "../lib/mergeLightingRows";
+import { parseMetresFromNotes } from "../lib/parseMetresFromNotes";
 
 const router: IRouter = Router();
 
@@ -618,40 +619,11 @@ function normaliseConfidence(v: unknown): number | null {
 // type, which interops with the local `Bbox` above via TypeScript's
 // structural typing.
 
-/** Pull a "<w>m × <h>m" pair out of a notes string. We only match
- *  numbers that are explicitly suffixed with "m" (so pixel counts
- *  like "768 x 1152 pixel" and panel counts like "16 x 9 panels" are
- *  excluded). Returns nulls when no usable pair is found, leaving
- *  the caller free to fall back to whatever the model already gave. */
-function parseMetresFromNotes(
-  notes: string,
-): { widthM: number | null; heightM: number | null } {
-  if (!notes) return { widthM: null, heightM: null };
-  // European / Norwegian drawings often use comma as the decimal mark
-  // (e.g. "7,5m x 4,5m"). Normalise commas-between-digits to dots
-  // before matching so we accept either form.
-  const text = notes.replace(/(\d),(\d)/g, "$1.$2");
-  const parsePair = (match: RegExpMatchArray | null) => {
-    if (!match) return null;
-    const w = Number(match[1]);
-    const h = Number(match[2]);
-    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
-      return null;
-    }
-    return { widthM: w, heightM: h };
-  };
-  // Both numbers labelled (e.g. "7.5m x 4.5m"): preferred form.
-  const both = parsePair(
-    text.match(/(\d+(?:\.\d+)?)\s*m\s*[x×]\s*(\d+(?:\.\d+)?)\s*m/i),
-  );
-  if (both) return both;
-  // Single trailing label (e.g. "5 x 3 m" or "5x3m"). Less common, still valid.
-  const trailing = parsePair(
-    text.match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*m\b/i),
-  );
-  if (trailing) return trailing;
-  return { widthM: null, heightM: null };
-}
+// `parseMetresFromNotes` lives in `../lib/parseMetresFromNotes` so the
+// regex behaviour (Norwegian comma-decimals, "m" suffix discrimination
+// against pixel/panel counts, trailing-label fallback) can be locked
+// down with comprehensive unit tests independent of this route's
+// Anthropic / Express / Drizzle imports.
 
 /** Coerce raw JSON from the model into our strict schema. The model
  *  occasionally omits a field or returns the wrong type — we fix up

@@ -6,7 +6,7 @@ export default function TitleSlide() {
       <div className="absolute top-[6vh] left-[6vw] right-[6vw] flex items-center justify-between">
         <img src={ehsLogo} alt="EHS" className="h-[7vh] w-auto object-contain" />
         <div className="text-[1.5vw] tracking-[0.3em] uppercase text-accent font-bold">
-          Phase B
+          Fase B
         </div>
       </div>
 
@@ -14,17 +14,17 @@ export default function TitleSlide() {
         <h1
           className="text-[7.4vw] leading-[0.95] font-extrabold tracking-tight text-text max-w-[88vw] [text-wrap:balance]"
         >
-          Phase B — Automation Layer
+          Fase B — Automatiseringslag
         </h1>
       </div>
 
       <div className="absolute left-[6vw] right-[6vw] bottom-[8vh]">
         <div className="h-[3px] w-[14vw] bg-accent mb-[3vh]"></div>
         <p className="text-[1.7vw] leading-snug text-muted max-w-[60vw] font-medium mb-[2.5vh] [text-wrap:pretty]">
-          Turning the producer's schedule into catering, hotels and freelancer itineraries — automatically.
+          Gjør produsentens timeplan om til catering, hotell og frilanser-reiseplaner — automatisk.
         </p>
         <p className="text-[1.5vw] tracking-[0.3em] uppercase text-muted font-semibold">
-          Internal product team briefing
+          Intern produktteam-briefing
         </p>
       </div>
 

@@ -5,26 +5,26 @@ export default function Feature3HotelsSlide() {
     <div className="w-screen h-screen overflow-hidden relative bg-bg text-text font-body">
       <div className="absolute top-[8vh] left-[6vw] right-[6vw]">
         <div className="text-[1.5vw] tracking-[0.3em] uppercase text-accent font-bold">
-          Feature 03 / Phase B
+          Funksjon 03 / Fase B
         </div>
         <h2 className="text-[4.2vw] leading-[1.0] font-extrabold tracking-tight mt-[2.5vh] max-w-[80vw] [text-wrap:balance]">
-          Hotel Logistics
+          Hotellogistikk
         </h2>
       </div>
 
       <div className="absolute left-[6vw] right-[6vw] top-[40vh]">
         <p className="text-[1.85vw] leading-snug font-semibold max-w-[72vw] mb-[4.5vh] [text-wrap:pretty]">
-          Toggle 'hotel needed'; check-in / check-out are derived from assigned days.
+          Slå på 'hotell trengs'; innsjekk / utsjekk utledes fra tildelte dager.
         </p>
         <div className="h-[2px] w-[10vw] bg-accent mb-[3.5vh]"></div>
         <p className="text-[1.6vw] leading-snug text-muted font-medium mb-[1.8vh] max-w-[62vw] [text-wrap:pretty]">
-          Suggests twin-share pairings by preference.
+          Foreslår dobbeltrom-paringer basert på preferanser.
         </p>
         <p className="text-[1.6vw] leading-snug text-muted font-medium mb-[1.8vh] max-w-[62vw] [text-wrap:pretty]">
-          Producer can lock pairings or override per person.
+          Produsenten kan låse paringer eller overstyre per person.
         </p>
         <p className="text-[1.6vw] leading-snug text-muted font-medium max-w-[62vw] [text-wrap:pretty]">
-          Exports a clean rooming list for the hotel.
+          Eksporterer en ryddig romliste til hotellet.
         </p>
       </div>
 

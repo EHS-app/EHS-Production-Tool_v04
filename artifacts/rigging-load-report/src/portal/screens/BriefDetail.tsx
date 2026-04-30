@@ -7,6 +7,7 @@ import {
   findBrief,
   gigFromBrief,
   updateBrief,
+  type BriefDecision,
   type PortalData,
 } from "../lib/portalStorage";
 import type {
@@ -112,24 +113,40 @@ export function BriefDetail({
   const [, setLocation] = useLocation();
   const entry = findBrief(data, briefId);
 
-  /** Best-effort POST to `/api/portal/briefs/:id/respond` so the
-   *  producer's Crew Report can show the freelancer's decision live
-   *  via its polling loop. Fire-and-forget: legacy share-link briefs
-   *  that don't exist on the server return 404 and are silently
-   *  ignored. The local state is the source of truth for the user's
-   *  view; this call only syncs the producer side. */
-  const syncDecisionToServer = (
+  /** Inline banner shown below the project hero when the most recent
+   *  accept/decline POST failed (network blip, 5xx, etc.). The local
+   *  optimistic change is reverted in the same path so the buttons
+   *  reflect the still-pending reality and the freelancer is invited
+   *  to retry. Cleared on the next successful sync. */
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  /** POST `/api/portal/briefs/:id/respond` and report the outcome to
+   *  the caller. Returns:
+   *    - `{ ok: true,  tooLate: false }` on a clean accept/decline.
+   *    - `{ ok: true,  tooLate: true  }` when the server tells us a
+   *      sibling candidate beat this freelancer to the slot. The
+   *      caller is responsible for stripping the local accept and
+   *      surfacing the "Position filled" UI.
+   *    - `{ ok: false, … }` on any HTTP error other than the 404 we
+   *      get for legacy share-link briefs that simply don't exist on
+   *      the server (those are treated as a soft success so the
+   *      offline-only flow keeps working). */
+  type SyncResult =
+    | { ok: true; tooLate: boolean }
+    | { ok: false; status?: number; error: string };
+  const syncDecisionToServer = async (
     decision: "accepted" | "declined" | "pending",
     extras?: { acceptedSnapshot?: unknown; acceptedGigId?: string | null },
-  ) => {
-    void (async () => {
-      try {
-        const token = await getToken();
-        const baseUrl =
-          (typeof import.meta !== "undefined" &&
-            (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
-          "/";
-        await fetch(`${baseUrl}api/portal/briefs/${briefId}/respond`, {
+  ): Promise<SyncResult> => {
+    try {
+      const token = await getToken();
+      const baseUrl =
+        (typeof import.meta !== "undefined" &&
+          (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+        "/";
+      const res = await fetch(
+        `${baseUrl}api/portal/briefs/${briefId}/respond`,
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -140,11 +157,39 @@ export function BriefDetail({
             acceptedSnapshot: extras?.acceptedSnapshot ?? null,
             acceptedGigId: extras?.acceptedGigId ?? null,
           }),
-        });
-      } catch {
-        /* ignore — producer-side polling will retry on the next fetch */
+        },
+      );
+      if (!res.ok) {
+        // 404 = "no assignment for this user" — true for legacy
+        // share-link briefs that were imported via QR/link and don't
+        // have a server row. Treat as soft-success so the local
+        // optimistic state is preserved.
+        if (res.status === 404) return { ok: true, tooLate: false };
+        return {
+          ok: false,
+          status: res.status,
+          error: `Server returned ${res.status}`,
+        };
       }
-    })();
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        tooLate?: boolean;
+        error?: string;
+      };
+      if (!json.ok) {
+        return {
+          ok: false,
+          status: res.status,
+          error: json.error || "Server rejected the response",
+        };
+      }
+      return { ok: true, tooLate: Boolean(json.tooLate) };
+    } catch (e) {
+      return {
+        ok: false,
+        error: e instanceof Error ? e.message : "Network error",
+      };
+    }
   };
 
   // Hooks must be called unconditionally — compute the assignment from a
@@ -210,53 +255,178 @@ export function BriefDetail({
     return diffBriefAgainstSnapshot(entry.acceptedSnapshot, brief);
   }, [entry.acceptedSnapshot, brief]);
 
-  function accept() {
+  // Capture the pre-action snapshot once per click. We can't read this
+  // off the React `data` prop inside the awaited callback because the
+  // setData call may already have re-rendered by the time the sync
+  // resolves — so we lift the values into local consts up-front.
+  // The `if (!entry) return` re-guards in each function are belt-and-
+  // braces: TypeScript's control-flow analysis doesn't propagate the
+  // outer `if (!entry) return …` narrowing into nested function
+  // declarations, so without these the new `entry.foo` reads would be
+  // typed as possibly-undefined.
+  async function accept() {
+    if (!entry) return;
     const snapshot = buildAcceptedSnapshot(brief);
-    let gigIdForServer: string | null = null;
+    const prevDecision = entry.decision;
+    const prevAcceptedSnapshot = entry.acceptedSnapshot;
+    const prevAcceptedGigId = entry.acceptedGigId;
+    // Decide what gig id to send to the server *outside* the setData
+    // updater. setData callbacks must be pure (React strict mode
+    // double-invokes them in dev), so any side effect that mutates
+    // outer-scope variables risks getting double-applied or being
+    // unobservable on a stale closure read after the await. By
+    // computing both `gigIdForServer` and `createdGig` from the
+    // closure-captured `entry` here, the updater callback only has
+    // to apply the precomputed values.
+    const reusingExistingGig = Boolean(prevAcceptedGigId);
+    const createdGig = reusingExistingGig ? null : gigFromBrief(brief);
+    const gigIdForServer = reusingExistingGig
+      ? prevAcceptedGigId ?? null
+      : createdGig!.id;
+    const createdGigId = createdGig?.id ?? null;
     setData((prev) => {
-      // Don't double-create a Gig if the brief is re-accepted.
-      const existing = prev.briefs.find((b) => b.briefId === briefId);
-      if (existing?.acceptedGigId) {
-        gigIdForServer = existing.acceptedGigId;
-        return updateBrief(prev, briefId, {
-          decision: "accepted",
-          acceptedSnapshot: snapshot,
-        });
-      }
-      const gig = gigFromBrief(brief);
-      gigIdForServer = gig.id;
       const next = updateBrief(prev, briefId, {
         decision: "accepted",
-        acceptedGigId: gig.id,
+        acceptedGigId: gigIdForServer ?? undefined,
         acceptedSnapshot: snapshot,
+        decidedLocallyAt: Date.now(),
       });
-      return { ...next, gigs: [gig, ...next.gigs] };
+      return createdGig
+        ? { ...next, gigs: [createdGig, ...next.gigs] }
+        : next;
     });
-    syncDecisionToServer("accepted", {
+    setSyncError(null);
+    const result = await syncDecisionToServer("accepted", {
       acceptedSnapshot: snapshot,
       acceptedGigId: gigIdForServer,
     });
+    if (result.ok && result.tooLate) {
+      // Race lost — strip the local accept and the gig we just made.
+      setData((prev) => {
+        const next = updateBrief(prev, briefId, {
+          decision: "too_late",
+          acceptedGigId: undefined,
+          acceptedSnapshot: undefined,
+          decidedLocallyAt: Date.now(),
+        });
+        return createdGigId
+          ? { ...next, gigs: next.gigs.filter((g) => g.id !== createdGigId) }
+          : next;
+      });
+      return;
+    }
+    if (!result.ok) {
+      // Revert to the pre-click state and let the freelancer retry.
+      setData((prev) => {
+        const next = updateBrief(prev, briefId, {
+          decision: prevDecision,
+          acceptedGigId: prevAcceptedGigId,
+          acceptedSnapshot: prevAcceptedSnapshot,
+          decidedLocallyAt: undefined,
+        });
+        return createdGigId
+          ? { ...next, gigs: next.gigs.filter((g) => g.id !== createdGigId) }
+          : next;
+      });
+      setSyncError(
+        "Could not save your response — please check your connection and try again.",
+      );
+    }
   }
 
-  function acknowledgeChanges() {
+  async function acknowledgeChanges() {
+    if (!entry) return;
     const snapshot = buildAcceptedSnapshot(brief);
+    const prevSnapshot = entry.acceptedSnapshot;
     setData((prev) =>
-      updateBrief(prev, briefId, { acceptedSnapshot: snapshot }),
+      updateBrief(prev, briefId, {
+        acceptedSnapshot: snapshot,
+        decidedLocallyAt: Date.now(),
+      }),
     );
+    setSyncError(null);
     // Acknowledging a change is still an "accepted" decision on the
     // server — the snapshot diff is producer-irrelevant; what they
-    // care about is "they're still in".
-    syncDecisionToServer("accepted", { acceptedSnapshot: snapshot });
+    // care about is "they're still in". A too-late response is
+    // theoretically possible if a sibling hijacked the slot in between
+    // the original accept and this re-confirm.
+    const result = await syncDecisionToServer("accepted", {
+      acceptedSnapshot: snapshot,
+    });
+    if (result.ok && result.tooLate) {
+      setData((prev) =>
+        updateBrief(prev, briefId, {
+          decision: "too_late",
+          acceptedGigId: undefined,
+          acceptedSnapshot: undefined,
+          decidedLocallyAt: Date.now(),
+        }),
+      );
+      return;
+    }
+    if (!result.ok) {
+      setData((prev) =>
+        updateBrief(prev, briefId, {
+          acceptedSnapshot: prevSnapshot,
+          decidedLocallyAt: undefined,
+        }),
+      );
+      setSyncError(
+        "Could not acknowledge the changes — please try again in a moment.",
+      );
+    }
   }
 
-  function decline() {
-    setData((prev) => updateBrief(prev, briefId, { decision: "declined" }));
-    syncDecisionToServer("declined");
+  async function decline() {
+    if (!entry) return;
+    const prevDecision = entry.decision;
+    setData((prev) =>
+      updateBrief(prev, briefId, {
+        decision: "declined",
+        decidedLocallyAt: Date.now(),
+      }),
+    );
+    setSyncError(null);
+    const result = await syncDecisionToServer("declined");
+    if (!result.ok) {
+      setData((prev) =>
+        updateBrief(prev, briefId, {
+          decision: prevDecision,
+          decidedLocallyAt: undefined,
+        }),
+      );
+      setSyncError(
+        "Could not save your decline — please try again in a moment.",
+      );
+    }
   }
 
-  function resetDecision() {
-    setData((prev) => updateBrief(prev, briefId, { decision: "pending" }));
-    syncDecisionToServer("pending");
+  async function resetDecision() {
+    if (!entry) return;
+    const prevDecision = entry.decision;
+    const prevAcceptedGigId = entry.acceptedGigId;
+    const prevAcceptedSnapshot = entry.acceptedSnapshot;
+    setData((prev) =>
+      updateBrief(prev, briefId, {
+        decision: "pending",
+        decidedLocallyAt: Date.now(),
+      }),
+    );
+    setSyncError(null);
+    const result = await syncDecisionToServer("pending");
+    if (!result.ok) {
+      setData((prev) =>
+        updateBrief(prev, briefId, {
+          decision: prevDecision,
+          acceptedGigId: prevAcceptedGigId,
+          acceptedSnapshot: prevAcceptedSnapshot,
+          decidedLocallyAt: undefined,
+        }),
+      );
+      setSyncError(
+        "Could not undo your response — please try again in a moment.",
+      );
+    }
   }
 
   function downloadCalendar() {
@@ -352,6 +522,25 @@ export function BriefDetail({
           theme={theme}
           diffs={diffs}
           onAcknowledge={acknowledgeChanges}
+        />
+      ) : null}
+
+      {/* First-to-accept-wins: server tells us a sibling candidate
+          accepted before this freelancer. Take precedence over the
+          accept/decline UI so the freelancer can immediately see why
+          their accept buttons disappeared. */}
+      {entry.decision === "too_late" ? (
+        <TooLateBanner theme={theme} />
+      ) : null}
+
+      {/* Sync failure surface. Shown when the most recent /respond
+          POST returned non-2xx (and was reverted) so the freelancer
+          knows their decision didn't actually save and can retry. */}
+      {syncError ? (
+        <SyncErrorBanner
+          theme={theme}
+          message={syncError}
+          onDismiss={() => setSyncError(null)}
         />
       ) : null}
 
@@ -979,7 +1168,7 @@ function AssignmentCard({
 }: {
   theme: ThemeMode;
   assignment: BriefAssignment;
-  decision: "pending" | "accepted" | "declined";
+  decision: BriefDecision;
   acceptedGigId?: string;
   conflicts: ScheduleConflict[];
   onAccept: () => void;
@@ -1163,7 +1352,7 @@ function AssignmentCard({
               Undo
             </button>
           </>
-        ) : (
+        ) : decision === "declined" ? (
           <>
             <span style={{ fontSize: 13, fontWeight: 700, color: c.muted }}>
               Declined — let your producer know.
@@ -1185,6 +1374,13 @@ function AssignmentCard({
               Undo
             </button>
           </>
+        ) : (
+          // too_late — first-to-accept-wins terminal state. We hide the
+          // accept/decline buttons entirely; the dedicated TooLateBanner
+          // higher up the page already explains what happened.
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>
+            Position filled — another freelancer accepted first.
+          </span>
         )}
       </div>
     </section>
@@ -1202,7 +1398,7 @@ function GenericNoticeCard({
   onOpenGig,
 }: {
   theme: ThemeMode;
-  decision: "pending" | "accepted" | "declined";
+  decision: BriefDecision;
   acceptedGigId?: string;
   conflicts: ScheduleConflict[];
   onAccept: () => void;
@@ -1313,7 +1509,7 @@ function GenericNoticeCard({
               Undo
             </button>
           </>
-        ) : (
+        ) : decision === "declined" ? (
           <>
             <span style={{ fontSize: 13, fontWeight: 700, color: c.muted }}>
               Dismissed
@@ -1335,8 +1531,99 @@ function GenericNoticeCard({
               Undo
             </button>
           </>
+        ) : (
+          // too_late — see AssignmentCard for the matching message.
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>
+            Position filled — another freelancer accepted first.
+          </span>
         )}
       </div>
+    </section>
+  );
+}
+
+/* ---------------------------------------------------------- top-of-page banners */
+
+/** Surfaced when the server reports `tooLate: true` on an accept, or
+ *  when a polled refresh shows the assignment has been swept to
+ *  `too_late` because a sibling candidate accepted first. Big, red
+ *  and explicit so the freelancer immediately understands why their
+ *  Accept buttons disappeared. */
+function TooLateBanner({ theme }: { theme: ThemeMode }) {
+  const c = PALETTE[theme];
+  return (
+    <section
+      role="status"
+      aria-live="polite"
+      style={{
+        background:
+          theme === "dark" ? "rgba(220, 38, 38, 0.18)" : "rgba(254, 226, 226, 0.7)",
+        border: "1px solid rgba(220, 38, 38, 0.55)",
+        borderRadius: 12,
+        padding: "14px 16px",
+        color: theme === "dark" ? "#fecaca" : "#7f1d1d",
+        boxShadow: c.shadowSoft,
+      }}
+    >
+      <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 4 }}>
+        This position has already been filled
+      </div>
+      <div style={{ fontSize: 13, lineHeight: 1.45 }}>
+        Another freelancer accepted before your tap reached the server.
+        Thanks for stepping up — your producer can see you were first
+        to respond after the winner.
+      </div>
+    </section>
+  );
+}
+
+/** Inline failure surface for the /respond POST. Matches the visual
+ *  vocabulary of the conflict warnings (amber border + small dismiss
+ *  button) so the freelancer learns at a glance: "your tap didn't
+ *  save, but the app still works — try again." */
+function SyncErrorBanner({
+  theme,
+  message,
+  onDismiss,
+}: {
+  theme: ThemeMode;
+  message: string;
+  onDismiss: () => void;
+}) {
+  const c = PALETTE[theme];
+  return (
+    <section
+      role="alert"
+      style={{
+        background:
+          theme === "dark" ? "rgba(180, 83, 9, 0.18)" : "rgba(254, 243, 199, 0.7)",
+        border: "1px solid rgba(217, 119, 6, 0.55)",
+        borderRadius: 12,
+        padding: "12px 14px",
+        color: theme === "dark" ? "#fde68a" : "#7c2d12",
+        display: "flex",
+        gap: 12,
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+      }}
+    >
+      <div style={{ fontSize: 13, lineHeight: 1.4 }}>{message}</div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        style={{
+          padding: "4px 10px",
+          fontSize: 12,
+          fontWeight: 700,
+          background: "transparent",
+          color: theme === "dark" ? "#fde68a" : "#7c2d12",
+          border: `1px solid ${c.border}`,
+          borderRadius: 6,
+          cursor: "pointer",
+        }}
+      >
+        Dismiss
+      </button>
     </section>
   );
 }

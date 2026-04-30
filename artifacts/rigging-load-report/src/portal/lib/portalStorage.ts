@@ -47,7 +47,15 @@ export type Gig = {
  *  freelancer's portal. The original brief is kept verbatim (so the
  *  freelancer can re-read every detail) and the freelancer's response
  *  is layered on top. */
-export type BriefDecision = "pending" | "accepted" | "declined";
+/** Server-recognised states for a brief assignment. `too_late` is set
+ *  by the server when a sibling candidate accepts first on a
+ *  first-to-accept-wins brief — the freelancer never picks it
+ *  themselves, but the portal still has to render it. */
+export type BriefDecision =
+  | "pending"
+  | "accepted"
+  | "declined"
+  | "too_late";
 
 /** Frozen "I've read this version" snapshot taken when the freelancer
  *  taps Accept (or Acknowledge changes). The portal compares the live
@@ -73,6 +81,15 @@ export type SharedBrief = {
    *  legacy briefs that pre-date the feature — the banner simply does
    *  not render in that case. */
   acceptedSnapshot?: AcceptedSnapshot;
+  /** Wall-clock timestamp of the most recent local accept/decline. Set
+   *  by the portal when the freelancer taps the buttons, *before* the
+   *  server ack lands. The 60-second poll loop in `Portal.tsx` uses it
+   *  as a freshness window — within ~60s of a local decision the
+   *  server snapshot is not allowed to overwrite the local
+   *  `decision` / `acceptedGigId` / `acceptedSnapshot` fields, so a
+   *  slow sync or a transient 5xx never visibly downgrades a fresh
+   *  accept back to "pending". */
+  decidedLocallyAt?: number;
   brief: ProjectBrief;
 };
 
@@ -236,7 +253,12 @@ function normalizeGig(raw: unknown): Gig | null {
   };
 }
 
-const VALID_DECISIONS: BriefDecision[] = ["pending", "accepted", "declined"];
+const VALID_DECISIONS: BriefDecision[] = [
+  "pending",
+  "accepted",
+  "declined",
+  "too_late",
+];
 
 function normalizeAcceptedSnapshot(
   raw: unknown,
@@ -284,6 +306,10 @@ function normalizeSharedBrief(raw: unknown): SharedBrief | null {
         ? b.acceptedGigId
         : undefined,
     acceptedSnapshot: normalizeAcceptedSnapshot(b.acceptedSnapshot),
+    decidedLocallyAt:
+      typeof b.decidedLocallyAt === "number" && isFinite(b.decidedLocallyAt)
+        ? b.decidedLocallyAt
+        : undefined,
     brief,
   };
 }

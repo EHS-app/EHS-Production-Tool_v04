@@ -2629,28 +2629,62 @@ function App() {
           crewId: m.id,
           freelancerUserId: m.freelancerUserId!,
         }));
-        const body: Record<string, unknown> = { data, recipients };
-        if (activeBriefId) body.id = activeBriefId;
-        const res = await fetch(`${baseUrl}api/portal/briefs`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) {
-          throw new Error(`Server returned ${res.status}`);
-        }
-        const json = (await res.json()) as {
-          ok?: boolean;
-          error?: string;
-          brief?: { id?: string } | null;
+        // POST helper. Encapsulates the fetch + JSON shape so we can
+        // run it twice on the stale-id recovery path. `withId` controls
+        // whether we reuse the cached `activeBriefId`; on the retry
+        // path we drop it and the server allocates a fresh UUID.
+        const postBatch = async (withId: string | null) => {
+          const body: Record<string, unknown> = { data, recipients };
+          if (withId) body.id = withId;
+          const r = await fetch(`${baseUrl}api/portal/briefs`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(body),
+          });
+          let parsed: {
+            ok?: boolean;
+            error?: string;
+            brief?: { id?: string } | null;
+          } = {};
+          try {
+            parsed = (await r.json()) as typeof parsed;
+          } catch {
+            /* non-JSON body (e.g. proxy 502) — fall through to status check */
+          }
+          return { status: r.status, ok: r.ok, json: parsed };
         };
-        if (!json.ok || !json.brief?.id) {
-          throw new Error(json.error || "Bad response from server");
+        let result = await postBatch(activeBriefId);
+        // Stale-id recovery — if the cached `activeBriefId` was deleted
+        // server-side, or another producer's id collided with ours,
+        // the server replies 403 ("Not your brief") or 404. Both are
+        // recoverable by dropping the stale id and letting the server
+        // mint a fresh one. We only retry once and only when an id was
+        // actually sent, so a genuine permission error on a fresh
+        // brief still surfaces as a hard failure.
+        if (
+          !result.ok &&
+          activeBriefId &&
+          (result.status === 403 || result.status === 404)
+        ) {
+          setActiveBriefId(null);
+          result = await postBatch(null);
         }
-        if (!activeBriefId) setActiveBriefId(json.brief.id);
+        if (!result.ok) {
+          throw new Error(`Server returned ${result.status}`);
+        }
+        if (!result.json.ok || !result.json.brief?.id) {
+          throw new Error(
+            result.json.error || "Bad response from server",
+          );
+        }
+        // Always cache the returned id — covers both the first send
+        // (no prior id) and the recovery path (we just minted a new
+        // one). Doing this unconditionally keeps a future re-send in
+        // the same session pointed at the right brief.
+        setActiveBriefId(result.json.brief.id);
       } catch (e) {
         const msg =
           e instanceof Error ? e.message : "Could not send requests";
@@ -2701,7 +2735,13 @@ function App() {
             id: string;
             freelancerUserId: string;
             crewId: string | null;
-            decision: "pending" | "accepted" | "declined";
+            // `too_late` is set server-side on first-to-accept-wins
+            // briefs when a sibling candidate accepts before this one.
+            decision:
+              | "pending"
+              | "accepted"
+              | "declined"
+              | "too_late";
             createdAt: string;
           }>;
         };
@@ -2716,6 +2756,7 @@ function App() {
           let status: CrewRequestStatus;
           if (a.decision === "accepted") status = "accepted";
           else if (a.decision === "declined") status = "declined";
+          else if (a.decision === "too_late") status = "too_late";
           else if (
             Number.isFinite(created) &&
             now - created > NO_REPLY_AFTER_MS

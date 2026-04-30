@@ -34,6 +34,10 @@ export const CREW_REQUEST_STATUSES = [
   "accepted",
   "declined",
   "no-reply",
+  // First-to-accept-wins: when a sibling candidate accepts the same
+  // brief first, every still-pending row flips to `too_late` so the
+  // producer can see at a glance which freelancers were beaten to it.
+  "too_late",
 ] as const;
 export type CrewRequestStatus = (typeof CREW_REQUEST_STATUSES)[number];
 
@@ -48,6 +52,7 @@ export const CREW_REQUEST_STATUS_META: Record<
   accepted: { label: "Accepted", tone: "ok" },
   declined: { label: "Declined", tone: "muted" },
   "no-reply": { label: "No reply", tone: "bad" },
+  too_late: { label: "Too late", tone: "bad" },
 };
 
 export type CrewMember = {

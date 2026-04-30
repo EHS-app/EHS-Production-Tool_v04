@@ -29,6 +29,10 @@ const requireSignedIn: RequestHandler = (req, res, next) => {
  *  table. Matches the global JSON parser limit in `app.ts`. */
 const MAX_BRIEF_BYTES = 256 * 1024;
 
+/** Decisions a freelancer is allowed to send themselves. `too_late` is
+ *  a *server-only* status — it's set when another freelancer beats this
+ *  one to the accept on a first-to-accept-wins brief, and is never a
+ *  valid input on the /respond endpoint. */
 const VALID_DECISIONS: ReadonlySet<string> = new Set([
   "pending",
   "accepted",
@@ -410,7 +414,26 @@ router.get(
 
 /** POST /api/portal/briefs/:id/respond  body: { decision, acceptedSnapshot?, acceptedGigId? }
  *  Freelancer-only. Records accept/decline + the frozen snapshot on
- *  the assignment row. */
+ *  the assignment row.
+ *
+ *  First-to-accept-wins: each brief is treated as a single slot shared
+ *  by all of its candidates. The whole respond flow runs inside a
+ *  transaction with the brief row locked (`SELECT … FOR UPDATE`) so
+ *  two concurrent accepts can't both win. On accept we look at the
+ *  sibling assignments:
+ *
+ *    - If any sibling already holds `decision = 'accepted'`, this caller
+ *      lost the race. Their row is set to `'too_late'` and the response
+ *      includes `tooLate: true` so the freelancer UI can show a
+ *      "position filled" banner instead of a confirmation.
+ *    - Otherwise this caller wins. Their row is set to `'accepted'` and
+ *      every other sibling whose decision is still `'pending'` is
+ *      atomically downgraded to `'too_late'` so the producer's poll
+ *      and the other freelancers' next sync both see a single winner.
+ *
+ *  Decline keeps its old behaviour — it only mutates the caller's row
+ *  and never touches siblings. `'too_late'` itself is *not* a valid
+ *  client-supplied decision; only the server may write it. */
 router.post(
   "/portal/briefs/:id/respond",
   requireSignedIn,
@@ -437,29 +460,172 @@ router.post(
         ? body.acceptedGigId.slice(0, 64)
         : null;
     try {
-      const updated = await db
-        .update(briefAssignmentsTable)
-        .set({
-          decision,
-          decidedAt: sql`now()`,
-          acceptedSnapshot,
-          acceptedGigId,
-          updatedAt: sql`now()`,
-        })
-        .where(
-          and(
-            eq(briefAssignmentsTable.briefId, briefId),
-            eq(briefAssignmentsTable.freelancerUserId, userId),
-          ),
-        )
-        .returning();
-      if (updated.length === 0) {
+      const result = await db.transaction(async (tx) => {
+        // Lock the brief row for the lifetime of the transaction so
+        // sibling-checking and sibling-updates can't race. The lock
+        // is on `project_briefs`, not on `brief_assignments`, because
+        // there is exactly one brief per slot — locking it serialises
+        // every accept attempt for that slot regardless of which
+        // freelancer they belong to.
+        const briefRows = await tx
+          .select({ id: projectBriefsTable.id })
+          .from(projectBriefsTable)
+          .where(eq(projectBriefsTable.id, briefId))
+          .for("update")
+          .limit(1);
+        if (briefRows.length === 0) {
+          return { kind: "no_brief" as const };
+        }
+        // Always pull the full sibling set up-front so we can enforce
+        // the state-transition rules below regardless of which branch
+        // we end up in. The cost is one extra SELECT per request,
+        // which is cheap relative to the FOR UPDATE lock we already
+        // hold on the brief row.
+        const siblings = await tx
+          .select({
+            id: briefAssignmentsTable.id,
+            freelancerUserId: briefAssignmentsTable.freelancerUserId,
+            decision: briefAssignmentsTable.decision,
+          })
+          .from(briefAssignmentsTable)
+          .where(eq(briefAssignmentsTable.briefId, briefId));
+        const myRow = siblings.find((s) => s.freelancerUserId === userId);
+        if (!myRow) return { kind: "no_assignment" as const };
+        // `too_late` is terminal from the freelancer's perspective —
+        // the producer (or a future "reopen slot" feature) is the only
+        // legitimate way out of it. Reject any client-driven attempt
+        // to leave that state, including a re-accept retry from a
+        // stale tab. We surface a friendly tooLate response so the
+        // existing client UI keeps showing the "Position filled"
+        // banner instead of flickering.
+        if (myRow.decision === "too_late") {
+          return {
+            kind: "ok" as const,
+            assignment: myRow,
+            tooLate: true,
+          };
+        }
+        if (decision !== "accepted") {
+          // Decline / pending — no sibling effects, *except* when the
+          // caller is the current winner undoing their accept. In that
+          // case we reopen every sibling we previously swept to
+          // `too_late` so they have a fair chance again. Already-
+          // declined siblings are left declined (they made an explicit
+          // choice to opt out and shouldn't be silently re-prompted).
+          const wasWinnerUndoing =
+            myRow.decision === "accepted" && decision === "pending";
+          if (wasWinnerUndoing) {
+            await tx
+              .update(briefAssignmentsTable)
+              .set({
+                decision: "pending",
+                decidedAt: sql`now()`,
+                updatedAt: sql`now()`,
+              })
+              .where(
+                and(
+                  eq(briefAssignmentsTable.briefId, briefId),
+                  eq(briefAssignmentsTable.decision, "too_late"),
+                ),
+              );
+          }
+          const updated = await tx
+            .update(briefAssignmentsTable)
+            .set({
+              decision,
+              decidedAt: sql`now()`,
+              acceptedSnapshot: null,
+              acceptedGigId: null,
+              updatedAt: sql`now()`,
+            })
+            .where(eq(briefAssignmentsTable.id, myRow.id))
+            .returning();
+          if (updated.length === 0) return { kind: "no_assignment" as const };
+          return {
+            kind: "ok" as const,
+            assignment: updated[0],
+            tooLate: false,
+          };
+        }
+        // Accept path — check whether anyone else has already won. We
+        // explicitly exclude the caller's own row from the "anyone
+        // already accepted" check so a no-op double-accept by the same
+        // freelancer (e.g. a stale tab or a retried request) is treated
+        // as success, not as a too-late race against themselves.
+        const winner = siblings.find(
+          (s) =>
+            s.decision === "accepted" && s.freelancerUserId !== userId,
+        );
+        if (winner) {
+          // Lost the race — record `too_late` for this caller.
+          const updated = await tx
+            .update(briefAssignmentsTable)
+            .set({
+              decision: "too_late",
+              decidedAt: sql`now()`,
+              acceptedSnapshot: null,
+              acceptedGigId: null,
+              updatedAt: sql`now()`,
+            })
+            .where(eq(briefAssignmentsTable.id, myRow.id))
+            .returning();
+          return {
+            kind: "ok" as const,
+            assignment: updated[0],
+            tooLate: true,
+          };
+        }
+        // Won the race (or already held the win). Mark this row
+        // accepted, then sweep every other still-pending sibling to
+        // `too_late`. Already-declined siblings are left alone — a
+        // freelancer who said no shouldn't have their decision
+        // rewritten just because another candidate happened to
+        // accept later.
+        const updated = await tx
+          .update(briefAssignmentsTable)
+          .set({
+            decision: "accepted",
+            decidedAt: sql`now()`,
+            acceptedSnapshot,
+            acceptedGigId,
+            updatedAt: sql`now()`,
+          })
+          .where(eq(briefAssignmentsTable.id, myRow.id))
+          .returning();
+        await tx
+          .update(briefAssignmentsTable)
+          .set({
+            decision: "too_late",
+            decidedAt: sql`now()`,
+            updatedAt: sql`now()`,
+          })
+          .where(
+            and(
+              eq(briefAssignmentsTable.briefId, briefId),
+              eq(briefAssignmentsTable.decision, "pending"),
+            ),
+          );
+        return {
+          kind: "ok" as const,
+          assignment: updated[0],
+          tooLate: false,
+        };
+      });
+      if (result.kind === "no_brief") {
+        res.status(404).json({ ok: false, error: "Brief not found." });
+        return;
+      }
+      if (result.kind === "no_assignment") {
         res
           .status(404)
           .json({ ok: false, error: "No assignment for this user." });
         return;
       }
-      res.json({ ok: true, assignment: updated[0] });
+      res.json({
+        ok: true,
+        assignment: result.assignment,
+        tooLate: result.tooLate,
+      });
     } catch (err) {
       logger.error(
         { err: err instanceof Error ? err.message : String(err) },

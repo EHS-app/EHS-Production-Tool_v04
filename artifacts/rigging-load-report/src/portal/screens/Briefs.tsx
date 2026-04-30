@@ -39,6 +39,11 @@ function decisionPill(d: BriefDecision): { label: string; bg: string; fg: string
       return { label: "Accepted", bg: "rgba(22,163,74,0.18)", fg: "#16a34a" };
     case "declined":
       return { label: "Declined", bg: "rgba(100,116,139,0.18)", fg: "#475569" };
+    case "too_late":
+      // Slot was filled by a sibling candidate before this freelancer
+      // could accept. Same red palette as a hard error so the briefs
+      // list immediately reads "this one's gone".
+      return { label: "Filled", bg: "rgba(220,38,38,0.14)", fg: "#b91c1c" };
   }
 }
 

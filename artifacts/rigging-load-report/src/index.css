@@ -6074,6 +6074,15 @@ input:focus {
   color: #b91c1c;
   border-color: rgba(220, 38, 38, 0.35);
 }
+/* First-to-accept-wins: a sibling candidate beat this freelancer to
+   the accept. Same red palette family as crew-pill-bad but with a
+   subtle dashed border so the producer can read "race lost" at a
+   glance instead of confusing it with an explicit decline. */
+.crew-pill-too_late {
+  background: rgba(220, 38, 38, 0.10);
+  color: #b91c1c;
+  border: 1px dashed rgba(220, 38, 38, 0.55);
+}
 .crew-pill-empty {
   color: var(--muted, #94a3b8);
   font-size: 13px;

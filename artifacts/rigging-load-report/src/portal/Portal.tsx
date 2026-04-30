@@ -233,27 +233,63 @@ function serverRowToSharedBrief(row: ServerBriefRow): SharedBrief | null {
   };
 }
 
+/** How long after a local accept/decline the portal protects the
+ *  freelancer's choice from being overwritten by the server snapshot.
+ *  Sized comfortably wider than the 15-second sync window plus one
+ *  60-second poll cycle, so a slow ack or a transient 5xx never
+ *  visibly downgrades a fresh decision back to "pending" while the
+ *  retry loop is still in flight. */
+const FRESH_DECISION_WINDOW_MS = 60_000;
+
 /** Merge server-originated briefs into the local PortalData. Server
- *  rows win on conflict (the producer-side accept/decline polling
- *  uses the same database — the device that has the freshest state
- *  is the one with the most recent server fetch). Local-only briefs
- *  (legacy share-links) are preserved. The merged list is sorted by
- *  receivedAt desc so the Briefs screen ordering stays sensible. */
+ *  rows win on conflict — *except* for the freelancer's own decision
+ *  fields when the local copy was set within the freshness window
+ *  (see `FRESH_DECISION_WINDOW_MS`). That carve-out lets a freelancer
+ *  hit Accept and trust the UI to stay on Accepted even if the
+ *  /respond POST is still in flight (or briefly failed and is being
+ *  retried). Once the window expires the server is the source of
+ *  truth again — so a stale "accepted" that never actually synced
+ *  will eventually revert back to "pending" rather than getting
+ *  silently stuck. Local-only briefs (legacy share-links) are
+ *  preserved untouched. The merged list is sorted by receivedAt desc
+ *  so the Briefs screen ordering stays sensible. */
 function mergeServerBriefs(
   prev: PortalData,
   server: SharedBrief[],
 ): PortalData {
+  const now = Date.now();
   const byId = new Map<string, SharedBrief>();
   for (const b of prev.briefs) byId.set(b.briefId, b);
   for (const s of server) {
     const local = byId.get(s.briefId);
     if (!local) {
       byId.set(s.briefId, s);
-    } else {
-      // Preserve any local-only fields the server doesn't track yet
-      // (none today, but defensive for forward compatibility).
-      byId.set(s.briefId, { ...local, ...s });
+      continue;
     }
+    // Default: server wins on every field, but `decidedLocallyAt`
+    // (a transient client-only marker the server doesn't know about)
+    // is preserved.
+    let merged: SharedBrief = {
+      ...local,
+      ...s,
+      decidedLocallyAt: local.decidedLocallyAt,
+    };
+    const fresh =
+      typeof local.decidedLocallyAt === "number" &&
+      now - local.decidedLocallyAt < FRESH_DECISION_WINDOW_MS;
+    if (fresh && local.decision !== s.decision) {
+      // Within the freshness window the local decision wins. We also
+      // keep the locally-staged acceptedGigId / acceptedSnapshot so
+      // the BriefDetail buttons don't flicker back to "pending" while
+      // the /respond POST is in flight or being retried.
+      merged = {
+        ...merged,
+        decision: local.decision,
+        acceptedGigId: local.acceptedGigId,
+        acceptedSnapshot: local.acceptedSnapshot,
+      };
+    }
+    byId.set(s.briefId, merged);
   }
   const merged = Array.from(byId.values()).sort(
     (a, b) => b.receivedAt - a.receivedAt,

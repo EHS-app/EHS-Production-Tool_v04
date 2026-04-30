@@ -187,6 +187,21 @@ function snapHalf(n: number): number {
  *    de-rig, mixed configurations, or per-deck rigging). */
 export type StageLegMode = "shared" | "perDeck";
 
+/** Direction the physical assembly sequence runs across the stage —
+ *  i.e. which side the crew starts from. The leg POSITIONS are the
+ *  same either way (geometry is order-independent), but the per-deck
+ *  numbering AND the marginal "+N legs" count for shared mode depend
+ *  on which deck is placed first.
+ *
+ *  - "leftToRight" (default): deck #1 is the upstage-left corner; the
+ *    sequence runs left-to-right along each row, then forwards toward
+ *    the audience. Matches the way the tiler scans cells.
+ *  - "rightToLeft": deck #1 is the upstage-right corner; the sequence
+ *    runs right-to-left along each row, then forwards. Useful when
+ *    the get-in (truck dock, freight lift, side door) is on stage
+ *    right and the crew naturally builds from that side first. */
+export type StageBuildOrder = "leftToRight" | "rightToLeft";
+
 /** How the stage layout is produced.
  *  - "auto" (default): the user enters a Width × Depth and the greedy tiler
  *    fills the rectangle with standard Nivtec decks.
@@ -209,6 +224,10 @@ export type Stage = {
   legHeightCm: number;
   /** How legs are counted (see StageLegMode). */
   legMode: StageLegMode;
+  /** Which side the crew starts building from (see StageBuildOrder).
+   *  Affects the deck assembly numbering and the per-deck "+N legs"
+   *  count in shared mode; geometry and total leg count are unchanged. */
+  buildOrder: StageBuildOrder;
   /** Which sides have handrails. */
   rails: StageRailSides;
   /** Free-form rail segments drawn on the stage canvas. */
@@ -232,9 +251,27 @@ export type DeckPlacement = {
   d: number;
 };
 
+/** Per-deck assembly metadata, parallel to `StageCalc.decks` (same
+ *  length, same index order). `sequence` is the 1-based build order
+ *  the crew should follow on stage; `legsAdded` is the number of NEW
+ *  legs this deck introduces (in shared mode, decks that share corners
+ *  with already-placed decks add fewer than 4 — the classic 4-2-2-1
+ *  pattern; in perDeck mode it's always 4). */
+export type DeckAssembly = {
+  sequence: number;
+  legsAdded: number;
+};
+
 export type StageCalc = {
-  /** Ordered list of placed decks (front-left origin, scanning rows). */
+  /** Ordered list of placed decks. The order is the physical assembly
+   *  sequence (deck #1 is built first), determined by `Stage.buildOrder`.
+   *  Note: in manual mode this REPLACES the user's placement-time order
+   *  with the spatial build order, so the assembly numbering is always
+   *  consistent with where each deck sits on stage rather than which
+   *  deck the user clicked first. */
   decks: DeckPlacement[];
+  /** Per-deck assembly metadata, parallel to `decks`. */
+  assembly: DeckAssembly[];
   /** Count by deck key (only keys that occur are present). */
   deckCounts: Record<StageDeckKey, number>;
   /** Number of legs needed. In "shared" mode this is the count of unique
@@ -492,19 +529,45 @@ export function computeStage(stage: Stage): StageCalc {
     if (def) deckWeight += def.weight;
   }
 
+  // Re-order placements into the physical assembly sequence dictated
+  // by `Stage.buildOrder`. We sort upstage-first (smaller y first) and
+  // then either left-to-right (default) or right-to-left so the crew
+  // can build from the get-in side. `decks` is then iterated in this
+  // order both for rendering AND for the marginal "legs added per
+  // deck" calculation below.
+  if (stage.buildOrder === "rightToLeft") {
+    placements = [...placements].sort((a, b) => a.y - b.y || b.x - a.x);
+  } else {
+    placements = [...placements].sort((a, b) => a.y - b.y || a.x - b.x);
+  }
+
   // Leg positions: union of all deck corners. Always computed so the
   // preview can draw them in shared mode; perDeck mode draws its own.
+  // We also compute the per-deck "legs added" count by walking the
+  // placements in build order and counting how many of each deck's
+  // four corners are NEW relative to the cumulative set of corners
+  // already introduced by earlier decks (the classic 4-2-2-1 rule).
   const corners = new Set<string>();
-  for (const p of placements) {
-    const x1 = p.x;
-    const y1 = p.y;
-    const x2 = p.x + p.w;
-    const y2 = p.y + p.d;
-    corners.add(`${x1.toFixed(2)},${y1.toFixed(2)}`);
-    corners.add(`${x2.toFixed(2)},${y1.toFixed(2)}`);
-    corners.add(`${x1.toFixed(2)},${y2.toFixed(2)}`);
-    corners.add(`${x2.toFixed(2)},${y2.toFixed(2)}`);
-  }
+  const assembly: DeckAssembly[] = [];
+  placements.forEach((p, i) => {
+    const c = [
+      `${p.x.toFixed(2)},${p.y.toFixed(2)}`,
+      `${(p.x + p.w).toFixed(2)},${p.y.toFixed(2)}`,
+      `${p.x.toFixed(2)},${(p.y + p.d).toFixed(2)}`,
+      `${(p.x + p.w).toFixed(2)},${(p.y + p.d).toFixed(2)}`,
+    ];
+    let newCorners = 0;
+    for (const k of c) {
+      if (!corners.has(k)) {
+        corners.add(k);
+        newCorners++;
+      }
+    }
+    assembly.push({
+      sequence: i + 1,
+      legsAdded: stage.legMode === "perDeck" ? 4 : newCorners,
+    });
+  });
   const legPositions = [...corners].map((c) => {
     const [x, y] = c.split(",").map(Number);
     return { x, y };
@@ -577,6 +640,7 @@ export function computeStage(stage: Stage): StageCalc {
 
   return {
     decks: placements,
+    assembly,
     deckCounts,
     legCount,
     legPositions,
@@ -732,6 +796,8 @@ export function normalizeStage(raw: Partial<Stage>): Stage {
     : [];
   const legMode: StageLegMode =
     raw.legMode === "perDeck" ? "perDeck" : "shared";
+  const buildOrder: StageBuildOrder =
+    raw.buildOrder === "rightToLeft" ? "rightToLeft" : "leftToRight";
   const editMode: StageEditMode =
     raw.editMode === "manual" ? "manual" : "auto";
   // Allowed (w, d) pairs per deck key — both the natural and rotated
@@ -797,6 +863,7 @@ export function normalizeStage(raw: Partial<Stage>): Stage {
     depth: Math.max(0.5, depth),
     legHeightCm,
     legMode,
+    buildOrder,
     rails,
     customRails,
     notes: typeof raw.notes === "string" ? raw.notes : "",
@@ -817,6 +884,7 @@ export function makeDefaultStage(name: string): Stage {
     depth: 4,
     legHeightCm: 60,
     legMode: "shared",
+    buildOrder: "leftToRight",
     rails: { ...DEFAULT_RAIL_SIDES },
     customRails: [],
     notes: "",

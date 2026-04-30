@@ -15,6 +15,7 @@ import {
   type Stage,
   type StageDeckKey,
   type StageEditMode,
+  type StageBuildOrder,
   type StageLegMode,
 } from "../lib/stage";
 
@@ -408,6 +409,32 @@ function StageCard({
               </option>
               <option value="perDeck">4 legs per deck</option>
             </select>
+          </label>
+
+          <label className="stage-field">
+            <span>Build from</span>
+            <select
+              value={stage.buildOrder}
+              onChange={(e) =>
+                onUpdate({ buildOrder: e.target.value as StageBuildOrder })
+              }
+              title="Which side the crew starts building from. Affects the deck numbering and (in 4-2-2-1 mode) the per-deck legs-needed count."
+            >
+              <option value="leftToRight">Left side → right (default)</option>
+              <option value="rightToLeft">Right side → left (opposite)</option>
+            </select>
+            <small
+              style={{
+                color: "#64748b",
+                fontSize: 11,
+                marginTop: 4,
+                lineHeight: 1.3,
+                display: "block",
+              }}
+            >
+              Numbering on each deck shows the build order and how many
+              legs to install on that deck.
+            </small>
           </label>
 
           <fieldset className="stage-rails">
@@ -1006,40 +1033,100 @@ function StageSvg({
             deck depending on whether the clicked cell is occupied — so
             the deck rects themselves don't need their own click
             handlers. */}
-        {calc.decks.map((p, i) => (
-          <g key={i}>
-            <rect
-              x={PAD + p.x * scale}
-              y={PAD + p.y * scale}
-              width={p.w * scale}
-              height={p.d * scale}
-              fill={DECK_FILL[p.key]}
-              fillOpacity={0.7}
-              stroke="#0f172a"
-              strokeWidth={1}
-              strokeOpacity={0.7}
-            />
-            {p.w * scale >= 32 && p.d * scale >= 22 && (
-              <text
-                x={PAD + (p.x + p.w / 2) * scale}
-                y={PAD + (p.y + p.d / 2) * scale + 4}
-                textAnchor="middle"
-                fontSize={Math.min(p.w * scale, p.d * scale) * 0.22}
-                fontFamily="system-ui, sans-serif"
-                fill="#fff"
-                fontWeight={600}
-              >
-                {p.key === "2x1"
-                  ? "2×1"
-                  : p.key === "1x1"
-                    ? "1×1"
-                    : p.key === "0.5x2"
-                      ? "0.5×2"
-                      : "0.5×1"}
-              </text>
-            )}
-          </g>
-        ))}
+        {calc.decks.map((p, i) => {
+          const asm = calc.assembly[i];
+          // Assembly badge anchor — use the deck's UPSTAGE-near corner
+          // on whichever side the build runs from, so the badge always
+          // sits next to the side the crew is starting from.
+          const badgeNearLeft = stage.buildOrder !== "rightToLeft";
+          const badgeRadius = Math.max(
+            7,
+            Math.min(11, Math.min(p.w * scale, p.d * scale) * 0.18),
+          );
+          const badgeInset = badgeRadius + 3;
+          const badgeCx = badgeNearLeft
+            ? PAD + p.x * scale + badgeInset
+            : PAD + (p.x + p.w) * scale - badgeInset;
+          const badgeCy = PAD + p.y * scale + badgeInset;
+          // Hide the per-deck "+N legs" caption on very small decks to
+          // avoid overlapping the size label; the badge number itself
+          // is always shown.
+          const showLegsCaption = p.w * scale >= 44 && p.d * scale >= 36;
+          return (
+            <g key={i}>
+              <rect
+                x={PAD + p.x * scale}
+                y={PAD + p.y * scale}
+                width={p.w * scale}
+                height={p.d * scale}
+                fill={DECK_FILL[p.key]}
+                fillOpacity={0.7}
+                stroke="#0f172a"
+                strokeWidth={1}
+                strokeOpacity={0.7}
+              />
+              {p.w * scale >= 32 && p.d * scale >= 22 && (
+                <text
+                  x={PAD + (p.x + p.w / 2) * scale}
+                  y={PAD + (p.y + p.d / 2) * scale + 4}
+                  textAnchor="middle"
+                  fontSize={Math.min(p.w * scale, p.d * scale) * 0.22}
+                  fontFamily="system-ui, sans-serif"
+                  fill="#fff"
+                  fontWeight={600}
+                >
+                  {p.key === "2x1"
+                    ? "2×1"
+                    : p.key === "1x1"
+                      ? "1×1"
+                      : p.key === "0.5x2"
+                        ? "0.5×2"
+                        : "0.5×1"}
+                </text>
+              )}
+              {asm && (
+                <g pointerEvents="none">
+                  <circle
+                    cx={badgeCx}
+                    cy={badgeCy}
+                    r={badgeRadius}
+                    fill="#fff"
+                    stroke="#0f172a"
+                    strokeWidth={1.25}
+                  />
+                  <text
+                    x={badgeCx}
+                    y={badgeCy + badgeRadius * 0.36}
+                    textAnchor="middle"
+                    fontSize={badgeRadius * 1.1}
+                    fontFamily="system-ui, sans-serif"
+                    fill="#0f172a"
+                    fontWeight={700}
+                  >
+                    {asm.sequence}
+                  </text>
+                  {showLegsCaption && (
+                    <text
+                      x={
+                        badgeNearLeft
+                          ? badgeCx + badgeRadius + 3
+                          : badgeCx - badgeRadius - 3
+                      }
+                      y={badgeCy + 3}
+                      textAnchor={badgeNearLeft ? "start" : "end"}
+                      fontSize={Math.max(9, badgeRadius * 0.95)}
+                      fontFamily="system-ui, sans-serif"
+                      fill="#0f172a"
+                      fontWeight={600}
+                    >
+                      +{asm.legsAdded} {asm.legsAdded === 1 ? "leg" : "legs"}
+                    </text>
+                  )}
+                </g>
+              )}
+            </g>
+          );
+        })}
         {/* Leg dots. In both modes the dots are drawn slightly INSIDE
             the deck (inset from the corner) so they're visually
             separated from the deck outline.

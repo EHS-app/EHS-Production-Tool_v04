@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useClerk, useUser } from "@clerk/react";
+import { useAuth, useClerk, useUser } from "@clerk/react";
 import { Link } from "wouter";
 import "./index.css";
 import ehsLogo from "./assets/ehs-logo.png";
@@ -34,7 +34,8 @@ import { findProcessor } from "./lib/ledProcessors";
 import { NumberField } from "./components/NumberField";
 import { ShareBriefModal } from "./components/ShareBriefModal";
 import { useT } from "./lib/i18n/I18nContext";
-import type { BuildBriefInput } from "./lib/projectBrief";
+import { buildBrief, type BuildBriefInput } from "./lib/projectBrief";
+import type { CrewRequestStatus } from "./lib/crew";
 import { exportScreenAsPng, getLogoDataUrl } from "./lib/ledExport";
 import { LedScreenReportView } from "./components/LedScreenReportView";
 import {
@@ -834,6 +835,12 @@ type PersistedV2 = {
   power?: PowerPlan;
   /** Rigg Plan — venue + per-system truss positions. */
   riggPlan?: RiggPlan;
+  /** Server id of the project_briefs row backing this project's
+   *  Crew Report request/accept loop. Created lazily on the first
+   *  "Send requests" click and reused for every subsequent batch so
+   *  all freelancers see the same brief in their portal and the
+   *  producer's polling endpoint stays addressable across reloads. */
+  activeBriefId?: string | null;
 };
 
 /** Defensive read of arbitrary persisted JSON into a clean
@@ -1160,6 +1167,22 @@ function App() {
   });
 
   const [mainView, setMainView] = useState<MainView>(persisted?.mainView ?? "rigging");
+
+  // Crew Report request/accept loop —
+  //   `activeBriefId`   server id of the project_briefs row this project
+  //                     is hanging its outgoing requests off of (lazily
+  //                     created on the first Send requests click and
+  //                     persisted across reloads in PersistedV2).
+  //   `sendingRequests` true while the POST /api/portal/briefs round
+  //                     trip is in flight; disables the sticky bar.
+  //   `sendError`       last failure surfaced to the sidebar so the
+  //                     producer sees why nothing happened.
+  const [activeBriefId, setActiveBriefId] = useState<string | null>(
+    persisted?.activeBriefId ?? null,
+  );
+  const [sendingRequests, setSendingRequests] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const { getToken } = useAuth();
   /** Equipment-library picker state. `target` controls which add-handler the
    *  picked item flows into; `null` means the picker is closed. */
   const [pickerTarget, setPickerTarget] = useState<
@@ -1302,6 +1325,7 @@ function App() {
       crew,
       soundItems,
       power,
+      activeBriefId,
       riggPlan,
     };
     try {
@@ -2539,6 +2563,202 @@ function App() {
   };
 
   // ---- Crew Report ----
+
+  /** Set of Clerk user ids that are already on this project's crew
+   *  list — drives the "Requested" badge in the Available Crew sidebar
+   *  so the producer can't double-request the same freelancer for the
+   *  same project. Manual rows (no freelancerUserId) are ignored. */
+  const requestedUserIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const m of crew) if (m.freelancerUserId) s.add(m.freelancerUserId);
+    return s;
+  }, [crew]);
+
+  /** Send brief requests to a batch of freelancers picked in the
+   *  sidebar. The flow is:
+   *    1. Add a Requested crew row for each freelancer (so the
+   *       producer's call sheet shows the pending headcount/cost
+   *       immediately, even before the freelancer responds).
+   *    2. POST the full brief + recipient list to
+   *       `/api/portal/briefs`. Reuses `activeBriefId` if we've
+   *       already created the server brief for this project so the
+   *       freelancers all see the same brief id.
+   *    3. Cache the returned brief.id back in state so subsequent
+   *       sends append to the same brief, and the producer's polling
+   *       loop has something to address.
+   *
+   *  Failures bubble back through `sendError` to the sidebar's
+   *  sticky bar; the optimistic crew rows are rolled back on the same
+   *  path so the call sheet stays in sync with what the server
+   *  actually accepted. */
+  const sendCrewRequests = useCallback(
+    async (rows: { userId: string; fullName: string; primaryRole: string | null }[]) => {
+      if (rows.length === 0 || sendingRequests) return;
+      const newMembers: CrewMember[] = rows.map((r) => {
+        const m = makeCrewMember(r.fullName);
+        m.role = skillToCrewRole(r.primaryRole);
+        m.freelancerUserId = r.userId;
+        m.requestStatus = "requested" as CrewRequestStatus;
+        return m;
+      });
+      const nextCrew = [...crew, ...newMembers];
+      setSendingRequests(true);
+      setSendError(null);
+      // Optimistic — render the Requested rows immediately. We undo
+      // this in the catch block on a network failure so the sidebar
+      // can be retried without orphan rows hanging around.
+      setCrew(nextCrew);
+      try {
+        const token = await getToken();
+        if (!token) throw new Error("Sign in to send requests");
+        const baseUrl =
+          (typeof import.meta !== "undefined" &&
+            (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+          "/";
+        // Build the brief from the next crew so each new freelancer's
+        // assignment is present in the payload. recipientCrewId stays
+        // null on this batch send — each freelancer is addressed via
+        // the top-level recipients[] list, not via the legacy
+        // single-recipient share-link channel.
+        const data = buildBrief({
+          ...briefInput,
+          crew: nextCrew,
+          recipientCrewId: null,
+        });
+        const recipients = newMembers.map((m) => ({
+          crewId: m.id,
+          freelancerUserId: m.freelancerUserId!,
+        }));
+        const body: Record<string, unknown> = { data, recipients };
+        if (activeBriefId) body.id = activeBriefId;
+        const res = await fetch(`${baseUrl}api/portal/briefs`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          throw new Error(`Server returned ${res.status}`);
+        }
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          brief?: { id?: string } | null;
+        };
+        if (!json.ok || !json.brief?.id) {
+          throw new Error(json.error || "Bad response from server");
+        }
+        if (!activeBriefId) setActiveBriefId(json.brief.id);
+      } catch (e) {
+        const msg =
+          e instanceof Error ? e.message : "Could not send requests";
+        setSendError(msg);
+        // Roll back the optimistic rows so the producer can re-tick
+        // and try again without ending up with duplicates.
+        setCrew((all) =>
+          all.filter(
+            (m) => !newMembers.some((nm) => nm.id === m.id),
+          ),
+        );
+      } finally {
+        setSendingRequests(false);
+      }
+    },
+    [crew, briefInput, activeBriefId, sendingRequests, getToken],
+  );
+
+  /** Producer-side polling. Whenever the producer is on the Crew tab
+   *  and we have a server brief id, fetch the assignments every 15s
+   *  and reconcile each crew row's `requestStatus` /
+   *  `briefAssignmentId` with the server's truth. We additionally
+   *  derive a "no reply" status when the assignment has been pending
+   *  for more than 24 hours — the server doesn't track that itself,
+   *  it just reports `decision: "pending"` + `createdAt`. */
+  useEffect(() => {
+    if (mainView !== "crew" || !activeBriefId) return;
+    let cancelled = false;
+    const baseUrl =
+      (typeof import.meta !== "undefined" &&
+        (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+      "/";
+    const NO_REPLY_AFTER_MS = 24 * 60 * 60 * 1000;
+    const fetchAssignments = async () => {
+      try {
+        const token = await getToken();
+        if (cancelled) return;
+        const res = await fetch(
+          `${baseUrl}api/portal/briefs/${activeBriefId}/assignments`,
+          {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          },
+        );
+        if (cancelled || !res.ok) return;
+        const json = (await res.json()) as {
+          ok?: boolean;
+          assignments?: Array<{
+            id: string;
+            freelancerUserId: string;
+            crewId: string | null;
+            decision: "pending" | "accepted" | "declined";
+            createdAt: string;
+          }>;
+        };
+        if (cancelled || !json.ok || !Array.isArray(json.assignments)) return;
+        const now = Date.now();
+        const byUser = new Map<
+          string,
+          { id: string; status: CrewRequestStatus }
+        >();
+        for (const a of json.assignments) {
+          const created = Date.parse(a.createdAt);
+          let status: CrewRequestStatus;
+          if (a.decision === "accepted") status = "accepted";
+          else if (a.decision === "declined") status = "declined";
+          else if (
+            Number.isFinite(created) &&
+            now - created > NO_REPLY_AFTER_MS
+          )
+            status = "no-reply";
+          else status = "requested";
+          byUser.set(a.freelancerUserId, { id: a.id, status });
+        }
+        // Patch in-place. Only crew rows whose freelancerUserId
+        // matches a server assignment are touched; manual in-house
+        // rows are left exactly as the producer entered them.
+        setCrew((all) => {
+          let changed = false;
+          const next = all.map((m) => {
+            if (!m.freelancerUserId) return m;
+            const sa = byUser.get(m.freelancerUserId);
+            if (!sa) return m;
+            if (
+              m.requestStatus === sa.status &&
+              m.briefAssignmentId === sa.id
+            )
+              return m;
+            changed = true;
+            return {
+              ...m,
+              requestStatus: sa.status,
+              briefAssignmentId: sa.id,
+            };
+          });
+          return changed ? next : all;
+        });
+      } catch {
+        /* swallow — next interval will retry */
+      }
+    };
+    void fetchAssignments();
+    const t = window.setInterval(fetchAssignments, 15_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, [mainView, activeBriefId, getToken]);
+
   const addCrew = () => {
     setCrew((all) => [...all, makeCrewMember()]);
   };
@@ -3661,6 +3881,8 @@ function App() {
     setLedSettings(DEFAULT_LED_SETTINGS);
     setStages([]);
     setCrew([]);
+    setActiveBriefId(null);
+    setSendError(null);
     setSoundItems([]);
     setPower(defaultPowerPlan());
     // DEFAULT_RIGG_PLAN now starts with `venue: null` and an empty
@@ -4789,17 +5011,10 @@ function App() {
             <AvailableCrewSidebar
               projectStartDate={reportDate}
               projectEndDate={reportEndDate}
-              onAddToCrew={({ name, primaryRole }) => {
-                // Pre-fill a fresh crew row with the freelancer's name
-                // and best-guess department. The producer can still
-                // tweak any field (rate, call/off times, notes) inline
-                // — this just removes the typing friction of building
-                // a call sheet from a roster the producer already
-                // knows.
-                const member = makeCrewMember(name);
-                member.role = skillToCrewRole(primaryRole);
-                setCrew((all) => [...all, member]);
-              }}
+              requestedUserIds={requestedUserIds}
+              sending={sendingRequests}
+              sendError={sendError}
+              onSendRequests={sendCrewRequests}
             />
           }
         />

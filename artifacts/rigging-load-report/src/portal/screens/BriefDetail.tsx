@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useAuth } from "@clerk/react";
 import { Link, useLocation } from "wouter";
 import { PALETTE, type ThemeMode } from "../lib/portalTheme";
 import {
@@ -107,8 +108,45 @@ export function BriefDetail({
   setData: React.Dispatch<React.SetStateAction<PortalData>>;
 }) {
   const c = PALETTE[theme];
+  const { getToken } = useAuth();
   const [, setLocation] = useLocation();
   const entry = findBrief(data, briefId);
+
+  /** Best-effort POST to `/api/portal/briefs/:id/respond` so the
+   *  producer's Crew Report can show the freelancer's decision live
+   *  via its polling loop. Fire-and-forget: legacy share-link briefs
+   *  that don't exist on the server return 404 and are silently
+   *  ignored. The local state is the source of truth for the user's
+   *  view; this call only syncs the producer side. */
+  const syncDecisionToServer = (
+    decision: "accepted" | "declined" | "pending",
+    extras?: { acceptedSnapshot?: unknown; acceptedGigId?: string | null },
+  ) => {
+    void (async () => {
+      try {
+        const token = await getToken();
+        const baseUrl =
+          (typeof import.meta !== "undefined" &&
+            (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+          "/";
+        await fetch(`${baseUrl}api/portal/briefs/${briefId}/respond`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            decision,
+            acceptedSnapshot: extras?.acceptedSnapshot ?? null,
+            acceptedGigId: extras?.acceptedGigId ?? null,
+          }),
+        });
+      } catch {
+        /* ignore — producer-side polling will retry on the next fetch */
+      }
+    })();
+  };
+
   // Hooks must be called unconditionally — compute the assignment from a
   // possibly-null entry and short-circuit in the JSX below.
   const myAssignment = useMemo(() => {
@@ -174,22 +212,29 @@ export function BriefDetail({
 
   function accept() {
     const snapshot = buildAcceptedSnapshot(brief);
+    let gigIdForServer: string | null = null;
     setData((prev) => {
       // Don't double-create a Gig if the brief is re-accepted.
       const existing = prev.briefs.find((b) => b.briefId === briefId);
       if (existing?.acceptedGigId) {
+        gigIdForServer = existing.acceptedGigId;
         return updateBrief(prev, briefId, {
           decision: "accepted",
           acceptedSnapshot: snapshot,
         });
       }
       const gig = gigFromBrief(brief);
+      gigIdForServer = gig.id;
       const next = updateBrief(prev, briefId, {
         decision: "accepted",
         acceptedGigId: gig.id,
         acceptedSnapshot: snapshot,
       });
       return { ...next, gigs: [gig, ...next.gigs] };
+    });
+    syncDecisionToServer("accepted", {
+      acceptedSnapshot: snapshot,
+      acceptedGigId: gigIdForServer,
     });
   }
 
@@ -198,14 +243,20 @@ export function BriefDetail({
     setData((prev) =>
       updateBrief(prev, briefId, { acceptedSnapshot: snapshot }),
     );
+    // Acknowledging a change is still an "accepted" decision on the
+    // server — the snapshot diff is producer-irrelevant; what they
+    // care about is "they're still in".
+    syncDecisionToServer("accepted", { acceptedSnapshot: snapshot });
   }
 
   function decline() {
     setData((prev) => updateBrief(prev, briefId, { decision: "declined" }));
+    syncDecisionToServer("declined");
   }
 
   function resetDecision() {
     setData((prev) => updateBrief(prev, briefId, { decision: "pending" }));
+    syncDecisionToServer("pending");
   }
 
   function downloadCalendar() {

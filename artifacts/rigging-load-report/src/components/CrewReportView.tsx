@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from "react";
 import { NumberField } from "./NumberField";
 import {
+  CREW_REQUEST_STATUS_META,
   CREW_ROLES,
   computeCrewTotals,
   crewHours,
@@ -107,6 +108,7 @@ export function CrewReportView({
                 <tr>
                   <th>Name</th>
                   <th>Department</th>
+                  <th>Status</th>
                   <th>Call</th>
                   <th>Off</th>
                   <th className="led-num">Hours</th>
@@ -175,6 +177,18 @@ function CrewRow({
             </option>
           ))}
         </select>
+      </td>
+      <td>
+        {member.requestStatus ? (
+          <span
+            className={`crew-pill crew-pill-${CREW_REQUEST_STATUS_META[member.requestStatus].tone}`}
+            title={CREW_REQUEST_STATUS_META[member.requestStatus].label}
+          >
+            {CREW_REQUEST_STATUS_META[member.requestStatus].label}
+          </span>
+        ) : (
+          <span className="crew-pill-empty">—</span>
+        )}
       </td>
       <td>
         <input

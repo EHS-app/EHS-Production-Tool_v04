@@ -354,6 +354,60 @@ router.post("/portal/briefs", requireSignedIn, async (req, res) => {
   }
 });
 
+/** GET /api/portal/briefs/:id/assignments
+ *  Producer-only. Returns every brief_assignments row for the brief so
+ *  the Crew Report can render Requested / Accepted / Declined pills next
+ *  to each freelancer the producer requested. The polled rows include
+ *  `decision`, `decidedAt` and `createdAt` so the client can derive a
+ *  "no reply" status for assignments that have been pending for more
+ *  than 24 hours without forcing a server-side timer. */
+router.get(
+  "/portal/briefs/:id/assignments",
+  requireSignedIn,
+  async (req, res) => {
+    const userId = (req as unknown as { _userId: string })._userId;
+    const id = String(req.params.id ?? "");
+    try {
+      const briefRows = await db
+        .select({ ownerUserId: projectBriefsTable.ownerUserId })
+        .from(projectBriefsTable)
+        .where(eq(projectBriefsTable.id, id))
+        .limit(1);
+      if (briefRows.length === 0) {
+        res.status(404).json({ ok: false, error: "Brief not found." });
+        return;
+      }
+      if (briefRows[0].ownerUserId !== userId) {
+        res.status(403).json({ ok: false, error: "Not your brief." });
+        return;
+      }
+      const assignments = await db
+        .select({
+          id: briefAssignmentsTable.id,
+          freelancerUserId: briefAssignmentsTable.freelancerUserId,
+          crewId: briefAssignmentsTable.crewId,
+          decision: briefAssignmentsTable.decision,
+          decidedAt: briefAssignmentsTable.decidedAt,
+          acceptedGigId: briefAssignmentsTable.acceptedGigId,
+          createdAt: briefAssignmentsTable.createdAt,
+          updatedAt: briefAssignmentsTable.updatedAt,
+        })
+        .from(briefAssignmentsTable)
+        .where(eq(briefAssignmentsTable.briefId, id))
+        .orderBy(briefAssignmentsTable.createdAt);
+      res.json({ ok: true, assignments });
+    } catch (err) {
+      logger.error(
+        { err: err instanceof Error ? err.message : String(err) },
+        "portal briefs/:id/assignments GET failed",
+      );
+      res
+        .status(500)
+        .json({ ok: false, error: "Could not load assignments." });
+    }
+  },
+);
+
 /** POST /api/portal/briefs/:id/respond  body: { decision, acceptedSnapshot?, acceptedGigId? }
  *  Freelancer-only. Records accept/decline + the frozen snapshot on
  *  the assignment row. */

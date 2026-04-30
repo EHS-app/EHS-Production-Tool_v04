@@ -668,6 +668,12 @@ export function buildBrief(input: BuildBriefInput): ProjectBrief {
     hours: crewHours(m),
     dayRate: m.dayRate,
     notes: m.notes,
+    // Pass the freelancer's Clerk user id through when the crew row
+    // originated from "Send requests" on the Available Crew sidebar.
+    // The server uses this on POST /api/portal/briefs to create / sync
+    // the brief_assignments row for that user, which is what makes the
+    // brief appear in their portal under "Awaiting your decision".
+    ...(m.freelancerUserId ? { freelancerUserId: m.freelancerUserId } : {}),
   }));
   const systemNames = new Map<string, string>();
   for (const s of input.rigging.systems) systemNames.set(s.id, s.name);

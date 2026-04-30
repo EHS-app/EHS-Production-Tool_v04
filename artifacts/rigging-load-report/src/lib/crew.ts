@@ -26,6 +26,30 @@ export const CREW_ROLES = [
 
 export type CrewRole = (typeof CREW_ROLES)[number];
 
+/** State of the request/accept loop for a crew member that originated
+ *  from "Send requests" on the Available Crew sidebar. Manually-added
+ *  in-house rows leave this `undefined` and never show a pill. */
+export const CREW_REQUEST_STATUSES = [
+  "requested",
+  "accepted",
+  "declined",
+  "no-reply",
+] as const;
+export type CrewRequestStatus = (typeof CREW_REQUEST_STATUSES)[number];
+
+/** Presentation metadata for the Crew tab status pill. Co-located with
+ *  the type so producers can't drift between "what statuses exist" and
+ *  "how do we render them". */
+export const CREW_REQUEST_STATUS_META: Record<
+  CrewRequestStatus,
+  { label: string; tone: "warn" | "ok" | "muted" | "bad" }
+> = {
+  requested: { label: "Requested", tone: "warn" },
+  accepted: { label: "Accepted", tone: "ok" },
+  declined: { label: "Declined", tone: "muted" },
+  "no-reply": { label: "No reply", tone: "bad" },
+};
+
 export type CrewMember = {
   id: string;
   /** Crew member's full name (free text). */
@@ -41,6 +65,17 @@ export type CrewMember = {
   dayRate: number;
   /** Free-form notes (e.g. "Has IPAF licence", "Half-day"). */
   notes: string;
+  /** Clerk user id of the freelancer this row was created for. Set when
+   *  the row was added via "Send requests" on the Available Crew
+   *  sidebar; manual in-house rows leave it undefined. */
+  freelancerUserId?: string;
+  /** Pill state on the Crew Report. Undefined for manual rows so the
+   *  status column simply reads "—" for in-house people. */
+  requestStatus?: CrewRequestStatus;
+  /** Server id of the brief_assignments row backing this crew member.
+   *  Used by the producer's poll loop to correlate accept/decline
+   *  responses with the right local row. */
+  briefAssignmentId?: string;
 };
 
 function newId(prefix: string): string {
@@ -78,6 +113,11 @@ export function normalizeCrewMember(raw: unknown): CrewMember {
     typeof r.dayRate === "number" && Number.isFinite(r.dayRate) && r.dayRate >= 0
       ? r.dayRate
       : base.dayRate;
+  const requestStatus =
+    typeof r.requestStatus === "string" &&
+    (CREW_REQUEST_STATUSES as readonly string[]).includes(r.requestStatus)
+      ? (r.requestStatus as CrewRequestStatus)
+      : undefined;
   return {
     id: typeof r.id === "string" && r.id ? r.id : base.id,
     name: typeof r.name === "string" ? r.name : base.name,
@@ -89,6 +129,15 @@ export function normalizeCrewMember(raw: unknown): CrewMember {
     offTime: normalizeTimeField(r.offTime, base.offTime),
     dayRate,
     notes: typeof r.notes === "string" ? r.notes : base.notes,
+    freelancerUserId:
+      typeof r.freelancerUserId === "string" && r.freelancerUserId
+        ? r.freelancerUserId
+        : undefined,
+    requestStatus,
+    briefAssignmentId:
+      typeof r.briefAssignmentId === "string" && r.briefAssignmentId
+        ? r.briefAssignmentId
+        : undefined,
   };
 }
 

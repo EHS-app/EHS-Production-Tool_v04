@@ -10,8 +10,12 @@
  *      cert?" — multi-layered AND filter across the four skill groups.
  *   2. "Who is actually free on the show day?" — date-aware status
  *      pulled from gigs (Booked) and brief assignments (Pending Brief).
- *   3. "Add this person to my call sheet right now." — single click
- *      hands name + best-guess department to the parent CrewReportView.
+ *   3. "Send a brief to a batch of freelancers and watch them
+ *      accept / decline." — multi-select tickboxes + a sticky "Send
+ *      requests" button at the bottom of the panel. Each ticked
+ *      freelancer is added to the producer's Crew Report with a
+ *      Requested pill, and the brief flows into their portal under
+ *      "Awaiting your decision".
  *
  *  Implementation notes
  *  --------------------
@@ -25,7 +29,10 @@
  *    keep the chip strip readable; subgroup filters can come later.
  *  - "Status" is computed server-side (privacy-safe — no project
  *    names leak across producers) and surfaced as a coloured dot:
- *    green = available, amber = pending brief, red = booked.
+ *    green = available, amber = pending brief, red = booked. Booked
+ *    rows are visible but not selectable (the checkbox is disabled
+ *    with a tooltip) so producers can see them without accidentally
+ *    double-booking.
  *  - Phone number is intentionally NOT shown in the directory list;
  *    contact info travels through the brief / gig flow once the
  *    freelancer accepts. */
@@ -49,15 +56,36 @@ type DirectoryRow = {
   status: Status;
 };
 
+export type SendRequestsRow = {
+  userId: string;
+  fullName: string;
+  primaryRole: string | null;
+};
+
 type Props = {
   /** Project window. When both are blank the status column degrades
    *  gracefully — every freelancer reads "available" since there is
    *  nothing to compare against. */
   projectStartDate: string;
   projectEndDate: string;
-  /** Pre-fill a fresh crew row with name + best-guess department.
-   *  Returning the producer back to the table is the parent's job. */
-  onAddToCrew: (input: { name: string; primaryRole: string | null }) => void;
+  /** Send brief requests to a batch of freelancers. Implemented by the
+   *  parent (App.tsx) so the sidebar stays unaware of the brief-build
+   *  / POST plumbing. The parent is expected to add a Requested crew
+   *  row for each freelancer, persist the brief, and surface any
+   *  network failure back via `sendError` below. */
+  onSendRequests: (rows: SendRequestsRow[]) => void | Promise<void>;
+  /** Set of Clerk user ids that the producer has already requested for
+   *  the current project. Drives the "Already requested" badge on the
+   *  card (replaces the checkbox so the producer can't double-request
+   *  the same person). */
+  requestedUserIds: ReadonlySet<string>;
+  /** True while the parent is waiting on the POST /api/portal/briefs
+   *  round-trip. Disables the Send button and dims the bar so the
+   *  producer can't fire a duplicate request. */
+  sending?: boolean;
+  /** Last error from a Send requests round-trip, surfaced in the
+   *  sticky bottom bar. Cleared when the parent clears the prop. */
+  sendError?: string | null;
 };
 
 /** Build the chip groups once at module load. The library is static so
@@ -93,19 +121,31 @@ const STATUS_META: Record<Status, { label: string; dot: string; tone: string }> 
 export function AvailableCrewSidebar({
   projectStartDate,
   projectEndDate,
-  onAddToCrew,
+  onSendRequests,
+  requestedUserIds,
+  sending = false,
+  sendError = null,
 }: Props) {
   const { getToken, isSignedIn } = useAuth();
 
-  // Filter state. `selected` is a Set of canonical skill labels — one
-  // entry per active chip. We model it as a Set rather than three
+  // Filter state. `selectedSkills` is a Set of canonical skill labels
+  // — one entry per active chip. We model it as a Set rather than three
   // per-group arrays so the request builder stays simple (one array of
   // `?skill=` params, AND-ed server-side).
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectedSkills, setSelectedSkills] = useState<Set<string>>(
+    new Set(),
+  );
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<DirectoryRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Multi-select: the userIds the producer has currently ticked. A
+  // booked freelancer can't be ticked (the checkbox is disabled), and
+  // an already-requested freelancer doesn't show a checkbox at all
+  // (replaced by the "Requested" mark) — so we don't have to worry
+  // about validating the ticks at send time.
+  const [picks, setPicks] = useState<Set<string>>(new Set());
 
   // Re-fetch on filter / date / search change, debounced so a quick
   // chip-toggle storm collapses to a single round-trip. The cleanup
@@ -129,7 +169,7 @@ export function AvailableCrewSidebar({
     projectEndDate,
     // Sets are reference-stable across renders even when contents
     // change, so we serialise the selection to drive the effect.
-    Array.from(selected).sort().join("\u0001"),
+    Array.from(selectedSkills).sort().join("\u0001"),
   ]);
 
   // Track the latest request so an aborted-but-already-resolved
@@ -151,7 +191,7 @@ export function AvailableCrewSidebar({
       if (query.trim()) params.set("q", query.trim());
       if (projectStartDate) params.set("startDate", projectStartDate);
       if (projectEndDate) params.set("endDate", projectEndDate);
-      for (const s of selected) params.append("skill", s);
+      for (const s of selectedSkills) params.append("skill", s);
       const res = await fetch(
         `${baseUrl}api/portal/freelancers?${params.toString()}`,
         {
@@ -186,8 +226,8 @@ export function AvailableCrewSidebar({
     }
   }
 
-  function toggle(label: string) {
-    setSelected((prev) => {
+  function toggleSkill(label: string) {
+    setSelectedSkills((prev) => {
       const next = new Set(prev);
       if (next.has(label)) next.delete(label);
       else next.add(label);
@@ -196,8 +236,37 @@ export function AvailableCrewSidebar({
   }
 
   function clearAll() {
-    setSelected(new Set());
+    setSelectedSkills(new Set());
     setQuery("");
+  }
+
+  function togglePick(userId: string) {
+    setPicks((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  }
+
+  async function handleSend() {
+    if (picks.size === 0 || sending) return;
+    const selected = rows
+      .filter((r) => picks.has(r.userId))
+      .map((r) => ({
+        userId: r.userId,
+        fullName: r.fullName,
+        primaryRole: r.primaryRole,
+      }));
+    if (selected.length === 0) return;
+    // Optimistically clear the picks now — the parent owns the network
+    // round-trip and will surface any error in `sendError`. If a send
+    // fails the producer can re-tick and try again; we don't keep
+    // stale checkmarks around on a failure because that would imply
+    // the request "is still selected and ready to send" which
+    // misrepresents the actual state.
+    setPicks(new Set());
+    await onSendRequests(selected);
   }
 
   // Bucket counts so the producer sees how the filter narrows the pool.
@@ -256,13 +325,13 @@ export function AvailableCrewSidebar({
           <div className="acs-group-label">{group.label}</div>
           <div className="acs-chips">
             {group.items.map((s) => {
-              const active = selected.has(s.label);
+              const active = selectedSkills.has(s.label);
               return (
                 <button
                   key={s.label}
                   type="button"
                   className={`acs-chip${active ? " is-on" : ""}`}
-                  onClick={() => toggle(s.label)}
+                  onClick={() => toggleSkill(s.label)}
                   title={s.label}
                 >
                   {s.label}
@@ -273,7 +342,7 @@ export function AvailableCrewSidebar({
         </div>
       ))}
 
-      {selected.size > 0 || query ? (
+      {selectedSkills.size > 0 || query ? (
         <button
           type="button"
           className="btn btn-soft btn-sm acs-clear"
@@ -310,26 +379,47 @@ export function AvailableCrewSidebar({
             <FreelancerCard
               key={r.userId}
               row={r}
-              onAdd={() =>
-                onAddToCrew({
-                  name: r.fullName,
-                  primaryRole: r.primaryRole,
-                })
-              }
+              isSelected={picks.has(r.userId)}
+              isAlreadyRequested={requestedUserIds.has(r.userId)}
+              onToggle={() => togglePick(r.userId)}
             />
           ))
         )}
       </div>
+
+      {picks.size > 0 ? (
+        <div className="acs-send-bar">
+          <span className="acs-send-bar-count">
+            {picks.size} selected
+            {sendError ? (
+              <span className="acs-send-bar-error">· {sendError}</span>
+            ) : null}
+          </span>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={handleSend}
+            disabled={sending}
+            title="Send a brief request to every selected freelancer"
+          >
+            {sending ? "Sending…" : `Send requests (${picks.size})`}
+          </button>
+        </div>
+      ) : null}
     </aside>
   );
 }
 
 function FreelancerCard({
   row,
-  onAdd,
+  isSelected,
+  isAlreadyRequested,
+  onToggle,
 }: {
   row: DirectoryRow;
-  onAdd: () => void;
+  isSelected: boolean;
+  isAlreadyRequested: boolean;
+  onToggle: () => void;
 }) {
   // Pull up to three certifications (in the order the freelancer
   // entered them) so the producer can scan rigging-relevant tickets at
@@ -343,22 +433,55 @@ function FreelancerCard({
     return row.skills.filter((s) => certSet.has(s)).slice(0, 3);
   }, [row.skills]);
   const meta = STATUS_META[row.status];
-  // We deliberately do NOT hard-disable the "booked" state. Producers
-  // need an override path for legitimate scenarios (hold options,
-  // last-minute swaps, deliberate double-bookings the producer is
-  // already negotiating off-platform). Instead we surface a confirm
-  // prompt so the click is intentional.
-  const handleAdd = () => {
-    if (row.status === "booked") {
-      const ok = window.confirm(
-        `${row.fullName || "This freelancer"} appears to be booked on another gig that overlaps your project window. Add to the call sheet anyway?`,
-      );
-      if (!ok) return;
-    }
-    onAdd();
+  const isBooked = row.status === "booked";
+  // Disabled means "can't be ticked right now". Booked freelancers are
+  // visible but not selectable (no double-bookings); already-requested
+  // freelancers don't get a checkbox at all (no double-requests).
+  const isDisabled = isBooked || isAlreadyRequested;
+
+  // Click on the card body toggles the pick — easier on tablet than
+  // pinpointing the 18px checkbox. We swallow the inner-input click so
+  // the toggle doesn't fire twice.
+  const handleCardClick = () => {
+    if (isDisabled) return;
+    onToggle();
   };
+
   return (
-    <article className={`acs-card acs-card-${meta.tone}`}>
+    <article
+      className={[
+        "acs-card",
+        `acs-card-${meta.tone}`,
+        isSelected ? "is-selected" : "",
+        isAlreadyRequested ? "is-requested" : "",
+        isBooked ? "is-disabled" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      onClick={handleCardClick}
+      title={
+        isAlreadyRequested
+          ? "Already part of an outgoing request for this project."
+          : isBooked
+            ? "This freelancer is already booked on an overlapping gig — pick someone else or follow up off-platform."
+            : isSelected
+              ? "Click to deselect"
+              : "Click to add to the next batch of requests"
+      }
+    >
+      {isAlreadyRequested ? (
+        <span className="acs-card-mark">Requested</span>
+      ) : (
+        <input
+          type="checkbox"
+          className="acs-card-check"
+          checked={isSelected}
+          disabled={isBooked}
+          onClick={(e) => e.stopPropagation()}
+          onChange={onToggle}
+          aria-label={`Select ${row.fullName || "freelancer"}`}
+        />
+      )}
       <div className="acs-card-head">
         <div className="acs-card-name">{row.fullName || "Unnamed"}</div>
         <span
@@ -386,20 +509,6 @@ function FreelancerCard({
           ))}
         </div>
       ) : null}
-      <div className="acs-card-actions">
-        <button
-          type="button"
-          className="btn btn-primary btn-sm"
-          onClick={handleAdd}
-          title={
-            row.status === "booked"
-              ? "Already booked — click to override and add anyway."
-              : "Add to crew call sheet"
-          }
-        >
-          + Add to crew
-        </button>
-      </div>
     </article>
   );
 }

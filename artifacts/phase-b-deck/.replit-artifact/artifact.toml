@@ -1,0 +1,31 @@
+kind = "slides"
+previewPath = "/phase-b-deck/"
+title = "Phase B — Automation Layer"
+version = "1.0.0"
+id = "artifacts/phase-b-deck"
+router = "path"
+
+[[integratedSkills]]
+name = "slides"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/phase-b-deck/" ]
+localPort = 26022
+
+[services.development]
+run = "pnpm --filter @workspace/phase-b-deck run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/phase-b-deck", "run", "build" ]
+publicDir = "artifacts/phase-b-deck/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "26022"
+BASE_PATH = "/phase-b-deck/"

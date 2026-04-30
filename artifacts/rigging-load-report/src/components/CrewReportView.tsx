@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { NumberField } from "./NumberField";
 import {
   CREW_ROLES,
@@ -15,6 +15,11 @@ type Props = {
   onUpdate: (id: string, patch: Partial<CrewMember>) => void;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
+  /** Optional roster sidebar (e.g. <AvailableCrewSidebar/>). Rendered
+   *  to the right of the call sheet on wide screens and stacked below
+   *  on narrow ones. Kept as a slot so this view stays unaware of the
+   *  freelancer-portal data layer. */
+  directorySidebar?: ReactNode;
 };
 
 const fmtNum = (n: number, d = 1) =>
@@ -26,11 +31,18 @@ export function CrewReportView({
   onUpdate,
   onRemove,
   onDuplicate,
+  directorySidebar,
 }: Props) {
   const totals = useMemo(() => computeCrewTotals(crew), [crew]);
 
   return (
-    <div className="led-report">
+    <div
+      className={
+        directorySidebar
+          ? "led-report led-report-with-sidebar"
+          : "led-report"
+      }
+    >
       <header className="led-report-header">
         <div>
           <h2>Crew Report</h2>
@@ -67,6 +79,12 @@ export function CrewReportView({
         ))}
       </div>
 
+      {/* Two-column layout: call sheet on the left, freelancer
+          directory on the right. The grid collapses to a single column
+          below the breakpoint defined in index.css so the sidebar
+          stacks gracefully on iPad / phone. */}
+      <div className="crew-layout">
+      <div className="crew-layout-main">
       {/* Crew list */}
       <section className="led-card">
         <div className="led-card-head">
@@ -112,6 +130,11 @@ export function CrewReportView({
           </div>
         )}
       </section>
+      </div>
+      {directorySidebar ? (
+        <div className="crew-layout-aside">{directorySidebar}</div>
+      ) : null}
+      </div>
     </div>
   );
 }

@@ -1,0 +1,41 @@
+The Master Build Prompt: Production Logistics & Shared Database (Final)
+"I need to finalize the integration between the Production Tool and the Freelance Portal using a shared PostgreSQL database. The goal is to automate crew management, catering, and hotel logistics based on the active project schedule, while giving me full manual control over the details.
+
+1. Core Database Schema & Skills:
+
+Use the Shared Skills Library (@workspace/skills) for all roles, consoles, certs, and languages.
+
+The freelancer_profiles table must include: full_name, email, work_types (array), consoles (array), certs (array), languages (array), dietary_requirements, and allergies.
+
+The gigs table must track: freelancer_id, project_id, assigned_dates (array of dates), hotel_required (boolean), check_in_date, and check_out_date.
+
+2. The 'Available Crew' Sidebar (Production Tool):
+
+Implement a multi-layered real-time filter (Work Type + Console + Certs).
+
+Display a freelancer’s Status (Available, Pending, or Booked) and relevant certs directly on their card.
+
+Status Logic: A freelancer is 'Booked' if they have a confirmed assignment that overlaps with the current project's dates.
+
+3. Advanced Catering & Meal Control:
+
+Automation: When a freelancer is added to a date in the schedule, automatically assign them the default meals for that day based on project settings (e.g., Lunch 13:00 / Dinner 18:00).
+
+Manual Override: Within the schedule view, allow me to manually change the number of meals (e.g., 0, 1, 2, or 3) and edit the specific meal times for any individual freelancer on any given day.
+
+Logistics Summary: Create a page that aggregates all assignments into a single 'Order List' for the kitchen, showing total headcounts for each mealtime and a summary of all dietary requirements/allergies for that day.
+
+4. Smart Hotel Booking:
+
+When hotel_required is toggled for a freelancer, the check_in_date and check_out_date must automatically inherit the first and last assigned workdays from the project schedule.
+
+Create a 'Rooming List' view that displays all hotel-required crew, their dates, and any special notes for the hotel manager.
+
+5. Freelance Portal Updates:
+
+Freelancers must be able to update their Dietary Requirements and Allergies in their profile.
+
+On their 'Confirmed Gigs' page, they must see a personal itinerary showing their specific Meal Times and Hotel Details as set by the producer.
+
+6. Functional Goal:
+When I drag a freelancer into the schedule, the system handles the bulk of the counting automatically, but I retain 100% control to adjust their specific meal times or hotel dates to fit the reality of the production on-site."

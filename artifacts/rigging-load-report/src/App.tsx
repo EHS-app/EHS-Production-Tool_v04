@@ -61,6 +61,8 @@ import {
   type CrewMember,
 } from "./lib/crew";
 import { CrewReportView } from "./components/CrewReportView";
+import { AvailableCrewSidebar } from "./components/AvailableCrewSidebar";
+import { skillToCrewRole } from "./lib/skillToCrewRole";
 import {
   makeSoundItem,
   normalizeSoundItem,
@@ -4783,6 +4785,23 @@ function App() {
           onUpdate={updateCrew}
           onRemove={removeCrew}
           onDuplicate={duplicateCrew}
+          directorySidebar={
+            <AvailableCrewSidebar
+              projectStartDate={reportDate}
+              projectEndDate={reportEndDate}
+              onAddToCrew={({ name, primaryRole }) => {
+                // Pre-fill a fresh crew row with the freelancer's name
+                // and best-guess department. The producer can still
+                // tweak any field (rate, call/off times, notes) inline
+                // — this just removes the typing friction of building
+                // a call sheet from a roster the producer already
+                // knows.
+                const member = makeCrewMember(name);
+                member.role = skillToCrewRole(primaryRole);
+                setCrew((all) => [...all, member]);
+              }}
+            />
+          }
         />
       )}
 

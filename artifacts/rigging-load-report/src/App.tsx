@@ -62,6 +62,7 @@ import {
   type CrewMember,
 } from "./lib/crew";
 import { CrewReportView } from "./components/CrewReportView";
+import { CateringView } from "./components/CateringView";
 import { AvailableCrewSidebar } from "./components/AvailableCrewSidebar";
 import { skillToCrewRole } from "./lib/skillToCrewRole";
 import {
@@ -617,6 +618,7 @@ type MainView =
   | "led"
   | "stage"
   | "crew"
+  | "catering"
   | "sound"
   | "riggPlan";
 
@@ -4270,6 +4272,18 @@ function App() {
             <span className="view-tab-badge">{crew.length}</span>
           )}
         </button>
+        {/* Catering tab is only available once the brief has been
+            saved server-side — local-only briefs have no portal-linked
+            crew to aggregate, and the endpoint is keyed on the
+            server brief id. */}
+        {activeBriefId && (
+          <button
+            className={`view-tab ${mainView === "catering" ? "is-active" : ""}`}
+            onClick={() => setMainView("catering")}
+          >
+            Catering
+          </button>
+        )}
         <button
           className={`view-tab ${mainView === "riggPlan" ? "is-active" : ""}`}
           onClick={() => setMainView("riggPlan")}
@@ -5059,6 +5073,10 @@ function App() {
             />
           }
         />
+      )}
+
+      {mainView === "catering" && activeBriefId && (
+        <CateringView briefId={activeBriefId} getToken={getToken} />
       )}
 
       {mainView === "sound" && (

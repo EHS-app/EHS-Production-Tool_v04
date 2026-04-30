@@ -6,11 +6,18 @@ import {
   projectBriefsTable,
   briefAssignmentsTable,
   gigsTable,
+  freelancerProfilesTable,
   type ProjectBriefRow,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { dispatchBriefRequestEmails } from "../lib/briefEmail";
 import { autoAssignedDatesFor } from "../lib/roleSchedule";
+import {
+  classifyDietary,
+  splitAllergens,
+  DIETARY_TAGS,
+  type DietaryTag,
+} from "../lib/dietaryTags";
 
 const router: IRouter = Router();
 
@@ -875,6 +882,218 @@ router.post(
       res
         .status(500)
         .json({ ok: false, error: "Could not record your response." });
+    }
+  },
+);
+
+/** GET /api/portal/briefs/:id/catering
+ *  Producer-side catering aggregation. Joins this brief's confirmed
+ *  freelancer gigs against their portal profiles, classifies free-text
+ *  dietary needs into the canonical category set, and returns a
+ *  per-day breakdown the producer's Catering tab can render directly.
+ *
+ *  Auth model matches the rest of the producer-only endpoints:
+ *  signed-in user must own the brief. The freelancer-side
+ *  `/portal/briefs/:id` GET is owner-OR-assigned, but catering is a
+ *  back-of-house planning view that no individual freelancer should
+ *  see (it would leak other crew members' allergens), so we restrict
+ *  to the owner.
+ *
+ *  We pull only the `confirmed` / `done` / `invoiced` / `paid`
+ *  statuses — `invited` gigs are speculative pre-acceptance shells
+ *  that shouldn't be counted as confirmed mouths to feed. */
+const COUNTABLE_GIG_STATUSES: ReadonlySet<string> = new Set([
+  "confirmed",
+  "done",
+  "invoiced",
+  "paid",
+]);
+
+router.get(
+  "/portal/briefs/:id/catering",
+  requireSignedIn,
+  async (req, res) => {
+    const userId = (req as unknown as { _userId: string })._userId;
+    const id = String(req.params.id ?? "");
+    try {
+      // Owner check first — cheaper than the join, fails fast on
+      // bad ids and prevents the second query from running for an
+      // unauthorised reader.
+      const briefRows = await db
+        .select({
+          id: projectBriefsTable.id,
+          ownerUserId: projectBriefsTable.ownerUserId,
+          venue: projectBriefsTable.venue,
+          projectName: projectBriefsTable.projectName,
+        })
+        .from(projectBriefsTable)
+        .where(eq(projectBriefsTable.id, id))
+        .limit(1);
+      const brief = briefRows[0];
+      if (!brief) {
+        res.status(404).json({ ok: false, error: "Brief not found." });
+        return;
+      }
+      if (brief.ownerUserId !== userId) {
+        res.status(403).json({ ok: false, error: "Not your brief." });
+        return;
+      }
+
+      // One join: every countable gig on this brief, plus the
+      // freelancer's profile fields we actually need. Profile may
+      // be missing (`leftJoin`) — a freelancer can accept a brief
+      // before filling out their portal profile, in which case we
+      // surface them in `missing.profileless` so the producer can
+      // nudge them.
+      const rows = await db
+        .select({
+          gigId: gigsTable.id,
+          gigRole: gigsTable.role,
+          assignedDates: gigsTable.assignedDates,
+          status: gigsTable.status,
+          freelancerUserId: gigsTable.freelancerUserId,
+          // Profile-side (nullable on left join):
+          profileFullName: freelancerProfilesTable.fullName,
+          profileDietary: freelancerProfilesTable.dietary,
+          profileAllergies: freelancerProfilesTable.allergies,
+        })
+        .from(gigsTable)
+        .leftJoin(
+          freelancerProfilesTable,
+          eq(gigsTable.freelancerUserId, freelancerProfilesTable.userId),
+        )
+        .where(eq(gigsTable.briefId, id));
+
+      type Person = {
+        userId: string;
+        name: string;
+        role: string;
+        tags: DietaryTag[];
+        allergens: string[];
+      };
+      // Day → freelancerUserId → person. The nested map dedupes by
+      // person-per-day so a freelancer with two gigs on the same brief
+      // on the same date (e.g. a recurring show with split roles)
+      // still counts as ONE meal — chefs plate once per mouth, not
+      // per booking row. Without this, `total`, `byCategory`, and
+      // the allergen roster would all be over-inflated, and the
+      // duplicate row would also break React keys downstream.
+      const dayMap = new Map<string, Map<string, Person>>();
+      const profileless: Array<{ name: string; userId: string }> = [];
+
+      for (const r of rows) {
+        if (!COUNTABLE_GIG_STATUSES.has(r.status)) continue;
+        const dates = Array.isArray(r.assignedDates) ? r.assignedDates : [];
+        if (dates.length === 0) continue;
+        const hasProfile = typeof r.profileFullName === "string";
+        const name =
+          (hasProfile ? r.profileFullName : null) ||
+          // Fall back to a short id stub so the chef sees *something*
+          // attached to the count rather than a blank row. Producer
+          // can chase the freelancer to fill their profile.
+          `Crew member ${r.freelancerUserId.slice(-4)}`;
+        if (!hasProfile) {
+          profileless.push({ name, userId: r.freelancerUserId });
+        }
+        const person: Person = {
+          userId: r.freelancerUserId,
+          name,
+          role: r.gigRole ?? "",
+          tags: classifyDietary(r.profileDietary),
+          allergens: splitAllergens(r.profileAllergies),
+        };
+        for (const d of dates) {
+          // Normalise date column → ISO YYYY-MM-DD string. Drizzle's
+          // `date` type returns a string already, but defensively
+          // coerce anything weird.
+          const iso =
+            typeof d === "string" ? d.slice(0, 10) : String(d).slice(0, 10);
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) continue;
+          let perDay = dayMap.get(iso);
+          if (!perDay) {
+            perDay = new Map<string, Person>();
+            dayMap.set(iso, perDay);
+          }
+          // Set is idempotent on the same userId — second gig for
+          // the same person on the same day is a no-op for counting.
+          // We DO overwrite the role with the most recent gig's role
+          // so the chef sees *some* role label rather than nothing,
+          // but no row is duplicated.
+          perDay.set(r.freelancerUserId, person);
+        }
+      }
+
+      const days = Array.from(dayMap.entries())
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([iso, peopleMap]) => {
+          const people = Array.from(peopleMap.values());
+          const byCategory: Record<DietaryTag, number> = {
+            vegetarian: 0,
+            vegan: 0,
+            halal: 0,
+            "gluten-free": 0,
+            "lactose-free": 0,
+          };
+          // People with at least one allergen — surfaced as a
+          // separate row per person so the chef can scan them.
+          const allergenRoster: Array<{
+            userId: string;
+            name: string;
+            role: string;
+            allergens: string[];
+          }> = [];
+          for (const p of people) {
+            for (const t of p.tags) byCategory[t] += 1;
+            if (p.allergens.length > 0) {
+              allergenRoster.push({
+                userId: p.userId,
+                name: p.name,
+                role: p.role,
+                allergens: p.allergens,
+              });
+            }
+          }
+          return {
+            date: iso,
+            total: people.length,
+            byCategory,
+            allergenRoster: allergenRoster.sort((a, b) =>
+              a.name.localeCompare(b.name),
+            ),
+          };
+        });
+
+      // Dedupe profileless by userId — a single crew member with
+      // multiple gigs (rare but possible across recurring shows in
+      // the same brief) should only show up once in the nudge list.
+      const seen = new Set<string>();
+      const profilelessUnique = profileless.filter((p) => {
+        if (seen.has(p.userId)) return false;
+        seen.add(p.userId);
+        return true;
+      });
+
+      res.json({
+        ok: true,
+        brief: {
+          id: brief.id,
+          projectName: brief.projectName,
+          venue: brief.venue,
+        },
+        days,
+        categories: DIETARY_TAGS,
+        missing: {
+          profileless: profilelessUnique,
+        },
+      });
+    } catch (err) {
+      logger.error(
+        { err: err instanceof Error ? err.message : String(err), briefId: id },
+        "portal briefs/:id/catering GET failed",
+      );
+      res
+        .status(500)
+        .json({ ok: false, error: "Could not load catering data." });
     }
   },
 );

@@ -67,15 +67,35 @@ export function Hub({ theme, data }: { theme: ThemeMode; data: PortalData }) {
   const c = PALETTE[theme];
   const { user } = useUser();
 
-  // Greeting first-name. Prefer the signed-in Clerk identity (always
-  // populated immediately on sign-in), then fall back to the first
-  // word of the freelancer's saved profile name, then to nothing — so
-  // the greeting reads "Hi Olti" the moment a user signs in, even
-  // before their portal profile has been filled in or persisted.
-  const firstName: string =
+  // Greeting first-name. Resolution order, picking the first non-empty
+  // candidate so the greeting is "Hi Olti" the moment a user signs in
+  // — regardless of whether they ever set a first name in Clerk or
+  // filled in their portal profile:
+  //   1. Clerk firstName (if the user set one in their account).
+  //   2. First word of the saved portal profile fullName.
+  //   3. First word of Clerk's combined fullName.
+  //   4. Local-part of the primary email address (e.g. "olti@ehs.no"
+  //      → "olti"), stripped of any digits/symbols and trimmed at the
+  //      first dot/underscore so "olti.smith@..." → "olti".
+  //   5. Clerk username.
+  // Whichever candidate wins is then Title-Cased so it always renders
+  // as a proper name even when sourced from a lowercase email.
+  const titleCase = (s: string): string =>
+    s.trim().replace(/^./, (ch) => ch.toUpperCase());
+  const fromEmail = (email: string | null | undefined): string => {
+    if (!email) return "";
+    const local = email.split("@")[0] ?? "";
+    const head = local.split(/[._\-+]/)[0] ?? "";
+    return head.replace(/[^a-zA-Z]/g, "");
+  };
+  const candidate: string =
     (user?.firstName && user.firstName.trim()) ||
     (data.profile.fullName && data.profile.fullName.trim().split(/\s+/)[0]) ||
+    (user?.fullName && user.fullName.trim().split(/\s+/)[0]) ||
+    fromEmail(user?.primaryEmailAddress?.emailAddress) ||
+    (user?.username && user.username.trim()) ||
     "";
+  const firstName: string = candidate ? titleCase(candidate) : "";
 
   const today = todayIso();
   const weekStart = startOfWeekIso();

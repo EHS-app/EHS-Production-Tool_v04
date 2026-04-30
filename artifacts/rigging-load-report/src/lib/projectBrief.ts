@@ -39,6 +39,13 @@ export type BriefAssignment = {
   /** Day rate in NOK (Norwegian kroner — the Production Tool is Norway-based). */
   dayRate: number;
   notes: string;
+  /** Optional Clerk user id of the freelancer this assignment is
+   *  addressed to. Set when the producer picks the crew member from
+   *  the shared directory in the Production Tool's Crew Report —
+   *  drives the Portal's "briefs addressed to me" view. Omitted when
+   *  the row is just a placeholder name with no DB identity (the
+   *  legacy share-link flow). */
+  freelancerUserId?: string;
 };
 
 export type BriefSystem = {

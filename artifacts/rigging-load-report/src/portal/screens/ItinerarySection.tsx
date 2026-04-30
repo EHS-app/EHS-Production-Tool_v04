@@ -1,5 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { PALETTE, type ThemeMode } from "../lib/portalTheme";
+import {
+  formatHumanDate,
+  formatPhaseTime,
+  hotelLineForDay,
+} from "../lib/itineraryFormat";
 
 /** Per-day itinerary card shape — mirrors the server's response.
  *  Defined locally (not imported from the server lib) because the
@@ -213,6 +218,10 @@ function ItineraryDayCard({
   theme: ThemeMode;
 }) {
   const c = PALETTE[theme];
+  // formatHumanDate now embeds the weekday via Intl, so we don't render
+  // `day.dayOfWeek` separately — that field is server-emitted English
+  // and would visually clash with a localised date for non-English
+  // browsers (e.g. "Mon 1. mai 2026").
   const formatted = formatHumanDate(day.date);
   return (
     <div
@@ -233,9 +242,7 @@ function ItineraryDayCard({
           flexWrap: "wrap",
         }}
       >
-        <strong style={{ fontSize: 14, color: c.text }}>
-          {day.dayOfWeek} {formatted}
-        </strong>
+        <strong style={{ fontSize: 14, color: c.text }}>{formatted}</strong>
         {day.working ? <Chip theme={theme} kind="working" label="Working" /> : null}
         {day.hotel?.isCheckIn ? (
           <Chip theme={theme} kind="hotel" label="Hotel check-in" />
@@ -247,11 +254,21 @@ function ItineraryDayCard({
 
       {day.callTime || day.offTime ? (
         <div style={{ fontSize: 13, color: c.text }}>
-          <strong style={{ color: c.muted, fontWeight: 600 }}>Call:</strong>{" "}
-          {day.callTime ?? "—"}
-          <span style={{ color: c.muted }}> · </span>
-          <strong style={{ color: c.muted, fontWeight: 600 }}>Off:</strong>{" "}
-          {day.offTime ?? "—"}
+          {day.callTime ? (
+            <>
+              <strong style={{ color: c.muted, fontWeight: 600 }}>Call:</strong>{" "}
+              {day.callTime}
+            </>
+          ) : null}
+          {day.callTime && day.offTime ? (
+            <span style={{ color: c.muted }}> · </span>
+          ) : null}
+          {day.offTime ? (
+            <>
+              <strong style={{ color: c.muted, fontWeight: 600 }}>Off:</strong>{" "}
+              {day.offTime}
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -260,26 +277,25 @@ function ItineraryDayCard({
           <strong style={{ color: c.muted, fontWeight: 600 }}>
             Production:
           </strong>{" "}
-          {day.phases.map((p, i) => (
-            <span key={`${p.phaseKey}-${i}`}>
-              {i > 0 ? <span style={{ color: c.muted }}> · </span> : null}
-              {p.phaseLabel}
-              {p.fromTime || p.toTime ? (
-                <span style={{ color: c.muted }}>
-                  {" "}
-                  ({p.fromTime ?? ""}
-                  {p.toTime ? `–${p.toTime}` : ""})
-                </span>
-              ) : null}
-            </span>
-          ))}
+          {day.phases.map((p, i) => {
+            const time = formatPhaseTime(p.fromTime, p.toTime);
+            return (
+              <span key={`${p.phaseKey}-${i}`}>
+                {i > 0 ? <span style={{ color: c.muted }}> · </span> : null}
+                {p.phaseLabel}
+                {time ? (
+                  <span style={{ color: c.muted }}> ({time})</span>
+                ) : null}
+              </span>
+            );
+          })}
         </div>
       ) : null}
 
       {day.hotel ? (
         <div style={{ fontSize: 13, color: c.text }}>
           <strong style={{ color: c.muted, fontWeight: 600 }}>Hotel:</strong>{" "}
-          {hotelLine(day.hotel)}
+          {hotelLineForDay(day.hotel)}
         </div>
       ) : null}
 
@@ -321,46 +337,6 @@ function Chip({
   );
 }
 
-/** Single-line description of the hotel state for one date. */
-function hotelLine(hotel: NonNullable<ItineraryDay["hotel"]>): string {
-  if (hotel.isCheckOut && !hotel.stayingTonight) {
-    return "Check-out this morning";
-  }
-  if (!hotel.stayingTonight) {
-    // Defensive — shouldn't happen if the rollup is correct, but just
-    // in case, render something instead of a bare empty string.
-    return "Not staying tonight";
-  }
-  const parts: string[] = [];
-  if (hotel.roomKey) {
-    parts.push(`Room ${hotel.roomKey}`);
-  } else {
-    parts.push("Room TBD");
-  }
-  if (hotel.roommateName) {
-    parts.push(`with ${hotel.roommateName}`);
-  }
-  if (hotel.locked) {
-    parts.push("(locked)");
-  }
-  if (hotel.isCheckIn) {
-    parts.push("· check-in today");
-  }
-  return parts.join(" ");
-}
-
-/** "2026-05-01" → "1 May 2026". Uses Intl so the format is sensible
- *  in the user's locale. */
-function formatHumanDate(iso: string): string {
-  try {
-    const d = new Date(`${iso}T00:00:00Z`);
-    return d.toLocaleDateString(undefined, {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      timeZone: "UTC",
-    });
-  } catch {
-    return iso;
-  }
-}
+// Formatting helpers (formatHumanDate / formatPhaseTime / hotelLineForDay)
+// live in `../lib/itineraryFormat` so they can be unit-tested without
+// pulling in JSX.

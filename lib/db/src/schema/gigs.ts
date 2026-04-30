@@ -6,6 +6,7 @@ import {
   date,
   numeric,
   index,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -34,6 +35,22 @@ export const gigsTable = pgTable(
     role: text("role").notNull().default(""),
     startDate: date("start_date"),
     endDate: date("end_date"),
+    /** Per-day workdays for this gig. Drives catering counts and hotel
+     *  date inheritance. Producer-managed via the schedule view; the
+     *  freelancer sees the resulting dates on their personal itinerary.
+     *  Stored as a date[] so we can query overlap per day cheaply
+     *  (e.g. catering totals for a single day). */
+    assignedDates: date("assigned_dates").array().notNull().default([]),
+    /** Producer-controlled flag. When true the producer agrees to put
+     *  this freelancer in a hotel for the run. Defaults false because
+     *  most local crew don't need it. */
+    hotelRequired: boolean("hotel_required").notNull().default(false),
+    /** Hotel check-in / check-out. When `hotelRequired` flips true the
+     *  server pre-fills these from min(assignedDates) and
+     *  max(assignedDates) + 1, but the producer can always override
+     *  for early/late arrivals. */
+    checkInDate: date("check_in_date"),
+    checkOutDate: date("check_out_date"),
     hours: numeric("hours", { precision: 8, scale: 2 }).notNull().default("0"),
     rate: numeric("rate", { precision: 10, scale: 2 }).notNull().default("0"),
     flatFee: numeric("flat_fee", { precision: 10, scale: 2 })

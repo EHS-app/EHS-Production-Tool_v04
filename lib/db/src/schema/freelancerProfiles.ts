@@ -26,13 +26,32 @@ export const freelancerProfilesTable = pgTable("freelancer_profiles", {
   city: text("city").notNull().default(""),
   bio: text("bio").notNull().default(""),
   insurance: text("insurance").notNull().default(""),
+  /** Contact email — distinct from Clerk's identity email so freelancers
+   *  can route booking enquiries to a different inbox if they like. */
+  email: text("email").notNull().default(""),
+  /** Free text — vegetarian, halal, gluten-free, etc. Surfaced on the
+   *  producer's catering Order List view. */
   dietary: text("dietary").notNull().default(""),
+  /** Free text — specific allergens (peanuts, shellfish…). Kept
+   *  separate from `dietary` because catering treats them very
+   *  differently (allergens drive cross-contamination warnings, not
+   *  meal counts). */
+  allergies: text("allergies").notNull().default(""),
   bankAccount: text("bank_account").notNull().default(""),
   orgNumber: text("org_number").notNull().default(""),
   /** Spoken languages — strict subset of the Language group. */
   languages: text("languages").array().notNull().default([]),
-  /** All other skills (Work Type, Console & Software, Certification). */
+  /** All skills the freelancer carries (Work Type + Console & Software
+   *  + Certification). The union store; the three columns below are
+   *  derived views the API splits on write so producers can query each
+   *  group independently without re-grouping in app code. */
   skills: text("skills").array().notNull().default([]),
+  /** Subset of `skills` whose group is "Work Type". Derived on write. */
+  workTypes: text("work_types").array().notNull().default([]),
+  /** Subset of `skills` whose group is "Console & Software". Derived on write. */
+  consoles: text("consoles").array().notNull().default([]),
+  /** Subset of `skills` whose group is "Certification". Derived on write. */
+  certs: text("certs").array().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

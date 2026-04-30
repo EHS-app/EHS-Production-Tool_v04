@@ -5,7 +5,7 @@ import {
   freelancerProfilesTable,
   type FreelancerProfileRow,
 } from "@workspace/db";
-import { sanitizeSkills, isValidSkill } from "@workspace/skills";
+import { sanitizeSkills, isValidSkill, groupSkills } from "@workspace/skills";
 import { logger } from "../lib/logger";
 
 /** Pull a YYYY-MM-DD string off a query param, or null. */
@@ -80,14 +80,30 @@ function normaliseProfile(
   // outside the strict list — keeps the directory clean.
   const primaryRole =
     primaryRoleRaw && isValidSkill(primaryRoleRaw) ? primaryRoleRaw : "";
+  // Accept either the new `dietaryRequirements` field name (matches the
+  // canonical schema language and the Profile UI label) or the legacy
+  // `dietary` key for back-compat with older clients.
+  const dietary = clampStr(body.dietaryRequirements ?? body.dietary);
+  const skills = sanitizeSkills(
+    Array.isArray(body.skills)
+      ? body.skills.filter((x): x is string => typeof x === "string")
+      : [],
+  );
+  // Derive the three split arrays so producers can query each group
+  // independently without re-grouping in app code. `groupSkills` runs
+  // through the same canonical lookup `sanitizeSkills` does, so the
+  // sums always tally with `skills`.
+  const grouped = groupSkills(skills);
   return {
     fullName: clampStr(body.fullName),
     phone: clampStr(body.phone),
+    email: clampStr(body.email),
     primaryRole,
     city: clampStr(body.city),
     bio: clampStr(body.bio, MAX_BIO),
     insurance: clampStr(body.insurance),
-    dietary: clampStr(body.dietary),
+    dietary,
+    allergies: clampStr(body.allergies),
     bankAccount: clampStr(body.bankAccount),
     orgNumber: clampStr(body.orgNumber),
     languages: sanitizeSkills(
@@ -95,12 +111,20 @@ function normaliseProfile(
         ? body.languages.filter((x): x is string => typeof x === "string")
         : [],
     ),
-    skills: sanitizeSkills(
-      Array.isArray(body.skills)
-        ? body.skills.filter((x): x is string => typeof x === "string")
-        : [],
-    ),
+    skills,
+    workTypes: grouped.workTypes,
+    consoles: grouped.consoles,
+    certs: grouped.certs,
   };
+}
+
+/** Project a stored profile row into the API shape, exposing the
+ *  catering field under both its canonical (`dietaryRequirements`) and
+ *  legacy (`dietary`) names so clients can migrate at their own pace. */
+function projectProfile(
+  row: FreelancerProfileRow,
+): FreelancerProfileRow & { dietaryRequirements: string } {
+  return { ...row, dietaryRequirements: row.dietary };
 }
 
 /** GET /api/portal/profile/me
@@ -114,7 +138,10 @@ router.get("/portal/profile/me", requireSignedIn, async (req, res) => {
       .from(freelancerProfilesTable)
       .where(eq(freelancerProfilesTable.userId, userId))
       .limit(1);
-    res.json({ ok: true, profile: rows[0] ?? null });
+    res.json({
+      ok: true,
+      profile: rows[0] ? projectProfile(rows[0]) : null,
+    });
   } catch (err) {
     logger.error(
       { err: err instanceof Error ? err.message : String(err) },
@@ -139,7 +166,10 @@ router.put("/portal/profile/me", requireSignedIn, async (req, res) => {
         set: { ...fields, updatedAt: sql`now()` },
       })
       .returning();
-    res.json({ ok: true, profile: inserted[0] ?? null });
+    res.json({
+      ok: true,
+      profile: inserted[0] ? projectProfile(inserted[0]) : null,
+    });
   } catch (err) {
     logger.error(
       { err: err instanceof Error ? err.message : String(err) },

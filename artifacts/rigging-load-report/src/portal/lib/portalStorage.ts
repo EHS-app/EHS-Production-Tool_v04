@@ -97,10 +97,19 @@ export type { BriefSchedule };
 export type Profile = {
   fullName: string;
   phone: string;
+  /** Contact email — distinct from the Clerk identity email so the
+   *  freelancer can route booking enquiries to a different inbox. */
+  email: string;
   primaryRole: string;
   insurance: string;
   languages: string[];
+  /** Dietary requirements (vegetarian, halal, gluten-free…). Surfaces
+   *  on the producer's catering Order List view. */
   dietary: string;
+  /** Specific allergens (peanuts, shellfish…). Kept separate from
+   *  `dietary` because catering treats them very differently
+   *  — allergens drive cross-contamination warnings, not meal counts. */
+  allergies: string;
   skills: string[];
   bankAccount: string;
   orgNumber: string;
@@ -118,10 +127,12 @@ export type PortalData = {
 export const EMPTY_PROFILE: Profile = {
   fullName: "",
   phone: "",
+  email: "",
   primaryRole: "",
   insurance: "",
   languages: [],
   dietary: "",
+  allergies: "",
   skills: [],
   bankAccount: "",
   orgNumber: "",
@@ -156,12 +167,14 @@ function normalizeProfile(input: unknown): Profile {
   return {
     fullName: typeof p.fullName === "string" ? p.fullName : "",
     phone: typeof p.phone === "string" ? p.phone : "",
+    email: typeof p.email === "string" ? p.email : "",
     primaryRole: typeof p.primaryRole === "string" ? p.primaryRole : "",
     insurance: typeof p.insurance === "string" ? p.insurance : "",
     languages: Array.isArray(p.languages)
       ? p.languages.filter((x): x is string => typeof x === "string")
       : [],
     dietary: typeof p.dietary === "string" ? p.dietary : "",
+    allergies: typeof p.allergies === "string" ? p.allergies : "",
     skills: Array.isArray(p.skills)
       ? p.skills.filter((x): x is string => typeof x === "string")
       : [],

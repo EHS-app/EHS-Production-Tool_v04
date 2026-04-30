@@ -109,6 +109,15 @@ export function Profile({
               placeholder="+47 940 84 026"
             />
           </Field>
+          <Field theme={theme} label="Email">
+            <input
+              type="email"
+              value={draft.email}
+              onChange={(e) => patch("email", e.target.value)}
+              style={inputStyle(theme)}
+              placeholder="navn@firma.no"
+            />
+          </Field>
           <Field theme={theme} label="Primary role">
             <input
               type="text"
@@ -118,13 +127,30 @@ export function Profile({
               placeholder="Lystekniker"
             />
           </Field>
-          <Field theme={theme} label="Dietary needs">
+        </Grid2>
+      </Section>
+
+      <Section theme={theme} title="Catering">
+        <p style={{ margin: 0, marginBottom: 10, fontSize: 13, color: c.muted, lineHeight: 1.5 }}>
+          Producers see this on the kitchen Order List. Keep dietary needs and allergens separate — allergens flag cross-contamination warnings, dietary needs drive meal counts.
+        </p>
+        <Grid2>
+          <Field theme={theme} label="Dietary requirements">
             <input
               type="text"
               value={draft.dietary}
               onChange={(e) => patch("dietary", e.target.value)}
               style={inputStyle(theme)}
-              placeholder="None / Vegetarian / Halal"
+              placeholder="None / Vegetarian / Vegan / Halal / Kosher"
+            />
+          </Field>
+          <Field theme={theme} label="Allergies">
+            <input
+              type="text"
+              value={draft.allergies}
+              onChange={(e) => patch("allergies", e.target.value)}
+              style={inputStyle(theme)}
+              placeholder="Peanuts, shellfish, gluten…"
             />
           </Field>
         </Grid2>

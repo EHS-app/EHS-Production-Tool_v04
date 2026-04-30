@@ -171,6 +171,54 @@ export function sanitizeSkills(labels: readonly string[]): string[] {
 }
 
 /**
+ * Split a flat list of skill labels into the four canonical groups so
+ * the API can expose `workTypes` / `consoles` / `certs` / `languages`
+ * as independent fields without consumers having to re-group them.
+ *
+ * Unknown labels are silently dropped (mirrors `sanitizeSkills` — the
+ * picker is locked, so unknown labels can only arrive from a tampered
+ * payload). Order within each group is the order labels appeared in
+ * the input, so a freelancer's preferred ordering is preserved.
+ */
+export function groupSkills(labels: readonly string[]): {
+  workTypes: string[];
+  consoles: string[];
+  certs: string[];
+  languages: string[];
+} {
+  const workTypes: string[] = [];
+  const consoles: string[] = [];
+  const certs: string[] = [];
+  const languages: string[] = [];
+  for (const raw of labels) {
+    if (typeof raw !== "string") continue;
+    const key = raw.trim().toLowerCase();
+    if (!key) continue;
+    const canonical = SKILL_CANONICAL.get(key);
+    if (!canonical) continue;
+    const entry = SKILL_LIBRARY.find(
+      (s) => s.label === canonical,
+    );
+    if (!entry) continue;
+    switch (entry.group) {
+      case "Work Type":
+        workTypes.push(canonical);
+        break;
+      case "Console & Software":
+        consoles.push(canonical);
+        break;
+      case "Certification":
+        certs.push(canonical);
+        break;
+      case "Language":
+        languages.push(canonical);
+        break;
+    }
+  }
+  return { workTypes, consoles, certs, languages };
+}
+
+/**
  * Autocomplete search used by the Profile picker. Excludes already
  * selected tags. Returns up to 12 suggestions; an empty query returns
  * the first 12 unselected entries in library order.

@@ -8,6 +8,7 @@ import {
   type ProjectBriefRow,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
+import { dispatchBriefRequestEmails } from "../lib/briefEmail";
 
 const router: IRouter = Router();
 
@@ -315,8 +316,15 @@ router.post("/portal/briefs", requireSignedIn, async (req, res) => {
       // preserves a recipient's accept history through a producer
       // reorganisation. The client can flag "removed" using the
       // brief's current `recipients` list as the source of truth.
+      const newRecipientUserIds: string[] = [];
       for (const a of recipients) {
-        await tx
+        // .returning() on an onConflictDoNothing insert yields one row
+        // when the row was actually inserted, and zero rows when an
+        // existing assignment already covered this (briefId,
+        // freelancerUserId) pair. We use that to decide whether to send
+        // the request email — resends to existing recipients must NOT
+        // generate a duplicate email.
+        const insertedRows = await tx
           .insert(briefAssignmentsTable)
           .values({
             id: randomUUID(),
@@ -329,7 +337,11 @@ router.post("/portal/briefs", requireSignedIn, async (req, res) => {
               briefAssignmentsTable.briefId,
               briefAssignmentsTable.freelancerUserId,
             ],
-          });
+          })
+          .returning({ id: briefAssignmentsTable.id });
+        if (insertedRows.length > 0) {
+          newRecipientUserIds.push(a.freelancerUserId);
+        }
         // Refresh crewId in case the producer renamed the crew row.
         // No-op when the insert above did the work (same crewId).
         await tx
@@ -342,12 +354,28 @@ router.post("/portal/briefs", requireSignedIn, async (req, res) => {
             ),
           );
       }
-      return { brief: inserted[0] ?? null };
+      return { brief: inserted[0] ?? null, newRecipientUserIds };
     });
     if ("forbidden" in result) {
       res.status(403).json({ ok: false, error: "Not your brief." });
       return;
     }
+    // Fire-and-forget Norwegian email to every freelancer whose
+    // assignment row was just created. Resends never fire because
+    // .returning() on the conflict-do-nothing insert yields zero rows
+    // for already-existing pairs. We never await this — email delivery
+    // must not block the producer's HTTP response, but we log every
+    // send and every failure inside dispatchBriefRequestEmails.
+    void dispatchBriefRequestEmails({
+      briefId: id,
+      ownerUserId: userId,
+      newRecipientUserIds: result.newRecipientUserIds,
+      projectName: indexed.projectName,
+      venue: indexed.venue,
+      client: indexed.client,
+      startDate: indexed.startDate,
+      endDate: indexed.endDate,
+    });
     res.json({ ok: true, brief: result.brief });
   } catch (err) {
     logger.error(

@@ -5,6 +5,7 @@ import { db, venueMemoryTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { buildVenueMemoryHint } from "../lib/venueMemoryHint";
 import { venueKeyFor } from "../lib/venueKey";
+import { mergeLightingRows } from "../lib/mergeLightingRows";
 
 const router: IRouter = Router();
 
@@ -610,71 +611,12 @@ function normaliseConfidence(v: unknown): number | null {
   return v;
 }
 
-/** Build a stable lookup key for a (fixture-name, truss) pair. We
- *  normalise whitespace, casing and a few trivial separators so that
- *  "MAC Aura XB" / "Mac Aura  XB" / "MAC AURA XB" collapse to one row.
- *  Truss names are normalised the same way as on the client (see
- *  applyExtractedItems' trussKey helper) so server-side dedup matches
- *  the client-side fixture-to-system wiring. */
-function lightingMergeKey(name: string, trussName: string): string {
-  const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
-  const trussKey = trussName.trim().toLowerCase().replace(/[\s_-]+/g, "");
-  return `${norm(name)}\u0000${trussKey}`;
-}
-
-type LightingRow = {
-  name: string;
-  qty: number;
-  weightKg: number | null;
-  watts: number | null;
-  trussName: string;
-  notes: string;
-  confidence: number | null;
-  bbox: Bbox | null;
-};
-
-/** Collapse duplicate (fixture-name, truss) rows produced by the model.
- *  Quantities sum; the first non-null weight / watts wins (Claude is
- *  consistent within a single response, so we don't need to average);
- *  notes from later rows are concatenated when they add new info. */
-function mergeLightingRows(rows: LightingRow[]): LightingRow[] {
-  const byKey = new Map<string, LightingRow>();
-  for (const row of rows) {
-    const key = lightingMergeKey(row.name, row.trussName);
-    const existing = byKey.get(key);
-    if (!existing) {
-      byKey.set(key, { ...row });
-      continue;
-    }
-    existing.qty += row.qty;
-    if (existing.weightKg == null && row.weightKg != null) {
-      existing.weightKg = row.weightKg;
-    }
-    if (existing.watts == null && row.watts != null) {
-      existing.watts = row.watts;
-    }
-    if (row.notes && !existing.notes.includes(row.notes)) {
-      existing.notes = existing.notes
-        ? `${existing.notes}; ${row.notes}`
-        : row.notes;
-    }
-    // Keep the lowest confidence — merging means we believe the
-    // combined claim only as strongly as its weakest contributor.
-    if (row.confidence != null) {
-      existing.confidence =
-        existing.confidence == null
-          ? row.confidence
-          : Math.min(existing.confidence, row.confidence);
-    }
-    // Keep the first non-null bbox; the merged row points at the
-    // first cluster we saw and the user can re-position it in the
-    // overlay editor if needed.
-    if (existing.bbox == null && row.bbox != null) {
-      existing.bbox = row.bbox;
-    }
-  }
-  return Array.from(byKey.values());
-}
+// `lightingMergeKey`, `LightingRow` and `mergeLightingRows` live in
+// `../lib/mergeLightingRows` so the merge logic can be unit-tested
+// without dragging in this file's Anthropic / Express / Drizzle
+// imports. The lib defines its own structurally-identical `Bbox`
+// type, which interops with the local `Bbox` above via TypeScript's
+// structural typing.
 
 /** Pull a "<w>m × <h>m" pair out of a notes string. We only match
  *  numbers that are explicitly suffixed with "m" (so pixel counts

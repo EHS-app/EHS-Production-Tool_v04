@@ -8,7 +8,7 @@ export default function ManualWorkSlide() {
           03 / Problem
         </div>
         <h2 className="text-[4.4vw] leading-[1.05] font-extrabold tracking-tight mt-[2.5vh] max-w-[55vw] [text-wrap:balance]">
-          Det skjulte manuelle arbeidet
+          The hidden manual work
         </h2>
       </div>
 
@@ -17,28 +17,28 @@ export default function ManualWorkSlide() {
           01
         </div>
         <p className="text-[1.7vw] leading-snug font-semibold [text-wrap:pretty]">
-          Produsenter forteller hver frilanser hvilke dager de jobber — på WhatsApp.
+          Producers tell each freelancer which days they're on, in WhatsApp.
         </p>
 
         <div className="text-[2vw] font-extrabold text-accent leading-none pt-[0.4vh]">
           02
         </div>
         <p className="text-[1.7vw] leading-snug font-semibold [text-wrap:pretty]">
-          Noen teller allergier før lunsj — på et skriveunderlag.
+          Someone counts allergies before lunch — on a clipboard.
         </p>
 
         <div className="text-[2vw] font-extrabold text-accent leading-none pt-[0.4vh]">
           03
         </div>
         <p className="text-[1.7vw] leading-snug font-semibold [text-wrap:pretty]">
-          Romlister sendes på e-post til hotellene, og rettes så to ganger.
+          Rooming lists are emailed to hotels, then corrected twice.
         </p>
 
         <div className="text-[2vw] font-extrabold text-accent leading-none pt-[0.4vh]">
           04
         </div>
         <p className="text-[1.7vw] leading-snug font-semibold [text-wrap:pretty]">
-          Hver frilanser bygger sin egen uke på nytt fra en brief-PDF.
+          Every freelancer rebuilds their personal week from a brief PDF.
         </p>
       </div>
 

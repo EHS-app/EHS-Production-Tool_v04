@@ -5,10 +5,10 @@ export default function CurrentSystemSlide() {
     <div className="w-screen h-screen overflow-hidden relative bg-bg text-text font-body">
       <div className="absolute top-[8vh] left-[6vw] right-[6vw]">
         <div className="text-[1.5vw] tracking-[0.3em] uppercase text-accent font-bold">
-          02 / Nåsituasjon
+          02 / Status quo
         </div>
         <h2 className="text-[4.4vw] leading-[1.05] font-extrabold tracking-tight mt-[2.5vh] [text-wrap:balance]">
-          Hvor vi er i dag
+          Where we are today
         </h2>
       </div>
 
@@ -18,10 +18,10 @@ export default function CurrentSystemSlide() {
             01
           </div>
           <h3 className="text-[2.3vw] font-extrabold leading-tight mb-[2.5vh]">
-            Produksjonsverktøy
+            Production Tool
           </h3>
           <p className="text-[1.5vw] leading-relaxed text-muted [text-wrap:pretty]">
-            Produsenter planlegger rigg, lys, LED, scene, lyd, crew og plantegning.
+            Producers plan rigging, lighting, LED, stage, sound, crew and floor plan.
           </p>
         </div>
 
@@ -30,10 +30,10 @@ export default function CurrentSystemSlide() {
             02
           </div>
           <h3 className="text-[2.3vw] font-extrabold leading-tight mb-[2.5vh]">
-            Frilanser-portal
+            Freelance Portal
           </h3>
           <p className="text-[1.5vw] leading-relaxed text-muted [text-wrap:pretty]">
-            Frilansere ser briefer, oppdrag, tilgjengelighet, inntjening og profiler.
+            Freelancers see briefs, gigs, availability, earnings and profiles.
           </p>
         </div>
 
@@ -42,10 +42,10 @@ export default function CurrentSystemSlide() {
             03
           </div>
           <h3 className="text-[2.3vw] font-extrabold leading-tight mb-[2.5vh]">
-            Delt database
+            Shared database
           </h3>
           <p className="text-[1.5vw] leading-relaxed text-muted [text-wrap:pretty]">
-            Begge appene leser og skriver til samme kilde.
+            Both apps read and write the same source of truth.
           </p>
         </div>
       </div>

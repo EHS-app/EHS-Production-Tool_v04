@@ -5,10 +5,10 @@ export default function ChainSlide() {
     <div className="w-screen h-screen overflow-hidden relative bg-bg text-text font-body">
       <div className="absolute top-[8vh] left-[6vw] right-[6vw]">
         <div className="text-[1.5vw] tracking-[0.3em] uppercase text-accent font-bold">
-          04 / Kjeden
+          04 / The chain
         </div>
         <h2 className="text-[4.4vw] leading-[1.05] font-extrabold tracking-tight mt-[2.5vh] [text-wrap:balance]">
-          Fire funksjoner, én kjede
+          Four features, one chain
         </h2>
       </div>
 
@@ -18,7 +18,7 @@ export default function ChainSlide() {
             01
           </div>
           <h3 className="text-[1.65vw] font-extrabold leading-tight [text-wrap:balance]">
-            Auto-tildel timeplan → Oppdrag
+            Auto-Assign Schedules → Gigs
           </h3>
         </div>
         <div className="text-[2.2vw] text-muted text-center mt-[5.5vh] font-light">
@@ -29,7 +29,7 @@ export default function ChainSlide() {
             02
           </div>
           <h3 className="text-[1.65vw] font-extrabold leading-tight [text-wrap:balance]">
-            Catering-aggregering
+            Catering Aggregation
           </h3>
         </div>
         <div className="text-[2.2vw] text-muted text-center mt-[5.5vh] font-light">
@@ -40,7 +40,7 @@ export default function ChainSlide() {
             03
           </div>
           <h3 className="text-[1.65vw] font-extrabold leading-tight [text-wrap:balance]">
-            Hotellogistikk (romlister)
+            Hotel Logistics (Rooming Lists)
           </h3>
         </div>
         <div className="text-[2.2vw] text-muted text-center mt-[5.5vh] font-light">
@@ -51,14 +51,14 @@ export default function ChainSlide() {
             04
           </div>
           <h3 className="text-[1.65vw] font-extrabold leading-tight [text-wrap:balance]">
-            Frilanser-reiseplan
+            Freelancer Itinerary View
           </h3>
         </div>
       </div>
 
       <div className="absolute left-[6vw] right-[6vw] bottom-[12vh]">
         <p className="text-[1.7vw] leading-snug text-muted max-w-[65vw] font-medium [text-wrap:pretty]">
-          Hver funksjon bruker det den forrige produserte. Produsenten legger inn timeplanen én gang.
+          Each feature consumes what the previous one produced. The producer enters the schedule once.
         </p>
       </div>
 

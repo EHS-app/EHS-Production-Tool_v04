@@ -8,7 +8,7 @@ export default function BuildOrderSlide() {
           09 / Plan
         </div>
         <h2 className="text-[4.4vw] leading-[1.05] font-extrabold tracking-tight mt-[2.5vh] [text-wrap:balance]">
-          Byggerekkefølge
+          Build order
         </h2>
       </div>
 
@@ -17,38 +17,38 @@ export default function BuildOrderSlide() {
           1
         </div>
         <p className="text-[1.55vw] leading-snug font-semibold [text-wrap:pretty]">
-          Auto-tildel-motor + Crew-fane-grensesnitt
+          Auto-Assign engine + Crew-tab UI
         </p>
 
         <div className="text-[1.7vw] font-extrabold text-accent leading-none pt-[0.3vh]">
           2
         </div>
         <p className="text-[1.55vw] leading-snug font-semibold [text-wrap:pretty]">
-          Cateringskjerm + PDF-eksport
+          Catering screen + PDF export
         </p>
 
         <div className="text-[1.7vw] font-extrabold text-accent leading-none pt-[0.3vh]">
           3
         </div>
         <p className="text-[1.55vw] leading-snug font-semibold [text-wrap:pretty]">
-          Hotellskjerm + paringslogikk + eksport av romliste
+          Hotel screen + pairing logic + rooming list export
         </p>
 
         <div className="text-[1.7vw] font-extrabold text-accent leading-none pt-[0.3vh]">
           4
         </div>
         <p className="text-[1.55vw] leading-snug font-semibold [text-wrap:pretty]">
-          Reiseplan-fane i portalen
+          Itinerary tab in the Portal
         </p>
       </div>
 
       <div className="absolute right-[6vw] top-[38vh] w-[40vw]">
         <div className="border-l-[3px] border-accent pl-[2vw] py-[1vh]">
           <div className="text-[1.5vw] tracking-[0.3em] uppercase text-accent font-bold mb-[2vh]">
-            Allerede levert
+            Already shipped
           </div>
           <p className="text-[1.55vw] leading-snug font-medium text-muted [text-wrap:pretty]">
-            Databasefelt for alle fire er allerede levert i Fase A — vi bygger grensesnitt og regler, ikke skjema.
+            Database fields for all four already shipped in Phase A — we're building UI and rules, not schema.
           </p>
         </div>
       </div>

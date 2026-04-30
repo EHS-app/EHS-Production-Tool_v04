@@ -1035,42 +1035,66 @@ function StageSvg({
             handlers. */}
         {calc.decks.map((p, i) => {
           const asm = calc.assembly[i];
-          // Assembly badge anchor — use the deck's UPSTAGE-near corner
-          // on whichever side the build runs from, so the badge always
-          // sits next to the side the crew is starting from.
-          const badgeNearLeft = stage.buildOrder !== "rightToLeft";
+          const dw = p.w * scale;
+          const dh = p.d * scale;
+          const cxDeck = PAD + (p.x + p.w / 2) * scale;
+          const cyDeck = PAD + (p.y + p.d / 2) * scale;
+          // Vertically stacked, horizontally centred layout per deck:
+          //
+          //     ( 1 )      ← assembly badge (white circle + number)
+          //     2 × 1      ← deck size label
+          //    +2 legs     ← marginal-leg caption
+          //
+          // The badge sits ABOVE the size name and the caption sits
+          // BELOW it, all on the deck's vertical centre line — so
+          // nothing overlaps the size label or the leg dots in the
+          // four corners. Build direction no longer affects badge
+          // position (the sequence numbers themselves convey the
+          // build order); it only affects which deck is #1.
+          const sizeFont = Math.min(dw, dh) * 0.22;
+          const showSize = dw >= 32 && dh >= 22;
           const badgeRadius = Math.max(
-            7,
-            Math.min(11, Math.min(p.w * scale, p.d * scale) * 0.18),
+            8,
+            Math.min(13, Math.min(dw, dh) * 0.16),
           );
-          const badgeInset = badgeRadius + 3;
-          const badgeCx = badgeNearLeft
-            ? PAD + p.x * scale + badgeInset
-            : PAD + (p.x + p.w) * scale - badgeInset;
-          const badgeCy = PAD + p.y * scale + badgeInset;
-          // Hide the per-deck "+N legs" caption on very small decks to
-          // avoid overlapping the size label; the badge number itself
-          // is always shown.
-          const showLegsCaption = p.w * scale >= 44 && p.d * scale >= 36;
+          // Vertical positions. When the size label IS shown we anchor
+          // off it so the three rows nest tightly; when it's hidden
+          // (very small decks) we just centre the badge.
+          const sizeY = cyDeck;
+          const badgeCy = showSize
+            ? sizeY - sizeFont * 0.55 - badgeRadius - 2
+            : cyDeck;
+          const captionFont = Math.max(9, badgeRadius * 0.95);
+          const captionY = sizeY + sizeFont * 0.55 + captionFont * 0.9 + 2;
+          // Only draw the caption when there's enough vertical room
+          // for badge + size label + caption without crowding the
+          // deck edge or the leg dots in the corners.
+          const stackHeight =
+            badgeRadius * 2 +
+            (showSize ? sizeFont : 0) +
+            captionFont +
+            12;
+          const showCaption = showSize && dh >= stackHeight && dw >= 56;
           return (
             <g key={i}>
               <rect
                 x={PAD + p.x * scale}
                 y={PAD + p.y * scale}
-                width={p.w * scale}
-                height={p.d * scale}
+                width={dw}
+                height={dh}
                 fill={DECK_FILL[p.key]}
                 fillOpacity={0.7}
                 stroke="#0f172a"
                 strokeWidth={1}
                 strokeOpacity={0.7}
               />
-              {p.w * scale >= 32 && p.d * scale >= 22 && (
+              {showSize && (
                 <text
-                  x={PAD + (p.x + p.w / 2) * scale}
-                  y={PAD + (p.y + p.d / 2) * scale + 4}
+                  x={cxDeck}
+                  y={sizeY}
                   textAnchor="middle"
-                  fontSize={Math.min(p.w * scale, p.d * scale) * 0.22}
+                  dominantBaseline="central"
+                  fontSize={sizeFont}
                   fontFamily="system-ui, sans-serif"
                   fill="#fff"
                   fontWeight={600}
@@ -1087,7 +1111,7 @@ function StageSvg({
               {asm && (
                 <g pointerEvents="none">
                   <circle
-                    cx={badgeCx}
+                    cx={cxDeck}
                     cy={badgeCy}
                     r={badgeRadius}
                     fill="#fff"
@@ -1095,28 +1119,26 @@ function StageSvg({
                     strokeWidth={1.25}
                   />
                   <text
-                    x={badgeCx}
-                    y={badgeCy + badgeRadius * 0.36}
+                    x={cxDeck}
+                    y={badgeCy}
                     textAnchor="middle"
-                    fontSize={badgeRadius * 1.1}
+                    dominantBaseline="central"
+                    fontSize={badgeRadius * 1.15}
                     fontFamily="system-ui, sans-serif"
                     fill="#0f172a"
                     fontWeight={700}
                   >
                     {asm.sequence}
                   </text>
-                  {showLegsCaption && (
+                  {showCaption && (
                     <text
-                      x={
-                        badgeNearLeft
-                          ? badgeCx + badgeRadius + 3
-                          : badgeCx - badgeRadius - 3
-                      }
-                      y={badgeCy + 3}
-                      textAnchor={badgeNearLeft ? "start" : "end"}
-                      fontSize={Math.max(9, badgeRadius * 0.95)}
+                      x={cxDeck}
+                      y={captionY}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fontSize={captionFont}
                       fontFamily="system-ui, sans-serif"
-                      fill="#0f172a"
+                      fill="#fff"
                       fontWeight={600}
                     >
                       +{asm.legsAdded} {asm.legsAdded === 1 ? "leg" : "legs"}

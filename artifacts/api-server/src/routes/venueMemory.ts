@@ -2,7 +2,7 @@ import { Router, type IRouter, type RequestHandler } from "express";
 import { and, eq, sql } from "drizzle-orm";
 import { db, venueMemoryTable } from "@workspace/db";
 import { logger } from "../lib/logger";
-import { venueKeyFor } from "./rigplanAnalyze";
+import { venueKeyFor } from "../lib/venueKey";
 
 const router: IRouter = Router();
 

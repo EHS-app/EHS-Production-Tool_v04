@@ -3,16 +3,17 @@ import Anthropic from "@anthropic-ai/sdk";
 import { and, eq } from "drizzle-orm";
 import { db, venueMemoryTable } from "@workspace/db";
 import { logger } from "../lib/logger";
+import { buildVenueMemoryHint } from "../lib/venueMemoryHint";
+import { venueKeyFor } from "../lib/venueKey";
 
 const router: IRouter = Router();
 
-/** Normalise a venue name to a stable lookup key. The same producer
- *  uploading "Sentrum  Scene", "Sentrum Scene" and "sentrum scene"
- *  should hit the same memory entry — otherwise the learning loop
- *  starts from scratch every time they retype the venue field. */
-export function venueKeyFor(venueName: string): string {
-  return venueName.trim().toLowerCase().replace(/\s+/g, " ");
-}
+// `venueKeyFor` lives in `../lib/venueKey` so both this analyser
+// route and `routes/venueMemory.ts` can share it without coupling
+// the two route modules to each other's transitive imports.
+// Re-exported here for any consumer still reaching in through this
+// module.
+export { venueKeyFor };
 
 /** Require an authenticated Clerk session. We only ever call the upstream
  *  Anthropic API on behalf of a signed-in user — otherwise this endpoint
@@ -486,106 +487,12 @@ function contextLine(ctx: AnalyzeContext | undefined): string {
   return ctxLine;
 }
 
-/** Build the venue-memory hint string from the saved JSON blob. We
- *  format it as a few terse bullet lines so the model can scan it
- *  quickly. The blob is intentionally typed loosely — extra fields
- *  the client adds in future versions are tolerated. */
-type SavedMemoryShape = {
-  lastCorrected?: {
-    trusses?: Array<{ name?: unknown; lengthM?: unknown; pointCount?: unknown }>;
-    lighting?: Array<{ name?: unknown; qty?: unknown; trussName?: unknown }>;
-    ledScreens?: Array<{
-      name?: unknown;
-      widthM?: unknown;
-      heightM?: unknown;
-      panelsWide?: unknown;
-      panelsTall?: unknown;
-    }>;
-    stages?: Array<{ name?: unknown; widthM?: unknown; depthM?: unknown }>;
-    sound?: Array<{ name?: unknown; qty?: unknown }>;
-  };
-};
-
-function buildVenueMemoryHint(raw: unknown): string {
-  if (!raw || typeof raw !== "object") return "";
-  const memory = raw as SavedMemoryShape;
-  const last = memory.lastCorrected;
-  if (!last) return "";
-  const lines: string[] = [];
-  const trusses = (last.trusses ?? []).filter(Boolean).slice(0, 8);
-  if (trusses.length) {
-    const items = trusses
-      .map((t) => {
-        const name = typeof t.name === "string" ? t.name : "Truss";
-        const len = typeof t.lengthM === "number" ? `${t.lengthM} m` : null;
-        const pts =
-          typeof t.pointCount === "number" ? `${t.pointCount} pts` : null;
-        const tail = [len, pts].filter(Boolean).join(", ");
-        return tail ? `${name} (${tail})` : name;
-      })
-      .join("; ");
-    lines.push(`- Trusses usually present: ${items}.`);
-  }
-  const lighting = (last.lighting ?? []).filter(Boolean).slice(0, 10);
-  if (lighting.length) {
-    const items = lighting
-      .map((f) => {
-        const name = typeof f.name === "string" ? f.name : "Fixture";
-        const qty = typeof f.qty === "number" ? `${f.qty}× ` : "";
-        const truss =
-          typeof f.trussName === "string" && f.trussName
-            ? ` on ${f.trussName}`
-            : "";
-        return `${qty}${name}${truss}`;
-      })
-      .join("; ");
-    lines.push(`- Lighting often used: ${items}.`);
-  }
-  const led = (last.ledScreens ?? []).filter(Boolean).slice(0, 4);
-  if (led.length) {
-    const items = led
-      .map((s) => {
-        const name = typeof s.name === "string" ? s.name : "LED";
-        if (typeof s.widthM === "number" && typeof s.heightM === "number") {
-          return `${name} (${s.widthM} × ${s.heightM} m)`;
-        }
-        if (
-          typeof s.panelsWide === "number" &&
-          typeof s.panelsTall === "number"
-        ) {
-          return `${name} (${s.panelsWide} × ${s.panelsTall} panels)`;
-        }
-        return name;
-      })
-      .join("; ");
-    lines.push(`- LED screens typically: ${items}.`);
-  }
-  const stages = (last.stages ?? []).filter(Boolean).slice(0, 4);
-  if (stages.length) {
-    const items = stages
-      .map((s) => {
-        const name = typeof s.name === "string" ? s.name : "Stage";
-        if (typeof s.widthM === "number" && typeof s.depthM === "number") {
-          return `${name} (${s.widthM} × ${s.depthM} m)`;
-        }
-        return name;
-      })
-      .join("; ");
-    lines.push(`- Stages / decks typically: ${items}.`);
-  }
-  const sound = (last.sound ?? []).filter(Boolean).slice(0, 6);
-  if (sound.length) {
-    const items = sound
-      .map((s) => {
-        const name = typeof s.name === "string" ? s.name : "Sound";
-        const qty = typeof s.qty === "number" ? `${s.qty}× ` : "";
-        return `${qty}${name}`;
-      })
-      .join("; ");
-    lines.push(`- Sound often: ${items}.`);
-  }
-  return lines.join("\n");
-}
+// Venue-memory hint builder lives in its own pure-logic file
+// (`../lib/venueMemoryHint`) so it can be unit-tested with `node:test`
+// without dragging in the DB / SDK module graph this route file
+// imports. Re-exported here for any consumer still reaching in
+// through this module.
+export { buildVenueMemoryHint };
 
 /** Pull the first ```json ... ``` block from the model's text output. */
 function extractJsonBlock(text: string): string | null {

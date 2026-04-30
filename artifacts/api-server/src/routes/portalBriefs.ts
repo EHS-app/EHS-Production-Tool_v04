@@ -1,15 +1,22 @@
 import { Router, type IRouter, type RequestHandler } from "express";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   db,
   projectBriefsTable,
   briefAssignmentsTable,
+  briefRoomAssignmentsTable,
   gigsTable,
   freelancerProfilesTable,
   type ProjectBriefRow,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
+import {
+  assignRooms,
+  type PairingPerson,
+  type PairingGender,
+  type RoomShare,
+} from "../lib/roomPairing";
 import { dispatchBriefRequestEmails } from "../lib/briefEmail";
 import { autoAssignedDatesFor } from "../lib/roleSchedule";
 import {
@@ -1166,56 +1173,104 @@ router.get(
         )
         .where(eq(gigsTable.briefId, id));
 
-      const crew = rows
-        .filter((r) => COUNTABLE_GIG_STATUSES.has(r.status))
-        .map((r) => {
-          const dates: string[] = (Array.isArray(r.assignedDates)
-            ? r.assignedDates
-            : []
+      // Pull this brief's locked room assignments alongside the
+      // pairing inputs. Locks pin specific freelancers into specific
+      // rooms; the engine fills the rest deterministically. We
+      // accept locks that reference a freelancer no longer on the
+      // brief (gig dropped after a lock was set) and silently ignore
+      // them — `assignRooms` only honours locks for ids that appear
+      // in the people list.
+      const lockRows = await db
+        .select({
+          freelancerUserId: briefRoomAssignmentsTable.freelancerUserId,
+          roomKey: briefRoomAssignmentsTable.roomKey,
+        })
+        .from(briefRoomAssignmentsTable)
+        .where(eq(briefRoomAssignmentsTable.briefId, id));
+
+      // Per-gig rows → per-PERSON aggregation. A single freelancer can
+      // hold multiple gigs on the same brief (e.g. "Sound Engineer"
+      // Mon–Wed plus "Backline Tech" Thu–Fri) and the hotel front
+      // desk only cares about the human, not how many roles they're
+      // booked for. Aggregating here keeps:
+      //   - the rooming list, pairing engine, and lock/swap payloads
+      //     all unique-by-`freelancerUserId` (the lock endpoint
+      //     rejects duplicates with a 400, which would otherwise
+      //     surface as a confusing producer-side failure);
+      //   - the producer's "needs hotel" toggle visually consistent
+      //     across re-renders (one row per person, not one per role).
+      // The matching cascade in the PATCH below ensures that toggling
+      // the consolidated row writes through to ALL of the freelancer's
+      // gigs on this brief.
+      type AggRow = {
+        gigId: string;
+        freelancerUserId: string;
+        name: string;
+        roles: string[];
+        hotelRequired: boolean;
+        checkInDate: string | null;
+        checkOutDate: string | null;
+        checkInExplicit: boolean;
+        checkOutExplicit: boolean;
+        roomShare: "twin" | "single" | "either";
+        gender: "" | "female" | "male" | "other";
+        phone: string;
+        profileless: boolean;
+      };
+      const aggByUser = new Map<string, AggRow>();
+      for (const r of rows) {
+        if (!COUNTABLE_GIG_STATUSES.has(r.status)) continue;
+        const dates: string[] = (Array.isArray(r.assignedDates)
+          ? r.assignedDates
+          : []
+        )
+          .map((d) =>
+            typeof d === "string" ? d.slice(0, 10) : String(d).slice(0, 10),
           )
-            .map((d) =>
-              typeof d === "string"
-                ? d.slice(0, 10)
-                : String(d).slice(0, 10),
-            )
-            .filter((iso) => /^\d{4}-\d{2}-\d{2}$/.test(iso))
-            .sort();
-          const minIso = dates[0] ?? null;
-          const maxIso = dates[dates.length - 1] ?? null;
-          // "Check-out is the morning after the last working day" —
-          // standard touring convention. Compute via UTC to avoid
-          // timezone day-shift on the producer's browser later.
-          let derivedCheckOut: string | null = null;
-          if (maxIso) {
-            const d = new Date(`${maxIso}T00:00:00Z`);
-            d.setUTCDate(d.getUTCDate() + 1);
-            derivedCheckOut = d.toISOString().slice(0, 10);
-          }
-          const hasProfile = typeof r.profileFullName === "string";
-          const name =
-            (hasProfile ? r.profileFullName : null) ||
-            `Crew member ${r.freelancerUserId.slice(-4)}`;
-          // Drizzle's `date` column returns a string in "YYYY-MM-DD"
-          // form, but be defensive — coerce anything else to null.
-          const ci =
-            typeof r.checkInDate === "string"
-              ? r.checkInDate.slice(0, 10)
-              : null;
-          const co =
-            typeof r.checkOutDate === "string"
-              ? r.checkOutDate.slice(0, 10)
-              : null;
-          return {
+          .filter((iso) => /^\d{4}-\d{2}-\d{2}$/.test(iso))
+          .sort();
+        const minIso = dates[0] ?? null;
+        const maxIso = dates[dates.length - 1] ?? null;
+        // "Check-out is the morning after the last working day" —
+        // standard touring convention. Compute via UTC to avoid
+        // timezone day-shift on the producer's browser later.
+        let derivedCheckOut: string | null = null;
+        if (maxIso) {
+          const d = new Date(`${maxIso}T00:00:00Z`);
+          d.setUTCDate(d.getUTCDate() + 1);
+          derivedCheckOut = d.toISOString().slice(0, 10);
+        }
+        const hasProfile = typeof r.profileFullName === "string";
+        const name =
+          (hasProfile ? r.profileFullName : null) ||
+          `Crew member ${r.freelancerUserId.slice(-4)}`;
+        // Drizzle's `date` column returns a string in "YYYY-MM-DD"
+        // form, but be defensive — coerce anything else to null.
+        const ci =
+          typeof r.checkInDate === "string"
+            ? r.checkInDate.slice(0, 10)
+            : null;
+        const co =
+          typeof r.checkOutDate === "string"
+            ? r.checkOutDate.slice(0, 10)
+            : null;
+        const resolvedCheckIn = ci ?? minIso;
+        const resolvedCheckOut = co ?? derivedCheckOut;
+
+        const existing = aggByUser.get(r.freelancerUserId);
+        if (!existing) {
+          aggByUser.set(r.freelancerUserId, {
+            // Representative gigId for PATCH targeting. Stable choice:
+            // smallest gigId lexicographically (computed via Math.min
+            // on the second pass below). Initialised here to the first
+            // gig we see, then narrowed.
             gigId: r.gigId,
             freelancerUserId: r.freelancerUserId,
             name,
-            role: r.gigRole ?? "",
+            roles: r.gigRole ? [r.gigRole] : [],
             hotelRequired: !!r.hotelRequired,
-            // Override-or-derived. UI shows the resolved value but
-            // also exposes the explicit flag so producers know if a
-            // value was hand-edited.
-            checkInDate: ci ?? minIso,
-            checkOutDate: co ?? derivedCheckOut,
+            checkInDate: resolvedCheckIn,
+            checkOutDate: resolvedCheckOut,
             checkInExplicit: ci !== null,
             checkOutExplicit: co !== null,
             roomShare:
@@ -1231,11 +1286,85 @@ router.get(
                 : "",
             phone: typeof r.profilePhone === "string" ? r.profilePhone : "",
             profileless: !hasProfile,
-          };
-        })
+          });
+        } else {
+          // Pick the lexicographically smallest gigId so PATCH
+          // targeting is deterministic across reloads.
+          if (r.gigId < existing.gigId) existing.gigId = r.gigId;
+          // Merge roles, dedup, preserve insertion order.
+          if (r.gigRole && !existing.roles.includes(r.gigRole)) {
+            existing.roles.push(r.gigRole);
+          }
+          // hotelRequired is OR — if the producer flagged ANY of the
+          // person's gigs as needing a hotel, the person needs one.
+          existing.hotelRequired = existing.hotelRequired || !!r.hotelRequired;
+          // Earliest check-in / latest check-out across the union of
+          // gigs. An explicit override on either gig wins over an
+          // auto-derived value via simple min/max — overrides only
+          // tighten the window, they don't expand it past where the
+          // person is actually working.
+          if (
+            resolvedCheckIn &&
+            (!existing.checkInDate || resolvedCheckIn < existing.checkInDate)
+          ) {
+            existing.checkInDate = resolvedCheckIn;
+          }
+          if (
+            resolvedCheckOut &&
+            (!existing.checkOutDate || resolvedCheckOut > existing.checkOutDate)
+          ) {
+            existing.checkOutDate = resolvedCheckOut;
+          }
+          // "Explicit" sticks if ANY gig had an override — UI uses
+          // this to show the "auto" hint, and we want to suppress
+          // that hint if the producer has touched the value at all.
+          existing.checkInExplicit = existing.checkInExplicit || ci !== null;
+          existing.checkOutExplicit = existing.checkOutExplicit || co !== null;
+        }
+      }
+      const crew = Array.from(aggByUser.values())
+        .map(({ roles, ...rest }) => ({
+          ...rest,
+          // Join multi-role labels with " / " — readable on one line
+          // in the table and consistent with how producers describe
+          // double-booked crew in conversation ("Sound / Backline").
+          role: roles.join(" / "),
+        }))
         // Stable sort: by name (alphabetical) so re-renders don't
         // shuffle rows under the producer's cursor mid-edit.
         .sort((a, b) => a.name.localeCompare(b.name));
+
+      // Run the pairing engine over the crew that ACTUALLY needs a
+      // hotel — skipping room assignments for hotelRequired=false
+      // people keeps the engine output focused and avoids burning
+      // room numbers on local crew. The result is keyed by
+      // freelancerUserId so we can merge it back onto the per-row
+      // shape the UI consumes.
+      const pairingPeople: PairingPerson[] = crew
+        .filter((c) => c.hotelRequired)
+        .map((c) => ({
+          freelancerUserId: c.freelancerUserId,
+          name: c.name,
+          checkInDate: c.checkInDate,
+          checkOutDate: c.checkOutDate,
+          roomShare: c.roomShare as RoomShare,
+          gender: c.gender as PairingGender,
+        }));
+      const assignments = assignRooms(pairingPeople, lockRows);
+      const assignmentByUser = new Map(
+        assignments.map((a) => [a.freelancerUserId, a]),
+      );
+      const crewWithRooms = crew.map((c) => {
+        const a = assignmentByUser.get(c.freelancerUserId);
+        return {
+          ...c,
+          // roomKey is null for crew not in the pairing set (i.e.
+          // hotelRequired=false). UI keys off this to know whether
+          // to render a room badge or not.
+          roomKey: a?.roomKey ?? null,
+          roomLocked: a?.locked ?? false,
+        };
+      });
 
       res.json({
         ok: true,
@@ -1244,7 +1373,7 @@ router.get(
           projectName: brief.projectName,
           venue: brief.venue,
         },
-        crew,
+        crew: crewWithRooms,
       });
     } catch (err) {
       logger.error(
@@ -1378,23 +1507,60 @@ router.patch(
         res.status(403).json({ ok: false, error: "Not your brief." });
         return;
       }
-      const updated = await db
-        .update(gigsTable)
-        .set(patch)
-        .where(and(eq(gigsTable.id, gigId), eq(gigsTable.briefId, briefId)))
-        .returning({
-          id: gigsTable.id,
-          hotelRequired: gigsTable.hotelRequired,
-          checkInDate: gigsTable.checkInDate,
-          checkOutDate: gigsTable.checkOutDate,
-        });
-      if (updated.length === 0) {
+      // Cascade the patch to ALL gigs of the same freelancer on this
+      // brief — not just the targeted gigId. The GET endpoint above
+      // collapses multiple gigs for the same person into one
+      // consolidated row (a freelancer can hold two roles on one
+      // brief), so the producer's toggle / date override is
+      // semantically a per-PERSON edit and must persist that way.
+      // Without this cascade, an OR-aggregated `hotelRequired` flag
+      // would re-appear true on the next refresh because a sibling
+      // gig still has it true, making the toggle look broken.
+      //
+      // We do the lookup-then-update inside a transaction so a
+      // concurrent gig deletion can't race the cascade into a
+      // partial state. The lookup also serves as the membership /
+      // existence check (replacing the old `WHERE id = ... AND
+      // briefId = ...` predicate that returned 404 on miss).
+      const result = await db.transaction(async (tx) => {
+        const targetRows = await tx
+          .select({ freelancerUserId: gigsTable.freelancerUserId })
+          .from(gigsTable)
+          .where(and(eq(gigsTable.id, gigId), eq(gigsTable.briefId, briefId)))
+          .limit(1);
+        const target = targetRows[0];
+        if (!target) return { ok: false as const };
+        const updated = await tx
+          .update(gigsTable)
+          .set(patch)
+          .where(
+            and(
+              eq(gigsTable.briefId, briefId),
+              eq(gigsTable.freelancerUserId, target.freelancerUserId),
+            ),
+          )
+          .returning({
+            id: gigsTable.id,
+            hotelRequired: gigsTable.hotelRequired,
+            checkInDate: gigsTable.checkInDate,
+            checkOutDate: gigsTable.checkOutDate,
+          });
+        return { ok: true as const, updated };
+      });
+      if (!result.ok) {
         res
           .status(404)
           .json({ ok: false, error: "Gig not found on this brief." });
         return;
       }
-      res.json({ ok: true, gig: updated[0] });
+      // Return the row matching the targeted gigId for caller
+      // convenience (UI optimistic update keys off it). All sibling
+      // gigs receive the same field values, so picking the targeted
+      // one rather than the first is purely cosmetic but matches
+      // producer expectation.
+      const targetedGig =
+        result.updated.find((g) => g.id === gigId) ?? result.updated[0];
+      res.json({ ok: true, gig: targetedGig });
     } catch (err) {
       logger.error(
         {
@@ -1407,6 +1573,495 @@ router.patch(
       res
         .status(500)
         .json({ ok: false, error: "Could not update hotel data." });
+    }
+  },
+);
+
+/** Shared owner-check + countable-crew loader for the lock/unlock/swap
+ *  family. Returns the brief's owner-verified set of hotel-eligible
+ *  crew (gigs in a countable status with `hotelRequired=true`), or
+ *  null+sets the response if anything's off. Centralised because all
+ *  three mutation endpoints need the exact same gate. */
+async function loadHotelCrewForOwner(
+  briefId: string,
+  userId: string,
+  res: import("express").Response,
+): Promise<Set<string> | null> {
+  const briefRows = await db
+    .select({ ownerUserId: projectBriefsTable.ownerUserId })
+    .from(projectBriefsTable)
+    .where(eq(projectBriefsTable.id, briefId))
+    .limit(1);
+  const brief = briefRows[0];
+  if (!brief) {
+    res.status(404).json({ ok: false, error: "Brief not found." });
+    return null;
+  }
+  if (brief.ownerUserId !== userId) {
+    res.status(403).json({ ok: false, error: "Not your brief." });
+    return null;
+  }
+  // Lock targets must (a) be on this brief and (b) actually need a
+  // hotel. We don't allow locking local crew into a room — that
+  // would just confuse the rooming sheet.
+  const eligibleRows = await db
+    .select({
+      freelancerUserId: gigsTable.freelancerUserId,
+      status: gigsTable.status,
+      hotelRequired: gigsTable.hotelRequired,
+    })
+    .from(gigsTable)
+    .where(eq(gigsTable.briefId, briefId));
+  const eligible = new Set<string>();
+  for (const r of eligibleRows) {
+    if (!COUNTABLE_GIG_STATUSES.has(r.status)) continue;
+    if (!r.hotelRequired) continue;
+    eligible.add(r.freelancerUserId);
+  }
+  return eligible;
+}
+
+/** POST /api/portal/briefs/:id/hotel/lock — owner-only.
+ *  Locks a set of freelancers (1–4 people) into a single fresh room
+ *  on this brief. Use cases:
+ *  - Single id: pin a person who must have a private room beyond
+ *    what the engine would otherwise suggest.
+ *  - Two ids: confirm a producer-picked twin pair (the most common
+ *    case — usually the producer is approving an engine suggestion).
+ *  - Three or four ids: family/trio rooms (rare but real on small
+ *    international tours where two crew share with a partner).
+ *
+ *  Side-effect: any pre-existing locks involving these freelancers
+ *  OR the rooms they currently occupied are cleared first, so the
+ *  former roommate of a swapped-in person doesn't end up frozen
+ *  alone. The single transaction makes that all-or-nothing. */
+router.post(
+  "/portal/briefs/:id/hotel/lock",
+  requireSignedIn,
+  async (req, res) => {
+    const userId = (req as unknown as { _userId: string })._userId;
+    const briefId = String(req.params.id ?? "");
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const ids = body.freelancerUserIds;
+    if (
+      !Array.isArray(ids) ||
+      ids.length < 1 ||
+      ids.length > 4 ||
+      !ids.every((x) => typeof x === "string" && x.length > 0)
+    ) {
+      res.status(400).json({
+        ok: false,
+        error: "freelancerUserIds must be 1–4 non-empty strings.",
+      });
+      return;
+    }
+    // Dedupe — locking ["A","A"] would create a single-occupant room
+    // that *says* "two people" in the audit. Reject as a client bug.
+    const unique = Array.from(new Set(ids as string[]));
+    if (unique.length !== ids.length) {
+      res
+        .status(400)
+        .json({ ok: false, error: "Duplicate freelancer ids." });
+      return;
+    }
+
+    try {
+      const eligible = await loadHotelCrewForOwner(briefId, userId, res);
+      if (!eligible) return;
+      for (const id of unique) {
+        if (!eligible.has(id)) {
+          res.status(400).json({
+            ok: false,
+            error: "All freelancers must be on this brief and need a hotel.",
+          });
+          return;
+        }
+      }
+
+      // Lock the brief row FOR UPDATE inside a transaction, then
+      // allocate roomKey + clear stale rows + insert all in the same
+      // serialised window. Without this guard two concurrent lock
+      // requests on the same brief could each pick `room-N` from a
+      // pre-transaction snapshot and merge unrelated groups under
+      // the same key. Producers normally edit sequentially, but a
+      // double-clicked button or two browser tabs could both fire.
+      const newRoomKey = await db.transaction(async (tx) => {
+        // Postgres row lock — serialises all hotel mutations for this
+        // brief. Released on tx commit/rollback. Cheap because each
+        // brief has a single owner.
+        await tx.execute(
+          sql`SELECT 1 FROM ${projectBriefsTable} WHERE ${projectBriefsTable.id} = ${briefId} FOR UPDATE`,
+        );
+
+        // Compute INSIDE the txn so the snapshot is consistent with
+        // the writes we're about to do.
+        const existingKeys = new Set(
+          (
+            await tx
+              .select({ roomKey: briefRoomAssignmentsTable.roomKey })
+              .from(briefRoomAssignmentsTable)
+              .where(eq(briefRoomAssignmentsTable.briefId, briefId))
+          ).map((r) => r.roomKey),
+        );
+        let n = 1;
+        while (existingKeys.has(`room-${n}`)) n++;
+        const allocated = `room-${n}`;
+
+        // Clear any previous locks for these people so re-locking
+        // overwrites cleanly. We also clear locks for ANY person who
+        // was previously locked into the *same* old rooms as one of
+        // the new ids — otherwise their orphan partner stays frozen
+        // alone in a now-half-empty locked room.
+        const previousRoomsToClear = (
+          await tx
+            .select({ roomKey: briefRoomAssignmentsTable.roomKey })
+            .from(briefRoomAssignmentsTable)
+            .where(
+              and(
+                eq(briefRoomAssignmentsTable.briefId, briefId),
+                inArray(briefRoomAssignmentsTable.freelancerUserId, unique),
+              ),
+            )
+        ).map((r) => r.roomKey);
+
+        await tx
+          .delete(briefRoomAssignmentsTable)
+          .where(
+            and(
+              eq(briefRoomAssignmentsTable.briefId, briefId),
+              inArray(briefRoomAssignmentsTable.freelancerUserId, unique),
+            ),
+          );
+        if (previousRoomsToClear.length > 0) {
+          await tx
+            .delete(briefRoomAssignmentsTable)
+            .where(
+              and(
+                eq(briefRoomAssignmentsTable.briefId, briefId),
+                inArray(
+                  briefRoomAssignmentsTable.roomKey,
+                  previousRoomsToClear,
+                ),
+              ),
+            );
+        }
+        await tx.insert(briefRoomAssignmentsTable).values(
+          unique.map((freelancerUserId) => ({
+            briefId,
+            freelancerUserId,
+            roomKey: allocated,
+            locked: true,
+          })),
+        );
+        return allocated;
+      });
+
+      res.json({ ok: true, roomKey: newRoomKey });
+    } catch (err) {
+      logger.error(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          briefId,
+        },
+        "portal briefs/:id/hotel/lock failed",
+      );
+      res
+        .status(500)
+        .json({ ok: false, error: "Could not lock room." });
+    }
+  },
+);
+
+/** POST /api/portal/briefs/:id/hotel/unlock — owner-only.
+ *  Removes the lock for a set of freelancers, returning them to the
+ *  pairing engine's pool. The freelancers themselves stay on the
+ *  brief — only their lock rows are removed. */
+router.post(
+  "/portal/briefs/:id/hotel/unlock",
+  requireSignedIn,
+  async (req, res) => {
+    const userId = (req as unknown as { _userId: string })._userId;
+    const briefId = String(req.params.id ?? "");
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const ids = body.freelancerUserIds;
+    if (
+      !Array.isArray(ids) ||
+      ids.length < 1 ||
+      !ids.every((x) => typeof x === "string" && x.length > 0)
+    ) {
+      res.status(400).json({
+        ok: false,
+        error: "freelancerUserIds must be a non-empty string array.",
+      });
+      return;
+    }
+    const unique = Array.from(new Set(ids as string[]));
+    try {
+      const eligible = await loadHotelCrewForOwner(briefId, userId, res);
+      if (!eligible) return;
+      // Don't fail the whole call if some ids aren't on the brief —
+      // unlocking a stale lock is harmless and matches what the GET
+      // endpoint already silently does. We DO still require the
+      // caller to own the brief, which the helper above verifies.
+      await db
+        .delete(briefRoomAssignmentsTable)
+        .where(
+          and(
+            eq(briefRoomAssignmentsTable.briefId, briefId),
+            inArray(briefRoomAssignmentsTable.freelancerUserId, unique),
+          ),
+        );
+      res.json({ ok: true });
+    } catch (err) {
+      logger.error(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          briefId,
+        },
+        "portal briefs/:id/hotel/unlock failed",
+      );
+      res
+        .status(500)
+        .json({ ok: false, error: "Could not unlock room." });
+    }
+  },
+);
+
+/** POST /api/portal/briefs/:id/hotel/swap — owner-only.
+ *  Swap two freelancers between their currently-assigned rooms. The
+ *  swap also LOCKS every occupant of both affected rooms — without
+ *  that, the pairing engine would happily re-pair the unlocked
+ *  former roommates on the next read and visually "undo" the swap.
+ *  Locking the full room is the right semantics: the producer just
+ *  expressed intent over both rooms, so freezing them as a unit
+ *  matches what they'd expect.
+ *
+ *  Both freelancers must be on the brief, both must need a hotel,
+ *  and they must currently be in DIFFERENT rooms — same-room swap is
+ *  a no-op the UI shouldn't have offered. */
+router.post(
+  "/portal/briefs/:id/hotel/swap",
+  requireSignedIn,
+  async (req, res) => {
+    const userId = (req as unknown as { _userId: string })._userId;
+    const briefId = String(req.params.id ?? "");
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const a = body.freelancerUserIdA;
+    const b = body.freelancerUserIdB;
+    if (
+      typeof a !== "string" ||
+      typeof b !== "string" ||
+      a.length === 0 ||
+      b.length === 0 ||
+      a === b
+    ) {
+      res.status(400).json({
+        ok: false,
+        error: "freelancerUserIdA and freelancerUserIdB must be distinct ids.",
+      });
+      return;
+    }
+    try {
+      const eligible = await loadHotelCrewForOwner(briefId, userId, res);
+      if (!eligible) return;
+      if (!eligible.has(a) || !eligible.has(b)) {
+        res.status(400).json({
+          ok: false,
+          error: "Both freelancers must be on this brief and need a hotel.",
+        });
+        return;
+      }
+
+      // Recompute current room assignments by replaying the full GET
+      // pipeline (without sending it). This guarantees the swap
+      // operates on exactly the same state the producer is looking
+      // at — no drift between the displayed rooms and the swap
+      // semantics. The cost is one extra round-trip but this is a
+      // human-paced action, not a hot path.
+      const rows = await db
+        .select({
+          freelancerUserId: gigsTable.freelancerUserId,
+          status: gigsTable.status,
+          hotelRequired: gigsTable.hotelRequired,
+          assignedDates: gigsTable.assignedDates,
+          checkInDate: gigsTable.checkInDate,
+          checkOutDate: gigsTable.checkOutDate,
+          profileFullName: freelancerProfilesTable.fullName,
+          profileRoomShare: freelancerProfilesTable.roomShare,
+          profileGender: freelancerProfilesTable.gender,
+        })
+        .from(gigsTable)
+        .leftJoin(
+          freelancerProfilesTable,
+          eq(gigsTable.freelancerUserId, freelancerProfilesTable.userId),
+        )
+        .where(eq(gigsTable.briefId, briefId));
+      const lockRows = await db
+        .select({
+          freelancerUserId: briefRoomAssignmentsTable.freelancerUserId,
+          roomKey: briefRoomAssignmentsTable.roomKey,
+        })
+        .from(briefRoomAssignmentsTable)
+        .where(eq(briefRoomAssignmentsTable.briefId, briefId));
+
+      const pairingPeople: PairingPerson[] = rows
+        .filter(
+          (r) =>
+            COUNTABLE_GIG_STATUSES.has(r.status) && r.hotelRequired,
+        )
+        .map((r) => {
+          const dates: string[] = (Array.isArray(r.assignedDates)
+            ? r.assignedDates
+            : []
+          )
+            .map((d) =>
+              typeof d === "string" ? d.slice(0, 10) : String(d).slice(0, 10),
+            )
+            .filter((iso) => /^\d{4}-\d{2}-\d{2}$/.test(iso))
+            .sort();
+          const minIso = dates[0] ?? null;
+          const maxIso = dates[dates.length - 1] ?? null;
+          let derivedCheckOut: string | null = null;
+          if (maxIso) {
+            const d = new Date(`${maxIso}T00:00:00Z`);
+            d.setUTCDate(d.getUTCDate() + 1);
+            derivedCheckOut = d.toISOString().slice(0, 10);
+          }
+          const ci =
+            typeof r.checkInDate === "string"
+              ? r.checkInDate.slice(0, 10)
+              : null;
+          const co =
+            typeof r.checkOutDate === "string"
+              ? r.checkOutDate.slice(0, 10)
+              : null;
+          return {
+            freelancerUserId: r.freelancerUserId,
+            name:
+              (typeof r.profileFullName === "string" && r.profileFullName) ||
+              `Crew member ${r.freelancerUserId.slice(-4)}`,
+            checkInDate: ci ?? minIso,
+            checkOutDate: co ?? derivedCheckOut,
+            roomShare:
+              (r.profileRoomShare === "twin" ||
+              r.profileRoomShare === "single"
+                ? r.profileRoomShare
+                : "either") as RoomShare,
+            gender: ((r.profileGender === "female" ||
+            r.profileGender === "male" ||
+            r.profileGender === "other"
+              ? r.profileGender
+              : "") as PairingGender),
+          };
+        });
+      const assignments = assignRooms(pairingPeople, lockRows);
+      const roomByUser = new Map(
+        assignments.map((x) => [x.freelancerUserId, x.roomKey]),
+      );
+      const roomA = roomByUser.get(a);
+      const roomB = roomByUser.get(b);
+      if (!roomA || !roomB) {
+        res
+          .status(400)
+          .json({ ok: false, error: "One or both freelancers have no room." });
+        return;
+      }
+      if (roomA === roomB) {
+        res
+          .status(400)
+          .json({ ok: false, error: "Already in the same room." });
+        return;
+      }
+      // Build the post-swap occupant list per room. Anyone currently
+      // in roomA except A stays put; A moves to roomB. Symmetrically
+      // for B. Then every occupant of both rooms gets locked into
+      // their new placement.
+      const occRoomA = assignments
+        .filter((x) => x.roomKey === roomA)
+        .map((x) => x.freelancerUserId);
+      const occRoomB = assignments
+        .filter((x) => x.roomKey === roomB)
+        .map((x) => x.freelancerUserId);
+      const newOccA = occRoomA
+        .filter((id) => id !== a)
+        .concat(b);
+      const newOccB = occRoomB
+        .filter((id) => id !== b)
+        .concat(a);
+
+      // Apply atomically: clear all current locks for both old rooms
+      // AND for every involved freelancer, then insert the post-swap
+      // assignments. The double clear is belt-and-braces — it catches
+      // edge cases where one of the involved freelancers had a stale
+      // lock pointing somewhere else entirely.
+      //
+      // The transaction starts with a `FOR UPDATE` row lock on the
+      // brief — this serialises swap writes against any concurrent
+      // lock/unlock/swap on the same brief. The READS above are not
+      // inside the txn (re-doing them would double the round-trips
+      // for what is already a human-paced action), so a "last write
+      // wins" anomaly is theoretically possible if two operators
+      // mutate the same brief at the exact same instant — but the
+      // single-producer-per-brief workflow makes this vanishingly
+      // unlikely, and the producer can fix any bad state with one
+      // more click.
+      const allInvolvedIds = Array.from(
+        new Set([...occRoomA, ...occRoomB, a, b]),
+      );
+      await db.transaction(async (tx) => {
+        await tx.execute(
+          sql`SELECT 1 FROM ${projectBriefsTable} WHERE ${projectBriefsTable.id} = ${briefId} FOR UPDATE`,
+        );
+        await tx
+          .delete(briefRoomAssignmentsTable)
+          .where(
+            and(
+              eq(briefRoomAssignmentsTable.briefId, briefId),
+              inArray(
+                briefRoomAssignmentsTable.freelancerUserId,
+                allInvolvedIds,
+              ),
+            ),
+          );
+        await tx
+          .delete(briefRoomAssignmentsTable)
+          .where(
+            and(
+              eq(briefRoomAssignmentsTable.briefId, briefId),
+              inArray(briefRoomAssignmentsTable.roomKey, [roomA, roomB]),
+            ),
+          );
+        const inserts = [
+          ...newOccA.map((freelancerUserId) => ({
+            briefId,
+            freelancerUserId,
+            roomKey: roomA,
+            locked: true,
+          })),
+          ...newOccB.map((freelancerUserId) => ({
+            briefId,
+            freelancerUserId,
+            roomKey: roomB,
+            locked: true,
+          })),
+        ];
+        if (inserts.length > 0) {
+          await tx.insert(briefRoomAssignmentsTable).values(inserts);
+        }
+      });
+
+      res.json({ ok: true });
+    } catch (err) {
+      logger.error(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          briefId,
+        },
+        "portal briefs/:id/hotel/swap failed",
+      );
+      res
+        .status(500)
+        .json({ ok: false, error: "Could not swap rooms." });
     }
   },
 );

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { openRoomingList } from "../lib/roomingListExport";
 
 /** Server response shape for `GET /api/portal/briefs/:id/hotel`.
  *  Mirrors what `portalBriefs.ts` returns. Kept inline (not in `lib/`)
@@ -35,6 +36,13 @@ type HotelCrewRow = {
   gender: Gender;
   phone: string;
   profileless: boolean;
+  /** Slice B: server-suggested or producer-locked room assignment.
+   *  Null for crew not in the pairing set (hotelRequired=false). The
+   *  same key on two rows means they share a room. */
+  roomKey: string | null;
+  /** Slice B: whether this row was locked by the producer (via lock/
+   *  swap). UI shows a lock icon and the suggester won't move them. */
+  roomLocked: boolean;
 };
 
 const ROOM_SHARE_LABEL: Record<RoomShare, string> = {
@@ -81,6 +89,16 @@ export function HotelView({
   const [savingByGigId, setSavingByGigId] = useState<Record<string, boolean>>(
     {},
   );
+  // Slice B: producer's swap-selection. Holds 0–2 freelancerUserIds
+  // picked from DIFFERENT rooms. When length reaches 2 the "Swap" CTA
+  // becomes active. Clearing happens after a successful swap or by
+  // re-clicking the same row.
+  const [swapSelection, setSwapSelection] = useState<string[]>([]);
+  // Single in-flight flag for room-level actions (lock / unlock /
+  // swap). Coarser than savingByGigId on purpose — a room mutation
+  // affects multiple rows at once and we want the whole Rooms section
+  // to feel "frozen" until the round-trip lands.
+  const [roomActionInFlight, setRoomActionInFlight] = useState(false);
 
   const baseUrl =
     (typeof import.meta !== "undefined" &&
@@ -235,6 +253,188 @@ export function HotelView({
     }
   }
 
+  /** Shared post-mutation refetch — same shape as the initial load.
+   *  Pulled out of patchRow because the room handlers need the same
+   *  invalidation pattern. Best-effort: if the refetch fails, the
+   *  60s poll will eventually correct, so we just swallow the error.
+   *
+   *  Side-effect: prunes any swap selection whose target IDs ended up
+   *  in the same room (or vanished from the eligible set) after the
+   *  refetch. Without this, a producer who clicks Lock then queues a
+   *  Swap could end up trying to swap two people who are now in the
+   *  same room — server returns 400 "already in same room" which is
+   *  technically correct but confusing UX. */
+  async function refetch(): Promise<void> {
+    try {
+      const token = await getToken();
+      const r = await fetch(
+        `${baseUrl}api/portal/briefs/${briefId}/hotel`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+      );
+      if (r.ok) {
+        const j = (await r.json()) as HotelResponse;
+        if (j.ok) {
+          setData(j);
+          setSwapSelection((prev) => {
+            if (prev.length === 0) return prev;
+            const byUser = new Map(
+              (j.crew ?? []).map((c) => [
+                c.freelancerUserId,
+                c.roomKey,
+              ]),
+            );
+            // Drop any selection whose person is no longer in the
+            // eligible set, and any pair that's now in the same room.
+            const stillValid = prev.filter((id) => byUser.has(id));
+            if (stillValid.length === 2) {
+              const [k1, k2] = stillValid.map((id) => byUser.get(id));
+              if (k1 && k1 === k2) return [];
+            }
+            return stillValid.length === prev.length ? prev : stillValid;
+          });
+        }
+      }
+    } catch {
+      /* silent — poll will catch up */
+    }
+  }
+
+  /** Lock the given crew members into a single room together. The
+   *  server allocates the roomKey; we just refetch to see the new
+   *  layout. Used both for "lock current room" (occupants of an
+   *  existing roomKey) and future-friendly "create custom room". */
+  async function lockRoom(freelancerUserIds: string[]): Promise<void> {
+    if (freelancerUserIds.length < 1 || roomActionInFlight) return;
+    setRoomActionInFlight(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(
+        `${baseUrl}api/portal/briefs/${briefId}/hotel/lock`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ freelancerUserIds }),
+        },
+      );
+      if (!res.ok) {
+        setError("Could not lock room — refreshing…");
+      } else {
+        setError(null);
+      }
+      await refetch();
+    } catch {
+      setError("Connection lost — change may not have saved.");
+    } finally {
+      setRoomActionInFlight(false);
+    }
+  }
+
+  /** Remove the lock for a set of freelancers, returning them to the
+   *  engine's pool. Server tolerates ids that aren't currently locked
+   *  (no-op), so the UI doesn't need to filter. */
+  async function unlockRoom(freelancerUserIds: string[]): Promise<void> {
+    if (freelancerUserIds.length < 1 || roomActionInFlight) return;
+    setRoomActionInFlight(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(
+        `${baseUrl}api/portal/briefs/${briefId}/hotel/unlock`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ freelancerUserIds }),
+        },
+      );
+      if (!res.ok) {
+        setError("Could not unlock room — refreshing…");
+      } else {
+        setError(null);
+      }
+      await refetch();
+    } catch {
+      setError("Connection lost — change may not have saved.");
+    } finally {
+      setRoomActionInFlight(false);
+    }
+  }
+
+  /** Swap two freelancers between their rooms. Server-side this also
+   *  locks every occupant of both affected rooms — without that, the
+   *  pairing engine would happily re-pair the unlocked former
+   *  roommates on the next read and visually undo the swap. We clear
+   *  the swap selection on success regardless of whether the network
+   *  call won, so the UI returns to a clean state. */
+  async function swapPair(idA: string, idB: string): Promise<void> {
+    if (idA === idB || roomActionInFlight) return;
+    setRoomActionInFlight(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(
+        `${baseUrl}api/portal/briefs/${briefId}/hotel/swap`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            freelancerUserIdA: idA,
+            freelancerUserIdB: idB,
+          }),
+        },
+      );
+      if (!res.ok) {
+        setError("Could not swap — refreshing…");
+      } else {
+        setError(null);
+      }
+      setSwapSelection([]);
+      await refetch();
+    } catch {
+      setError("Connection lost — swap may not have saved.");
+      setSwapSelection([]);
+    } finally {
+      setRoomActionInFlight(false);
+    }
+  }
+
+  /** Toggle a freelancer in/out of the swap selection.
+   *  - Re-clicking the same person removes them.
+   *  - Clicking a 2nd person from the SAME room is a no-op (swapping
+   *    within a room makes no sense — surfaced via disabled checkbox
+   *    in the UI, but defended here too).
+   *  - At length 2, additional clicks replace the older selection so
+   *    the producer doesn't get stuck with a stale choice. */
+  function toggleSwapSelection(
+    freelancerUserId: string,
+    roomKey: string | null,
+  ): void {
+    if (!roomKey) return;
+    setSwapSelection((prev) => {
+      if (prev.includes(freelancerUserId)) {
+        return prev.filter((x) => x !== freelancerUserId);
+      }
+      if (prev.length === 0) return [freelancerUserId];
+      if (prev.length === 1) {
+        // Block same-room selection — see comment above.
+        const otherRoom = data?.crew?.find(
+          (c) => c.freelancerUserId === prev[0],
+        )?.roomKey;
+        if (otherRoom && otherRoom === roomKey) return prev;
+        return [prev[0], freelancerUserId];
+      }
+      // Length 2 — replace the OLDER pick (prev[0]) with the new
+      // click. Keeps prev[1] anchored as the user's "active" choice.
+      return [prev[1], freelancerUserId];
+    });
+  }
+
   // Split crew into "needs hotel" (the bulk of the view) and "local"
   // (collapsed, easy to flip back on). Memoised so the split doesn't
   // recompute on every keystroke in the date inputs.
@@ -277,6 +477,75 @@ export function HotelView({
     };
   }, [data?.crew, split.needsHotel]);
 
+  /** Group crew with hotelRequired by their server-assigned roomKey.
+   *  We rely on the server to have already run the pairing engine —
+   *  the UI never re-pairs on its own (would diverge from what the
+   *  rooming-list export produces). Sorted by the trailing room
+   *  number so "Room 1, Room 2, Room 3…" appears in natural order
+   *  even though the keys are strings. */
+  const roomGroups = useMemo(() => {
+    const byKey = new Map<string, HotelCrewRow[]>();
+    for (const c of split.needsHotel) {
+      if (!c.roomKey) continue;
+      const list = byKey.get(c.roomKey) ?? [];
+      list.push(c);
+      byKey.set(c.roomKey, list);
+    }
+    const groups = Array.from(byKey.entries()).map(([roomKey, occupants]) => {
+      const m = /^room-(\d+)$/.exec(roomKey);
+      const roomNumber = m ? Number(m[1]) : Number.MAX_SAFE_INTEGER;
+      return {
+        roomKey,
+        roomNumber,
+        occupants: [...occupants].sort((a, b) =>
+          a.name.localeCompare(b.name),
+        ),
+      };
+    });
+    groups.sort((a, b) => {
+      if (a.roomNumber !== b.roomNumber) return a.roomNumber - b.roomNumber;
+      return a.roomKey.localeCompare(b.roomKey);
+    });
+    return groups;
+  }, [split.needsHotel]);
+
+  /** Build the rooming-list export input from the same data the UI is
+   *  currently displaying, then open the print sheet in a new tab.
+   *  Pulls from `roomGroups` (already lock-aware and sort-stable) and
+   *  `split.local` so the printed handoff matches what the producer
+   *  sees on screen. We deliberately don't refetch first — the page
+   *  has been polling every 60 s and any pending optimistic updates
+   *  are already reflected; refetching here would only ever delay the
+   *  click for no real safety win. */
+  function handlePrintRoomingList(): void {
+    if (!data?.brief) return;
+    const rooms = roomGroups.map((g) => ({
+      roomKey: g.roomKey,
+      // A room is "locked" if any occupant is locked — the lock/swap
+      // flow always pins ALL occupants of an affected room, so this
+      // is equivalent to "the producer pinned this pairing".
+      locked: g.occupants.some((o) => o.roomLocked),
+      guests: g.occupants.map((o) => ({
+        freelancerUserId: o.freelancerUserId,
+        name: o.name,
+        role: o.role,
+        checkInDate: o.checkInDate,
+        checkOutDate: o.checkOutDate,
+        roomShare: o.roomShare,
+        phone: o.phone,
+      })),
+    }));
+    const noHotelGuests = split.local.map((c) => ({
+      name: c.name,
+      role: c.role,
+    }));
+    openRoomingList({
+      brief: data.brief,
+      rooms,
+      noHotelGuests,
+    });
+  }
+
   if (loading && !data) {
     return (
       <div className="led-report">
@@ -302,7 +571,10 @@ export function HotelView({
           </p>
         </div>
         {stats && (
-          <div className="led-report-meta">
+          <div
+            className="led-report-meta"
+            style={{ display: "flex", alignItems: "center", gap: 8 }}
+          >
             <span className="badge">
               <strong>{stats.heads}</strong> need
               {stats.heads === 1 ? "s" : ""} hotel
@@ -311,6 +583,29 @@ export function HotelView({
               <strong>{stats.nights}</strong> room-night
               {stats.nights === 1 ? "" : "s"}
             </span>
+            <button
+              type="button"
+              onClick={handlePrintRoomingList}
+              disabled={roomGroups.length === 0}
+              title={
+                roomGroups.length === 0
+                  ? "Toggle hotel-needed on at least one crew member to enable the rooming list."
+                  : "Open the rooming list in a new tab — print or save as PDF for the hotel."
+              }
+              style={{
+                padding: "6px 12px",
+                fontSize: 12,
+                fontWeight: 700,
+                border: "none",
+                borderRadius: 6,
+                cursor: roomGroups.length === 0 ? "not-allowed" : "pointer",
+                background: roomGroups.length === 0 ? "#555" : "#f88000",
+                color: "#fff",
+                opacity: roomGroups.length === 0 ? 0.6 : 1,
+              }}
+            >
+              Print rooming list
+            </button>
           </div>
         )}
       </header>
@@ -336,7 +631,223 @@ export function HotelView({
           <Stat label="Twin (will share)" value={stats.twin} />
           <Stat label="Single (private)" value={stats.single} />
           <Stat label="Either" value={stats.either} />
+          <Stat label="Rooms suggested" value={roomGroups.length} />
         </div>
+      )}
+
+      {roomGroups.length > 0 && (
+        <section className="led-card" style={{ marginBottom: 12 }}>
+          <div className="led-card-head">
+            <h3>Rooms</h3>
+            <span className="badge">
+              <strong>{roomGroups.length}</strong>
+            </span>
+          </div>
+          <p
+            style={{
+              fontSize: 12,
+              color: "var(--muted, #94a3b8)",
+              margin: "0 0 10px 0",
+            }}
+          >
+            Auto-paired by overlapping stay and room-share preference,
+            with same-gender matched where stated. Lock a room to
+            freeze it. Tick one person from each of two rooms then hit
+            Swap to swap them.
+          </p>
+          {swapSelection.length === 2 && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 10,
+                padding: "8px 12px",
+                background: "#1e293b",
+                border: "1px solid #334155",
+                borderRadius: 6,
+              }}
+            >
+              <span style={{ fontSize: 13, flex: 1 }}>
+                Swap{" "}
+                <strong>{nameOf(data?.crew, swapSelection[0])}</strong>{" "}
+                ↔{" "}
+                <strong>{nameOf(data?.crew, swapSelection[1])}</strong>?
+              </span>
+              <button
+                type="button"
+                onClick={() => setSwapSelection([])}
+                disabled={roomActionInFlight}
+                style={btnStyle(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  void swapPair(swapSelection[0], swapSelection[1])
+                }
+                disabled={roomActionInFlight}
+                style={btnStyle(true)}
+              >
+                {roomActionInFlight ? "Swapping…" : "Swap"}
+              </button>
+            </div>
+          )}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fill, minmax(240px, 1fr))",
+              gap: 10,
+            }}
+          >
+            {roomGroups.map((group) => {
+              // Defensive `new Set` — the server's GET /hotel handler
+              // already dedupes per-person, but if a future refactor
+              // ever lets a duplicate through, the lock endpoint
+              // would 400 with "Duplicate freelancer ids." and the
+              // producer would see a confusing failure. Belt-and-
+              // braces is essentially free here.
+              const occupantIds = Array.from(
+                new Set(group.occupants.map((o) => o.freelancerUserId)),
+              );
+              const anyLocked = group.occupants.some((o) => o.roomLocked);
+              return (
+                <div
+                  key={group.roomKey}
+                  style={{
+                    border: anyLocked
+                      ? "1px solid #fbbf24"
+                      : "1px solid #334155",
+                    borderRadius: 8,
+                    padding: 10,
+                    background: anyLocked ? "#78350f15" : "transparent",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>
+                      Room {group.roomNumber}
+                      {anyLocked && (
+                        <span
+                          title="Locked by producer"
+                          style={{ marginLeft: 6, color: "#fbbf24" }}
+                          aria-label="locked"
+                        >
+                          🔒
+                        </span>
+                      )}
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: "var(--muted, #94a3b8)",
+                      }}
+                    >
+                      {group.occupants.length === 1
+                        ? "1 bed used"
+                        : `${group.occupants.length} sharing`}
+                    </span>
+                  </div>
+                  <ul
+                    style={{
+                      listStyle: "none",
+                      padding: 0,
+                      margin: "0 0 8px 0",
+                    }}
+                  >
+                    {group.occupants.map((o) => {
+                      const selected = swapSelection.includes(
+                        o.freelancerUserId,
+                      );
+                      const sameRoomBlocks =
+                        swapSelection.length === 1 &&
+                        !selected &&
+                        data?.crew?.find(
+                          (c) =>
+                            c.freelancerUserId === swapSelection[0],
+                        )?.roomKey === group.roomKey;
+                      return (
+                        <li
+                          key={o.freelancerUserId}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            padding: "4px 0",
+                            fontSize: 13,
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            disabled={
+                              roomActionInFlight || sameRoomBlocks
+                            }
+                            title={
+                              sameRoomBlocks
+                                ? "Pick someone from a different room"
+                                : "Tick to swap"
+                            }
+                            onChange={() =>
+                              toggleSwapSelection(
+                                o.freelancerUserId,
+                                o.roomKey,
+                              )
+                            }
+                          />
+                          <span style={{ flex: 1 }}>
+                            <span style={{ fontWeight: 600 }}>
+                              {o.name}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                color: "var(--muted, #94a3b8)",
+                                marginLeft: 6,
+                              }}
+                            >
+                              {ROOM_SHARE_LABEL[o.roomShare]}
+                              {o.gender ? ` · ${o.gender}` : ""}
+                            </span>
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {anyLocked ? (
+                      <button
+                        type="button"
+                        disabled={roomActionInFlight}
+                        onClick={() => void unlockRoom(occupantIds)}
+                        style={btnStyle(false)}
+                      >
+                        Unlock
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={roomActionInFlight}
+                        onClick={() => void lockRoom(occupantIds)}
+                        style={btnStyle(false)}
+                      >
+                        Lock
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {split.needsHotel.length === 0 ? (
@@ -396,6 +907,35 @@ export function HotelView({
   );
 }
 
+/** Look up a crew member's display name by freelancerUserId. Used by
+ *  the swap confirmation banner so the producer sees real names instead
+ *  of opaque ids. Returns "?" if the row was deleted between selection
+ *  and render — shouldn't happen in practice but guards a crash. */
+function nameOf(
+  crew: HotelCrewRow[] | undefined,
+  freelancerUserId: string,
+): string {
+  return (
+    crew?.find((c) => c.freelancerUserId === freelancerUserId)?.name ?? "?"
+  );
+}
+
+/** Compact button style shared between the Rooms grid actions
+ *  (Lock/Unlock/Cancel/Swap). Primary variant is the gold accent
+ *  used elsewhere in the app for "main" producer actions. */
+function btnStyle(primary: boolean): React.CSSProperties {
+  return {
+    padding: "4px 10px",
+    fontSize: 12,
+    border: primary ? "1px solid #fbbf24" : "1px solid #334155",
+    background: primary ? "#fbbf24" : "transparent",
+    color: primary ? "#0f172a" : "inherit",
+    borderRadius: 4,
+    cursor: "pointer",
+    fontWeight: primary ? 700 : 500,
+  };
+}
+
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="led-stat">
@@ -436,6 +976,7 @@ function CrewTable({
             <Th>Hotel?</Th>
             <Th>Name</Th>
             <Th>Role</Th>
+            <Th>Room</Th>
             <Th>Check-in</Th>
             <Th>Check-out</Th>
             <Th>Room share</Th>
@@ -471,6 +1012,37 @@ function CrewTable({
                 )}
               </Td>
               <Td>{row.role || "—"}</Td>
+              <Td>
+                {row.roomKey ? (
+                  <span
+                    style={{
+                      fontSize: 12,
+                      padding: "2px 8px",
+                      borderRadius: 999,
+                      border: row.roomLocked
+                        ? "1px solid #fbbf24"
+                        : "1px solid var(--border, #334155)",
+                      color: row.roomLocked
+                        ? "#fbbf24"
+                        : "var(--text, inherit)",
+                      whiteSpace: "nowrap",
+                    }}
+                    title={
+                      row.roomLocked
+                        ? "Locked by producer"
+                        : "Auto-suggested by pairing engine"
+                    }
+                  >
+                    {row.roomLocked ? "🔒 " : ""}
+                    {(() => {
+                      const m = /^room-(\d+)$/.exec(row.roomKey);
+                      return m ? `Room ${m[1]}` : row.roomKey;
+                    })()}
+                  </span>
+                ) : (
+                  <span style={{ color: "var(--muted, #94a3b8)" }}>—</span>
+                )}
+              </Td>
               <Td>
                 <DateCell
                   iso={row.checkInDate}

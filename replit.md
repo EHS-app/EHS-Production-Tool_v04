@@ -55,6 +55,7 @@ This project is a pnpm workspace monorepo designed as an internal stage-tech too
 - **Crew Request Confirm → Gig Conversion**: When a freelancer accepts a brief, it materializes as a gig in the system, updating calendars and rosters.
 - **Crew Request Email-on-Send (Gmail)**: Sends email notifications to new brief recipients using the producer's connected Gmail account.
 - **Catering Aggregation**: Provides a per-day breakdown of confirmed crew meals, dietary restrictions, and allergies, with a one-click PDF export for venue chefs.
+- **Hotel Logistics**: Producer toggles "needs hotel" per crew member; check-in/check-out default to the first / morning-after-the-last assigned working day with per-person overrides; pairing engine suggests twin-share rooms by overlap + room-share preference + (optional) gender hint; producer can lock pairings and swap individuals between rooms (with `FOR UPDATE` row-locking on writes); one-click rooming list PDF export for the hotel front desk. Multi-gig freelancers are aggregated into one row per person across the GET / PATCH / pairing / lock pipeline.
 - **Auto-Assign Schedules → Gigs (Editable Working Days)**: Freelancers can override auto-computed assigned working days for gigs via a checkbox grid.
 - **Freelancer Gig Edits — Bidirectional Sync**: Gig edits by freelancers are optimistically applied locally and then synchronized bidirectionally with the server, including conflict resolution and multi-device convergence.
 

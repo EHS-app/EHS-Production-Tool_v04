@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "wouter";
+import { useUser } from "@clerk/react";
 import { PALETTE, type ThemeMode } from "../lib/portalTheme";
 import {
   gigEarnings,
@@ -64,6 +65,17 @@ function formatDayShort(iso: string): string {
 
 export function Hub({ theme, data }: { theme: ThemeMode; data: PortalData }) {
   const c = PALETTE[theme];
+  const { user } = useUser();
+
+  // Greeting first-name. Prefer the signed-in Clerk identity (always
+  // populated immediately on sign-in), then fall back to the first
+  // word of the freelancer's saved profile name, then to nothing — so
+  // the greeting reads "Hi Olti" the moment a user signs in, even
+  // before their portal profile has been filled in or persisted.
+  const firstName: string =
+    (user?.firstName && user.firstName.trim()) ||
+    (data.profile.fullName && data.profile.fullName.trim().split(/\s+/)[0]) ||
+    "";
 
   const today = todayIso();
   const weekStart = startOfWeekIso();
@@ -132,7 +144,7 @@ export function Hub({ theme, data }: { theme: ThemeMode; data: PortalData }) {
             })}
           </span>
           <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800 }}>
-            Hi{data.profile.fullName ? `, ${data.profile.fullName.split(" ")[0]}` : ""}
+            Hi{firstName ? ` ${firstName}` : ""}
           </h1>
         </div>
       </section>

@@ -41,6 +41,15 @@ export type Gig = {
    *  gigs that pre-date the feature; the UI treats undefined as "not
    *  checked in". */
   checkIn?: GigCheckIn;
+  /** Working days the freelancer has been booked for — sorted unique
+   *  YYYY-MM-DD strings. The server auto-populates this on accept by
+   *  intersecting the brief's `project.schedule` with the freelancer's
+   *  role (see `lib/roleSchedule.ts`); the producer can override the
+   *  list later via PATCH. Empty `[]` means "no per-day breakdown" —
+   *  the UI falls back to the `startDate..endDate` range in that case
+   *  so legacy gigs (and manually-logged gigs that pre-date the
+   *  feature) still render the date row sensibly. */
+  assignedDates: string[];
   /** Wall-clock timestamp of the most recent local mutation (save,
    *  status change, check-in toggle). The 60-second poll loop in
    *  `Portal.tsx` uses it as a freshness window — within ~60s of a
@@ -239,6 +248,25 @@ function normalizeCheckIn(raw: unknown): GigCheckIn | undefined {
   return { onTheWayAt, arrivedAt };
 }
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Coerce raw `assignedDates` to a sorted, deduplicated YYYY-MM-DD
+ *  array. Defensive against the server returning either an array of
+ *  strings (the JSON path) or — once the row is round-tripped through
+ *  Drizzle's `date().array()` — strings that already match the shape
+ *  but might include duplicates after a producer override race. */
+function normalizeAssignedDates(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  for (const entry of raw) {
+    if (typeof entry === "string" && ISO_DATE_RE.test(entry)) {
+      seen.add(entry);
+    }
+    if (seen.size >= 366) break;
+  }
+  return Array.from(seen).sort();
+}
+
 function normalizeGig(raw: unknown): Gig | null {
   if (typeof raw !== "object" || raw === null) return null;
   const g = raw as Partial<Gig>;
@@ -266,6 +294,7 @@ function normalizeGig(raw: unknown): Gig | null {
         : Date.now(),
     briefId: typeof g.briefId === "string" && g.briefId ? g.briefId : undefined,
     checkIn: normalizeCheckIn(g.checkIn),
+    assignedDates: normalizeAssignedDates(g.assignedDates),
     // Preserve the freshness-window timestamp across reloads. Without
     // this, a hard refresh would reopen the window for nothing
     // (everything looks server-fresh again) — but more importantly,
@@ -539,5 +568,14 @@ export function gigFromBrief(brief: ProjectBrief): Gig {
     status: "confirmed",
     createdAt: Date.now(),
     briefId: brief.briefId,
+    // Left blank intentionally on the optimistic local Gig — the
+    // server's POST /portal/briefs/:id/respond handler computes the
+    // canonical `assignedDates` from the brief's schedule × the
+    // freelancer's role and returns the materialised gig in the
+    // response. The next poll (or the response merge in Portal.tsx)
+    // then replaces this empty array with the server-authoritative
+    // list. The fallback display in Gigs.tsx renders the
+    // `startDate..endDate` range while the array is still empty.
+    assignedDates: [],
   };
 }

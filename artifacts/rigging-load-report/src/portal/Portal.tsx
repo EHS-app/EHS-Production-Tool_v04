@@ -370,6 +370,21 @@ function serverRowToGig(row: ServerGigRow): Gig | null {
       typeof row.checkIn.arrivedAt === "number")
       ? row.checkIn
       : undefined;
+  // The server returns `assigned_dates` as a string[] of YYYY-MM-DD
+  // values (Drizzle's `date().array()`), or omits the field entirely
+  // for older rows. Defensive against both shapes — bad entries are
+  // dropped rather than failing the whole gig coercion.
+  const isoDate = /^\d{4}-\d{2}-\d{2}$/;
+  const rawAssigned = (row as { assignedDates?: unknown }).assignedDates;
+  const assignedDates: string[] = Array.isArray(rawAssigned)
+    ? Array.from(
+        new Set(
+          rawAssigned.filter(
+            (x): x is string => typeof x === "string" && isoDate.test(x),
+          ),
+        ),
+      ).sort()
+    : [];
   return {
     id: row.id,
     projectName: row.projectName ?? "",
@@ -386,6 +401,7 @@ function serverRowToGig(row: ServerGigRow): Gig | null {
     createdAt,
     briefId: row.briefId ?? undefined,
     checkIn,
+    assignedDates,
   };
 }
 
@@ -464,6 +480,12 @@ function mergeServerGigs(
         const merged: Gig = { ...serverRow, lastEditedAt: g.lastEditedAt };
         // Detect any field-level diff so the parent only re-renders
         // on real changes.
+        // `assignedDates` is compared as a sorted joined string — both
+        // sides come out of `normalizeGig`/`serverRowToGig` already
+        // sorted+deduped, so a cheap equality check is sufficient.
+        const sameAssignedDates =
+          merged.assignedDates.length === g.assignedDates.length &&
+          merged.assignedDates.every((d, i) => d === g.assignedDates[i]);
         const diff =
           merged.status !== g.status ||
           merged.checkIn?.onTheWayAt !== g.checkIn?.onTheWayAt ||
@@ -478,7 +500,8 @@ function mergeServerGigs(
           merged.rate !== g.rate ||
           merged.flatFee !== g.flatFee ||
           merged.notes !== g.notes ||
-          merged.briefId !== g.briefId;
+          merged.briefId !== g.briefId ||
+          !sameAssignedDates;
         kept.push(merged);
         if (diff) changed = true;
       }

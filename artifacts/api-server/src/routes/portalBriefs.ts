@@ -10,6 +10,7 @@ import {
 } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { dispatchBriefRequestEmails } from "../lib/briefEmail";
+import { autoAssignedDatesFor } from "../lib/roleSchedule";
 
 const router: IRouter = Router();
 
@@ -133,6 +134,11 @@ function gigFieldsFromBrief(
   hours: string;
   rate: string;
   notes: string;
+  /** Working days for this freelancer — auto-assigned from the brief's
+   *  schedule × the role's default phase mapping. Falls back to every
+   *  day in `startDate..endDate` when the brief has no schedule. The
+   *  producer can override later via PATCH /api/portal/gigs/:id. */
+  assignedDates: string[];
 } {
   const data =
     brief.data && typeof brief.data === "object"
@@ -163,6 +169,16 @@ function gigFieldsFromBrief(
     return Math.min(n, 1_000_000_000).toFixed(2);
   };
   const startDate = brief.startDate;
+  const project =
+    data.project && typeof data.project === "object"
+      ? (data.project as Record<string, unknown>)
+      : {};
+  const assignedDates = autoAssignedDatesFor({
+    role,
+    schedule: project.schedule,
+    startDate,
+    endDate: brief.endDate ?? startDate,
+  });
   return {
     projectName: brief.projectName ?? brief.venue ?? "",
     client: brief.client ?? "",
@@ -173,6 +189,7 @@ function gigFieldsFromBrief(
     hours: toNumeric(target?.hours),
     rate: toNumeric(target?.dayRate),
     notes,
+    assignedDates,
   };
 }
 

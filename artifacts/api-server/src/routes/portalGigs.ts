@@ -7,6 +7,7 @@ import {
   projectBriefsTable,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
+import { normaliseAssignedDates } from "../lib/roleSchedule";
 
 const router: IRouter = Router();
 
@@ -87,6 +88,7 @@ function normaliseGig(body: Record<string, unknown>): {
   status: string;
   briefId: string | null;
   checkIn: Record<string, number> | null;
+  assignedDates: string[];
 } {
   const status = clampStr(body.status);
   return {
@@ -106,6 +108,7 @@ function normaliseGig(body: Record<string, unknown>): {
         ? body.briefId.trim().slice(0, 64)
         : null,
     checkIn: normaliseCheckIn(body.checkIn),
+    assignedDates: normaliseAssignedDates(body.assignedDates),
   };
 }
 
@@ -226,6 +229,9 @@ router.patch("/portal/gigs/:id", requireSignedIn, async (req, res) => {
   if (body.hours !== undefined) patch.hours = clampNum(body.hours);
   if (body.rate !== undefined) patch.rate = clampNum(body.rate);
   if (body.flatFee !== undefined) patch.flatFee = clampNum(body.flatFee);
+  if (body.assignedDates !== undefined) {
+    patch.assignedDates = normaliseAssignedDates(body.assignedDates);
+  }
   try {
     const updated = await db
       .update(gigsTable)

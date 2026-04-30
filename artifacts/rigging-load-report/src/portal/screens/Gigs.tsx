@@ -91,6 +91,10 @@ function emptyGig(): Gig {
     notes: "",
     status: "confirmed",
     createdAt: Date.now(),
+    // Manually-logged gigs default to no per-day breakdown — the date
+    // row falls back to start..end. Producer-shared briefs always have
+    // a server-computed list (see `gigFieldsFromBrief`).
+    assignedDates: [],
   };
 }
 
@@ -103,6 +107,69 @@ function formatDayShort(iso: string): string {
     month: "short",
     year: "2-digit",
   });
+}
+
+/** Add one day to a YYYY-MM-DD using UTC (timezone-stable). Used by
+ *  `summariseAssignedDates` to detect contiguous runs. */
+function addIsoDay(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Render a sorted YYYY-MM-DD list as a compact human-readable run.
+ *  e.g. ["2025-03-10","2025-03-12","2025-03-14","2025-03-15","2025-03-16"]
+ *       → "Mar 10, 12, 14–16"
+ *  Spans crossing months render as "Mar 30 – Apr 2". Years are dropped
+ *  inside the run because the gig card already shows the date row;
+ *  this string is the *secondary* breakdown next to it. */
+function summariseAssignedDates(dates: string[]): string {
+  if (dates.length === 0) return "";
+  // Group into contiguous runs.
+  type Run = { from: string; to: string };
+  const runs: Run[] = [];
+  for (const iso of dates) {
+    const last = runs[runs.length - 1];
+    if (last && addIsoDay(last.to) === iso) {
+      last.to = iso;
+    } else {
+      runs.push({ from: iso, to: iso });
+    }
+  }
+  // Render. We collapse same-month runs as "Mar 14–16" but spell out
+  // both months when a run spans two ("Mar 30 – Apr 2"). Single days
+  // render as "Mar 10". Within a same-month sequence of runs we drop
+  // the leading month after the first ("Mar 10, 12, 14–16").
+  const monthShort = (iso: string): string => {
+    const d = new Date(`${iso}T00:00:00Z`);
+    return d.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" });
+  };
+  const day = (iso: string): string => iso.slice(8, 10).replace(/^0/, "");
+  const parts: string[] = [];
+  let lastMonth = "";
+  for (const run of runs) {
+    const fromMonth = monthShort(run.from);
+    const toMonth = monthShort(run.to);
+    if (run.from === run.to) {
+      const piece =
+        fromMonth === lastMonth ? day(run.from) : `${fromMonth} ${day(run.from)}`;
+      parts.push(piece);
+      lastMonth = fromMonth;
+    } else if (fromMonth === toMonth) {
+      const piece =
+        fromMonth === lastMonth
+          ? `${day(run.from)}–${day(run.to)}`
+          : `${fromMonth} ${day(run.from)}–${day(run.to)}`;
+      parts.push(piece);
+      lastMonth = fromMonth;
+    } else {
+      parts.push(
+        `${fromMonth} ${day(run.from)} – ${toMonth} ${day(run.to)}`,
+      );
+      lastMonth = toMonth;
+    }
+  }
+  return parts.join(", ");
 }
 
 function formatNok(n: number): string {
@@ -188,6 +255,7 @@ export function Gigs({
           status: gig.status,
           briefId: gig.briefId ?? null,
           checkIn: gig.checkIn ?? null,
+          assignedDates: gig.assignedDates,
         }),
       });
       if (!res.ok) {
@@ -610,6 +678,37 @@ export function Gigs({
                         : ""}
                       {g.venue ? ` · ${g.venue}` : ""}
                     </div>
+                    {g.assignedDates.length > 0 ? (
+                      <div
+                        title={g.assignedDates.join(", ")}
+                        style={{
+                          fontSize: 12,
+                          color: c.muted,
+                          marginBottom: 6,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                            padding: "2px 8px",
+                            borderRadius: 999,
+                            background: "rgba(248,128,0,0.10)",
+                            color: c.text,
+                            fontWeight: 600,
+                          }}
+                        >
+                          {g.assignedDates.length} working day
+                          {g.assignedDates.length === 1 ? "" : "s"}
+                        </span>
+                        <span>{summariseAssignedDates(g.assignedDates)}</span>
+                      </div>
+                    ) : null}
                     <div style={{ fontSize: 13, color: c.text }}>
                       <strong>{formatNok(gigEarnings(g))}</strong>
                       <span style={{ color: c.muted }}>

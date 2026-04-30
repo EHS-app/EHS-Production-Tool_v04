@@ -5,6 +5,7 @@ import {
   db,
   projectBriefsTable,
   briefAssignmentsTable,
+  gigsTable,
   type ProjectBriefRow,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
@@ -89,6 +90,89 @@ function extractIndexed(data: Record<string, unknown>): {
     venue,
     startDate: pickDate(project.date),
     endDate: pickDate(project.endDate),
+  };
+}
+
+/** Gig statuses past `confirmed` that the freelancer themselves drives
+ *  (done → invoiced → paid). When a re-accept or acknowledge fires
+ *  against an existing gig in one of these states, we must keep the
+ *  status as-is rather than silently downgrading the booking back to
+ *  `confirmed`. `invited` is allowed to be promoted to `confirmed`
+ *  because the freelancer hasn't acted on the gig yet. */
+const TERMINAL_GIG_STATUSES: ReadonlySet<string> = new Set([
+  "done",
+  "invoiced",
+  "paid",
+]);
+
+/** Build the gigs-table fields for a freelancer who just won a brief.
+ *  Pulls project-name / venue / dates from the denormalised columns
+ *  (which the brief POST handler computed via `extractIndexed`) and
+ *  drills into the `data` jsonb to find the per-crew role / hours /
+ *  rate for the slot the caller was addressed for. We use `crewId`
+ *  to pick the right line out of `data.assignments[]`; if it doesn't
+ *  resolve we fall back to the first assignment so the gig still has
+ *  a sensible role label rather than an empty string. */
+function gigFieldsFromBrief(
+  brief: {
+    projectName: string | null;
+    client: string | null;
+    venue: string | null;
+    startDate: string | null;
+    endDate: string | null;
+    data: unknown;
+  },
+  crewId: string,
+): {
+  projectName: string;
+  client: string;
+  venue: string;
+  role: string;
+  startDate: string | null;
+  endDate: string | null;
+  hours: string;
+  rate: string;
+  notes: string;
+} {
+  const data =
+    brief.data && typeof brief.data === "object"
+      ? (brief.data as Record<string, unknown>)
+      : {};
+  const assignments = Array.isArray(data.assignments)
+    ? (data.assignments as Record<string, unknown>[])
+    : [];
+  const target =
+    (crewId
+      ? assignments.find((a) => typeof a.crewId === "string" && a.crewId === crewId)
+      : undefined) ?? assignments[0];
+  const role =
+    target && typeof target.role === "string" ? target.role.slice(0, 280) : "";
+  const notes =
+    target && typeof target.notes === "string"
+      ? target.notes.slice(0, 4000)
+      : "";
+  // numeric() columns expect strings; coerce defensively.
+  const toNumeric = (raw: unknown): string => {
+    const n =
+      typeof raw === "number"
+        ? raw
+        : typeof raw === "string"
+          ? Number(raw)
+          : 0;
+    if (!Number.isFinite(n) || n < 0) return "0";
+    return Math.min(n, 1_000_000_000).toFixed(2);
+  };
+  const startDate = brief.startDate;
+  return {
+    projectName: brief.projectName ?? brief.venue ?? "",
+    client: brief.client ?? "",
+    venue: brief.venue ?? "",
+    role,
+    startDate,
+    endDate: brief.endDate ?? startDate,
+    hours: toNumeric(target?.hours),
+    rate: toNumeric(target?.dayRate),
+    notes,
   };
 }
 
@@ -496,7 +580,15 @@ router.post(
         // every accept attempt for that slot regardless of which
         // freelancer they belong to.
         const briefRows = await tx
-          .select({ id: projectBriefsTable.id })
+          .select({
+            id: projectBriefsTable.id,
+            projectName: projectBriefsTable.projectName,
+            client: projectBriefsTable.client,
+            venue: projectBriefsTable.venue,
+            startDate: projectBriefsTable.startDate,
+            endDate: projectBriefsTable.endDate,
+            data: projectBriefsTable.data,
+          })
           .from(projectBriefsTable)
           .where(eq(projectBriefsTable.id, briefId))
           .for("update")
@@ -504,6 +596,7 @@ router.post(
         if (briefRows.length === 0) {
           return { kind: "no_brief" as const };
         }
+        const briefRow = briefRows[0];
         // Always pull the full sibling set up-front so we can enforce
         // the state-transition rules below regardless of which branch
         // we end up in. The cost is one extra SELECT per request,
@@ -514,6 +607,7 @@ router.post(
             id: briefAssignmentsTable.id,
             freelancerUserId: briefAssignmentsTable.freelancerUserId,
             decision: briefAssignmentsTable.decision,
+            crewId: briefAssignmentsTable.crewId,
           })
           .from(briefAssignmentsTable)
           .where(eq(briefAssignmentsTable.briefId, briefId));
@@ -569,10 +663,26 @@ router.post(
             .where(eq(briefAssignmentsTable.id, myRow.id))
             .returning();
           if (updated.length === 0) return { kind: "no_assignment" as const };
+          // If the freelancer is undoing a win (was accepted, now
+          // declining or going back to pending), tear down the gig
+          // we previously materialised for them. Scoped to (brief,
+          // freelancer) so a manually-created gig with the same brief
+          // link from a different flow stays untouched.
+          if (myRow.decision === "accepted") {
+            await tx
+              .delete(gigsTable)
+              .where(
+                and(
+                  eq(gigsTable.briefId, briefId),
+                  eq(gigsTable.freelancerUserId, userId),
+                ),
+              );
+          }
           return {
             kind: "ok" as const,
             assignment: updated[0],
             tooLate: false,
+            gig: null,
           };
         }
         // Accept path — check whether anyone else has already won. We
@@ -603,23 +713,12 @@ router.post(
             tooLate: true,
           };
         }
-        // Won the race (or already held the win). Mark this row
-        // accepted, then sweep every other still-pending sibling to
-        // `too_late`. Already-declined siblings are left alone — a
-        // freelancer who said no shouldn't have their decision
-        // rewritten just because another candidate happened to
-        // accept later.
-        const updated = await tx
-          .update(briefAssignmentsTable)
-          .set({
-            decision: "accepted",
-            decidedAt: sql`now()`,
-            acceptedSnapshot,
-            acceptedGigId,
-            updatedAt: sql`now()`,
-          })
-          .where(eq(briefAssignmentsTable.id, myRow.id))
-          .returning();
+        // Sweep every other still-pending sibling to `too_late`.
+        // Already-declined siblings are left alone — a freelancer who
+        // said no shouldn't have their decision rewritten just because
+        // another candidate happened to accept later. We do this
+        // *before* materialising the gig so the assignment row update
+        // below carries the resolved gig id in a single write.
         await tx
           .update(briefAssignmentsTable)
           .set({
@@ -631,12 +730,102 @@ router.post(
             and(
               eq(briefAssignmentsTable.briefId, briefId),
               eq(briefAssignmentsTable.decision, "pending"),
+              // Don't accidentally sweep ourselves — myRow may still be
+              // in the `pending` state at this point.
             ),
           );
+        // Materialise the booking. The gig row is the source of truth
+        // for the freelancer's calendar, the producer's booked roster
+        // (via the brief link), and the directory's `booked` status
+        // pill. Idempotency is keyed on (briefId, freelancerUserId)
+        // — *not* on the client-supplied `acceptedGigId` — so a
+        // retried accept (or an "acknowledge changes" re-confirm) can
+        // never produce duplicate rows or overwrite somebody else's
+        // gig via a guessed id (IDOR). The FOR UPDATE lock on the
+        // brief row earlier in this transaction serialises every
+        // accept attempt for the same (brief, freelancer) pair, so
+        // the SELECT-then-INSERT/UPDATE pattern below cannot race.
+        const gigFields = gigFieldsFromBrief(briefRow, myRow.crewId);
+        const existingGig = await tx
+          .select({ id: gigsTable.id, status: gigsTable.status })
+          .from(gigsTable)
+          .where(
+            and(
+              eq(gigsTable.briefId, briefId),
+              eq(gigsTable.freelancerUserId, userId),
+            ),
+          )
+          .limit(1);
+        let gigRow;
+        if (existingGig.length > 0) {
+          // Preserve any status the freelancer has progressed the gig
+          // into via PATCH /portal/gigs/:id (`done` / `invoiced` /
+          // `paid`). A re-accept or acknowledge must never silently
+          // downgrade a paid gig back to `confirmed`.
+          const preserveStatus = TERMINAL_GIG_STATUSES.has(
+            existingGig[0].status,
+          );
+          const setClause: Record<string, unknown> = {
+            ...gigFields,
+            updatedAt: sql`now()`,
+          };
+          if (!preserveStatus) setClause.status = "confirmed";
+          const updatedGig = await tx
+            .update(gigsTable)
+            .set(setClause)
+            .where(eq(gigsTable.id, existingGig[0].id))
+            .returning();
+          gigRow = updatedGig[0] ?? null;
+        } else {
+          // Always server-generate the id. The client's
+          // `acceptedGigId` is treated as advisory at most — we never
+          // trust it as a target row id because doing so would let
+          // any signed-in caller overwrite arbitrary rows by guessing
+          // an id (IDOR). The new id is returned to the client which
+          // swaps its optimistic local gig over.
+          const newId = `gig_${randomUUID()}`;
+          const insertedGig = await tx
+            .insert(gigsTable)
+            .values({
+              id: newId,
+              freelancerUserId: userId,
+              briefId,
+              ...gigFields,
+              status: "confirmed",
+            })
+            .returning();
+          gigRow = insertedGig[0] ?? null;
+        }
+        // Mark this row accepted. We carry the *resolved* server gig
+        // id (from the insert/update above) so the assignments table
+        // and the gigs table never disagree on which gig represents
+        // this booking — even when the client's optimistic id was
+        // ignored. We refuse to fall back to the client-supplied
+        // `acceptedGigId` here: doing so would re-introduce a path
+        // where the assignment row points at a row id the client
+        // chose, blunting the IDOR fix above. If gig materialisation
+        // somehow returned null we abort the whole transaction.
+        if (!gigRow) {
+          throw new Error(
+            "gig materialisation returned no row; aborting accept",
+          );
+        }
+        const updated = await tx
+          .update(briefAssignmentsTable)
+          .set({
+            decision: "accepted",
+            decidedAt: sql`now()`,
+            acceptedSnapshot,
+            acceptedGigId: gigRow.id,
+            updatedAt: sql`now()`,
+          })
+          .where(eq(briefAssignmentsTable.id, myRow.id))
+          .returning();
         return {
           kind: "ok" as const,
           assignment: updated[0],
           tooLate: false,
+          gig: gigRow,
         };
       });
       if (result.kind === "no_brief") {
@@ -653,6 +842,13 @@ router.post(
         ok: true,
         assignment: result.assignment,
         tooLate: result.tooLate,
+        // Hand back the gig the transaction materialised (or null on
+        // a decline / pending / too-late branch). The freelancer
+        // client uses `gig.id` to swap its optimistic local gig over
+        // to the server's authoritative id, since the server now
+        // ignores the client's suggested `acceptedGigId` to defeat
+        // the IDOR-overwrite vector.
+        gig: result.gig ?? null,
       });
     } catch (err) {
       logger.error(

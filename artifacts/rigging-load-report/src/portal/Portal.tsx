@@ -17,6 +17,8 @@ import {
   type PortalData,
   type SharedBrief,
   type BriefDecision,
+  type Gig,
+  type GigStatus,
   EMPTY_PORTAL_DATA,
 } from "./lib/portalStorage";
 import type { ProjectBrief } from "../lib/projectBrief";
@@ -84,6 +86,50 @@ export function Portal({ theme, onToggleTheme }: PortalProps) {
           .map(serverRowToSharedBrief)
           .filter((b): b is SharedBrief => b !== null);
         setData((prev) => mergeServerBriefs(prev, serverShared));
+      } catch {
+        /* swallow — local state is still usable, will retry */
+      }
+    };
+    void fetchAndMerge();
+    const t = window.setInterval(fetchAndMerge, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, [isSignedIn, userId, getToken]);
+
+  // Pull server-side gigs (created when the freelancer accepts a brief
+  // and any future server-authored bookings) into the local store.
+  // Server gigs are merged additively so a fresh device picks up the
+  // freelancer's bookings, but local edits in flight (status changes,
+  // show-day check-in timestamps) are preserved by keeping the local
+  // copy whenever a row already exists under the same id. Same 60-second
+  // poll cadence as briefs.
+  useEffect(() => {
+    if (!isSignedIn || !userId) return;
+    let cancelled = false;
+    const baseUrl =
+      (typeof import.meta !== "undefined" &&
+        (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+      "/";
+    const fetchAndMerge = async () => {
+      try {
+        const token = await getToken();
+        if (cancelled) return;
+        const res = await fetch(`${baseUrl}api/portal/gigs`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (cancelled || !res.ok) return;
+        const json = (await res.json()) as {
+          ok?: boolean;
+          gigs?: ServerGigRow[];
+        };
+        if (cancelled || !json.ok || !Array.isArray(json.gigs)) return;
+        const serverGigs = json.gigs
+          .filter((g) => g.freelancerUserId === userId)
+          .map(serverRowToGig)
+          .filter((g): g is Gig => g !== null);
+        setData((prev) => mergeServerGigs(prev, serverGigs, prev.briefs));
       } catch {
         /* swallow — local state is still usable, will retry */
       }
@@ -253,6 +299,163 @@ const FRESH_DECISION_WINDOW_MS = 60_000;
  *  silently stuck. Local-only briefs (legacy share-links) are
  *  preserved untouched. The merged list is sorted by receivedAt desc
  *  so the Briefs screen ordering stays sensible. */
+/** Shape of a row returned by `GET /api/portal/gigs`. The endpoint
+ *  returns gigs the caller can see in either role (their own gigs or
+ *  gigs from briefs they own). The portal only consumes its own. */
+type ServerGigRow = {
+  id: string;
+  freelancerUserId: string;
+  briefId: string | null;
+  projectName: string;
+  client: string;
+  venue: string;
+  role: string;
+  startDate: string | null;
+  endDate: string | null;
+  hours: string | number;
+  rate: string | number;
+  flatFee: string | number;
+  notes: string;
+  status: string;
+  checkIn: { onTheWayAt?: number; arrivedAt?: number } | null;
+  createdAt: string;
+};
+
+const VALID_GIG_STATUSES: ReadonlySet<string> = new Set([
+  "invited",
+  "confirmed",
+  "done",
+  "invoiced",
+  "paid",
+]);
+
+/** Convert a server gig row into the local Gig shape. Coerces the
+ *  numeric() string columns into numbers, normalises the status, and
+ *  parses the ISO timestamp into the epoch-ms `createdAt` the local
+ *  store uses. Returns null for rows that fail validation so a single
+ *  bad row never poisons the merge. */
+function serverRowToGig(row: ServerGigRow): Gig | null {
+  if (!row || typeof row !== "object") return null;
+  if (typeof row.id !== "string" || !row.id) return null;
+  const toNum = (v: unknown): number => {
+    const n = typeof v === "number" ? v : Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const status: GigStatus = VALID_GIG_STATUSES.has(row.status)
+    ? (row.status as GigStatus)
+    : "confirmed";
+  const createdAt = (() => {
+    const t = Date.parse(row.createdAt ?? "");
+    return Number.isFinite(t) ? t : Date.now();
+  })();
+  const checkIn =
+    row.checkIn &&
+    typeof row.checkIn === "object" &&
+    (typeof row.checkIn.onTheWayAt === "number" ||
+      typeof row.checkIn.arrivedAt === "number")
+      ? row.checkIn
+      : undefined;
+  return {
+    id: row.id,
+    projectName: row.projectName ?? "",
+    client: row.client ?? "",
+    venue: row.venue ?? "",
+    role: row.role ?? "",
+    startDate: row.startDate ?? "",
+    endDate: row.endDate ?? row.startDate ?? "",
+    hours: toNum(row.hours),
+    rate: toNum(row.rate),
+    flatFee: toNum(row.flatFee),
+    notes: row.notes ?? "",
+    status,
+    createdAt,
+    briefId: row.briefId ?? undefined,
+    checkIn,
+  };
+}
+
+/** Merge server-originated gigs into the local PortalData. Three cases:
+ *
+ *  1. **Server gig that already exists locally** — the local copy wins
+ *     on every field. The freelancer may be mid-edit (status change,
+ *     show-day check-in, hours/rate tweak) and the local Gigs screen
+ *     doesn't yet push those edits to the server, so a server poll
+ *     must never overwrite them.
+ *  2. **Server-only gig** — added in place (a fresh device, or another
+ *     device created the gig since this one last polled).
+ *  3. **Brief-linked local gig that's missing from the server** — this
+ *     means the server has authoritatively *removed* the booking
+ *     (winner reversed their accept; producer cancelled the brief).
+ *     We drop it locally too, otherwise stale "confirmed" gigs would
+ *     linger forever in the freelancer's calendar / Gigs screen.
+ *
+ *     The exception: if the owning brief was decided locally within
+ *     the freshness window, the corresponding /respond POST may still
+ *     be in flight — removing the gig under us would cause it to
+ *     vanish-then-reappear once the server catches up. So we keep
+ *     brief-linked local gigs whose SharedBrief carries a fresh
+ *     `decidedLocallyAt`.
+ *
+ *     Local-only gigs (no `briefId` — manual logbook entries) are
+ *     never removed by this merge regardless. */
+function mergeServerGigs(
+  prev: PortalData,
+  server: Gig[],
+  briefs: SharedBrief[] | undefined,
+): PortalData {
+  const now = Date.now();
+  const serverIds = new Set<string>();
+  for (const s of server) serverIds.add(s.id);
+  const freshBriefIds = new Set<string>();
+  // Older persisted PortalData payloads (pre-Slice-2) may have no
+  // `briefs` array at all — this hook still has to be safe to call
+  // before the migration runs, otherwise the freelancer sees a blank
+  // crash on first load.
+  const briefsList = Array.isArray(briefs) ? briefs : [];
+  for (const b of briefsList) {
+    if (
+      typeof b.decidedLocallyAt === "number" &&
+      now - b.decidedLocallyAt < FRESH_DECISION_WINDOW_MS
+    ) {
+      freshBriefIds.add(b.briefId);
+    }
+  }
+  const kept: Gig[] = [];
+  let changed = false;
+  for (const g of prev.gigs) {
+    // Local-only gigs (no brief link): keep unconditionally.
+    if (!g.briefId) {
+      kept.push(g);
+      continue;
+    }
+    // Server still has it: keep our local copy (preserves in-flight edits).
+    if (serverIds.has(g.id)) {
+      kept.push(g);
+      continue;
+    }
+    // Server doesn't have it. If the owning brief was decided locally
+    // within the freshness window, our /respond POST is probably still
+    // landing — keep the gig until the next poll proves otherwise.
+    if (freshBriefIds.has(g.briefId)) {
+      kept.push(g);
+      continue;
+    }
+    // Otherwise: server is authoritative. Drop the orphan.
+    changed = true;
+  }
+  // Add any server-only gigs.
+  const localIds = new Set<string>();
+  for (const g of kept) localIds.add(g.id);
+  for (const s of server) {
+    if (localIds.has(s.id)) continue;
+    kept.push(s);
+    changed = true;
+  }
+  if (!changed) return prev;
+  kept.sort((a, b) => b.createdAt - a.createdAt);
+  return { ...prev, gigs: kept };
+}
+
 function mergeServerBriefs(
   prev: PortalData,
   server: SharedBrief[],

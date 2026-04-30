@@ -122,7 +122,12 @@ export function BriefDetail({
 
   /** POST `/api/portal/briefs/:id/respond` and report the outcome to
    *  the caller. Returns:
-   *    - `{ ok: true,  tooLate: false }` on a clean accept/decline.
+   *    - `{ ok: true,  tooLate: false, serverGigId? }` on a clean
+   *      accept/decline. `serverGigId` is the row id the server
+   *      materialised — the server now ignores any client-supplied
+   *      `acceptedGigId` (to defeat IDOR) and always returns its own
+   *      authoritative id, which the caller swaps the optimistic
+   *      local gig over to.
    *    - `{ ok: true,  tooLate: true  }` when the server tells us a
    *      sibling candidate beat this freelancer to the slot. The
    *      caller is responsible for stripping the local accept and
@@ -132,7 +137,7 @@ export function BriefDetail({
    *      the server (those are treated as a soft success so the
    *      offline-only flow keeps working). */
   type SyncResult =
-    | { ok: true; tooLate: boolean }
+    | { ok: true; tooLate: boolean; serverGigId?: string | null }
     | { ok: false; status?: number; error: string };
   const syncDecisionToServer = async (
     decision: "accepted" | "declined" | "pending",
@@ -175,6 +180,7 @@ export function BriefDetail({
         ok?: boolean;
         tooLate?: boolean;
         error?: string;
+        gig?: { id?: string | null } | null;
       };
       if (!json.ok) {
         return {
@@ -183,7 +189,13 @@ export function BriefDetail({
           error: json.error || "Server rejected the response",
         };
       }
-      return { ok: true, tooLate: Boolean(json.tooLate) };
+      const serverGigId =
+        json.gig && typeof json.gig.id === "string" ? json.gig.id : null;
+      return {
+        ok: true,
+        tooLate: Boolean(json.tooLate),
+        serverGigId,
+      };
     } catch (e) {
       return {
         ok: false,
@@ -331,6 +343,28 @@ export function BriefDetail({
       setSyncError(
         "Could not save your response — please check your connection and try again.",
       );
+      return;
+    }
+    // Server accepted us. The server now authoritatively picks the gig
+    // id (it ignores any client-supplied `acceptedGigId` to defeat
+    // IDOR), so if it returned a different id than our optimistic
+    // local gig we swap them: drop the local one, link the brief to
+    // the server id. The polling effect in Portal.tsx will hydrate
+    // the actual server gig fields on the next tick.
+    if (
+      result.serverGigId &&
+      result.serverGigId !== gigIdForServer
+    ) {
+      const serverId = result.serverGigId;
+      setData((prev) => {
+        const next = updateBrief(prev, briefId, {
+          acceptedGigId: serverId,
+        });
+        const filtered = createdGigId
+          ? next.gigs.filter((g) => g.id !== createdGigId)
+          : next.gigs;
+        return { ...next, gigs: filtered };
+      });
     }
   }
 
@@ -380,21 +414,45 @@ export function BriefDetail({
   async function decline() {
     if (!entry) return;
     const prevDecision = entry.decision;
-    setData((prev) =>
-      updateBrief(prev, briefId, {
+    const prevAcceptedGigId = entry.acceptedGigId;
+    const prevAcceptedSnapshot = entry.acceptedSnapshot;
+    // If the freelancer is reversing a prior accept, capture the gig
+    // they made then so we can restore it on a sync failure.
+    const wasAccepted = prevDecision === "accepted";
+    const removedGig = wasAccepted && prevAcceptedGigId
+      ? data.gigs.find((g) => g.id === prevAcceptedGigId) ?? null
+      : null;
+    setData((prev) => {
+      const next = updateBrief(prev, briefId, {
         decision: "declined",
+        // Tearing down the booking on the freelancer's side: clear the
+        // brief's link to the gig and drop the gig itself, otherwise
+        // the Gigs / Calendar screens keep showing a confirmed booking
+        // for a brief that's now declined. The server is doing the
+        // same teardown in the same /respond transaction, so the
+        // multi-device poll will agree.
+        acceptedGigId: undefined,
+        acceptedSnapshot: undefined,
         decidedLocallyAt: Date.now(),
-      }),
-    );
+      });
+      return prevAcceptedGigId
+        ? { ...next, gigs: next.gigs.filter((g) => g.id !== prevAcceptedGigId) }
+        : next;
+    });
     setSyncError(null);
     const result = await syncDecisionToServer("declined");
     if (!result.ok) {
-      setData((prev) =>
-        updateBrief(prev, briefId, {
+      setData((prev) => {
+        const next = updateBrief(prev, briefId, {
           decision: prevDecision,
+          acceptedGigId: prevAcceptedGigId,
+          acceptedSnapshot: prevAcceptedSnapshot,
           decidedLocallyAt: undefined,
-        }),
-      );
+        });
+        return removedGig
+          ? { ...next, gigs: [removedGig, ...next.gigs] }
+          : next;
+      });
       setSyncError(
         "Could not save your decline — please try again in a moment.",
       );
@@ -406,23 +464,39 @@ export function BriefDetail({
     const prevDecision = entry.decision;
     const prevAcceptedGigId = entry.acceptedGigId;
     const prevAcceptedSnapshot = entry.acceptedSnapshot;
-    setData((prev) =>
-      updateBrief(prev, briefId, {
+    // Same gig-teardown logic as decline(): undoing an accept must
+    // pull the materialised gig back out of the freelancer's local
+    // calendar so they don't see a stale "confirmed" booking for a
+    // brief they're no longer committed to.
+    const wasAccepted = prevDecision === "accepted";
+    const removedGig = wasAccepted && prevAcceptedGigId
+      ? data.gigs.find((g) => g.id === prevAcceptedGigId) ?? null
+      : null;
+    setData((prev) => {
+      const next = updateBrief(prev, briefId, {
         decision: "pending",
+        acceptedGigId: undefined,
+        acceptedSnapshot: undefined,
         decidedLocallyAt: Date.now(),
-      }),
-    );
+      });
+      return prevAcceptedGigId
+        ? { ...next, gigs: next.gigs.filter((g) => g.id !== prevAcceptedGigId) }
+        : next;
+    });
     setSyncError(null);
     const result = await syncDecisionToServer("pending");
     if (!result.ok) {
-      setData((prev) =>
-        updateBrief(prev, briefId, {
+      setData((prev) => {
+        const next = updateBrief(prev, briefId, {
           decision: prevDecision,
           acceptedGigId: prevAcceptedGigId,
           acceptedSnapshot: prevAcceptedSnapshot,
           decidedLocallyAt: undefined,
-        }),
-      );
+        });
+        return removedGig
+          ? { ...next, gigs: [removedGig, ...next.gigs] }
+          : next;
+      });
       setSyncError(
         "Could not undo your response — please try again in a moment.",
       );

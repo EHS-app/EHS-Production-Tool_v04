@@ -147,6 +147,14 @@ export type Profile = {
   skills: string[];
   bankAccount: string;
   orgNumber: string;
+  /** Hotel pairing inputs (Phase B Feature 3). Stored on the
+   *  freelancer's profile so the producer's hotel suggester has them
+   *  on hand without needing to ask per-brief. `roomShare='either'`
+   *  is the safe default — won't push anyone into a single they
+   *  didn't ask for. `gender=''` means "didn't say" and is treated
+   *  as a wildcard by the pairing algo. */
+  roomShare: "twin" | "single" | "either";
+  gender: "" | "female" | "male" | "other";
 };
 
 export type AvailabilityState = "available" | "busy";
@@ -178,6 +186,8 @@ export const EMPTY_PROFILE: Profile = {
   skills: [],
   bankAccount: "",
   orgNumber: "",
+  roomShare: "either",
+  gender: "",
 };
 
 export const EMPTY_PORTAL_DATA: PortalData = {
@@ -222,6 +232,14 @@ function normalizeProfile(input: unknown): Profile {
       : [],
     bankAccount: typeof p.bankAccount === "string" ? p.bankAccount : "",
     orgNumber: typeof p.orgNumber === "string" ? p.orgNumber : "",
+    roomShare:
+      p.roomShare === "twin" || p.roomShare === "single"
+        ? p.roomShare
+        : "either",
+    gender:
+      p.gender === "female" || p.gender === "male" || p.gender === "other"
+        ? p.gender
+        : "",
   };
 }
 

@@ -63,6 +63,7 @@ import {
 } from "./lib/crew";
 import { CrewReportView } from "./components/CrewReportView";
 import { CateringView } from "./components/CateringView";
+import { HotelView } from "./components/HotelView";
 import { AvailableCrewSidebar } from "./components/AvailableCrewSidebar";
 import { skillToCrewRole } from "./lib/skillToCrewRole";
 import {
@@ -619,6 +620,7 @@ type MainView =
   | "stage"
   | "crew"
   | "catering"
+  | "hotel"
   | "sound"
   | "riggPlan";
 
@@ -4284,6 +4286,18 @@ function App() {
             Catering
           </button>
         )}
+        {/* Hotel tab gates on activeBriefId for the same reason as
+            Catering: hotel logistics are aggregated per brief from
+            the brief's confirmed crew, so there's nothing to show
+            without one. */}
+        {activeBriefId && (
+          <button
+            className={`view-tab ${mainView === "hotel" ? "is-active" : ""}`}
+            onClick={() => setMainView("hotel")}
+          >
+            Hotel
+          </button>
+        )}
         <button
           className={`view-tab ${mainView === "riggPlan" ? "is-active" : ""}`}
           onClick={() => setMainView("riggPlan")}
@@ -5077,6 +5091,10 @@ function App() {
 
       {mainView === "catering" && activeBriefId && (
         <CateringView briefId={activeBriefId} getToken={getToken} />
+      )}
+
+      {mainView === "hotel" && activeBriefId && (
+        <HotelView briefId={activeBriefId} getToken={getToken} />
       )}
 
       {mainView === "sound" && (

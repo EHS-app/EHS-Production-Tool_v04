@@ -1098,6 +1098,319 @@ router.get(
   },
 );
 
+/** GET /api/portal/briefs/:id/hotel — owner-only.
+ *  Returns the hotel-logistics view for the brief's confirmed crew:
+ *  for each gig (countable status only), the freelancer's name, role,
+ *  hotel-needed flag, derived-or-explicit check-in/out dates, and the
+ *  pairing inputs the producer needs (room-share preference, gender).
+ *
+ *  Owner-only because exposing other crew members' room-share or
+ *  gender preferences to peers would be a privacy leak — the hotel
+ *  view is an internal back-of-house tool, not a roster page. The
+ *  pairing engine itself ships in Slice B; for now this endpoint
+ *  returns the raw inputs only so Slice A can render the list.
+ *
+ *  Date derivation rule: if `gig.checkInDate` is null we use
+ *  `min(assignedDates)`; if `gig.checkOutDate` is null we use
+ *  `max(assignedDates) + 1 day` (hotel-style "the night after the
+ *  last show"). Producer overrides via PATCH always win. */
+router.get(
+  "/portal/briefs/:id/hotel",
+  requireSignedIn,
+  async (req, res) => {
+    const userId = (req as unknown as { _userId: string })._userId;
+    const id = String(req.params.id ?? "");
+    try {
+      const briefRows = await db
+        .select({
+          id: projectBriefsTable.id,
+          ownerUserId: projectBriefsTable.ownerUserId,
+          venue: projectBriefsTable.venue,
+          projectName: projectBriefsTable.projectName,
+        })
+        .from(projectBriefsTable)
+        .where(eq(projectBriefsTable.id, id))
+        .limit(1);
+      const brief = briefRows[0];
+      if (!brief) {
+        res.status(404).json({ ok: false, error: "Brief not found." });
+        return;
+      }
+      if (brief.ownerUserId !== userId) {
+        res.status(403).json({ ok: false, error: "Not your brief." });
+        return;
+      }
+
+      const rows = await db
+        .select({
+          gigId: gigsTable.id,
+          gigRole: gigsTable.role,
+          assignedDates: gigsTable.assignedDates,
+          status: gigsTable.status,
+          hotelRequired: gigsTable.hotelRequired,
+          checkInDate: gigsTable.checkInDate,
+          checkOutDate: gigsTable.checkOutDate,
+          freelancerUserId: gigsTable.freelancerUserId,
+          // Profile-side (nullable on left join) — same access pattern
+          // as the catering endpoint: profileless freelancers still
+          // get listed so the producer can chase their preferences.
+          profileFullName: freelancerProfilesTable.fullName,
+          profilePhone: freelancerProfilesTable.phone,
+          profileRoomShare: freelancerProfilesTable.roomShare,
+          profileGender: freelancerProfilesTable.gender,
+        })
+        .from(gigsTable)
+        .leftJoin(
+          freelancerProfilesTable,
+          eq(gigsTable.freelancerUserId, freelancerProfilesTable.userId),
+        )
+        .where(eq(gigsTable.briefId, id));
+
+      const crew = rows
+        .filter((r) => COUNTABLE_GIG_STATUSES.has(r.status))
+        .map((r) => {
+          const dates: string[] = (Array.isArray(r.assignedDates)
+            ? r.assignedDates
+            : []
+          )
+            .map((d) =>
+              typeof d === "string"
+                ? d.slice(0, 10)
+                : String(d).slice(0, 10),
+            )
+            .filter((iso) => /^\d{4}-\d{2}-\d{2}$/.test(iso))
+            .sort();
+          const minIso = dates[0] ?? null;
+          const maxIso = dates[dates.length - 1] ?? null;
+          // "Check-out is the morning after the last working day" —
+          // standard touring convention. Compute via UTC to avoid
+          // timezone day-shift on the producer's browser later.
+          let derivedCheckOut: string | null = null;
+          if (maxIso) {
+            const d = new Date(`${maxIso}T00:00:00Z`);
+            d.setUTCDate(d.getUTCDate() + 1);
+            derivedCheckOut = d.toISOString().slice(0, 10);
+          }
+          const hasProfile = typeof r.profileFullName === "string";
+          const name =
+            (hasProfile ? r.profileFullName : null) ||
+            `Crew member ${r.freelancerUserId.slice(-4)}`;
+          // Drizzle's `date` column returns a string in "YYYY-MM-DD"
+          // form, but be defensive — coerce anything else to null.
+          const ci =
+            typeof r.checkInDate === "string"
+              ? r.checkInDate.slice(0, 10)
+              : null;
+          const co =
+            typeof r.checkOutDate === "string"
+              ? r.checkOutDate.slice(0, 10)
+              : null;
+          return {
+            gigId: r.gigId,
+            freelancerUserId: r.freelancerUserId,
+            name,
+            role: r.gigRole ?? "",
+            hotelRequired: !!r.hotelRequired,
+            // Override-or-derived. UI shows the resolved value but
+            // also exposes the explicit flag so producers know if a
+            // value was hand-edited.
+            checkInDate: ci ?? minIso,
+            checkOutDate: co ?? derivedCheckOut,
+            checkInExplicit: ci !== null,
+            checkOutExplicit: co !== null,
+            roomShare:
+              r.profileRoomShare === "twin" ||
+              r.profileRoomShare === "single"
+                ? r.profileRoomShare
+                : "either",
+            gender:
+              r.profileGender === "female" ||
+              r.profileGender === "male" ||
+              r.profileGender === "other"
+                ? r.profileGender
+                : "",
+            phone: typeof r.profilePhone === "string" ? r.profilePhone : "",
+            profileless: !hasProfile,
+          };
+        })
+        // Stable sort: by name (alphabetical) so re-renders don't
+        // shuffle rows under the producer's cursor mid-edit.
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      res.json({
+        ok: true,
+        brief: {
+          id: brief.id,
+          projectName: brief.projectName,
+          venue: brief.venue,
+        },
+        crew,
+      });
+    } catch (err) {
+      logger.error(
+        { err: err instanceof Error ? err.message : String(err), briefId: id },
+        "portal briefs/:id/hotel GET failed",
+      );
+      res
+        .status(500)
+        .json({ ok: false, error: "Could not load hotel data." });
+    }
+  },
+);
+
+/** PATCH /api/portal/briefs/:id/hotel/:gigId — owner-only.
+ *  Producer-side update of the hotel flags on a single gig under
+ *  their own brief. Body fields (all optional, partial update):
+ *  - hotelRequired: boolean    — flips the per-crew "needs a hotel".
+ *  - checkInDate:   string|null — explicit ISO override (null reverts
+ *                                 to the auto-derived value).
+ *  - checkOutDate:  string|null — same, for check-out.
+ *
+ *  We re-verify ownership AND that the gig genuinely belongs to this
+ *  brief (`brief_id = :id`) — not just the gig id — so a producer
+ *  can't update a gig from somebody else's brief by guessing its id
+ *  (closes IDOR vector). The freelancer's own
+ *  `PATCH /portal/gigs/:id` route deliberately does NOT accept these
+ *  fields because hotel logistics are producer-controlled. */
+router.patch(
+  "/portal/briefs/:id/hotel/:gigId",
+  requireSignedIn,
+  async (req, res) => {
+    const userId = (req as unknown as { _userId: string })._userId;
+    const briefId = String(req.params.id ?? "");
+    const gigId = String(req.params.gigId ?? "");
+    const body = (req.body ?? {}) as Record<string, unknown>;
+
+    // ISO date validator — strict shape AND calendar-real check.
+    // The regex catches "2025-02-31"-style format-valid-but-impossible
+    // dates by round-tripping through Date (which silently rolls them
+    // forward into the next month). Without the round-trip we'd push
+    // a bad value to Postgres and bubble back as a 500.
+    const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
+    function parseDateField(raw: unknown):
+      | { ok: true; value: string | null }
+      | { ok: false } {
+      if (raw === null) return { ok: true, value: null };
+      if (typeof raw !== "string") return { ok: false };
+      const trimmed = raw.trim();
+      if (trimmed === "") return { ok: true, value: null };
+      if (!ISO_RE.test(trimmed)) return { ok: false };
+      // Calendar-real check: parse as UTC, then re-format and compare.
+      // Date silently overflows invalid combos (Feb 31 → Mar 3) so
+      // a mismatch means the input wasn't a real calendar date.
+      const d = new Date(`${trimmed}T00:00:00Z`);
+      if (Number.isNaN(d.getTime())) return { ok: false };
+      if (d.toISOString().slice(0, 10) !== trimmed) return { ok: false };
+      return { ok: true, value: trimmed };
+    }
+
+    const patch: Record<string, unknown> = { updatedAt: sql`now()` };
+    if (body.hotelRequired !== undefined) {
+      // Strict boolean — string "false" or numeric 0 in JSON should
+      // be rejected, not silently coerced. Producers PATCH this from
+      // the UI as a real boolean; anything else is a client bug.
+      if (typeof body.hotelRequired !== "boolean") {
+        res
+          .status(400)
+          .json({ ok: false, error: "hotelRequired must be a boolean." });
+        return;
+      }
+      patch.hotelRequired = body.hotelRequired;
+    }
+    if (body.checkInDate !== undefined) {
+      const parsed = parseDateField(body.checkInDate);
+      if (!parsed.ok) {
+        res
+          .status(400)
+          .json({ ok: false, error: "Invalid checkInDate." });
+        return;
+      }
+      patch.checkInDate = parsed.value;
+    }
+    if (body.checkOutDate !== undefined) {
+      const parsed = parseDateField(body.checkOutDate);
+      if (!parsed.ok) {
+        res
+          .status(400)
+          .json({ ok: false, error: "Invalid checkOutDate." });
+        return;
+      }
+      patch.checkOutDate = parsed.value;
+    }
+    // Cross-field check: when BOTH dates are supplied in the same
+    // request, reject impossible ranges (check-out before check-in).
+    // We don't fetch existing values for the single-field case —
+    // producers may legitimately edit one date at a time and fix the
+    // pair on the next save.
+    if (
+      typeof patch.checkInDate === "string" &&
+      typeof patch.checkOutDate === "string" &&
+      (patch.checkOutDate as string) <= (patch.checkInDate as string)
+    ) {
+      res.status(400).json({
+        ok: false,
+        error: "checkOutDate must be after checkInDate.",
+      });
+      return;
+    }
+    // No accepted fields → noop (don't bump updatedAt for an empty
+    // request — saves a write and avoids polluting the audit trail).
+    if (Object.keys(patch).length === 1) {
+      res.status(400).json({ ok: false, error: "No updatable fields." });
+      return;
+    }
+
+    try {
+      // Owner check + brief membership in one query — do this BEFORE
+      // touching the gig so unauthorised callers get a clean 403/404
+      // and never trigger a DB write.
+      const briefRows = await db
+        .select({ ownerUserId: projectBriefsTable.ownerUserId })
+        .from(projectBriefsTable)
+        .where(eq(projectBriefsTable.id, briefId))
+        .limit(1);
+      const brief = briefRows[0];
+      if (!brief) {
+        res.status(404).json({ ok: false, error: "Brief not found." });
+        return;
+      }
+      if (brief.ownerUserId !== userId) {
+        res.status(403).json({ ok: false, error: "Not your brief." });
+        return;
+      }
+      const updated = await db
+        .update(gigsTable)
+        .set(patch)
+        .where(and(eq(gigsTable.id, gigId), eq(gigsTable.briefId, briefId)))
+        .returning({
+          id: gigsTable.id,
+          hotelRequired: gigsTable.hotelRequired,
+          checkInDate: gigsTable.checkInDate,
+          checkOutDate: gigsTable.checkOutDate,
+        });
+      if (updated.length === 0) {
+        res
+          .status(404)
+          .json({ ok: false, error: "Gig not found on this brief." });
+        return;
+      }
+      res.json({ ok: true, gig: updated[0] });
+    } catch (err) {
+      logger.error(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          briefId,
+          gigId,
+        },
+        "portal briefs/:id/hotel/:gigId PATCH failed",
+      );
+      res
+        .status(500)
+        .json({ ok: false, error: "Could not update hotel data." });
+    }
+  },
+);
+
 // Silence unused-warning on the row type re-exported only for callers.
 export type { ProjectBriefRow };
 

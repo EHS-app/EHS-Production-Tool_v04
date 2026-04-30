@@ -156,6 +156,52 @@ export function Profile({
         </Grid2>
       </Section>
 
+      <Section theme={theme} title="Travel & accommodation">
+        <p
+          style={{
+            margin: 0,
+            marginBottom: 10,
+            fontSize: 13,
+            color: c.muted,
+            lineHeight: 1.5,
+          }}
+        >
+          Used only by the producer's hotel suggester when a project
+          needs accommodation. Twin = OK to share a twin room with
+          another crew member; Single = needs a private room. Gender is
+          optional and only used to default to same-gender twin pairings
+          (most crew prefer it, hotels expect it). Producers always have
+          the final say.
+        </p>
+        <Grid2>
+          <Field theme={theme} label="Room sharing">
+            <SegmentedControl
+              theme={theme}
+              value={draft.roomShare}
+              onChange={(v) => patch("roomShare", v)}
+              options={[
+                { value: "twin", label: "Twin (will share)" },
+                { value: "single", label: "Single (private)" },
+                { value: "either", label: "Either" },
+              ]}
+            />
+          </Field>
+          <Field theme={theme} label="Gender (optional)">
+            <SegmentedControl
+              theme={theme}
+              value={draft.gender}
+              onChange={(v) => patch("gender", v)}
+              options={[
+                { value: "", label: "Prefer not to say" },
+                { value: "female", label: "Female" },
+                { value: "male", label: "Male" },
+                { value: "other", label: "Other" },
+              ]}
+            />
+          </Field>
+        </Grid2>
+      </Section>
+
       <Section theme={theme} title="Skills & equipment">
         <p style={{ margin: 0, marginBottom: 10, fontSize: 13, color: c.muted, lineHeight: 1.5 }}>
           Add the disciplines, consoles and certifications you can cover. Type to search the library or just hit Enter to add anything.
@@ -479,6 +525,49 @@ function Section({
       </h2>
       {children}
     </section>
+  );
+}
+
+function SegmentedControl<T extends string>({
+  theme,
+  value,
+  onChange,
+  options,
+}: {
+  theme: ThemeMode;
+  value: T;
+  onChange: (next: T) => void;
+  options: ReadonlyArray<{ value: T; label: string }>;
+}) {
+  // Pill-group used for short, exclusive choices (room sharing,
+  // gender). Mirrors the existing Languages preset pattern stylistically
+  // so the profile editor stays visually consistent.
+  const c = PALETTE[theme];
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      {options.map((opt) => {
+        const active = value === opt.value;
+        return (
+          <button
+            key={opt.value || "_unset"}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            style={{
+              padding: "7px 14px",
+              fontSize: 13,
+              fontWeight: 600,
+              borderRadius: 999,
+              cursor: "pointer",
+              background: active ? c.accent : "transparent",
+              color: active ? "#0b0b0b" : c.text,
+              border: `1px solid ${active ? c.accent : c.border}`,
+            }}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

@@ -39,6 +39,22 @@ export const freelancerProfilesTable = pgTable("freelancer_profiles", {
   allergies: text("allergies").notNull().default(""),
   bankAccount: text("bank_account").notNull().default(""),
   orgNumber: text("org_number").notNull().default(""),
+  /** Room-sharing preference for hotel logistics. The pairing engine
+   *  (Phase B Feature 3) uses this to suggest twin-share matches:
+   *  'twin' = OK to share a twin room with another crew member,
+   *  'single' = needs a private room (e.g. CPAP, sleep schedule,
+   *  personal preference — never asked why), 'either' = no preference,
+   *  treated as 'twin' by the suggester unless the only available
+   *  partner would force an awkward pairing. Default 'either' so
+   *  legacy profiles don't get artificially upgraded to single. */
+  roomShare: text("room_share").notNull().default("either"),
+  /** Optional gender hint used ONLY by the room-pairing suggester to
+   *  prefer same-gender twin matches by default (most crew prefer it,
+   *  hotels expect it). Stored as free text — '' / 'female' / 'male'
+   *  / 'other' — empty string means "didn't say", which the pairing
+   *  algo treats as a wildcard. Never surfaced to other freelancers,
+   *  never used outside hotel pairing. */
+  gender: text("gender").notNull().default(""),
   /** Spoken languages — strict subset of the Language group. */
   languages: text("languages").array().notNull().default([]),
   /** All skills the freelancer carries (Work Type + Console & Software

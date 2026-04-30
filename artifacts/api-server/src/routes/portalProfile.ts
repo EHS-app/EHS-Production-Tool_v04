@@ -106,6 +106,18 @@ function normaliseProfile(
     allergies: clampStr(body.allergies),
     bankAccount: clampStr(body.bankAccount),
     orgNumber: clampStr(body.orgNumber),
+    // Hotel pairing inputs (Phase B Feature 3). Both are clamped to a
+    // strict allowlist server-side so freelancers can't poison the
+    // pairing engine with stray values; anything off-list collapses to
+    // the safe default ('either' for room share, '' for gender).
+    roomShare: ((): "twin" | "single" | "either" => {
+      const raw = clampStr(body.roomShare).toLowerCase();
+      return raw === "twin" || raw === "single" ? raw : "either";
+    })(),
+    gender: ((): string => {
+      const raw = clampStr(body.gender).toLowerCase();
+      return raw === "female" || raw === "male" || raw === "other" ? raw : "";
+    })(),
     languages: sanitizeSkills(
       Array.isArray(body.languages)
         ? body.languages.filter((x): x is string => typeof x === "string")

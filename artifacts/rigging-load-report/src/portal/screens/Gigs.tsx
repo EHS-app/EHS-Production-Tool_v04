@@ -973,6 +973,14 @@ function GigEditor({
             </Field>
           </div>
 
+          <WorkingDaysEditor
+            theme={theme}
+            startDate={draft.startDate}
+            endDate={draft.endDate}
+            assignedDates={draft.assignedDates}
+            onChange={(next) => patch("assignedDates", next)}
+          />
+
           <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr 1fr" }}>
             <Field theme={theme} label="Hours">
               <input
@@ -1194,6 +1202,217 @@ function CheckInControls({
           Arrived
         </button>
       )}
+    </div>
+  );
+}
+
+/** Day-by-day toggle grid for `gig.assignedDates`, shown inside the
+ *  GigEditor modal. The freelancer can override the server-computed
+ *  defaults — e.g. a Rigging member who needs to be on-site for
+ *  rehearsal too can tick that day, or a Sound member who's only on
+ *  show days can untick the build days.
+ *
+ *  The visible days are the union of (startDate..endDate range) ∪
+ *  (currently-assigned dates outside that range), so editing the
+ *  start/end never silently drops a checked day. The range is hard-
+ *  capped at 90 days (longer gigs are rare and would blow up the modal)
+ *  — anything past that is hidden from the grid but preserved in the
+ *  array so a long brief still keeps its full schedule on save. */
+function WorkingDaysEditor({
+  theme,
+  startDate,
+  endDate,
+  assignedDates,
+  onChange,
+}: {
+  theme: ThemeMode;
+  startDate: string;
+  endDate: string;
+  assignedDates: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const c = PALETTE[theme];
+  const ISO = /^\d{4}-\d{2}-\d{2}$/;
+  // Strict ISO check — shape *and* round-trip via the Date parser to
+  // reject month/day overflow like 2026-02-30. Mirrors the server-side
+  // `isValidIsoDate` helper so editor-side validation can't be looser
+  // than what the server will accept on save.
+  const isValidIso = (s: string): boolean => {
+    if (!ISO.test(s)) return false;
+    const d = new Date(`${s}T00:00:00Z`);
+    if (Number.isNaN(d.getTime())) return false;
+    return d.toISOString().slice(0, 10) === s;
+  };
+  // Hard upper bound on visible buttons regardless of where they came
+  // from — the start..end range *and* any out-of-range checked dates
+  // both feed into this list, so the cap has to be applied to the
+  // final union (not just the range loop). Anything beyond 90 visible
+  // entries gets surfaced as a "+N preserved" notice instead of
+  // rendering hundreds of buttons in the modal.
+  const VISIBLE_CAP = 90;
+  // Compute the visible day list. UTC arithmetic keeps the result
+  // timezone-stable — same approach as the server-side helper.
+  const visibleSet = new Set<string>();
+  if (isValidIso(startDate)) {
+    const end =
+      isValidIso(endDate) && endDate >= startDate ? endDate : startDate;
+    let cursor = startDate;
+    let guard = 0;
+    while (cursor <= end && guard < VISIBLE_CAP) {
+      visibleSet.add(cursor);
+      if (cursor === end) break;
+      const d = new Date(`${cursor}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + 1);
+      cursor = d.toISOString().slice(0, 10);
+      guard += 1;
+    }
+  }
+  // Fold in any checked-but-out-of-range dates so toggling endDate
+  // doesn't strand them invisibly — but only up to the cap, with the
+  // remainder reported separately so the producer-set monster brief
+  // doesn't render 366 buttons.
+  let hiddenCount = 0;
+  for (const a of assignedDates) {
+    if (!isValidIso(a)) {
+      // Malformed entry from corrupt/legacy data — count as hidden so
+      // the user knows there's "something else preserved" but we
+      // refuse to materialise an invalid date as a toggleable button.
+      hiddenCount += 1;
+      continue;
+    }
+    if (visibleSet.has(a)) continue;
+    if (visibleSet.size < VISIBLE_CAP) visibleSet.add(a);
+    else hiddenCount += 1;
+  }
+  const days: string[] = Array.from(visibleSet).sort();
+  const checked = new Set(assignedDates);
+  const total = days.length;
+  const selectedVisible = days.filter((d) => checked.has(d)).length;
+  const allOn = total > 0 && selectedVisible === total;
+
+  function toggle(iso: string) {
+    const next = new Set(checked);
+    if (next.has(iso)) next.delete(iso);
+    else next.add(iso);
+    onChange(Array.from(next).sort());
+  }
+  function setAll(on: boolean) {
+    if (on) {
+      // Union with whatever was already checked outside the visible
+      // range (shouldn't happen normally, but be safe).
+      const next = new Set(checked);
+      for (const d of days) next.add(d);
+      onChange(Array.from(next).sort());
+    } else {
+      // Drop everything in the visible range; keep out-of-range
+      // entries to avoid silent data loss on a misconfigured range.
+      const visible = new Set(days);
+      const next = Array.from(checked)
+        .filter((d) => !visible.has(d))
+        .sort();
+      onChange(next);
+    }
+  }
+
+  if (total === 0) {
+    return null;
+  }
+
+  return (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: 8,
+          marginBottom: 6,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: c.muted,
+            textTransform: "uppercase",
+            letterSpacing: 0.4,
+          }}
+        >
+          Working days
+        </span>
+        <span style={{ fontSize: 12, color: c.muted }}>
+          {selectedVisible} of {total} selected
+          {hiddenCount > 0 ? ` · +${hiddenCount} preserved` : ""}
+        </span>
+        <button
+          type="button"
+          onClick={() => setAll(!allOn)}
+          style={{
+            marginLeft: "auto",
+            background: "transparent",
+            border: `1px solid ${c.border}`,
+            color: c.text,
+            borderRadius: 6,
+            padding: "3px 10px",
+            fontSize: 12,
+            cursor: "pointer",
+          }}
+        >
+          {allOn ? "Clear all" : "Select all"}
+        </button>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 6,
+          padding: 10,
+          border: `1px solid ${c.border}`,
+          borderRadius: 8,
+          background: c.inputBg,
+        }}
+      >
+        {days.map((iso) => {
+          const isOn = checked.has(iso);
+          const d = new Date(`${iso}T00:00:00Z`);
+          const dow = d.toLocaleDateString("en-GB", {
+            weekday: "short",
+            timeZone: "UTC",
+          });
+          const dm = d.toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            timeZone: "UTC",
+          });
+          return (
+            <button
+              key={iso}
+              type="button"
+              onClick={() => toggle(iso)}
+              aria-pressed={isOn}
+              title={iso}
+              style={{
+                display: "inline-flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 1,
+                minWidth: 56,
+                padding: "6px 10px",
+                fontSize: 12,
+                lineHeight: 1.15,
+                fontWeight: 600,
+                cursor: "pointer",
+                border: `1px solid ${isOn ? c.accent : c.border}`,
+                background: isOn ? c.accent : "transparent",
+                color: isOn ? "#0b0b0b" : c.text,
+                borderRadius: 8,
+              }}
+            >
+              <span style={{ opacity: 0.75, fontWeight: 700 }}>{dow}</span>
+              <span>{dm}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

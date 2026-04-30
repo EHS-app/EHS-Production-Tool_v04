@@ -341,7 +341,7 @@ function StageCard({
           </label>
 
           {!isManual && (
-            <label className="stage-field">
+            <label className="stage-field stage-field--narrow">
               <span>Width (m)</span>
               <NumberField
                 min={0.5}
@@ -354,7 +354,7 @@ function StageCard({
           )}
 
           {!isManual && (
-            <label className="stage-field">
+            <label className="stage-field stage-field--narrow">
               <span>Depth (m)</span>
               <NumberField
                 min={0.5}
@@ -411,7 +411,7 @@ function StageCard({
             </select>
           </label>
 
-          <label className="stage-field">
+          <label className="stage-field stage-field--auto">
             <span>Build from</span>
             <select
               value={stage.buildOrder}
@@ -420,21 +420,9 @@ function StageCard({
               }
               title="Which side the crew starts building from. Affects the deck numbering and (in 4-2-2-1 mode) the per-deck legs-needed count."
             >
-              <option value="leftToRight">Left side → right (default)</option>
-              <option value="rightToLeft">Right side → left (opposite)</option>
+              <option value="leftToRight">Left → right</option>
+              <option value="rightToLeft">Right → left</option>
             </select>
-            <small
-              style={{
-                color: "#64748b",
-                fontSize: 11,
-                marginTop: 4,
-                lineHeight: 1.3,
-                display: "block",
-              }}
-            >
-              Numbering on each deck shows the build order and how many
-              legs to install on that deck.
-            </small>
           </label>
 
           <fieldset className="stage-rails">

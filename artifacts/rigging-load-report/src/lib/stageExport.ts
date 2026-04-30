@@ -99,22 +99,48 @@ function buildStageSvg(stage: Stage, calc: StageCalc): string {
     );
   }
 
-  // Deck rectangles + labels.
-  for (const p of calc.decks) {
+  // Deck rectangles + size labels + assembly badges. Layout matches
+  // the on-screen StageSvg view: a white-circle badge with the build
+  // sequence number sits ABOVE the size label, and a "+N legs"
+  // caption sits below — all centred horizontally on the deck.
+  for (let i = 0; i < calc.decks.length; i++) {
+    const p = calc.decks[i];
+    const asm = calc.assembly[i];
     const dx = PAD + LABEL + p.x * scale;
     const dy = PAD + p.y * scale;
     const dw = p.w * scale;
     const dh = p.d * scale;
+    const cxDeck = dx + dw / 2;
+    const cyDeck = dy + dh / 2;
     parts.push(
       `<rect x="${dx}" y="${dy}" width="${dw}" height="${dh}" fill="${DECK_FILL[p.key]}" fill-opacity="0.7" stroke="#0f172a" stroke-opacity="0.7" stroke-width="1" />`,
     );
-    if (dw >= 32 && dh >= 22) {
-      const fontSize = Math.min(dw, dh) * 0.22;
+    const sizeFont = Math.min(dw, dh) * 0.22;
+    const showSize = dw >= 32 && dh >= 22;
+    if (showSize) {
       parts.push(
-        `<text x="${dx + dw / 2}" y="${
-          dy + dh / 2 + fontSize / 3
-        }" text-anchor="middle" font-size="${fontSize}" font-family="system-ui, sans-serif" fill="#fff" font-weight="600">${DECK_LABEL[p.key]}</text>`,
+        `<text x="${cxDeck}" y="${cyDeck}" text-anchor="middle" dominant-baseline="central" font-size="${sizeFont}" font-family="system-ui, sans-serif" fill="#fff" font-weight="600">${DECK_LABEL[p.key]}</text>`,
       );
+    }
+    if (asm) {
+      const badgeRadius = Math.max(8, Math.min(13, Math.min(dw, dh) * 0.16));
+      const badgeCy = showSize
+        ? cyDeck - sizeFont * 0.55 - badgeRadius - 2
+        : cyDeck;
+      const captionFont = Math.max(9, badgeRadius * 0.95);
+      const captionY = cyDeck + sizeFont * 0.55 + captionFont * 0.9 + 2;
+      const stackHeight =
+        badgeRadius * 2 + (showSize ? sizeFont : 0) + captionFont + 12;
+      const showCaption = showSize && dh >= stackHeight && dw >= 56;
+      parts.push(
+        `<circle cx="${cxDeck}" cy="${badgeCy}" r="${badgeRadius}" fill="#fff" stroke="#0f172a" stroke-width="1.25" />`,
+        `<text x="${cxDeck}" y="${badgeCy}" text-anchor="middle" dominant-baseline="central" font-size="${badgeRadius * 1.15}" font-family="system-ui, sans-serif" fill="#0f172a" font-weight="700">${asm.sequence}</text>`,
+      );
+      if (showCaption) {
+        parts.push(
+          `<text x="${cxDeck}" y="${captionY}" text-anchor="middle" dominant-baseline="central" font-size="${captionFont}" font-family="system-ui, sans-serif" fill="#fff" font-weight="600">+${asm.legsAdded} ${asm.legsAdded === 1 ? "leg" : "legs"}</text>`,
+        );
+      }
     }
   }
 
@@ -271,6 +297,21 @@ export function exportStageReport(input: {
           .join("") +
         `<tr class="row-total"><td>Subtotal</td><td></td><td></td><td>${fmt(calc.deckWeight, 1)} kg</td></tr>`;
 
+  // Build sequence: numbered, in the order the crew should assemble.
+  // Mirrors the on-screen badges (1, 2, 3…) and shows how many legs
+  // are added per deck so the build crew can pre-stage hardware.
+  const assemblyRows =
+    calc.assembly.length === 0
+      ? `<tr><td colspan="3" class="muted">— no decks placed —</td></tr>`
+      : calc.assembly
+          .map((a) => {
+            const deck = calc.decks[a.sequence - 1];
+            const sizeLabel = deck ? DECK_LABEL[deck.key] : "—";
+            return `<tr><td><strong>${a.sequence}</strong></td><td>${sizeLabel}</td><td>+${a.legsAdded} ${a.legsAdded === 1 ? "leg" : "legs"}</td></tr>`;
+          })
+          .join("") +
+        `<tr class="row-total"><td>Total</td><td>${calc.decks.length} decks</td><td>${calc.legCount} legs</td></tr>`;
+
   const railsEnabled = (
     ["front", "back", "left", "right"] as const
   ).filter((side) => stage.rails[side]);
@@ -417,6 +458,10 @@ export function exportStageReport(input: {
     <div class="label">Layout mode</div>
     <div class="value">${stage.editMode === "manual" ? "Manual placement" : "Auto-tiled"}</div>
   </div>
+  <div class="meta-item">
+    <div class="label">Build direction</div>
+    <div class="value">${stage.buildOrder === "rightToLeft" ? "Right → left" : "Left → right"}</div>
+  </div>
 </div>
 
 <h2>Stage Layout (top-down)</h2>
@@ -485,6 +530,16 @@ ${
     }
   </div>
 </div>
+
+<h2>Build sequence (${stage.buildOrder === "rightToLeft" ? "right → left" : "left → right"})</h2>
+<table>
+  <thead><tr><th>#</th><th>Deck</th><th>Legs to install</th></tr></thead>
+  <tbody>${assemblyRows}</tbody>
+</table>
+<p class="muted" style="font-size:11px;margin:0 0 12px">
+  Numbers match the badges drawn on each deck above. Each row shows the
+  marginal legs added for that deck (shared corners are only counted once).
+</p>
 
 <h2>Load capacity</h2>
 <table>

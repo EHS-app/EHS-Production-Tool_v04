@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { Link, useLocation } from "wouter";
 import { PALETTE, type ThemeMode } from "../lib/portalTheme";
+import { ItinerarySection } from "./ItinerarySection";
 import {
   buildAcceptedSnapshot,
   findBrief,
@@ -23,7 +24,11 @@ import {
   diffBriefAgainstSnapshot,
   type DiffEntry,
 } from "../../lib/briefDiff";
-import { downloadBriefIcs } from "../../lib/icalExport";
+import {
+  downloadBriefIcs,
+  downloadBriefAndItineraryIcs,
+  type ItineraryHotelDay,
+} from "../../lib/icalExport";
 import { openCallSheet } from "../../lib/callSheetExport";
 import {
   findScheduleConflicts,
@@ -503,8 +508,46 @@ export function BriefDetail({
     }
   }
 
-  function downloadCalendar() {
-    downloadBriefIcs(brief);
+  /** Build the freelancer's .ics. We try to enrich with itinerary
+   *  hotel events first; if that fetch fails for ANY reason (not yet
+   *  accepted → 403, network blip, server hiccup) we silently fall
+   *  back to the brief-only export so the calendar button is always
+   *  responsive. The user gets *something* even when the server is
+   *  having a bad day. */
+  async function downloadCalendar() {
+    let itineraryDays: ItineraryHotelDay[] | null = null;
+    try {
+      const token = await getToken();
+      const baseUrl =
+        (typeof import.meta !== "undefined" &&
+          (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+        "/";
+      const res = await fetch(
+        `${baseUrl}api/portal/briefs/${briefId}/itinerary`,
+        {
+          method: "GET",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        },
+      );
+      if (res.ok) {
+        const json = (await res.json().catch(() => null)) as {
+          ok?: boolean;
+          days?: ItineraryHotelDay[];
+        } | null;
+        if (json && json.ok && Array.isArray(json.days)) {
+          itineraryDays = json.days;
+        }
+      }
+    } catch {
+      // ignore — fall through to brief-only export below.
+    }
+    if (itineraryDays && itineraryDays.length > 0) {
+      downloadBriefAndItineraryIcs(brief, itineraryDays);
+    } else {
+      downloadBriefIcs(brief);
+    }
   }
 
   function openCallSheetWindow() {
@@ -625,6 +668,15 @@ export function BriefDetail({
         theme={theme}
         onAddToCalendar={downloadCalendar}
         onOpenCallSheet={openCallSheetWindow}
+      />
+
+      {/* Per-day itinerary — server only returns content for an
+          accepted assignee, so the section self-hides for owners /
+          pending / declined freelancers. */}
+      <ItinerarySection
+        briefId={briefId}
+        theme={theme}
+        getToken={getToken}
       />
 
       {/* Your assignment */}

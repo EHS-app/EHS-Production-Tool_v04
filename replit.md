@@ -58,6 +58,7 @@ This project is a pnpm workspace monorepo designed as an internal stage-tech too
 - **Hotel Logistics**: Producer toggles "needs hotel" per crew member; check-in/check-out default to the first / morning-after-the-last assigned working day with per-person overrides; pairing engine suggests twin-share rooms by overlap + room-share preference + (optional) gender hint; producer can lock pairings and swap individuals between rooms (with `FOR UPDATE` row-locking on writes); one-click rooming list PDF export for the hotel front desk. Multi-gig freelancers are aggregated into one row per person across the GET / PATCH / pairing / lock pipeline.
 - **Auto-Assign Schedules → Gigs (Editable Working Days)**: Freelancers can override auto-computed assigned working days for gigs via a checkbox grid.
 - **Freelancer Gig Edits — Bidirectional Sync**: Gig edits by freelancers are optimistically applied locally and then synchronized bidirectionally with the server, including conflict resolution and multi-device convergence.
+- **Freelancer Itinerary**: Per-day view in the freelancer portal combining call/off times, schedule phases active each day, and hotel state (check-in/out + room key + roommate name when both occupants are accepted on the brief). Backed by `GET /api/portal/briefs/:id/itinerary` with an accepted-only access gate. The "Add to calendar" button enriches the `.ics` download with all-day check-in / check-out events derived from the same itinerary, falling back to the brief-only export if the itinerary fetch fails.
 
 # External Dependencies
 

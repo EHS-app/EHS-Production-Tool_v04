@@ -19,6 +19,7 @@ import {
 } from "../lib/roomPairing";
 import { dispatchBriefRequestEmails } from "../lib/briefEmail";
 import { autoAssignedDatesFor } from "../lib/roleSchedule";
+import { rollupItinerary } from "../lib/itineraryRollup";
 import {
   classifyDietary,
   splitAllergens,
@@ -2062,6 +2063,313 @@ router.post(
       res
         .status(500)
         .json({ ok: false, error: "Could not swap rooms." });
+    }
+  },
+);
+
+/** GET /api/portal/briefs/:id/itinerary
+ *  Freelancer-only. Returns the per-day itinerary for the SIGNED-IN
+ *  user on this brief: their working days + call/off times, the
+ *  brief's schedule phases active that day, and their hotel state
+ *  (check-in/out + roomKey + roommate name when locked).
+ *
+ *  Auth: caller must have a `brief_assignments` row with
+ *  decision='accepted' for this brief. Owners are intentionally NOT
+ *  allowed — itinerary is a personal view scoped to one freelancer's
+ *  working dates and hotel block; the producer already has the
+ *  hotel/catering/crew tabs to see the same data at brief level. An
+ *  owner who happens to also be an accepted freelancer on their own
+ *  brief (rare crossover case) IS allowed because they have a row.
+ *
+ *  Roommate disclosure: only the OTHER occupant of the caller's
+ *  locked room is resolved (display name only, no contact details).
+ *  Suggested-but-not-locked pairings show roomKey=null + no roommate
+ *  — the freelancer sees "Room TBD" until the producer commits the
+ *  pairing in the Hotel tab. */
+router.get(
+  "/portal/briefs/:id/itinerary",
+  requireSignedIn,
+  async (req, res) => {
+    const userId = (req as unknown as { _userId: string })._userId;
+    const id = String(req.params.id ?? "");
+    try {
+      // Auth + crewId resolution in one shot. We need both the
+      // decision (gate) AND the crewId (to find the caller's row in
+      // the brief jsonb's assignments[]).
+      const assignmentRows = await db
+        .select({
+          crewId: briefAssignmentsTable.crewId,
+          decision: briefAssignmentsTable.decision,
+        })
+        .from(briefAssignmentsTable)
+        .where(
+          and(
+            eq(briefAssignmentsTable.briefId, id),
+            eq(briefAssignmentsTable.freelancerUserId, userId),
+          ),
+        )
+        .limit(1);
+      const assignment = assignmentRows[0];
+      if (!assignment || assignment.decision !== "accepted") {
+        // 403, not 404 — the brief exists, the caller just isn't
+        // entitled. Same status the rest of the portal uses.
+        res.status(403).json({
+          ok: false,
+          error: "Itinerary is only available after you accept this brief.",
+        });
+        return;
+      }
+      const callerCrewId = assignment.crewId;
+
+      // Brief itself for venue + jsonb (schedule + assignments). One
+      // round-trip, fail fast if the brief id doesn't resolve.
+      const briefRows = await db
+        .select()
+        .from(projectBriefsTable)
+        .where(eq(projectBriefsTable.id, id))
+        .limit(1);
+      const briefRow = briefRows[0];
+      if (!briefRow) {
+        res.status(404).json({ ok: false, error: "Brief not found." });
+        return;
+      }
+      const briefData = (briefRow.data ?? {}) as {
+        project?: {
+          venue?: string;
+          date?: string;
+          endDate?: string;
+          schedule?: Record<string, unknown>;
+        };
+        assignments?: Array<{
+          crewId?: string;
+          callTime?: string;
+          offTime?: string;
+        }>;
+      };
+
+      // Caller's call/off times from data.assignments[]. Match by
+      // crewId — the same field the producer uses to address the
+      // freelancer in the brief, and the same field BriefDetail.tsx
+      // matches against `recipientCrewId` to find "myAssignment".
+      let callerAssignment: {
+        callTime?: string;
+        offTime?: string;
+      } | null = null;
+      if (callerCrewId && Array.isArray(briefData.assignments)) {
+        const a = briefData.assignments.find(
+          (x) => x && x.crewId === callerCrewId,
+        );
+        if (a) {
+          callerAssignment = {};
+          if (typeof a.callTime === "string" && a.callTime) {
+            callerAssignment.callTime = a.callTime;
+          }
+          if (typeof a.offTime === "string" && a.offTime) {
+            callerAssignment.offTime = a.offTime;
+          }
+        }
+      }
+
+      // Caller's countable gigs on this brief. A freelancer can hold
+      // multiple gigs (split roles, recurring shows) — aggregate
+      // working dates across all of them and OR-merge hotelRequired,
+      // mirroring the producer hotel endpoint's per-person view.
+      const gigRows = await db
+        .select({
+          assignedDates: gigsTable.assignedDates,
+          hotelRequired: gigsTable.hotelRequired,
+          checkInDate: gigsTable.checkInDate,
+          checkOutDate: gigsTable.checkOutDate,
+        })
+        .from(gigsTable)
+        .where(
+          and(
+            eq(gigsTable.briefId, id),
+            eq(gigsTable.freelancerUserId, userId),
+            inArray(
+              gigsTable.status,
+              Array.from(COUNTABLE_GIG_STATUSES),
+            ),
+          ),
+        );
+
+      const workingDateSet = new Set<string>();
+      let hotelRequired = false;
+      const checkInDates: string[] = [];
+      const checkOutDates: string[] = [];
+      const isoRe = /^\d{4}-\d{2}-\d{2}$/;
+      for (const g of gigRows) {
+        const dates: string[] = (
+          Array.isArray(g.assignedDates) ? g.assignedDates : []
+        )
+          .map((d: unknown) =>
+            typeof d === "string" ? d.slice(0, 10) : String(d).slice(0, 10),
+          )
+          .filter((iso: string) => isoRe.test(iso));
+        for (const d of dates) workingDateSet.add(d);
+        if (g.hotelRequired) hotelRequired = true;
+        if (typeof g.checkInDate === "string" && isoRe.test(g.checkInDate)) {
+          checkInDates.push(g.checkInDate);
+        }
+        if (typeof g.checkOutDate === "string" && isoRe.test(g.checkOutDate)) {
+          checkOutDates.push(g.checkOutDate);
+        }
+      }
+
+      // Hotel composite: only emit if hotelRequired AND we have both
+      // ends of the stay. ISO date strings sort lexically so plain
+      // .sort() finds the min/max. min(checkIn) + max(checkOut)
+      // mirrors the producer endpoint's per-person aggregation —
+      // covers a freelancer with two staggered gigs as one continuous
+      // hotel block.
+      let callerHotel: {
+        checkInDate: string;
+        checkOutDate: string;
+        roomKey: string | null;
+        roomLocked: boolean;
+        roommateName: string | null;
+      } | null = null;
+      if (hotelRequired) {
+        const sortedIn = checkInDates.slice().sort();
+        const sortedOut = checkOutDates.slice().sort();
+        const ci = sortedIn[0] ?? null;
+        const co = sortedOut[sortedOut.length - 1] ?? null;
+        if (ci && co) {
+          // Locked room lookup. brief_room_assignments only stores
+          // committed pairings; suggested-but-unlocked rooms aren't
+          // here. That's intentional — the freelancer should see a
+          // confirmed room or "TBD", never a fluid suggestion that
+          // could re-shuffle.
+          const myRoomRows = await db
+            .select({
+              roomKey: briefRoomAssignmentsTable.roomKey,
+              locked: briefRoomAssignmentsTable.locked,
+            })
+            .from(briefRoomAssignmentsTable)
+            .where(
+              and(
+                eq(briefRoomAssignmentsTable.briefId, id),
+                eq(briefRoomAssignmentsTable.freelancerUserId, userId),
+              ),
+            )
+            .limit(1);
+          let roomKey: string | null = null;
+          let roomLocked = false;
+          let roommateName: string | null = null;
+          const myRoom = myRoomRows[0];
+          if (myRoom) {
+            roomKey = myRoom.roomKey;
+            roomLocked = !!myRoom.locked;
+            // Find the OTHER occupant of the same room. Twin = up
+            // to one other; we just take the first (sort by user
+            // id for determinism in the unlikely 3-person case).
+            //
+            // SECURITY: inner-join brief_assignments and require the
+            // other occupant has decision='accepted' on this same
+            // brief. Without this gate, any stale or unaccepted
+            // pairing in brief_room_assignments could surface a
+            // freelancer's display name to someone they aren't
+            // confirmed to be rooming with — defensive even though
+            // Feature 3's lock workflow only commits accepted pairs
+            // today, future code changes shouldn't be able to
+            // re-open the leak window.
+            const sameRoomRows = await db
+              .select({
+                freelancerUserId:
+                  briefRoomAssignmentsTable.freelancerUserId,
+              })
+              .from(briefRoomAssignmentsTable)
+              .innerJoin(
+                briefAssignmentsTable,
+                and(
+                  eq(
+                    briefAssignmentsTable.briefId,
+                    briefRoomAssignmentsTable.briefId,
+                  ),
+                  eq(
+                    briefAssignmentsTable.freelancerUserId,
+                    briefRoomAssignmentsTable.freelancerUserId,
+                  ),
+                ),
+              )
+              .where(
+                and(
+                  eq(briefRoomAssignmentsTable.briefId, id),
+                  eq(briefRoomAssignmentsTable.roomKey, roomKey),
+                  eq(briefAssignmentsTable.decision, "accepted"),
+                ),
+              );
+            const otherIds = sameRoomRows
+              .map((r) => r.freelancerUserId)
+              .filter((u) => u !== userId)
+              .sort();
+            const firstOther = otherIds[0];
+            if (firstOther) {
+              const otherProfile = await db
+                .select({ fullName: freelancerProfilesTable.fullName })
+                .from(freelancerProfilesTable)
+                .where(eq(freelancerProfilesTable.userId, firstOther))
+                .limit(1);
+              roommateName = otherProfile[0]?.fullName ?? null;
+            }
+          }
+          callerHotel = {
+            checkInDate: ci,
+            checkOutDate: co,
+            roomKey,
+            roomLocked,
+            roommateName,
+          };
+        }
+      }
+
+      // Build the final payload via the pure rollup. Prefer the
+      // top-level indexed columns over the jsonb mirror — producers
+      // can edit venue/dates without re-saving the embedded snapshot.
+      const days = rollupItinerary({
+        brief: {
+          project: {
+            venue: briefRow.venue || briefData.project?.venue || "",
+            date:
+              (typeof briefRow.startDate === "string"
+                ? briefRow.startDate
+                : null) ||
+              briefData.project?.date ||
+              "",
+            endDate:
+              (typeof briefRow.endDate === "string"
+                ? briefRow.endDate
+                : null) ||
+              briefData.project?.endDate ||
+              null,
+            schedule: briefData.project?.schedule as never,
+          },
+        },
+        callerAssignment,
+        callerWorkingDates: Array.from(workingDateSet),
+        callerHotel,
+      });
+
+      res.json({
+        ok: true,
+        brief: {
+          id: briefRow.id,
+          projectName: briefRow.projectName,
+          venue: briefRow.venue,
+        },
+        days,
+      });
+    } catch (err) {
+      logger.error(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          briefId: id,
+        },
+        "portal briefs/:id/itinerary GET failed",
+      );
+      res
+        .status(500)
+        .json({ ok: false, error: "Could not load itinerary." });
     }
   },
 );

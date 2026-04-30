@@ -225,7 +225,123 @@ export function briefToIcs(brief: ProjectBrief): string {
 
 /** Trigger a browser download of a .ics file. */
 export function downloadBriefIcs(brief: ProjectBrief): void {
-  const ics = briefToIcs(brief);
+  triggerIcsDownload(briefToIcs(brief), brief);
+}
+
+/** Minimal shape of one itinerary day used by the export. Intentionally
+ *  narrower than the server's ItineraryDay so the export logic doesn't
+ *  break when the API response evolves with extra fields — we only
+ *  consume what we put on the calendar. */
+export type ItineraryHotelDay = {
+  date: string;
+  hotel?: {
+    isCheckIn?: boolean;
+    isCheckOut?: boolean;
+    roomKey?: string | null;
+    roommateName?: string | null;
+    locked?: boolean;
+  };
+};
+
+/** Build a single line of "Room A2 with Maria — locked" — the parts
+ *  that are useful to a freelancer's calendar viewer. Empty string if
+ *  none of the optional bits are present, so the caller can decide
+ *  whether to emit a DESCRIPTION at all. */
+function hotelDescription(
+  hotel: NonNullable<ItineraryHotelDay["hotel"]>,
+): string {
+  const parts: string[] = [];
+  if (hotel.roomKey) parts.push(`Room ${hotel.roomKey}`);
+  if (hotel.roommateName) parts.push(`Roommate: ${hotel.roommateName}`);
+  if (hotel.locked) parts.push("(locked)");
+  return parts.join("\n");
+}
+
+/** Emit hotel VEVENTs from the itinerary days. Two all-day events:
+ *  one for check-in day, one for check-out day. We use the boolean
+ *  flags from the rollup rather than recomputing date math here so
+ *  the server stays the source of truth on which day is which.
+ *
+ *  We intentionally do NOT emit a single multi-day "Hotel stay" event
+ *  — calendar UIs render a 5-day all-day event as a giant banner that
+ *  hides the actual show events underneath. Two single-day markers
+ *  for arrival + departure are visually less noisy and match how
+ *  travel itineraries are usually communicated. */
+function hotelEvents(
+  brief: ProjectBrief,
+  itineraryDays: ItineraryHotelDay[],
+  stamp: number,
+): string[] {
+  const venue = brief.project.venue || "Show";
+  const out: string[] = [];
+  for (const d of itineraryDays) {
+    if (!d.hotel) continue;
+    const desc = hotelDescription(d.hotel);
+    if (d.hotel.isCheckIn) {
+      out.push(
+        ...eventLines({
+          uid: `${brief.briefId}-hotel-checkin-${d.date}@ehs.portal`,
+          summary: `Hotel check-in — ${venue}`,
+          description: desc,
+          location: venue,
+          // All-day segment: from = to = the check-in date.
+          segment: { from: d.date, to: d.date },
+          stamp,
+        }),
+      );
+    }
+    if (d.hotel.isCheckOut) {
+      out.push(
+        ...eventLines({
+          uid: `${brief.briefId}-hotel-checkout-${d.date}@ehs.portal`,
+          summary: `Hotel check-out — ${venue}`,
+          description: desc,
+          location: venue,
+          segment: { from: d.date, to: d.date },
+          stamp,
+        }),
+      );
+    }
+  }
+  return out;
+}
+
+/** Build an iCal (.ics) string for a brief PLUS the freelancer's
+ *  itinerary. Identical to `briefToIcs` for the production schedule
+ *  events, then appends hotel check-in / check-out VEVENTs derived
+ *  from the per-day itinerary returned by
+ *  `GET /api/portal/briefs/:id/itinerary`. */
+export function briefAndItineraryToIcs(
+  brief: ProjectBrief,
+  itineraryDays: ItineraryHotelDay[],
+): string {
+  const base = briefToIcs(brief);
+  // briefToIcs ends with "END:VCALENDAR\r\n" — splice the hotel lines
+  // in just before that closing tag so the calendar stays valid.
+  const closing = "END:VCALENDAR";
+  const idx = base.lastIndexOf(closing);
+  if (idx < 0) return base; // defensive — shouldn't happen
+  const stamp = Date.now();
+  const extraLines = hotelEvents(brief, itineraryDays, stamp);
+  if (extraLines.length === 0) return base;
+  const head = base.slice(0, idx);
+  const tail = base.slice(idx);
+  return head + extraLines.join("\r\n") + "\r\n" + tail;
+}
+
+/** Trigger a browser download of a .ics file enriched with itinerary
+ *  hotel events. Falls back to the brief-only export when the
+ *  itinerary is empty or has no hotel days, so the caller can
+ *  unconditionally route through this path. */
+export function downloadBriefAndItineraryIcs(
+  brief: ProjectBrief,
+  itineraryDays: ItineraryHotelDay[],
+): void {
+  triggerIcsDownload(briefAndItineraryToIcs(brief, itineraryDays), brief);
+}
+
+/** Internal: turn an ics string into a click-triggered download. */
+function triggerIcsDownload(ics: string, brief: ProjectBrief): void {
   const venue = (brief.project.venue || "show").replace(/[^a-z0-9-_]+/gi, "-");
   const filename = `${venue}-${brief.briefId}.ics`;
   const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });

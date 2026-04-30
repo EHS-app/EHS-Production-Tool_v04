@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { openCateringSheet } from "../lib/cateringSheetExport";
 
 /** Server response shape for `GET /api/portal/briefs/:id/catering`.
  *  Mirrors what `portalBriefs.ts` returns. Kept inline (not in
@@ -202,6 +203,48 @@ export function CateringView({ briefId, getToken }: Props) {
             <span className="badge">
               <strong>{summary.mealsServed}</strong> meals total
             </span>
+            {/* One-click handoff to the venue chef. Disabled when
+                there are no days yet — nothing useful to hand over. */}
+            <button
+              type="button"
+              onClick={() => {
+                if (!data?.brief || !data.days || data.days.length === 0) {
+                  return;
+                }
+                openCateringSheet({
+                  brief: data.brief,
+                  days: data.days,
+                  profilelessCount: data.missing?.profileless?.length ?? 0,
+                });
+              }}
+              disabled={
+                !data?.brief || !data.days || data.days.length === 0
+              }
+              style={{
+                marginLeft: 8,
+                padding: "6px 12px",
+                fontSize: 13,
+                fontWeight: 700,
+                border: "none",
+                borderRadius: 6,
+                cursor:
+                  !data?.brief || !data.days || data.days.length === 0
+                    ? "not-allowed"
+                    : "pointer",
+                background:
+                  !data?.brief || !data.days || data.days.length === 0
+                    ? "var(--muted, #475569)"
+                    : "#f88000",
+                color: "#fff",
+                opacity:
+                  !data?.brief || !data.days || data.days.length === 0
+                    ? 0.6
+                    : 1,
+              }}
+              title="Open a print-friendly sheet for the venue chef"
+            >
+              Print sheet for chef
+            </button>
           </div>
         )}
       </header>

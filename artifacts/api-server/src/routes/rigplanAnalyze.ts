@@ -5,8 +5,12 @@ import { db, venueMemoryTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { buildVenueMemoryHint } from "../lib/venueMemoryHint";
 import { venueKeyFor } from "../lib/venueKey";
-import { mergeLightingRows } from "../lib/mergeLightingRows";
-import { parseMetresFromNotes } from "../lib/parseMetresFromNotes";
+import { extractJsonBlock } from "../lib/extractJsonBlock";
+import { normalizeExtracted } from "../lib/normalizeExtracted";
+// `mergeLightingRows` and `parseMetresFromNotes` used to live in this
+// route file directly; both moved into `../lib/normalizeExtracted`
+// during Phase B and are no longer imported here. Their breadcrumbs
+// further down still document where to find them.
 
 const router: IRouter = Router();
 
@@ -496,273 +500,38 @@ function contextLine(ctx: AnalyzeContext | undefined): string {
 // through this module.
 export { buildVenueMemoryHint };
 
-/** Pull the first ```json ... ``` block from the model's text output. */
-function extractJsonBlock(text: string): string | null {
-  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fence) return fence[1].trim();
-  // Fallback: find the first {...} balanced span.
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start >= 0 && end > start) return text.slice(start, end + 1);
-  return null;
-}
+// `extractJsonBlock` lives in `../lib/extractJsonBlock` so the
+// fence-vs-brace-fallback selection logic can be locked down with
+// unit tests independent of this route's Anthropic / Express /
+// Drizzle imports.
 
-/** Bounding box of an item on the (first page of the) drawing, in
- *  normalised image coordinates with origin at top-left. All four
- *  numbers are clamped to [0, 1] by `normaliseBbox` before being
- *  returned to the client, so the overlay editor can blindly trust
- *  them. */
-type Bbox = { x: number; y: number; width: number; height: number };
+// `Bbox`, `normaliseBbox` and `normaliseConfidence` live in
+// `../lib/normaliseAnalyserItems` so the clamp behaviour
+// (negative-becomes-zero, above-one-becomes-one,
+// non-finite-becomes-null, bbox-extends-past-edge) is independently
+// unit-testable. The canonical `Bbox` type lives there too — this
+// file re-exports it through `../lib/normalizeExtracted` so any
+// caller wanting it has a single source of truth.
 
-/** Fields every item carries: a self-assessed confidence in [0, 1]
- *  (null when the model omitted it) and an optional bbox for the
- *  overlay editor. Adding these as a shared base keeps the per-type
- *  rows below readable. */
-type ItemMeta = { confidence: number | null; bbox: Bbox | null };
-
-type ExtractedItems = {
-  venue: { widthM: number | null; depthM: number | null; ceilingM: number | null };
-  stages: Array<
-    { name: string; widthM: number; depthM: number; notes: string } & ItemMeta
-  >;
-  trusses: Array<
-    {
-      name: string;
-      lengthM: number;
-      pointCount: number;
-      /** Per-motor working-load capacity in kg, when labelled on the
-       *  drawing. Currently mapped on the client to one of the two
-       *  configured hoist models (500 kg / 1000 kg). null when unknown. */
-      hoistKg: number | null;
-      trimM: number | null;
-      notes: string;
-    } & ItemMeta
-  >;
-  lighting: Array<
-    {
-      name: string;
-      qty: number;
-      weightKg: number | null;
-      watts: number | null;
-      /** Truss / system label this fixture is hung on, copied from one of
-       *  trusses[].name when the model recognised a hang. Empty when the
-       *  drawing didn't show one. */
-      trussName: string;
-      notes: string;
-    } & ItemMeta
-  >;
-  ledScreens: Array<
-    {
-      name: string;
-      panelsWide: number | null;
-      panelsTall: number | null;
-      /** Physical screen size in metres, when the drawing labels metres
-       *  rather than panel counts (e.g. "5 x 3 m"). Falls back to null
-       *  when only panel counts are visible. */
-      widthM: number | null;
-      heightM: number | null;
-      notes: string;
-    } & ItemMeta
-  >;
-  sound: Array<
-    {
-      name: string;
-      qty: number;
-      weightKg: number | null;
-      watts: number | null;
-      notes: string;
-    } & ItemMeta
-  >;
-  summary: string;
-};
-
-/** Coerce a model-returned `bbox` blob into our strict shape. We
- *  silently clamp out-of-range numbers and return null whenever the
- *  result wouldn't represent a usable rectangle, so the overlay
- *  editor never has to defensively re-validate. */
-function normaliseBbox(v: unknown): Bbox | null {
-  if (!v || typeof v !== "object") return null;
-  const o = v as Record<string, unknown>;
-  const numIn01 = (n: unknown): number | null => {
-    if (typeof n === "number" && Number.isFinite(n)) {
-      if (n < 0) return 0;
-      if (n > 1) return 1;
-      return n;
-    }
-    return null;
-  };
-  const x = numIn01(o.x);
-  const y = numIn01(o.y);
-  const width = numIn01(o.width);
-  const height = numIn01(o.height);
-  if (x == null || y == null || width == null || height == null) return null;
-  if (width <= 0 || height <= 0) return null;
-  // Clamp the box so it never extends past the right / bottom edge.
-  const w = Math.min(width, 1 - x);
-  const h = Math.min(height, 1 - y);
-  if (w <= 0 || h <= 0) return null;
-  return { x, y, width: w, height: h };
-}
-
-/** Coerce a model-returned `confidence` number into [0, 1] or null. */
-function normaliseConfidence(v: unknown): number | null {
-  if (typeof v !== "number" || !Number.isFinite(v)) return null;
-  if (v < 0) return 0;
-  if (v > 1) return 1;
-  return v;
-}
+// `ItemMeta`, `ExtractedItems` and `normalizeExtracted` live in
+// `../lib/normalizeExtracted` so all the per-item-type quirks
+// (truss pointCount [1, 8] clamp, hoistKg [100, 5000] window,
+// lighting qty>200 pre/post-merge drop, LED-screen zero-suppresses-
+// fallback, etc.) can be locked down with table-driven unit tests
+// independent of the SDK / Express / DB imports above.
 
 // `lightingMergeKey`, `LightingRow` and `mergeLightingRows` live in
 // `../lib/mergeLightingRows` so the merge logic can be unit-tested
 // without dragging in this file's Anthropic / Express / Drizzle
 // imports. The lib defines its own structurally-identical `Bbox`
-// type, which interops with the local `Bbox` above via TypeScript's
-// structural typing.
+// type, which interops with the canonical one in
+// `../lib/normaliseAnalyserItems` via TypeScript's structural typing.
 
 // `parseMetresFromNotes` lives in `../lib/parseMetresFromNotes` so the
 // regex behaviour (Norwegian comma-decimals, "m" suffix discrimination
 // against pixel/panel counts, trailing-label fallback) can be locked
 // down with comprehensive unit tests independent of this route's
 // Anthropic / Express / Drizzle imports.
-
-/** Coerce raw JSON from the model into our strict schema. The model
- *  occasionally omits a field or returns the wrong type — we fix up
- *  rather than throw, so the user always sees something. */
-function normalizeExtracted(raw: unknown): ExtractedItems {
-  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-
-  const num = (v: unknown): number | null => {
-    if (typeof v === "number" && Number.isFinite(v)) return v;
-    if (typeof v === "string") {
-      const n = parseFloat(v);
-      if (Number.isFinite(n)) return n;
-    }
-    return null;
-  };
-  const numOrZero = (v: unknown): number => num(v) ?? 0;
-  const str = (v: unknown): string => (typeof v === "string" ? v : "");
-  const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
-
-  const v = (r.venue && typeof r.venue === "object" ? r.venue : {}) as Record<
-    string,
-    unknown
-  >;
-
-  return {
-    venue: {
-      widthM: num(v.widthM),
-      depthM: num(v.depthM),
-      ceilingM: num(v.ceilingM),
-    },
-    stages: arr(r.stages).map((s) => {
-      const o = (s && typeof s === "object" ? s : {}) as Record<string, unknown>;
-      return {
-        name: str(o.name) || "Stage",
-        widthM: numOrZero(o.widthM),
-        depthM: numOrZero(o.depthM),
-        notes: str(o.notes),
-        confidence: normaliseConfidence(o.confidence),
-        bbox: normaliseBbox(o.bbox),
-      };
-    }),
-    trusses: arr(r.trusses).map((s) => {
-      const o = (s && typeof s === "object" ? s : {}) as Record<string, unknown>;
-      const ptRaw = num(o.pointCount);
-      const pt = ptRaw == null ? 3 : Math.min(8, Math.max(1, Math.round(ptRaw)));
-      // Clamp implausible motor sizes from the model. Real touring
-      // gear is 250 / 500 / 1000 / 2000 kg; anything outside 100-5000
-      // kg is almost certainly a misread of a part number.
-      const hoistRaw = num(o.hoistKg);
-      const hoistKg =
-        hoistRaw != null && hoistRaw >= 100 && hoistRaw <= 5000
-          ? Math.round(hoistRaw)
-          : null;
-      return {
-        name: str(o.name) || "Truss",
-        lengthM: numOrZero(o.lengthM),
-        pointCount: pt,
-        hoistKg,
-        trimM: num(o.trimM),
-        notes: str(o.notes),
-        confidence: normaliseConfidence(o.confidence),
-        bbox: normaliseBbox(o.bbox),
-      };
-    }),
-    // Lighting rows are merged downstream — see `mergeLightingRows`.
-    // Rows with garbage quantities (e.g. the model misreading a part
-    // number or pixel count as 1000+ fixtures) are dropped both
-    // before AND after the merge: pre-merge to stop garbage poisoning
-    // a real row's total, post-merge to catch genuinely-merged rows
-    // that legitimately exceed our realistic ceiling.
-    lighting: mergeLightingRows(
-      arr(r.lighting)
-        .map((s) => {
-          const o = (s && typeof s === "object" ? s : {}) as Record<
-            string,
-            unknown
-          >;
-          const qRaw = num(o.qty);
-          return {
-            name: str(o.name) || "Fixture",
-            qty: qRaw == null ? 1 : Math.max(1, Math.round(qRaw)),
-            qRaw,
-            weightKg: num(o.weightKg),
-            watts: num(o.watts),
-            trussName: str(o.trussName).trim(),
-            notes: str(o.notes),
-            confidence: normaliseConfidence(o.confidence),
-            bbox: normaliseBbox(o.bbox),
-          };
-        })
-        .filter((row) => row.qRaw == null || row.qRaw <= 200)
-        .map(({ qRaw: _qRaw, ...rest }) => rest),
-    ).filter((row) => row.qty <= 200),
-    ledScreens: arr(r.ledScreens).map((s) => {
-      const o = (s && typeof s === "object" ? s : {}) as Record<string, unknown>;
-      const name = str(o.name) || "Screen";
-      const notes = str(o.notes);
-      // Fallback parser: the model sometimes leaves widthM/heightM null
-      // and puts the metric size only in the name or notes (e.g.
-      // "Center - LED 7m x 1m", "STØTE LED 5x3m Right", "IMAG- LED
-      // 7.5m x 4.5m, 1013kg"). When the dedicated fields are empty,
-      // lift the first such pattern out of name+notes so the client
-      // can still render the screen at the correct size. Pixel counts
-      // ("768 x 1152 pixel") and panel counts ("16 x 9 panels") are
-      // intentionally ignored.
-      const lifted = parseMetresFromNotes(`${name} ${notes}`);
-      // Treat zero / negative dimensions from the model as null so that
-      // a stray "0" doesn't suppress our metres fallback or render a
-      // 0-panel-wide screen on the client.
-      const positive = (v: number | null) =>
-        v != null && v > 0 ? v : null;
-      return {
-        name,
-        panelsWide: positive(num(o.panelsWide)),
-        panelsTall: positive(num(o.panelsTall)),
-        widthM: positive(num(o.widthM)) ?? lifted.widthM,
-        heightM: positive(num(o.heightM)) ?? lifted.heightM,
-        notes,
-        confidence: normaliseConfidence(o.confidence),
-        bbox: normaliseBbox(o.bbox),
-      };
-    }),
-    sound: arr(r.sound).map((s) => {
-      const o = (s && typeof s === "object" ? s : {}) as Record<string, unknown>;
-      const qRaw = num(o.qty);
-      const qty = qRaw == null ? 1 : Math.max(1, Math.round(qRaw));
-      return {
-        name: str(o.name) || "Sound",
-        qty,
-        weightKg: num(o.weightKg),
-        watts: num(o.watts),
-        notes: str(o.notes),
-        confidence: normaliseConfidence(o.confidence),
-        bbox: normaliseBbox(o.bbox),
-      };
-    }),
-    summary: str(r.summary),
-  };
-}
 
 // 12 MB body limit only on this route — base64-encoded images are large.
 // Middleware order is deliberate: auth → rate-limit → body parsing. Both

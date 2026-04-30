@@ -3,7 +3,14 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["node"]
+    "types": ["node"],
+    // `.ts` extensions are intentionally allowed on internal imports
+    // (currently only `lib/normalizeExtracted.ts`) so Node's ESM
+    // resolver can load lib files directly under the test runner.
+    // Safe here because the runtime build is produced by esbuild
+    // (see `build.mjs`) and `typecheck` runs `--noEmit`, so tsc
+    // never has to emit `.ts` specifiers.
+    "allowImportingTsExtensions": true
   },
   "include": ["src"],
   "exclude": ["src/**/*.test.ts"],

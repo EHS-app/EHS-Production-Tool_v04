@@ -221,3 +221,64 @@ test("mapRoleToAdequacyKey returns null for out-of-scope roles", () => {
   assert.equal(mapRoleToAdequacyKey(""), null);
   assert.equal(mapRoleToAdequacyKey("Other"), null);
 });
+
+test("computeCrewAdequacy: any production scope baselines 1 Sound FOH, 1 Lights FOH, 1 AV FOH", () => {
+  // Producer rule of thumb: almost every show needs 1 of each FOH.
+  // A pure rigging project (no fixtures, no LED, no walls, not
+  // ticketed) should still suggest one of each.
+  const r = computeCrewAdequacy(
+    { ...EMPTY_METRICS, hoistPoints: 20 },
+    ZERO_HEADCOUNT,
+  );
+  const ld = r.suggestions.find((s) => s.role === "ld")!;
+  const av = r.suggestions.find((s) => s.role === "videoOp")!;
+  const foh = r.suggestions.find((s) => s.role === "fohSound")!;
+  assert.deepEqual([ld.min, ld.max], [1, 1], "Lights FOH baseline 1");
+  assert.deepEqual([av.min, av.max], [1, 1], "AV FOH baseline 1");
+  assert.deepEqual([foh.min, foh.max], [1, 1], "Sound FOH baseline 1");
+});
+
+test("computeCrewAdequacy: empty project still produces zero FOH suggestions (no scope = no people)", () => {
+  // Guard against the baseline shouting "you're short!" on day-1
+  // empty projects.
+  const r = computeCrewAdequacy(EMPTY_METRICS, ZERO_HEADCOUNT);
+  for (const role of ["ld", "videoOp", "fohSound", "monitorSound"] as const) {
+    const s = r.suggestions.find((x) => x.role === role)!;
+    assert.deepEqual([s.min, s.max], [0, 0], `${role} should be 0–0 on empty project`);
+  }
+});
+
+test("computeCrewAdequacy: 2 LED walls beats baseline → 2-2 AV FOH", () => {
+  // The wall-count ratio still applies on top of the baseline; we
+  // never go below the baseline, but multi-wall shows scale up.
+  const r = computeCrewAdequacy(
+    { ...EMPTY_METRICS, ledWallCount: 2, ledArea: 20 },
+    ZERO_HEADCOUNT,
+  );
+  const av = r.suggestions.find((s) => s.role === "videoOp")!;
+  assert.deepEqual([av.min, av.max], [2, 2]);
+});
+
+test("computeCrewAdequacy: 120 fixtures bumps Lights FOH max above the baseline", () => {
+  // Big rig → 1 LD baseline + ratio gives 2 (120/60).
+  const r = computeCrewAdequacy(
+    { ...EMPTY_METRICS, fixtureCount: 120 },
+    ZERO_HEADCOUNT,
+  );
+  const ld = r.suggestions.find((s) => s.role === "ld")!;
+  assert.equal(ld.min, 2);
+  assert.equal(ld.max, 2);
+});
+
+test("computeCrewAdequacy: ticketed only adds Monitor (FOH already baselined by scope)", () => {
+  // After the FOH-baseline change, ticketed no longer adds a 2nd
+  // Sound FOH — it just unlocks the dedicated Monitor engineer.
+  const r = computeCrewAdequacy(
+    { ...EMPTY_METRICS, hoistPoints: 10, ticketed: true },
+    ZERO_HEADCOUNT,
+  );
+  const foh = r.suggestions.find((s) => s.role === "fohSound")!;
+  const mon = r.suggestions.find((s) => s.role === "monitorSound")!;
+  assert.deepEqual([foh.min, foh.max], [1, 1]);
+  assert.deepEqual([mon.min, mon.max], [1, 1]);
+});

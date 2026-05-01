@@ -55,9 +55,14 @@ export type AdequacyRoleKey =
 export const ADEQUACY_ROLE_LABELS: Record<AdequacyRoleKey, string> = {
   toprigger: "Topriggers",
   stagehand: "Stagehands",
-  ld: "Lighting designers",
-  videoOp: "Video ops",
-  fohSound: "FOH sound",
+  // The FOH trio uses the producer's everyday vocabulary so the
+  // panel reads as "1 Sound FOH, 1 Lights FOH, 1 AV FOH" — matching
+  // how a Norwegian rental-house PM thinks about the call sheet.
+  // The bracketed alias keeps the technical role visible for PMs
+  // who file freelancers under "LD" or "Video op" on the call sheet.
+  ld: "Lights FOH (LD)",
+  videoOp: "AV FOH (video op)",
+  fohSound: "Sound FOH",
   monitorSound: "Monitor sound",
 };
 
@@ -148,6 +153,22 @@ export function computeCrewAdequacy(
   const cfg = { ...DEFAULT_ADEQUACY_CONFIG, ...configOverride };
   const tightSetup = metrics.setupDays > 0 && metrics.setupDays <= cfg.setupTightDays;
 
+  // "Any production scope" means there's *something* to crew — any
+  // rigging, lighting, LED, stage, ticketed audience or video wall.
+  // The three FOH positions (Sound FOH, Lights FOH = LD, AV FOH =
+  // video op) are baseline 1 each whenever any of these is true,
+  // matching the producer's standard rule of thumb: "almost every
+  // show needs 1 of each FOH". For an empty/blank project the
+  // baseline drops to 0 so the panel doesn't shout three "short by 1"
+  // warnings on the day a new project is created.
+  const anyScope =
+    metrics.hoistPoints > 0 ||
+    metrics.fixtureCount > 0 ||
+    metrics.ledArea > 0 ||
+    metrics.stageArea > 0 ||
+    metrics.ledWallCount > 0 ||
+    metrics.ticketed;
+
   const out: AdequacySuggestion[] = [];
 
   // ── Topriggers ────────────────────────────────────────────────
@@ -187,18 +208,26 @@ export function computeCrewAdequacy(
     out.push(buildSuggestion("stagehand", range, currentByRole.stagehand, mods));
   }
 
-  // ── Lighting designers (1 per 60 fixtures, with a floor of 1 if any) ─
+  // ── Lighting designers / "Lights FOH" (1 baseline + 1 per 60 fixtures) ─
+  //
+  // Producer rule: "almost every show needs 1 Lights FOH". We
+  // baseline at 1 whenever there's any production scope (so a
+  // small corporate AV gig with no rig still gets the LD line
+  // suggested), then layer the fixture ratio on top so big rigs
+  // bump the upper bound. The fixture ratio doesn't add to the
+  // baseline — it lifts `max` to capture "at 120 fixtures you
+  // probably want 2".
   {
-    let range = ratioRange(metrics.fixtureCount, cfg.fixturesPerLD);
-    if (metrics.fixtureCount > 0 && range.min === 0) {
-      // A 30-fixture rig still needs *one* LD; our ratio says 0.5
-      // → ceil to 1 for the upper bound, but min would otherwise
-      // be 0. Bump it so the meter actually flags an under-staffed
-      // small show (the user explicitly mentioned 1 LD per any
-      // fixtures-bearing show).
-      range = { min: 1, max: Math.max(range.max, 1) };
-    }
+    const ratio = ratioRange(metrics.fixtureCount, cfg.fixturesPerLD);
+    const baseline = anyScope ? { min: 1, max: 1 } : { min: 0, max: 0 };
+    // Combine: baseline floor + ratio. Ratio never lowers the floor;
+    // it only widens the window for big rigs.
+    const range = {
+      min: Math.max(baseline.min, ratio.min),
+      max: Math.max(baseline.max, ratio.max),
+    };
     const mods: string[] = [];
+    if (anyScope) mods.push("Almost every show needs 1 Lights FOH.");
     if (metrics.fixtureCount > 0) {
       mods.push(
         `~1 LD per ${cfg.fixturesPerLD} fixtures (${metrics.fixtureCount} fixtures here).`,
@@ -207,27 +236,42 @@ export function computeCrewAdequacy(
     out.push(buildSuggestion("ld", range, currentByRole.ld, mods));
   }
 
-  // ── Video ops (1 per LED wall) ───────────────────────────────
+  // ── Video ops / "AV FOH" (1 baseline + 1 per extra LED wall) ─
+  //
+  // Same baseline-1 logic as Lights FOH: producer says "almost
+  // every show needs 1 AV FOH". When there are multiple LED walls
+  // each needs its own op (they can't physically multi-cab), so
+  // the count scales with `ledWallCount` — but we ensure the
+  // floor is at least 1 for any show with scope.
   {
-    const range = {
+    const wallRange = {
       min: Math.max(0, Math.floor(metrics.ledWallCount)),
       max: Math.max(0, Math.ceil(metrics.ledWallCount)),
     };
+    const baseline = anyScope ? { min: 1, max: 1 } : { min: 0, max: 0 };
+    const range = {
+      min: Math.max(baseline.min, wallRange.min),
+      max: Math.max(baseline.max, wallRange.max),
+    };
     const mods: string[] = [];
+    if (anyScope) mods.push("Almost every show needs 1 AV FOH.");
     if (metrics.ledWallCount > 0) {
       mods.push(`1 video op per LED wall (${metrics.ledWallCount} walls).`);
     }
     out.push(buildSuggestion("videoOp", range, currentByRole.videoOp, mods));
   }
 
-  // ── FOH + Monitor sound (ticketed shows only) ────────────────
+  // ── FOH sound (1 baseline whenever there's any scope) ─────────
+  //
+  // Producer rule: "almost every show needs 1 Sound FOH".
+  // Previously this was ticketed-only, which under-counted on
+  // corporate / private gigs that still need an A1. Baseline 1
+  // whenever there's any scope; the `ticketed` flag no longer
+  // adds anything here (it still adds a Monitor engineer below).
   {
-    const range = metrics.ticketed
-      ? { min: 1, max: 1 }
-      : { min: 0, max: 0 };
-    const mods = metrics.ticketed
-      ? ["Ticketed show: needs a dedicated FOH engineer."]
-      : [];
+    const range = anyScope ? { min: 1, max: 1 } : { min: 0, max: 0 };
+    const mods: string[] = [];
+    if (anyScope) mods.push("Almost every show needs 1 Sound FOH.");
     out.push(buildSuggestion("fohSound", range, currentByRole.fohSound, mods));
   }
   {

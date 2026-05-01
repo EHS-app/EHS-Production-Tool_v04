@@ -1879,6 +1879,13 @@ router.get(
       // we need for dietary / allergen classification. `leftJoin` so
       // a freelancer who accepted before completing their profile
       // still appears (with `profileless: true`).
+      //
+      // The Crew & Logistics master sheet uses this endpoint as its
+      // single data source, so we also pull the phone + room-pairing
+      // profile fields (phone / roomShare / gender / checkIn / checkOut)
+      // — same fields the `/hotel` endpoint pulls, just consolidated
+      // here so the producer doesn't need to round-trip a second
+      // request to render "Phone" and "Roommate" columns.
       const rows = await db
         .select({
           gigId: gigsTable.id,
@@ -1886,10 +1893,15 @@ router.get(
           assignedDates: gigsTable.assignedDates,
           status: gigsTable.status,
           hotelRequired: gigsTable.hotelRequired,
+          checkInDate: gigsTable.checkInDate,
+          checkOutDate: gigsTable.checkOutDate,
           freelancerUserId: gigsTable.freelancerUserId,
           profileFullName: freelancerProfilesTable.fullName,
           profileDietary: freelancerProfilesTable.dietary,
           profileAllergies: freelancerProfilesTable.allergies,
+          profilePhone: freelancerProfilesTable.phone,
+          profileRoomShare: freelancerProfilesTable.roomShare,
+          profileGender: freelancerProfilesTable.gender,
         })
         .from(gigsTable)
         .leftJoin(
@@ -1897,6 +1909,18 @@ router.get(
           eq(gigsTable.freelancerUserId, freelancerProfilesTable.userId),
         )
         .where(eq(gigsTable.briefId, id));
+
+      // Pull room locks so the master-sheet roommate column reflects
+      // any pin the producer set on the Hotel page. Same query as
+      // the hotel endpoint above — silently ignored locks for
+      // dropped freelancers.
+      const lockRows = await db
+        .select({
+          freelancerUserId: briefRoomAssignmentsTable.freelancerUserId,
+          roomKey: briefRoomAssignmentsTable.roomKey,
+        })
+        .from(briefRoomAssignmentsTable)
+        .where(eq(briefRoomAssignmentsTable.briefId, id));
 
       const crew = rows
         .filter((r) => ROSTER_GIG_STATUSES.has(r.status))
@@ -1915,6 +1939,26 @@ router.get(
             )
             .filter((d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d))
             .sort();
+          // Mirror the hotel endpoint's check-in/-out resolution so
+          // the pairing engine sees the same window the rooming list
+          // would. Without this, two endpoints could disagree on
+          // who's actually overlapping at the hotel.
+          const minIso = dates[0] ?? null;
+          const maxIso = dates[dates.length - 1] ?? null;
+          let derivedCheckOut: string | null = null;
+          if (maxIso) {
+            const d = new Date(`${maxIso}T00:00:00Z`);
+            d.setUTCDate(d.getUTCDate() + 1);
+            derivedCheckOut = d.toISOString().slice(0, 10);
+          }
+          const ci =
+            typeof r.checkInDate === "string"
+              ? r.checkInDate.slice(0, 10)
+              : null;
+          const co =
+            typeof r.checkOutDate === "string"
+              ? r.checkOutDate.slice(0, 10)
+              : null;
           return {
             gigId: r.gigId,
             freelancerUserId: r.freelancerUserId,
@@ -1925,10 +1969,129 @@ router.get(
             hotelRequired: !!r.hotelRequired,
             dietaryTags: classifyDietary(r.profileDietary),
             allergens: splitAllergens(r.profileAllergies),
+            phone: typeof r.profilePhone === "string" ? r.profilePhone : "",
             profileless: !hasProfile,
+            // Internal pairing inputs — stripped from the response
+            // below, only used to feed `assignRooms` here. Tucked
+            // onto the row so we can group multi-gig people first
+            // and then run pairing once on the deduped list.
+            _checkInDate: ci ?? minIso,
+            _checkOutDate: co ?? derivedCheckOut,
+            _roomShare: (r.profileRoomShare === "twin" ||
+              r.profileRoomShare === "single"
+              ? r.profileRoomShare
+              : "either") as RoomShare,
+            _gender: (r.profileGender === "female" ||
+              r.profileGender === "male" ||
+              r.profileGender === "other"
+              ? r.profileGender
+              : "") as PairingGender,
           };
         })
         .sort((a, b) => a.name.localeCompare(b.name));
+
+      // Dedupe to one entry per freelancer for the pairing engine —
+      // the engine rejects duplicate ids, and a freelancer with two
+      // gigs on the same brief is still one human at the hotel. We
+      // OR `hotelRequired` and pick the widest stay window.
+      const aggForPairing = new Map<
+        string,
+        {
+          freelancerUserId: string;
+          name: string;
+          checkInDate: string | null;
+          checkOutDate: string | null;
+          roomShare: RoomShare;
+          gender: PairingGender;
+          hotelRequired: boolean;
+        }
+      >();
+      for (const c of crew) {
+        const existing = aggForPairing.get(c.freelancerUserId);
+        if (!existing) {
+          aggForPairing.set(c.freelancerUserId, {
+            freelancerUserId: c.freelancerUserId,
+            name: c.name,
+            checkInDate: c._checkInDate,
+            checkOutDate: c._checkOutDate,
+            roomShare: c._roomShare,
+            gender: c._gender,
+            hotelRequired: c.hotelRequired,
+          });
+        } else {
+          existing.hotelRequired = existing.hotelRequired || c.hotelRequired;
+          if (
+            c._checkInDate &&
+            (!existing.checkInDate || c._checkInDate < existing.checkInDate)
+          ) {
+            existing.checkInDate = c._checkInDate;
+          }
+          if (
+            c._checkOutDate &&
+            (!existing.checkOutDate || c._checkOutDate > existing.checkOutDate)
+          ) {
+            existing.checkOutDate = c._checkOutDate;
+          }
+        }
+      }
+      const pairingPeople: PairingPerson[] = Array.from(
+        aggForPairing.values(),
+      )
+        .filter((p) => p.hotelRequired)
+        .map((p) => ({
+          freelancerUserId: p.freelancerUserId,
+          name: p.name,
+          checkInDate: p.checkInDate,
+          checkOutDate: p.checkOutDate,
+          roomShare: p.roomShare,
+          gender: p.gender,
+        }));
+      const assignments = assignRooms(pairingPeople, lockRows);
+      // Group people by roomKey so we can compute "roommateName"
+      // per row in O(crew). A solo room (roomKey set, only one
+      // occupant) yields roommateName=null — UI can still show
+      // the room key as "(solo)" if it cares.
+      const usersByRoom = new Map<string, string[]>();
+      const nameByUser = new Map<string, string>();
+      const roomByUser = new Map<string, string>();
+      for (const a of assignments) {
+        if (!a.roomKey) continue;
+        roomByUser.set(a.freelancerUserId, a.roomKey);
+        const list = usersByRoom.get(a.roomKey) ?? [];
+        list.push(a.freelancerUserId);
+        usersByRoom.set(a.roomKey, list);
+      }
+      for (const c of crew) nameByUser.set(c.freelancerUserId, c.name);
+
+      // Strip the underscore-prefixed pairing inputs and graft on
+      // the public `roomKey` + `roommateName` fields the master
+      // sheet renders. Keeping these out of the response shape
+      // prevents the wire format from leaking the pairing engine's
+      // intermediate state.
+      const crewOut = crew.map((c) => {
+        const {
+          _checkInDate: _i,
+          _checkOutDate: _o,
+          _roomShare: _s,
+          _gender: _g,
+          ...publicFields
+        } = c;
+        const roomKey = roomByUser.get(c.freelancerUserId) ?? null;
+        let roommateName: string | null = null;
+        if (roomKey) {
+          const roommates = (usersByRoom.get(roomKey) ?? []).filter(
+            (uid) => uid !== c.freelancerUserId,
+          );
+          // Multi-roommate rooms (3-4 share) join with " / " — keeps
+          // the column scannable on one line.
+          if (roommates.length > 0) {
+            roommateName = roommates
+              .map((uid) => nameByUser.get(uid) ?? "?")
+              .join(" / ");
+          }
+        }
+        return { ...publicFields, roomKey, roommateName };
+      });
 
       res.json({
         ok: true,
@@ -1939,7 +2102,7 @@ router.get(
           startDate: brief.startDate ?? null,
           endDate: brief.endDate ?? null,
         },
-        crew,
+        crew: crewOut,
         projectDays: expandDateRange(brief.startDate, brief.endDate),
         categories: DIETARY_TAGS,
       });

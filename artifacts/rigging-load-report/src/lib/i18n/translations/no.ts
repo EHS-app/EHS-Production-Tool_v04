@@ -75,7 +75,7 @@ export const no: Translations = {
   "view.lighting": "Lighting Report",
   "view.led": "LED Screen Report",
   "view.stage": "Stage Report",
-  "view.crew": "Crew Report",
+  "view.crew": "Mannskap og logistikk",
   "view.sound": "Sound Report",
   "view.riggPlan": "Smash It",
 

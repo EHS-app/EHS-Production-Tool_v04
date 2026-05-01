@@ -6263,6 +6263,44 @@ input:focus {
 .roster-hotel input:disabled { cursor: progress; }
 .roster-hotel-label { font-size: 12px; color: var(--muted, #64748b); }
 
+/* ---- Master Crew & Logistics sheet (Phase C consolidation) ---- */
+.master-sheet-card { margin-bottom: 16px; }
+.master-sheet-table th { white-space: nowrap; }
+.master-sheet-table td { vertical-align: middle; }
+.master-sheet-table .led-input { min-width: 120px; }
+.master-sheet-table .led-input-num { min-width: 70px; }
+.roster-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted, #64748b);
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border, #e2e8f0);
+  background: var(--surface-2, #f8fafc);
+}
+.roster-toggle input { cursor: pointer; }
+.roster-roommate {
+  font-size: 13px;
+  color: var(--text, #0f172a);
+  font-weight: 500;
+}
+.roster-phone {
+  font-size: 13px;
+  color: var(--accent, #f97316);
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.roster-phone:hover { text-decoration: underline; }
+.roster-notes {
+  font-size: 13px;
+  color: var(--text, #0f172a);
+}
+
 /* ---- Phase C / Slice 3: Crew Adequacy panel ---- */
 .adequacy-card { margin-bottom: 16px; }
 .adequacy-profile {

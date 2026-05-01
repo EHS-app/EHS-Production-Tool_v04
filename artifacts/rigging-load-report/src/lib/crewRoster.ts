@@ -102,6 +102,24 @@ export type RosterRow = {
    *  the PM knows the dietary/allergen blanks aren't a real "no
    *  allergies" answer. */
   profileless: boolean;
+  /** Phone number from the freelancer's profile. Empty string when
+   *  not filled out (or on local rows where the producer hasn't
+   *  collected it). The master sheet renders it as a `tel:` link
+   *  when non-empty so the PM can call from a mobile browser. */
+  phone: string;
+  /** Stable internal room id from the pairing engine. Two crew with
+   *  the same `roomKey` share a room. `null` when this person isn't
+   *  in the pairing set (hotelRequired=false) or no pairing has
+   *  been computed yet. The master sheet doesn't show this directly
+   *  — it uses `roommateName` instead — but it's exposed for the
+   *  print export which prints "Room 1, 2, …" labels. */
+  roomKey: string | null;
+  /** Display name(s) of the people sharing this person's room.
+   *  Joined with " / " for 3+ share rooms. `null` when this person
+   *  is solo or has no room assigned. Computed server-side from
+   *  the pairing engine + room locks so the master sheet stays
+   *  consistent with the Hotel page. */
+  roommateName: string | null;
   /** Per-day rate the producer typed locally in NOK. Carried through
    *  even for gig-backed rows so the call sheet still shows a
    *  number. 0 when unknown. */
@@ -124,6 +142,9 @@ export type RosterGig = {
   dietaryTags: DietaryTag[];
   allergens: string[];
   profileless: boolean;
+  phone: string;
+  roomKey: string | null;
+  roommateName: string | null;
 };
 
 export type RosterResponse = {
@@ -216,9 +237,10 @@ export function mergeRoster(
       if (STATUS_RANK[g.status] > STATUS_RANK[existing.status as RosterGigStatus]) {
         existing.status = g.status;
       }
-      // dietaryTags / allergens come from the freelancer profile
-      // (same person → same data) so we don't bother merging; the
-      // first gig's copy is authoritative.
+      // dietaryTags / allergens / phone / room come from the
+      // freelancer profile + pairing engine (same person → same
+      // data) so we don't bother merging; the first gig's copy is
+      // authoritative.
       // profileless: any gig saying "no profile" implies no profile
       // exists for this person, period. Logical OR.
       existing.profileless = existing.profileless || g.profileless;
@@ -244,6 +266,9 @@ export function mergeRoster(
       dietaryTags: g.dietaryTags,
       allergens: g.allergens,
       profileless: g.profileless,
+      phone: g.phone,
+      roomKey: g.roomKey,
+      roommateName: g.roommateName,
       dayRate: matchedLocal?.dayRate ?? 0,
       notes: matchedLocal?.notes ?? "",
     };
@@ -270,6 +295,12 @@ export function mergeRoster(
       dietaryTags: [],
       allergens: [],
       profileless: false,
+      // Local rows have no portal data to pull phone/room from.
+      // Empty string + null are the sentinel "unknown" values the
+      // master sheet renders as a muted dash.
+      phone: "",
+      roomKey: null,
+      roommateName: null,
       dayRate: m.dayRate,
       notes: m.notes,
     });

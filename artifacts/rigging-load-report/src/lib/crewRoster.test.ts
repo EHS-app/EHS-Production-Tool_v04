@@ -41,6 +41,9 @@ function makeGig(overrides: Partial<RosterGig> & { gigId: string }): RosterGig {
     dietaryTags: overrides.dietaryTags ?? [],
     allergens: overrides.allergens ?? [],
     profileless: overrides.profileless ?? false,
+    phone: overrides.phone ?? "",
+    roomKey: overrides.roomKey ?? null,
+    roommateName: overrides.roommateName ?? null,
   };
 }
 
@@ -351,4 +354,33 @@ test("mergeRoster gig-vs-gig merge: any profileless flag wins", () => {
   );
   assert.equal(out.length, 1);
   assert.equal(out[0]?.profileless, true);
+});
+
+test("mergeRoster passes phone, roomKey and roommateName through to the gig row", () => {
+  const gig = makeGig({
+    gigId: "g1",
+    name: "Cara Carlsen",
+    phone: "+47 900 12 345",
+    roomKey: "room-1",
+    roommateName: "Dag Dahl",
+  });
+  const out = mergeRoster([], makeResponse([gig]));
+  assert.equal(out.length, 1);
+  assert.equal(out[0]!.phone, "+47 900 12 345");
+  assert.equal(out[0]!.roomKey, "room-1");
+  assert.equal(out[0]!.roommateName, "Dag Dahl");
+});
+
+test("mergeRoster gives local-only rows empty phone + null room fields", () => {
+  // The master sheet renders these as a muted dash; the test pins
+  // the sentinel values so the UI doesn't accidentally show
+  // "undefined" or "null" if the merge ever drifts.
+  const local = [
+    makeLocal({ id: "c1", name: "Eva Eriksen" }),
+  ];
+  const out = mergeRoster(local, null);
+  assert.equal(out.length, 1);
+  assert.equal(out[0]!.phone, "");
+  assert.equal(out[0]!.roomKey, null);
+  assert.equal(out[0]!.roommateName, null);
 });

@@ -33,6 +33,7 @@ import {
 import { findProcessor } from "./lib/ledProcessors";
 import { NumberField } from "./components/NumberField";
 import { ShareBriefModal } from "./components/ShareBriefModal";
+import { HelpModal } from "./components/HelpModal";
 import { useT } from "./lib/i18n/I18nContext";
 import { buildBrief, type BuildBriefInput } from "./lib/projectBrief";
 import type { CrewRequestStatus } from "./lib/crew";
@@ -1298,6 +1299,7 @@ function App() {
 
   const [savedAt, setSavedAt] = useState<string>("");
   const [shareOpen, setShareOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   // Transient toast text for the Power Plan "Export to crew" action.
   // Cleared by the PowerPlanView after its auto-fade timer fires, or
   // when the user clicks the close (×) on the toast itself.
@@ -4173,6 +4175,16 @@ function App() {
               ● Saved {savedAt}
             </span>
             <button
+              type="button"
+              className="btn btn-help"
+              onClick={() => setHelpOpen(true)}
+              title={tr("header.helpTitle")}
+              aria-label={tr("header.help")}
+            >
+              <span aria-hidden>?</span>
+              <span>{tr("header.help")}</span>
+            </button>
+            <button
               className="btn btn-reset"
               onClick={resetAll}
               title={tr("header.reset")}
@@ -5257,6 +5269,8 @@ function App() {
           onClose={() => setShareOpen(false)}
         />
       ) : null}
+
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
 
       <EquipmentPicker
         open={pickerTarget !== null}

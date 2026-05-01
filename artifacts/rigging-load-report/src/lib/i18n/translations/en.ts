@@ -43,6 +43,53 @@ export const en = {
   "header.projectSettings": "Project Settings",
   "header.reset": "Reset",
   "header.shareBrief": "Share Brief",
+  "header.help": "Help",
+  "header.helpTitle": "How the Production Tool works",
+
+  // ---------- Help modal ----------
+  "help.subtitle":
+    "A quick tour of the Production Tool — the buttons in the header, every tab, and the small things that save you time.",
+  "help.section.overview": "What is the Production Tool?",
+  "help.overview.body":
+    "It's the producer's worksheet for an entire show — rigging loads, lighting, sound, LED, stage build, crew & logistics, and the venue drawing analyser. Everything you type is saved in your browser as you go (look for the green ● Saved pill in the header). When you're ready to share, generate a Client Pack PDF or push per-crew briefs out to the Freelance Portal.",
+  "help.section.headerActions": "Header buttons",
+  "help.headerActions.reset":
+    "Wipes the whole project — systems, crew, lighting, sound, stage and LED — back to a blank slate. Useful when you start a new show.",
+  "help.headerActions.csv":
+    "Downloads the active Rigging Report as a spreadsheet-friendly CSV (one row per hoist point).",
+  "help.headerActions.exportReport":
+    "Sends the Rigging Report to your printer / Save-as-PDF dialog. The print stylesheet is tuned for A4 landscape.",
+  "help.headerActions.clientPack":
+    "Opens a printable, client-facing pack covering schedule, crew, rigging, lighting, sound, stage, LED, risks and a cost summary — everything in one PDF.",
+  "help.headerActions.simulateShow":
+    "Runs a 10-phase dry-run from load-in through show to load-out. Each phase reports per-discipline status, risks and a final readiness verdict, so you can spot gaps before they bite you.",
+  "help.headerActions.shareWithCrew":
+    "Generates per-freelancer brief links you can hand out. The crew open them in the Freelance Portal to accept or decline, see their gigs, hotel and call times.",
+  "help.section.tabs": "The tabs",
+  "help.tabs.rigging":
+    "Add hoist systems, drop in trusses and points, and watch the kg/W counters in the dark stat bar update live. Overload points turn red.",
+  "help.tabs.lighting":
+    "Track fixtures per system: type, count, wattage, dimmer / DMX needs. Feeds total power into the rigging summary.",
+  "help.tabs.led":
+    "Log LED panels, processing and rigging method. Catches power and weight in the project totals.",
+  "help.tabs.stage":
+    "Define stage geometry, decking and per-deck assembly numbering. The SVG preview shows leg counts and build direction.",
+  "help.tabs.sound":
+    "Capture the PA, monitor and mic plot for the show.",
+  "help.tabs.crew":
+    "One unified master sheet for everyone on the show: name, role, status, days worked, hotel, roommate, food and phone. Toggle Production details for call/off times and day rate, then Print for an A4 hand-off to the runner, hotel or catering.",
+  "help.tabs.riggPlan":
+    "Upload a venue PDF or photo. The drawing analyser extracts trusses, lighting, LED and sound items into editable overlay boxes — pre-fills the other tabs and learns from your corrections per venue.",
+  "help.section.tips": "Good to know",
+  "help.tips.autosave":
+    "Everything autosaves to your browser. The ● Saved pill in the header shows the last write time.",
+  "help.tips.language":
+    "Switch between English and Norwegian any time using the EN / NO selector in the top-right corner.",
+  "help.tips.portal":
+    "The Portal button (top-right) opens the freelance side, where crew see the briefs you've shared.",
+  "help.tips.print":
+    "All Export and Print buttons are tuned for A4 landscape — Save-as-PDF in the print dialog produces the cleanest output.",
+  "help.close": "Got it",
 
   // ---------- Project meta card ----------
   "project.venueProject": "Venue / Project",

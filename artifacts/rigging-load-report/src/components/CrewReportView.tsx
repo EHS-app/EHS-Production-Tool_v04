@@ -1,5 +1,7 @@
 import { useMemo, type ReactNode } from "react";
 import { NumberField } from "./NumberField";
+import { RosterTable } from "./RosterTable";
+import { AdequacyPanel } from "./AdequacyPanel";
 import {
   CREW_REQUEST_STATUS_META,
   CREW_ROLES,
@@ -21,6 +23,24 @@ type Props = {
    *  on narrow ones. Kept as a slot so this view stays unaware of the
    *  freelancer-portal data layer. */
   directorySidebar?: ReactNode;
+  /** Producer's active brief id from App.tsx. When set we render the
+   *  Phase-C Producer Roster panel above the call sheet. When null
+   *  (no brief active yet) the panel is hidden — there's nothing
+   *  meaningful to show without a brief context. */
+  activeBriefId?: string | null;
+  /** Async token resolver from Clerk's `useAuth`. Threaded through
+   *  to the roster panel so it can call the owner-only roster
+   *  endpoint. Only required when `activeBriefId` is set. */
+  getToken?: () => Promise<string | null>;
+  /** Project-scope numbers for the Phase-C adequacy meter, derived
+   *  in App.tsx from the rigging / LED / lighting / stage tabs.
+   *  Optional — when missing the panel is hidden. */
+  adequacyMetrics?: {
+    hoistPoints: number;
+    ledArea: number;
+    stageArea: number;
+    fixtureCount: number;
+  };
 };
 
 const fmtNum = (n: number, d = 1) =>
@@ -33,8 +53,24 @@ export function CrewReportView({
   onRemove,
   onDuplicate,
   directorySidebar,
+  activeBriefId,
+  getToken,
+  adequacyMetrics,
 }: Props) {
   const totals = useMemo(() => computeCrewTotals(crew), [crew]);
+  // Headcount source for the adequacy meter: the local crew[] (the
+  // producer's call sheet) rather than the merged portal roster.
+  // Reasons:
+  //   - the call sheet is the producer's source-of-truth for "who
+  //     I've planned to bring";
+  //   - it's available even before any brief is pushed to the
+  //     portal (so the meter still works on day-1 planning);
+  //   - it sidesteps having to hoist RosterTable's internal fetch
+  //     into the parent for Slice 3.
+  // Once the brief is live and people are confirmed via gigs the
+  // producer typically mirrors them into the call sheet anyway, so
+  // the count stays meaningful.
+  const rosterRoles = useMemo(() => crew.map((m) => m.role), [crew]);
 
   return (
     <div
@@ -86,6 +122,28 @@ export function CrewReportView({
           stacks gracefully on iPad / phone. */}
       <div className="crew-layout">
       <div className="crew-layout-main">
+      {/* Phase C — Producer Roster panel. Only rendered once a brief
+          is active; before then there's no server-side roster to
+          fetch and the local crew[] is already shown by the call
+          sheet below. */}
+      {activeBriefId && getToken ? (
+        <RosterTable
+          briefId={activeBriefId}
+          getToken={getToken}
+          localCrew={crew}
+        />
+      ) : null}
+      {/* Phase C — Crew Adequacy panel. Always visible (not gated on
+          activeBriefId) because the meter is useful during day-1
+          planning, before any portal brief exists. Only rendered if
+          the parent passes derived metrics — App.tsx wires this up
+          from the rigging / LED / lighting / stage tabs. */}
+      {adequacyMetrics ? (
+        <AdequacyPanel
+          derived={adequacyMetrics}
+          rosterRoles={rosterRoles}
+        />
+      ) : null}
       {/* Crew list */}
       <section className="led-card">
         <div className="led-card-head">

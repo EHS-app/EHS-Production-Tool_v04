@@ -1578,6 +1578,171 @@ router.patch(
   },
 );
 
+/** PATCH /api/portal/briefs/:id/roster/:gigId/dates — owner-only.
+ *  Producer-side update of the working-day list on a single gig
+ *  under their own brief. Body: `{ assignedDates: string[] }` — a
+ *  full replacement (not a partial / merge). The producer's UI
+ *  already knows the full intended set, and a replace semantic
+ *  avoids the "did the empty array mean clear or no-op?" ambiguity
+ *  a partial would have.
+ *
+ *  Validation: each date must be a real ISO YYYY-MM-DD AND fall
+ *  within the brief's window with ±7 days of slack on each side.
+ *  The slack covers travel days (load-in the day before, breakdown
+ *  the day after) and the occasional "I picked up keys yesterday"
+ *  case without letting a stray YYYY-MM-DD typo land Postgres a
+ *  date in 2099. Briefs without a startDate/endDate skip the
+ *  window check (we can't validate against a missing window).
+ *
+ *  Side-effect: like the hotel PATCH, the new date list is
+ *  cascaded to every gig the same freelancer holds on this brief
+ *  so a person with two roles (e.g. "Rigger" + "Stage") doesn't
+ *  drift between two different schedules. The roster GET above
+ *  already shows them as one row; producers expect the same edit
+ *  to update both gigs at once. */
+router.patch(
+  "/portal/briefs/:id/roster/:gigId/dates",
+  requireSignedIn,
+  async (req, res) => {
+    const userId = (req as unknown as { _userId: string })._userId;
+    const briefId = String(req.params.id ?? "");
+    const gigId = String(req.params.gigId ?? "");
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+    // Body shape check first — array of strings, ≤ 366 entries (same
+    // hard cap as the brief-window expansion above so a malicious
+    // client can't post a 100k-element array and OOM the server).
+    const raw = body.assignedDates;
+    if (!Array.isArray(raw)) {
+      res.status(400).json({
+        ok: false,
+        error: "assignedDates must be an array of YYYY-MM-DD strings.",
+      });
+      return;
+    }
+    if (raw.length > 366) {
+      res.status(400).json({
+        ok: false,
+        error: "assignedDates is capped at 366 entries.",
+      });
+      return;
+    }
+    // Per-element parse + dedupe + sort. Bad entries reject the whole
+    // request rather than silently dropping — the producer should
+    // know if a typo made it through their UI.
+    const parsed: string[] = [];
+    const seen = new Set<string>();
+    for (const v of raw) {
+      if (typeof v !== "string" || !ISO_RE.test(v)) {
+        res.status(400).json({
+          ok: false,
+          error: "Each date must be a YYYY-MM-DD string.",
+        });
+        return;
+      }
+      const d = new Date(`${v}T00:00:00Z`);
+      if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== v) {
+        res
+          .status(400)
+          .json({ ok: false, error: `Invalid calendar date: ${v}.` });
+        return;
+      }
+      if (seen.has(v)) continue;
+      seen.add(v);
+      parsed.push(v);
+    }
+    parsed.sort();
+
+    try {
+      const briefRows = await db
+        .select({
+          ownerUserId: projectBriefsTable.ownerUserId,
+          startDate: projectBriefsTable.startDate,
+          endDate: projectBriefsTable.endDate,
+        })
+        .from(projectBriefsTable)
+        .where(eq(projectBriefsTable.id, briefId))
+        .limit(1);
+      const brief = briefRows[0];
+      if (!brief) {
+        res.status(404).json({ ok: false, error: "Brief not found." });
+        return;
+      }
+      if (brief.ownerUserId !== userId) {
+        res.status(403).json({ ok: false, error: "Not your brief." });
+        return;
+      }
+      // Window check: only enforce when both endpoints are set, so
+      // briefs that haven't been fully scoped yet still accept date
+      // edits (the producer commonly assigns days before locking the
+      // window). ±7d slack for travel/breakdown days.
+      if (brief.startDate && brief.endDate) {
+        const startMs = new Date(`${brief.startDate}T00:00:00Z`).getTime();
+        const endMs = new Date(`${brief.endDate}T00:00:00Z`).getTime();
+        const slack = 7 * 24 * 60 * 60 * 1000;
+        const minMs = startMs - slack;
+        const maxMs = endMs + slack;
+        for (const d of parsed) {
+          const t = new Date(`${d}T00:00:00Z`).getTime();
+          if (t < minMs || t > maxMs) {
+            res.status(400).json({
+              ok: false,
+              error: `Date ${d} is outside the brief's window (±7 days).`,
+            });
+            return;
+          }
+        }
+      }
+
+      const result = await db.transaction(async (tx) => {
+        const targetRows = await tx
+          .select({ freelancerUserId: gigsTable.freelancerUserId })
+          .from(gigsTable)
+          .where(and(eq(gigsTable.id, gigId), eq(gigsTable.briefId, briefId)))
+          .limit(1);
+        const target = targetRows[0];
+        if (!target) return { ok: false as const };
+        const updated = await tx
+          .update(gigsTable)
+          .set({ assignedDates: parsed, updatedAt: sql`now()` })
+          .where(
+            and(
+              eq(gigsTable.briefId, briefId),
+              eq(gigsTable.freelancerUserId, target.freelancerUserId),
+            ),
+          )
+          .returning({
+            id: gigsTable.id,
+            assignedDates: gigsTable.assignedDates,
+          });
+        return { ok: true as const, updated };
+      });
+      if (!result.ok) {
+        res
+          .status(404)
+          .json({ ok: false, error: "Gig not found on this brief." });
+        return;
+      }
+      const targetedGig =
+        result.updated.find((g) => g.id === gigId) ?? result.updated[0];
+      res.json({ ok: true, gig: targetedGig });
+    } catch (err) {
+      logger.error(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          briefId,
+          gigId,
+        },
+        "portal briefs/:id/roster/:gigId/dates PATCH failed",
+      );
+      res
+        .status(500)
+        .json({ ok: false, error: "Could not update working days." });
+    }
+  },
+);
+
 /** Shared owner-check + countable-crew loader for the lock/unlock/swap
  *  family. Returns the brief's owner-verified set of hotel-eligible
  *  crew (gigs in a countable status with `hotelRequired=true`), or
@@ -1621,6 +1786,174 @@ async function loadHotelCrewForOwner(
   }
   return eligible;
 }
+
+/** GET /api/portal/briefs/:id/roster — owner-only.
+ *  Producer-side unified roster for the Crew Report tab. Returns one
+ *  row per (gig, freelancer) for every gig on this brief that is
+ *  either still being negotiated (`invited`) or already booked
+ *  (`confirmed` / `done` / `invoiced` / `paid`). Used by the Crew
+ *  Report's roster panel to give project leaders a single overview
+ *  of "who do we have, what days are they working, do they need a
+ *  hotel, do they have allergies".
+ *
+ *  Composition: this is essentially `/hotel` + `/catering` glued
+ *  together, but we deliberately keep it as a third endpoint rather
+ *  than fattening either one — the roster has different audience
+ *  (every PM, not just the back-office hotel/catering workflows) and
+ *  different status filter (includes `invited`, which the other two
+ *  exclude). Owner-only for the same privacy reason as the hotel
+ *  endpoint: it surfaces other crew members' allergens and hotel
+ *  preferences, which would leak between freelancers.
+ *
+ *  Also returns `projectDays` — the canonical list of every day in
+ *  the brief's window (inclusive) — so the Crew tab's day-chip
+ *  pills can render even for people who have no assigned days yet.
+ *  Without this the client would have to expand the brief's start/
+ *  end dates itself, which it can already do but having one
+ *  authoritative source per brief avoids drift between Crew /
+ *  Hotel / Catering tabs. */
+const ROSTER_GIG_STATUSES: ReadonlySet<string> = new Set([
+  "invited",
+  "confirmed",
+  "done",
+  "invoiced",
+  "paid",
+]);
+
+/** Expand an inclusive date range into the list of YYYY-MM-DD strings
+ *  it covers. Returns `[]` when either endpoint is missing or the
+ *  range is reversed (we don't try to be clever — the brief author
+ *  is expected to set the dates correctly). UTC arithmetic only,
+ *  matching the rest of this file's date handling. */
+function expandDateRange(
+  startIso: string | null | undefined,
+  endIso: string | null | undefined,
+): string[] {
+  if (!startIso || !endIso) return [];
+  const start = new Date(`${startIso}T00:00:00Z`);
+  const end = new Date(`${endIso}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return [];
+  if (end.getTime() < start.getTime()) return [];
+  const out: string[] = [];
+  const cursor = new Date(start.getTime());
+  // Hard cap at 366 days so a typo in the brief (start 2025, end 2035)
+  // can't blow up the response. Real productions max out at a few weeks.
+  for (let i = 0; i < 366; i++) {
+    out.push(cursor.toISOString().slice(0, 10));
+    if (cursor.getTime() === end.getTime()) break;
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return out;
+}
+
+router.get(
+  "/portal/briefs/:id/roster",
+  requireSignedIn,
+  async (req, res) => {
+    const userId = (req as unknown as { _userId: string })._userId;
+    const id = String(req.params.id ?? "");
+    try {
+      const briefRows = await db
+        .select({
+          id: projectBriefsTable.id,
+          ownerUserId: projectBriefsTable.ownerUserId,
+          venue: projectBriefsTable.venue,
+          projectName: projectBriefsTable.projectName,
+          startDate: projectBriefsTable.startDate,
+          endDate: projectBriefsTable.endDate,
+        })
+        .from(projectBriefsTable)
+        .where(eq(projectBriefsTable.id, id))
+        .limit(1);
+      const brief = briefRows[0];
+      if (!brief) {
+        res.status(404).json({ ok: false, error: "Brief not found." });
+        return;
+      }
+      if (brief.ownerUserId !== userId) {
+        res.status(403).json({ ok: false, error: "Not your brief." });
+        return;
+      }
+
+      // Pull every gig on this brief plus the freelancer profile bits
+      // we need for dietary / allergen classification. `leftJoin` so
+      // a freelancer who accepted before completing their profile
+      // still appears (with `profileless: true`).
+      const rows = await db
+        .select({
+          gigId: gigsTable.id,
+          gigRole: gigsTable.role,
+          assignedDates: gigsTable.assignedDates,
+          status: gigsTable.status,
+          hotelRequired: gigsTable.hotelRequired,
+          freelancerUserId: gigsTable.freelancerUserId,
+          profileFullName: freelancerProfilesTable.fullName,
+          profileDietary: freelancerProfilesTable.dietary,
+          profileAllergies: freelancerProfilesTable.allergies,
+        })
+        .from(gigsTable)
+        .leftJoin(
+          freelancerProfilesTable,
+          eq(gigsTable.freelancerUserId, freelancerProfilesTable.userId),
+        )
+        .where(eq(gigsTable.briefId, id));
+
+      const crew = rows
+        .filter((r) => ROSTER_GIG_STATUSES.has(r.status))
+        .map((r) => {
+          const hasProfile = typeof r.profileFullName === "string";
+          const name =
+            (hasProfile ? r.profileFullName : null) ||
+            // Same fallback as the catering endpoint so a profileless
+            // freelancer still shows up readably in the table.
+            `Crew member ${r.freelancerUserId.slice(-4)}`;
+          const dates: string[] = (
+            Array.isArray(r.assignedDates) ? r.assignedDates : []
+          )
+            .map((d: unknown) =>
+              typeof d === "string" ? d.slice(0, 10) : String(d).slice(0, 10),
+            )
+            .filter((d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+            .sort();
+          return {
+            gigId: r.gigId,
+            freelancerUserId: r.freelancerUserId,
+            name,
+            role: r.gigRole ?? "",
+            status: r.status,
+            assignedDates: dates,
+            hotelRequired: !!r.hotelRequired,
+            dietaryTags: classifyDietary(r.profileDietary),
+            allergens: splitAllergens(r.profileAllergies),
+            profileless: !hasProfile,
+          };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      res.json({
+        ok: true,
+        brief: {
+          id: brief.id,
+          projectName: brief.projectName,
+          venue: brief.venue,
+          startDate: brief.startDate ?? null,
+          endDate: brief.endDate ?? null,
+        },
+        crew,
+        projectDays: expandDateRange(brief.startDate, brief.endDate),
+        categories: DIETARY_TAGS,
+      });
+    } catch (err) {
+      logger.error(
+        { err: err instanceof Error ? err.message : String(err), briefId: id },
+        "portal briefs/:id/roster GET failed",
+      );
+      res
+        .status(500)
+        .json({ ok: false, error: "Could not load crew roster." });
+    }
+  },
+);
 
 /** POST /api/portal/briefs/:id/hotel/lock — owner-only.
  *  Locks a set of freelancers (1–4 people) into a single fresh room

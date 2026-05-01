@@ -6170,3 +6170,167 @@ input:focus {
   color: #b91c1c;
   margin-left: 8px;
 }
+
+/* ===========================================================
+   Producer Roster panel (Phase C, on the Crew Report tab)
+   ===========================================================
+   Lives above the existing call sheet. The table reuses the
+   shared `.led-table` chrome but adds a few extras: weekday
+   "day-chips" for working days, a name+hint stack for the
+   "no profile" caveat, and a small inline food line that
+   shows dietary tags + an allergen warning side by side. */
+.roster-card { margin-bottom: 16px; }
+.roster-table th { white-space: nowrap; }
+.roster-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.roster-hint {
+  font-size: 11px;
+  color: var(--muted, #94a3b8);
+  font-style: italic;
+}
+/* Compact two-letter weekday pills. The "on" variant uses the
+   accent palette so the working days pop visually; "off" days
+   are muted so the eye reads the run as one continuous strip
+   with the active days highlighted. */
+.roster-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.roster-chip {
+  display: inline-block;
+  min-width: 22px;
+  text-align: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: lowercase;
+  border: 1px solid transparent;
+  line-height: 1.2;
+}
+.roster-chip-on {
+  background: rgba(248, 128, 0, 0.18);
+  color: #b45309;
+  border-color: rgba(248, 128, 0, 0.45);
+}
+.roster-chip-off {
+  background: rgba(100, 116, 139, 0.10);
+  color: #64748b;
+  border-color: rgba(100, 116, 139, 0.20);
+}
+.roster-chip-count {
+  margin-left: 4px;
+  font-size: 11px;
+  color: var(--muted, #94a3b8);
+  font-variant-numeric: tabular-nums;
+}
+.roster-food {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+/* Interactive day-chips (Slice 2). Chips are <button> only when an
+   `onDayToggle` is wired (gig-backed rows) — when read-only they
+   stay as <span>. The button reset gives them the same visual
+   weight as the static chip plus a subtle hover/disabled state so
+   the producer can tell at a glance which chips are clickable. */
+.roster-chip-interactive {
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+}
+.roster-chip-interactive:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+.roster-chip-interactive:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+.roster-chips.is-saving { opacity: 0.7; }
+.roster-hotel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.roster-hotel input { cursor: pointer; }
+.roster-hotel input:disabled { cursor: progress; }
+.roster-hotel-label { font-size: 12px; color: var(--muted, #64748b); }
+
+/* ---- Phase C / Slice 3: Crew Adequacy panel ---- */
+.adequacy-card { margin-bottom: 16px; }
+.adequacy-profile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  padding: 12px;
+  background: var(--surface-2, #f8fafc);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+.adequacy-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted, #64748b);
+}
+.adequacy-field input[type="number"] { width: 80px; }
+.adequacy-field.adequacy-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.adequacy-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.adequacy-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border-left: 3px solid transparent;
+  background: var(--surface-2, #f8fafc);
+}
+.adequacy-row-bad  { border-left-color: var(--danger, #dc2626); }
+.adequacy-row-warn { border-left-color: var(--warning, #d97706); }
+.adequacy-row-ok   { border-left-color: var(--success, #16a34a); }
+.adequacy-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.adequacy-range { font-size: 13px; color: var(--muted, #64748b); }
+.adequacy-row-body {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.adequacy-arrow { color: var(--muted, #94a3b8); }
+.adequacy-verdict-bad  { color: var(--danger, #dc2626); }
+.adequacy-verdict-warn { color: var(--warning, #d97706); }
+.adequacy-verdict-ok   { color: var(--success, #16a34a); }
+.adequacy-why {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted, #94a3b8);
+  text-decoration: underline dotted;
+  cursor: help;
+}

@@ -40,6 +40,7 @@ import { exportScreenAsPng, getLogoDataUrl } from "./lib/ledExport";
 import { LedScreenReportView } from "./components/LedScreenReportView";
 import {
   computeStage,
+  computeStageTotals,
   type Stage,
   makeDefaultStage,
   normalizeStage,
@@ -4088,6 +4089,49 @@ function App() {
         ? "var(--warning)"
         : "var(--primary)";
 
+  // Phase C — derived metrics for the Crew Adequacy meter on the
+  // Crew Report tab. We roll up the existing rigging / LED /
+  // lighting / stage data so the meter "just updates" as the
+  // producer fills in the other tabs (matches the Slice 3
+  // acceptance criterion).
+  //
+  //   - hoistPoints: sum of every system's pointCount (each hoist
+  //     is one rigging point);
+  //   - fixtureCount: total qty across every system's fixtureRows
+  //     (lighting fixtures only — rigging trusses & LED don't
+  //     count toward the LD's fixture count);
+  //   - ledArea: sum of `area` across LED rows on every system,
+  //     using the same getRowItem() lookup the rest of the app
+  //     uses;
+  //   - stageArea: sum from computeStageTotals(), the canonical
+  //     stage roll-up.
+  //
+  // The other AdequacyMetrics inputs (setupDays, ledWallCount,
+  // ticketed) live as a tiny inline form on the panel itself —
+  // they don't have an obvious source elsewhere in the app and
+  // adding state for them at this level would be ceremony.
+  const adequacyMetrics = useMemo(() => {
+    let hoistPoints = 0;
+    let fixtureCount = 0;
+    let ledArea = 0;
+    for (const sys of systems) {
+      hoistPoints += sys.pointCount;
+      for (const row of sys.fixtureRows) {
+        fixtureCount += row.qty;
+      }
+      for (const row of sys.ledRows) {
+        const item = getRowItem(row);
+        if (item) ledArea += item.area * row.qty;
+      }
+    }
+    // computeStageTotals takes both the stages and their per-stage
+    // calcs (the calc carries the area in m²) — mirror what
+    // StageReportView does upstream.
+    const stageCalcs = stages.map((s) => computeStage(s));
+    const stageArea = computeStageTotals(stages, stageCalcs).totalArea;
+    return { hoistPoints, fixtureCount, ledArea, stageArea };
+  }, [systems, stages]);
+
   return (
     <div className="container">
       <div className="header">
@@ -5076,6 +5120,9 @@ function App() {
           onUpdate={updateCrew}
           onRemove={removeCrew}
           onDuplicate={duplicateCrew}
+          activeBriefId={activeBriefId}
+          getToken={getToken}
+          adequacyMetrics={adequacyMetrics}
           directorySidebar={
             <AvailableCrewSidebar
               projectStartDate={reportDate}

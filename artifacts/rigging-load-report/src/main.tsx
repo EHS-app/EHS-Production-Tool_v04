@@ -874,7 +874,17 @@ function AuthGate({
               loadInitialLoginIntent() === "freelancer" ? (
                 <Redirect to="/portal" />
               ) : (
-                <App />
+                <>
+                  <App />
+                  {/* Floating Fart Button — Production Tool only.
+                      Intentionally NOT rendered on the Freelance Portal
+                      so freelancers don't see it. Lives inside the
+                      catchall route so it unmounts on navigation to
+                      /portal. Self-contained: no Production-Tool state,
+                      no autosave coupling, no keyboard-shortcut
+                      interference. */}
+                  <FartButton />
+                </>
               )}
             </Route>
           </Switch>
@@ -886,11 +896,6 @@ function AuthGate({
         <div className="lang-fab-anchor">
           <LanguageSelector />
         </div>
-        {/* Floating Fart Button — mounted once at the signed-in root so
-            it's available from every screen (producer + portal) without
-            each page having to opt in. Self-contained: no Production-Tool
-            state, no autosave coupling, no keyboard-shortcut interference. */}
-        <FartButton />
       </Show>
       <Show when="signed-out">
         <ClearUserRoleOnSignedOut />

@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "EHS Rigging Load Report"
+title = "EHS Production Tool"
 version = "1.0.0"
 id = "artifacts/rigging-load-report"
 router = "path"

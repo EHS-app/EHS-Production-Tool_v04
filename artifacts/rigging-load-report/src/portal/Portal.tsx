@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Route, Switch, useLocation } from "wouter";
 import { useAuth, useUser } from "@clerk/react";
-import { PortalLayout, type PortalNavKey } from "./PortalLayout";
+import { PortalLayout, type PortalNavKey, type PortalThemePref } from "./PortalLayout";
 import { Hub } from "./screens/Hub";
 import { Gigs } from "./screens/Gigs";
 import { Availability } from "./screens/Availability";
@@ -26,10 +26,11 @@ import type { ThemeMode } from "./lib/portalTheme";
 
 export type PortalProps = {
   theme: ThemeMode;
-  onToggleTheme: () => void;
+  pref: PortalThemePref;
+  setPref: (next: PortalThemePref) => void;
 };
 
-export function Portal({ theme, onToggleTheme }: PortalProps) {
+export function Portal({ theme, pref, setPref }: PortalProps) {
   const { user } = useUser();
   const { getToken, isSignedIn } = useAuth();
   const userId = user?.id ?? null;
@@ -176,7 +177,8 @@ export function Portal({ theme, onToggleTheme }: PortalProps) {
   return (
     <PortalLayout
       theme={theme}
-      onToggleTheme={onToggleTheme}
+      pref={pref}
+      setPref={setPref}
       active={active}
       pendingBriefCount={pendingBriefCount}
       userLabel={

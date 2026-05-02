@@ -1,122 +1,173 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useMemo } from "react";
 import { Link } from "wouter";
 import { PALETTE, type ThemeMode } from "../lib/portalTheme";
+import { useT } from "../../lib/i18n/I18nContext";
+import type { TranslationKey } from "../../lib/i18n/types";
 
 type HelpSection = {
-  id: string;
+  id: "hub" | "briefs" | "gigs" | "availability" | "earnings" | "profile";
   icon: string;
-  title: string;
-  intro: string;
-  steps: string[];
-  tip?: string;
+  shortKey: TranslationKey;
+  titleKey: TranslationKey;
+  introKey: TranslationKey;
+  stepKeys: TranslationKey[];
+  tipKey?: TranslationKey;
 };
 
+type QuickAction = {
+  id: string;
+  icon: string;
+  titleKey: TranslationKey;
+  bodyKey: TranslationKey;
+};
+
+/** Static section descriptors. Strings are not stored here — the
+ *  component resolves them through `t()` so every label respects the
+ *  user's chosen language (Norwegian Bokmål or English). The shape of
+ *  the descriptor never depends on the locale: only the steps array
+ *  length is "data" the renderer needs. */
 const SECTIONS: HelpSection[] = [
   {
     id: "hub",
     icon: "◉",
-    title: "Hub — your dashboard",
-    intro:
-      "The Hub is the first thing you see. It shows what you're working on this week, this month and what's coming next.",
-    steps: [
-      "Scan the top cards for week-to-date and month-to-date earnings.",
-      "Check the upcoming gig list to see your next call times at a glance.",
-      "Tap any gig card to jump into its details on the Gigs page.",
+    shortKey: "portal.help.hub.short",
+    titleKey: "portal.help.hub.title",
+    introKey: "portal.help.hub.intro",
+    stepKeys: [
+      "portal.help.hub.step1",
+      "portal.help.hub.step2",
+      "portal.help.hub.step3",
     ],
-    tip: "If a card looks empty, you probably have no accepted gigs yet — head to Briefs to accept one, or to Gigs to add one manually.",
+    tipKey: "portal.help.hub.tip",
   },
   {
     id: "briefs",
     icon: "✉",
-    title: "Briefs — incoming work offers",
-    intro:
-      "When a producer shares a project briefing with you, it lands here. The number badge on the Briefs tab tells you how many are waiting for a decision.",
-    steps: [
-      "Open a brief to see the venue, schedule, your role, call/off times and day rate.",
-      "Tap Accept to add it to your gigs as Confirmed, or Decline if you can't take it.",
-      "If the producer changes a brief after you accepted, you'll see a yellow \"The producer updated this brief\" banner the next time you open it — tap Acknowledge changes once you've read what changed.",
+    shortKey: "portal.help.briefs.short",
+    titleKey: "portal.help.briefs.title",
+    introKey: "portal.help.briefs.intro",
+    stepKeys: [
+      "portal.help.briefs.step1",
+      "portal.help.briefs.step2",
+      "portal.help.briefs.step3",
     ],
-    tip: "If a brief overlaps with a gig you already accepted (or a day you marked Busy), a red Schedule conflict warning appears before you commit, and the Accept button changes to \"Accept anyway\".",
+    tipKey: "portal.help.briefs.tip",
   },
   {
     id: "gigs",
     icon: "▤",
-    title: "Gigs — your logbook",
-    intro:
-      "Every confirmed job lives here. You can also add gigs by hand if a producer didn't go through the portal.",
-    steps: [
-      "Tap + Add gig to log a job manually with venue, dates, role and rate.",
-      "On the day of a Confirmed gig, tap On the way when you leave, then Arrived when you reach the venue. The pills turn indigo and green and remember the timestamp.",
-      "Tap Add to calendar on a gig to download a calendar file (.ics) you can open in Apple Calendar, Google Calendar or Outlook.",
-      "Mark gigs Done once they're complete so they roll into your Earnings totals.",
+    shortKey: "portal.help.gigs.short",
+    titleKey: "portal.help.gigs.title",
+    introKey: "portal.help.gigs.intro",
+    stepKeys: [
+      "portal.help.gigs.step1",
+      "portal.help.gigs.step2",
+      "portal.help.gigs.step3",
+      "portal.help.gigs.step4",
     ],
-    tip: "Tap a green ✓ Arrived pill again to clear it if you tapped it by mistake.",
+    tipKey: "portal.help.gigs.tip",
   },
   {
     id: "availability",
     icon: "◐",
-    title: "Availability — block out days you can't work",
-    intro:
-      "Mark days as Busy to keep your own schedule honest. The portal uses these dates to warn you about conflicts when accepting new briefs.",
-    steps: [
-      "Tap a day on the calendar to toggle it between Available and Busy.",
-      "Busy days appear in conflict warnings on briefs that fall on those dates.",
+    shortKey: "portal.help.availability.short",
+    titleKey: "portal.help.availability.title",
+    introKey: "portal.help.availability.intro",
+    stepKeys: [
+      "portal.help.availability.step1",
+      "portal.help.availability.step2",
     ],
   },
   {
     id: "earnings",
     icon: "kr",
-    title: "Earnings — see what you're billing",
-    intro:
-      "A monthly breakdown of what you've earned across all your gigs. Useful when you're doing your books or invoicing.",
-    steps: [
-      "Pick a month to see the gigs that contributed and the total NOK.",
-      "Status filters let you separate Confirmed (still upcoming), Done (worked, awaiting payment) and Paid.",
+    shortKey: "portal.help.earnings.short",
+    titleKey: "portal.help.earnings.title",
+    introKey: "portal.help.earnings.intro",
+    stepKeys: [
+      "portal.help.earnings.step1",
+      "portal.help.earnings.step2",
     ],
   },
   {
     id: "profile",
     icon: "◆",
-    title: "Profile — who you are to producers",
-    intro:
-      "The name, phone and contact details producers see when you accept their brief.",
-    steps: [
-      "Fill in your full name, phone and any role tags so producers can find you.",
-      "Switch theme (light/dark) using the moon/sun button in the top bar.",
+    shortKey: "portal.help.profile.short",
+    titleKey: "portal.help.profile.title",
+    introKey: "portal.help.profile.intro",
+    stepKeys: [
+      "portal.help.profile.step1",
+      "portal.help.profile.step2",
     ],
   },
 ];
 
-const QUICK_ACTIONS = [
+const QUICK_ACTIONS: QuickAction[] = [
   {
+    id: "calendar",
     icon: "📅",
-    title: "Add to calendar",
-    body: "On any brief or accepted gig, this button downloads a standard .ics file. Open it once and the event lands in your phone or laptop calendar with the right dates and times.",
+    titleKey: "portal.help.qa.calendar.title",
+    bodyKey: "portal.help.qa.calendar.body",
   },
   {
+    id: "callsheet",
     icon: "📄",
-    title: "Personal call sheet PDF",
-    body: "Inside a brief, this opens a printable one-page call sheet with your role, call/off times and the full schedule. From the print dialog you can save it as a PDF.",
+    titleKey: "portal.help.qa.callsheet.title",
+    bodyKey: "portal.help.qa.callsheet.body",
   },
   {
+    id: "conflict",
     icon: "⚠",
-    title: "Schedule conflict warning",
-    body: "Before you accept a brief, the portal cross-checks it against your existing gigs and your Busy days. If anything overlaps, you'll see a red alert listing the clashes.",
+    titleKey: "portal.help.qa.conflict.title",
+    bodyKey: "portal.help.qa.conflict.body",
   },
   {
+    id: "checkin",
     icon: "✓",
-    title: "On the way / Arrived check-in",
-    body: "On Confirmed gigs in the Gigs page, two pill buttons let you stamp the time you set off and arrived. They persist across reloads so you have a record afterwards.",
+    titleKey: "portal.help.qa.checkin.title",
+    bodyKey: "portal.help.qa.checkin.body",
   },
   {
+    id: "update",
     icon: "🔔",
-    title: "Brief update banner",
-    body: "If a producer re-shares a brief you already accepted, the BriefDetail page shows a banner listing what changed (venue, date, your call time, notes…) so you don't miss silent edits.",
+    titleKey: "portal.help.qa.update.title",
+    bodyKey: "portal.help.qa.update.body",
   },
 ];
 
 export function Help({ theme }: { theme: ThemeMode }) {
   const c = PALETTE[theme];
+  const t = useT();
+
+  // Materialise the localised content once per render so each child
+  // doesn't have to call t() repeatedly. useMemo is keyed on the t
+  // function reference — the I18n context returns a stable function
+  // per locale, so this only re-runs when the user actually switches
+  // language.
+  const sections = useMemo(
+    () =>
+      SECTIONS.map((s) => ({
+        id: s.id,
+        icon: s.icon,
+        short: t(s.shortKey),
+        title: t(s.titleKey),
+        intro: t(s.introKey),
+        steps: s.stepKeys.map((k) => t(k)),
+        tip: s.tipKey ? t(s.tipKey) : undefined,
+      })),
+    [t],
+  );
+  const quickActions = useMemo(
+    () =>
+      QUICK_ACTIONS.map((q) => ({
+        id: q.id,
+        icon: q.icon,
+        title: t(q.titleKey),
+        body: t(q.bodyKey),
+      })),
+    [t],
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <header style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -133,14 +184,13 @@ export function Help({ theme }: { theme: ThemeMode }) {
           }}
         >
           <span aria-hidden>?</span>
-          <span>Help &amp; tips</span>
+          <span>{t("portal.help.kicker")}</span>
         </div>
         <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: c.text }}>
-          How to use the Freelance Portal
+          {t("portal.help.title")}
         </h1>
         <p style={{ margin: 0, fontSize: 14, color: c.muted, lineHeight: 1.55 }}>
-          A quick tour of every section, plus the shortcuts that save the most
-          time. Tap any heading below to jump in.
+          {t("portal.help.intro")}
         </p>
       </header>
 
@@ -154,7 +204,7 @@ export function Help({ theme }: { theme: ThemeMode }) {
             color: c.text,
           }}
         >
-          Jump to a section
+          {t("portal.help.jumpTo")}
         </h2>
         <nav
           style={{
@@ -163,7 +213,7 @@ export function Help({ theme }: { theme: ThemeMode }) {
             gap: 8,
           }}
         >
-          {SECTIONS.map((s) => (
+          {sections.map((s) => (
             <a
               key={s.id}
               href={`#${s.id}`}
@@ -184,7 +234,7 @@ export function Help({ theme }: { theme: ThemeMode }) {
               <span style={{ fontSize: 16, color: c.accent }} aria-hidden>
                 {s.icon}
               </span>
-              <span style={{ flex: 1 }}>{s.title.split(" — ")[0]}</span>
+              <span style={{ flex: 1 }}>{s.short}</span>
             </a>
           ))}
         </nav>
@@ -200,15 +250,15 @@ export function Help({ theme }: { theme: ThemeMode }) {
             color: c.text,
           }}
         >
-          Shortcuts you should know
+          {t("portal.help.shortcuts.title")}
         </h2>
         <p style={{ margin: 0, marginBottom: 14, fontSize: 13, color: c.muted }}>
-          Five small features that make a big difference.
+          {t("portal.help.shortcuts.intro")}
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {QUICK_ACTIONS.map((a) => (
+          {quickActions.map((a) => (
             <div
-              key={a.title}
+              key={a.id}
               style={{
                 display: "flex",
                 gap: 12,
@@ -245,7 +295,7 @@ export function Help({ theme }: { theme: ThemeMode }) {
         </div>
       </Card>
 
-      {SECTIONS.map((s) => (
+      {sections.map((s) => (
         <Card key={s.id} theme={theme}>
           <a
             id={s.id}
@@ -333,7 +383,9 @@ export function Help({ theme }: { theme: ThemeMode }) {
                 lineHeight: 1.55,
               }}
             >
-              <strong style={{ color: c.text, fontWeight: 700 }}>Tip:</strong>{" "}
+              <strong style={{ color: c.text, fontWeight: 700 }}>
+                {t("portal.help.tipPrefix")}
+              </strong>{" "}
               {s.tip}
             </div>
           ) : null}
@@ -350,7 +402,7 @@ export function Help({ theme }: { theme: ThemeMode }) {
             color: c.text,
           }}
         >
-          Still stuck?
+          {t("portal.help.stuck.title")}
         </h2>
         <p
           style={{
@@ -360,15 +412,14 @@ export function Help({ theme }: { theme: ThemeMode }) {
             lineHeight: 1.6,
           }}
         >
-          Reach out to your EHS contact or the producer who shared the brief.
-          You can also{" "}
+          {t("portal.help.stuck.before")}
           <Link
             href="/portal/profile"
             style={{ color: c.accent, fontWeight: 600 }}
           >
-            update your contact details
-          </Link>{" "}
-          so producers know how to reach you.
+            {t("portal.help.stuck.linkText")}
+          </Link>
+          {t("portal.help.stuck.after")}
         </p>
       </Card>
     </div>

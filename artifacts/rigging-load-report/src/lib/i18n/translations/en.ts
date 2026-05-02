@@ -175,4 +175,182 @@ export const en = {
   "fart.title.default": "{name} just farted 💨",
   "fart.title.destroyed": "{name} destroyed the atmosphere 💨",
   "fart.title.nuclear": "{name} unleashed a nuclear blast 💨",
+
+  // ---------- Theme picker (shared 3-way segmented control) ----------
+  "theme.label": "Theme",
+  "theme.light": "Light",
+  "theme.dark": "Dark",
+  "theme.system": "System",
+  "theme.lightAria": "Light theme",
+  "theme.darkAria": "Dark theme",
+  "theme.systemAria": "System theme",
+  "theme.title": "Choose theme: Light, Dark, or System",
+
+  // ---------- Sign-in screen (additional) ----------
+  "signin.title": "Sign in to EHS",
+  "signin.role.employee": "Employee",
+  "signin.role.employee.sub": "Production Tool",
+  "signin.role.freelancer": "Freelancer",
+  "signin.role.freelancer.sub": "Freelance Portal",
+  "signin.role.aria": "I am signing in as",
+  "signin.tab.signIn": "Sign in",
+  "signin.tab.signUp": "Sign up",
+  "signin.contact": "Questions? Contact {email}",
+  "signin.product.tool": "Production Tool",
+  "signin.product.portal": "Freelance Portal",
+
+  // ---------- Portal: header chrome (additional) ----------
+  "portal.header.helpAria": "Help",
+  "portal.header.helpTitle": "Help & tips",
+  "portal.header.toolTitle": "Switch to Production Tool",
+  "portal.header.briefsBadgeAria": "{count} new briefs",
+  "portal.header.signedInAs": "Signed in as {label}. Click to sign out.",
+  "portal.header.sectionsAria": "Portal sections",
+
+  // ---------- Portal: gig status (used in Hub, Gigs, Briefs) ----------
+  "portal.gigStatus.invited": "Invited",
+  "portal.gigStatus.confirmed": "Confirmed",
+  "portal.gigStatus.done": "Done",
+  "portal.gigStatus.invoiced": "Invoiced",
+  "portal.gigStatus.paid": "Paid",
+
+  // ---------- Portal: Hub screen ----------
+  "portal.hub.greetingNamed": "Hi {name}",
+  "portal.hub.greetingAnon": "Hi",
+  "portal.hub.banner.singleNew": "New project briefing: {venue}",
+  "portal.hub.banner.manyNew": "{count} new project briefings waiting",
+  "portal.hub.untitledShow": "Untitled show",
+  "portal.hub.stat.monthToDate": "Month-to-date",
+  "portal.hub.stat.readyToInvoice": "Ready to invoice",
+  "portal.hub.stat.daysMarked": "Days marked",
+  "portal.hub.stat.daysSingular": "day",
+  "portal.hub.stat.daysPlural": "days",
+  "portal.hub.stat.loggedGigs": "Logged gigs",
+  "portal.hub.section.today": "Today",
+  "portal.hub.section.thisWeek": "This week",
+  "portal.hub.section.upcoming": "Upcoming",
+  "portal.hub.empty.today": "Nothing on the schedule today.",
+  "portal.hub.empty.week": "No more gigs this week.",
+  "portal.hub.empty.upcoming": "No future gigs logged yet.",
+  "portal.hub.cta.logGig": "Log a gig",
+  "portal.hub.cta.viewAllUpcoming": "View all {count} upcoming →",
+  "portal.hub.profile.title": "Finish your profile",
+  "portal.hub.profile.body":
+    "A complete profile helps EHS leads find you for the right gigs. Add your contact details, skills and certifications.",
+  "portal.hub.profile.cta": "Edit profile",
+
+  // ---------- Portal: Briefs screen (additional) ----------
+  "portal.briefs.section.awaiting": "Awaiting your decision",
+  "portal.briefs.section.history": "History",
+  "portal.briefs.untitledShow": "Untitled show",
+  "portal.briefs.genericBriefing": "Generic briefing",
+  "portal.briefs.callPrefix": "call {time}",
+  "portal.briefs.decision.filled": "Filled",
+  "portal.briefs.newBadge": "{count} new",
+  /* portal.briefs.empty.body already defined above (line ~138) */
+
+  // ---------- Portal: Help screen ----------
+  "portal.help.kicker": "Help & tips",
+  "portal.help.title": "How to use the Freelance Portal",
+  "portal.help.intro":
+    "A quick tour of every section, plus the shortcuts that save the most time. Tap any heading below to jump in.",
+  "portal.help.jumpTo": "Jump to a section",
+  "portal.help.shortcuts.title": "Shortcuts you should know",
+  "portal.help.shortcuts.intro": "Five small features that make a big difference.",
+  "portal.help.tipPrefix": "Tip:",
+  "portal.help.stuck.title": "Still stuck?",
+  "portal.help.stuck.before":
+    "Reach out to your EHS contact or the producer who shared the brief. You can also ",
+  "portal.help.stuck.linkText": "update your contact details",
+  "portal.help.stuck.after": " so producers know how to reach you.",
+
+  // Hub section
+  "portal.help.hub.short": "Hub",
+  "portal.help.hub.title": "Hub — your dashboard",
+  "portal.help.hub.intro":
+    "The Hub is the first thing you see. It shows what you're working on this week, this month and what's coming next.",
+  "portal.help.hub.step1": "Scan the top cards for week-to-date and month-to-date earnings.",
+  "portal.help.hub.step2":
+    "Check the upcoming gig list to see your next call times at a glance.",
+  "portal.help.hub.step3":
+    "Tap any gig card to jump into its details on the Gigs page.",
+  "portal.help.hub.tip":
+    "If a card looks empty, you probably have no accepted gigs yet — head to Briefs to accept one, or to Gigs to add one manually.",
+
+  // Briefs section
+  "portal.help.briefs.short": "Briefs",
+  "portal.help.briefs.title": "Briefs — incoming work offers",
+  "portal.help.briefs.intro":
+    "When a producer shares a project briefing with you, it lands here. The number badge on the Briefs tab tells you how many are waiting for a decision.",
+  "portal.help.briefs.step1":
+    "Open a brief to see the venue, schedule, your role, call/off times and day rate.",
+  "portal.help.briefs.step2":
+    "Tap Accept to add it to your gigs as Confirmed, or Decline if you can't take it.",
+  "portal.help.briefs.step3":
+    "If the producer changes a brief after you accepted, you'll see a yellow \"The producer updated this brief\" banner the next time you open it — tap Acknowledge changes once you've read what changed.",
+  "portal.help.briefs.tip":
+    "If a brief overlaps with a gig you already accepted (or a day you marked Busy), a red Schedule conflict warning appears before you commit, and the Accept button changes to \"Accept anyway\".",
+
+  // Gigs section
+  "portal.help.gigs.short": "Gigs",
+  "portal.help.gigs.title": "Gigs — your logbook",
+  "portal.help.gigs.intro":
+    "Every confirmed job lives here. You can also add gigs by hand if a producer didn't go through the portal.",
+  "portal.help.gigs.step1":
+    "Tap + Add gig to log a job manually with venue, dates, role and rate.",
+  "portal.help.gigs.step2":
+    "On the day of a Confirmed gig, tap On the way when you leave, then Arrived when you reach the venue. The pills turn indigo and green and remember the timestamp.",
+  "portal.help.gigs.step3":
+    "Tap Add to calendar on a gig to download a calendar file (.ics) you can open in Apple Calendar, Google Calendar or Outlook.",
+  "portal.help.gigs.step4":
+    "Mark gigs Done once they're complete so they roll into your Earnings totals.",
+  "portal.help.gigs.tip":
+    "Tap a green ✓ Arrived pill again to clear it if you tapped it by mistake.",
+
+  // Availability section
+  "portal.help.availability.short": "Availability",
+  "portal.help.availability.title": "Availability — block out days you can't work",
+  "portal.help.availability.intro":
+    "Mark days as Busy to keep your own schedule honest. The portal uses these dates to warn you about conflicts when accepting new briefs.",
+  "portal.help.availability.step1":
+    "Tap a day on the calendar to toggle it between Available and Busy.",
+  "portal.help.availability.step2":
+    "Busy days appear in conflict warnings on briefs that fall on those dates.",
+
+  // Earnings section
+  "portal.help.earnings.short": "Earnings",
+  "portal.help.earnings.title": "Earnings — see what you're billing",
+  "portal.help.earnings.intro":
+    "A monthly breakdown of what you've earned across all your gigs. Useful when you're doing your books or invoicing.",
+  "portal.help.earnings.step1":
+    "Pick a month to see the gigs that contributed and the total NOK.",
+  "portal.help.earnings.step2":
+    "Status filters let you separate Confirmed (still upcoming), Done (worked, awaiting payment) and Paid.",
+
+  // Profile section
+  "portal.help.profile.short": "Profile",
+  "portal.help.profile.title": "Profile — who you are to producers",
+  "portal.help.profile.intro":
+    "The name, phone and contact details producers see when you accept their brief.",
+  "portal.help.profile.step1":
+    "Fill in your full name, phone and any role tags so producers can find you.",
+  "portal.help.profile.step2":
+    "Switch theme (Light, Dark or System) using the segmented control in the top bar.",
+
+  // Quick action shortcuts
+  "portal.help.qa.calendar.title": "Add to calendar",
+  "portal.help.qa.calendar.body":
+    "On any brief or accepted gig, this button downloads a standard .ics file. Open it once and the event lands in your phone or laptop calendar with the right dates and times.",
+  "portal.help.qa.callsheet.title": "Personal call sheet PDF",
+  "portal.help.qa.callsheet.body":
+    "Inside a brief, this opens a printable one-page call sheet with your role, call/off times and the full schedule. From the print dialog you can save it as a PDF.",
+  "portal.help.qa.conflict.title": "Schedule conflict warning",
+  "portal.help.qa.conflict.body":
+    "Before you accept a brief, the portal cross-checks it against your existing gigs and your Busy days. If anything overlaps, you'll see a red alert listing the clashes.",
+  "portal.help.qa.checkin.title": "On the way / Arrived check-in",
+  "portal.help.qa.checkin.body":
+    "On Confirmed gigs in the Gigs page, two pill buttons let you stamp the time you set off and arrived. They persist across reloads so you have a record afterwards.",
+  "portal.help.qa.update.title": "Brief update banner",
+  "portal.help.qa.update.body":
+    "If a producer re-shares a brief you already accepted, the BriefDetail page shows a banner listing what changed (venue, date, your call time, notes…) so you don't miss silent edits.",
 } as const;

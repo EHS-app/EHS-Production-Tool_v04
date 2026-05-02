@@ -3,12 +3,22 @@ import { Link } from "wouter";
 import { PALETTE, type ThemeMode } from "../lib/portalTheme";
 import type { PortalData, SharedBrief, BriefDecision } from "../lib/portalStorage";
 import { formatCrewDayRate } from "../../lib/crew";
+import { useI18n, useT } from "../../lib/i18n/I18nContext";
+import type { TranslationKey } from "../../lib/i18n/types";
 
-function formatDate(iso: string): string {
+/** BCP-47 mapping for `Intl` formatting. Mirrors the helper in Hub.tsx —
+ *  kept inline rather than shared because the portal screens otherwise
+ *  have no shared util module and a one-line helper is cheaper to
+ *  duplicate than to factor out. */
+function intlLocale(locale: string): string {
+  return locale === "no" ? "nb-NO" : "en-GB";
+}
+
+function formatDate(iso: string, locale: string): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-GB", {
+  return d.toLocaleDateString(intlLocale(locale), {
     weekday: "short",
     day: "2-digit",
     month: "short",
@@ -16,34 +26,45 @@ function formatDate(iso: string): string {
   });
 }
 
-function formatRelative(ts: number): string {
+function formatRelative(
+  ts: number,
+  t: (key: TranslationKey, vars?: Record<string, string | number>) => string,
+  locale: string,
+): string {
   const diff = Date.now() - ts;
   const min = Math.round(diff / 60_000);
-  if (min < 1) return "just now";
-  if (min < 60) return `${min} min ago`;
+  if (min < 1) return t("portal.briefs.relative.justNow");
+  if (min < 60) return t("portal.briefs.relative.minutesAgo", { n: min });
   const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr} h ago`;
+  if (hr < 24) return t("portal.briefs.relative.hoursAgo", { n: hr });
   const day = Math.round(hr / 24);
-  if (day < 7) return `${day} d ago`;
-  return new Date(ts).toLocaleDateString("en-GB", {
+  if (day < 7) return t("portal.briefs.relative.daysAgo", { n: day });
+  return new Date(ts).toLocaleDateString(intlLocale(locale), {
     day: "2-digit",
     month: "short",
   });
 }
 
-function decisionPill(d: BriefDecision): { label: string; bg: string; fg: string } {
+const DECISION_KEY: Record<BriefDecision, TranslationKey> = {
+  pending: "portal.briefs.decision.new",
+  accepted: "portal.briefs.decision.accepted",
+  declined: "portal.briefs.decision.declined",
+  too_late: "portal.briefs.decision.filled",
+};
+
+function decisionPillColors(d: BriefDecision): { bg: string; fg: string } {
   switch (d) {
     case "pending":
-      return { label: "New", bg: "rgba(248,128,0,0.18)", fg: "#f88000" };
+      return { bg: "rgba(248,128,0,0.18)", fg: "#f88000" };
     case "accepted":
-      return { label: "Accepted", bg: "rgba(22,163,74,0.18)", fg: "#16a34a" };
+      return { bg: "rgba(22,163,74,0.18)", fg: "#16a34a" };
     case "declined":
-      return { label: "Declined", bg: "rgba(100,116,139,0.18)", fg: "#475569" };
+      return { bg: "rgba(100,116,139,0.18)", fg: "#475569" };
     case "too_late":
       // Slot was filled by a sibling candidate before this freelancer
       // could accept. Same red palette as a hard error so the briefs
       // list immediately reads "this one's gone".
-      return { label: "Filled", bg: "rgba(220,38,38,0.14)", fg: "#b91c1c" };
+      return { bg: "rgba(220,38,38,0.14)", fg: "#b91c1c" };
   }
 }
 
@@ -55,6 +76,8 @@ export function Briefs({
   data: PortalData;
 }) {
   const c = PALETTE[theme];
+  const t = useT();
+  const { locale } = useI18n();
 
   const sorted = useMemo(
     () => [...data.briefs].sort((a, b) => b.receivedAt - a.receivedAt),
@@ -74,9 +97,11 @@ export function Briefs({
         }}
       >
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Briefs</h1>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>
+            {t("portal.briefs.title")}
+          </h1>
           <div style={{ fontSize: 13, color: c.muted, marginTop: 2 }}>
-            Project briefings shared with you by EHS production
+            {t("portal.briefs.subtitle")}
           </div>
         </div>
         {pending.length > 0 ? (
@@ -90,7 +115,7 @@ export function Briefs({
               color: c.accent,
             }}
           >
-            {pending.length} new
+            {t("portal.briefs.newBadge", { count: pending.length })}
           </span>
         ) : null}
       </header>
@@ -100,16 +125,26 @@ export function Briefs({
       ) : (
         <>
           {pending.length > 0 ? (
-            <Section theme={theme} title="Awaiting your decision">
+            <Section theme={theme} title={t("portal.briefs.section.awaiting")}>
               {pending.map((b) => (
-                <BriefRow key={b.briefId} theme={theme} brief={b} />
+                <BriefRow
+                  key={b.briefId}
+                  theme={theme}
+                  brief={b}
+                  locale={locale}
+                />
               ))}
             </Section>
           ) : null}
           {others.length > 0 ? (
-            <Section theme={theme} title="History">
+            <Section theme={theme} title={t("portal.briefs.section.history")}>
               {others.map((b) => (
-                <BriefRow key={b.briefId} theme={theme} brief={b} />
+                <BriefRow
+                  key={b.briefId}
+                  theme={theme}
+                  brief={b}
+                  locale={locale}
+                />
               ))}
             </Section>
           ) : null}
@@ -121,6 +156,7 @@ export function Briefs({
 
 function EmptyState({ theme }: { theme: ThemeMode }) {
   const c = PALETTE[theme];
+  const t = useT();
   return (
     <section
       style={{
@@ -133,13 +169,10 @@ function EmptyState({ theme }: { theme: ThemeMode }) {
       }}
     >
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>
-        No briefs yet
+        {t("portal.briefs.empty.title")}
       </div>
       <div style={{ fontSize: 14, color: c.muted, lineHeight: 1.5 }}>
-        When an EHS lead sends you a project briefing link, it shows up here
-        with the full venue, rigging, lighting, LED, stage and sound details
-        — plus your call time and rate. Tap Accept and it lands in your
-        logbook as a confirmed gig.
+        {t("portal.briefs.empty.body")}
       </div>
     </section>
   );
@@ -179,12 +212,16 @@ function Section({
 function BriefRow({
   theme,
   brief,
+  locale,
 }: {
   theme: ThemeMode;
   brief: SharedBrief;
+  locale: string;
 }) {
   const c = PALETTE[theme];
-  const pill = decisionPill(brief.decision);
+  const t = useT();
+  const colors = decisionPillColors(brief.decision);
+  const pillLabel = t(DECISION_KEY[brief.decision]);
   const myAssignment = brief.brief.assignments.find(
     (a) => a.crewId === brief.brief.recipientCrewId,
   );
@@ -215,7 +252,7 @@ function BriefRow({
             whiteSpace: "nowrap",
           }}
         >
-          {brief.brief.project.venue || "Untitled show"}
+          {brief.brief.project.venue || t("portal.briefs.untitledShow")}
         </div>
         <div
           style={{
@@ -238,8 +275,8 @@ function BriefRow({
           <span>
             {brief.brief.project.endDate &&
             brief.brief.project.endDate !== brief.brief.project.date
-              ? `${formatDate(brief.brief.project.date)} → ${formatDate(brief.brief.project.endDate)}`
-              : formatDate(brief.brief.project.date)}
+              ? `${formatDate(brief.brief.project.date, locale)} → ${formatDate(brief.brief.project.endDate, locale)}`
+              : formatDate(brief.brief.project.date, locale)}
           </span>
           {myAssignment ? (
             <>
@@ -250,7 +287,11 @@ function BriefRow({
               {myAssignment.callTime ? (
                 <>
                   <span aria-hidden>·</span>
-                  <span>call {myAssignment.callTime}</span>
+                  <span>
+                    {t("portal.briefs.callPrefix", {
+                      time: myAssignment.callTime,
+                    })}
+                  </span>
                 </>
               ) : null}
               {myAssignment.dayRate > 0 ? (
@@ -265,11 +306,11 @@ function BriefRow({
           ) : (
             <>
               <span aria-hidden>·</span>
-              <span>Generic briefing</span>
+              <span>{t("portal.briefs.genericBriefing")}</span>
             </>
           )}
           <span aria-hidden>·</span>
-          <span>{formatRelative(brief.receivedAt)}</span>
+          <span>{formatRelative(brief.receivedAt, t, locale)}</span>
         </div>
       </div>
       <span
@@ -278,12 +319,12 @@ function BriefRow({
           fontWeight: 700,
           padding: "4px 10px",
           borderRadius: 999,
-          background: pill.bg,
-          color: pill.fg,
+          background: colors.bg,
+          color: colors.fg,
           flexShrink: 0,
         }}
       >
-        {pill.label}
+        {pillLabel}
       </span>
     </Link>
   );

@@ -1,8 +1,10 @@
-import { type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { Link } from "wouter";
 import { useClerk } from "@clerk/react";
 import ehsLogo from "../assets/ehs-logo.png";
-import { PALETTE, PORTAL_FONT, type ThemeMode } from "./lib/portalTheme";
+import { PALETTE, EHS_ORANGE, PORTAL_FONT, type ThemeMode } from "./lib/portalTheme";
+import { useT } from "../lib/i18n/I18nContext";
+import type { TranslationKey } from "../lib/i18n/types";
 
 export type PortalNavKey =
   | "hub"
@@ -13,38 +15,169 @@ export type PortalNavKey =
   | "profile"
   | "help";
 
+/** Three-way theme preference. Mirrors the type used in main.tsx; kept
+ *  local so this file has no dependency cycle back into the entry. */
+export type PortalThemePref = "light" | "dark" | "system";
+
 type NavItem = {
   key: PortalNavKey;
-  label: string;
+  labelKey: TranslationKey;
   href: string;
   icon: string;
 };
 
 const NAV: NavItem[] = [
-  { key: "hub", label: "Hub", href: "/portal", icon: "◉" },
-  { key: "briefs", label: "Briefs", href: "/portal/briefs", icon: "✉" },
-  { key: "gigs", label: "Gigs", href: "/portal/gigs", icon: "▤" },
+  { key: "hub", labelKey: "portal.nav.hub", href: "/portal", icon: "◉" },
+  { key: "briefs", labelKey: "portal.nav.briefs", href: "/portal/briefs", icon: "✉" },
+  { key: "gigs", labelKey: "portal.nav.gigs", href: "/portal/gigs", icon: "▤" },
   {
     key: "availability",
-    label: "Availability",
+    labelKey: "portal.nav.availability",
     href: "/portal/availability",
     icon: "◐",
   },
-  { key: "earnings", label: "Earnings", href: "/portal/earnings", icon: "kr" },
-  { key: "profile", label: "Profile", href: "/portal/profile", icon: "◆" },
-  { key: "help", label: "Help", href: "/portal/help", icon: "?" },
+  { key: "earnings", labelKey: "portal.nav.earnings", href: "/portal/earnings", icon: "kr" },
+  { key: "profile", labelKey: "portal.nav.profile", href: "/portal/profile", icon: "◆" },
+  { key: "help", labelKey: "portal.nav.help", href: "/portal/help", icon: "?" },
 ];
+
+/**
+ * Inline three-way segmented control for the portal header. Keeps
+ * styling self-contained (the `index.css` `.theme-seg` rules belong to
+ * the Production Tool's chrome) and matches the segmented control on
+ * the sign-in screen so the experience is consistent across the
+ * employee/freelancer surfaces.
+ *
+ * ARIA: implements the `radiogroup` keyboard pattern — only the
+ * selected option is in the tab order; arrow keys (and Home/End) move
+ * focus AND change the selection.
+ */
+function PortalThemeSeg({
+  pref,
+  onChange,
+  c,
+}: {
+  pref: PortalThemePref;
+  onChange: (next: PortalThemePref) => void;
+  /* PALETTE is declared `as const` so its `light` and `dark` entries
+     are distinct literal types. We only read a handful of fields off
+     `c`, so taking the union keeps the type accurate without forcing
+     callers to widen their palette by hand. */
+  c: (typeof PALETTE)[keyof typeof PALETTE];
+}) {
+  const t = useT();
+  const options: ReadonlyArray<{
+    value: PortalThemePref;
+    labelKey: "theme.light" | "theme.dark" | "theme.system";
+    ariaKey: "theme.lightAria" | "theme.darkAria" | "theme.systemAria";
+    icon: string;
+  }> = [
+    { value: "light", labelKey: "theme.light", ariaKey: "theme.lightAria", icon: "☀" },
+    { value: "dark", labelKey: "theme.dark", ariaKey: "theme.darkAria", icon: "☾" },
+    { value: "system", labelKey: "theme.system", ariaKey: "theme.systemAria", icon: "⌬" },
+  ];
+  const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const selectedIndex = Math.max(
+    0,
+    options.findIndex((o) => o.value === pref),
+  );
+  const move = (next: number) => {
+    const i = ((next % options.length) + options.length) % options.length;
+    onChange(options[i].value);
+    btnRefs.current[i]?.focus();
+  };
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    switch (e.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        e.preventDefault();
+        move(selectedIndex + 1);
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        e.preventDefault();
+        move(selectedIndex - 1);
+        break;
+      case "Home":
+        e.preventDefault();
+        move(0);
+        break;
+      case "End":
+        e.preventDefault();
+        move(options.length - 1);
+        break;
+      default:
+        break;
+    }
+  };
+  return (
+    <div
+      role="radiogroup"
+      aria-label={t("theme.label")}
+      title={t("theme.title")}
+      onKeyDown={onKeyDown}
+      className="ehs-portal-theme-seg"
+      style={{
+        display: "inline-flex",
+        gap: 2,
+        padding: 3,
+        background: c.cardBgSubtle,
+        border: `1px solid ${c.border}`,
+        borderRadius: 8,
+        fontFamily: PORTAL_FONT,
+      }}
+    >
+      {options.map((o, i) => {
+        const selected = pref === o.value;
+        return (
+          <button
+            key={o.value}
+            ref={(el) => {
+              btnRefs.current[i] = el;
+            }}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            aria-label={t(o.ariaKey)}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => onChange(o.value)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "5px 9px",
+              fontSize: 12,
+              fontWeight: 600,
+              borderRadius: 6,
+              border: "none",
+              cursor: "pointer",
+              background: selected ? EHS_ORANGE : "transparent",
+              color: selected ? "#0b0b0b" : c.text,
+              transition: "background 120ms ease, color 120ms ease",
+              fontFamily: PORTAL_FONT,
+            }}
+          >
+            <span aria-hidden>{o.icon}</span>
+            <span className="ehs-portal-theme-seg-label">{t(o.labelKey)}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export function PortalLayout({
   theme,
-  onToggleTheme,
+  pref,
+  setPref,
   active,
   userLabel,
   pendingBriefCount,
   children,
 }: {
   theme: ThemeMode;
-  onToggleTheme: () => void;
+  pref: PortalThemePref;
+  setPref: (next: PortalThemePref) => void;
   active: PortalNavKey;
   userLabel: string;
   /** Number of briefs in `pending` state — surfaced as a badge on the
@@ -54,6 +187,7 @@ export function PortalLayout({
 }) {
   const c = PALETTE[theme];
   const { signOut } = useClerk();
+  const t = useT();
 
   return (
     <div
@@ -92,10 +226,10 @@ export function PortalLayout({
           <img src={ehsLogo} alt="EHS" style={{ height: 30, width: "auto" }} />
           <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
             <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: 0.2 }}>
-              Freelance Portal
+              {t("portal.header.title")}
             </span>
             <span style={{ fontSize: 11, color: c.muted, fontWeight: 500 }}>
-              EHS personal logbook
+              {t("portal.header.subtitle")}
             </span>
           </div>
         </Link>
@@ -104,7 +238,7 @@ export function PortalLayout({
 
         <Link
           href="/"
-          title="Switch to Production Tool"
+          title={t("portal.header.toolTitle")}
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -120,16 +254,18 @@ export function PortalLayout({
           }}
         >
           <span aria-hidden>↗</span>
-          <span className="ehs-portal-only-desktop">Production Tool</span>
+          <span className="ehs-portal-only-desktop">
+            {t("portal.header.productionTool")}
+          </span>
           <span className="ehs-portal-only-mobile" aria-hidden>
-            Tool
+            {t("portal.header.productionToolShort")}
           </span>
         </Link>
 
         <Link
           href="/portal/help"
-          title="Help & tips"
-          aria-label="Help"
+          title={t("portal.header.helpTitle")}
+          aria-label={t("portal.header.helpAria")}
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -148,27 +284,11 @@ export function PortalLayout({
           ?
         </Link>
 
-        <button
-          type="button"
-          onClick={onToggleTheme}
-          title={theme === "dark" ? "Light mode" : "Dark mode"}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "7px 12px",
-            fontSize: 13,
-            fontWeight: 600,
-            borderRadius: 8,
-            cursor: "pointer",
-            background: c.cardBgSubtle,
-            color: c.text,
-            border: `1px solid ${c.border}`,
-            fontFamily: PORTAL_FONT,
-          }}
-        >
-          <span aria-hidden>{theme === "dark" ? "☀" : "☾"}</span>
-        </button>
+        {/* Three-way theme picker (Light / Dark / System). System is
+            the install default and follows OS prefers-color-scheme;
+            users can pin a concrete preference here. Replaces the old
+            single-icon cycle button. */}
+        <PortalThemeSeg pref={pref} onChange={setPref} c={c} />
 
         <button
           type="button"
@@ -185,7 +305,7 @@ export function PortalLayout({
             }
             void signOut();
           }}
-          title={`Signed in as ${userLabel}. Click to sign out.`}
+          title={t("portal.header.signedInAs", { label: userLabel })}
           className="ehs-portal-only-desktop"
           style={{
             display: "inline-flex",
@@ -206,7 +326,7 @@ export function PortalLayout({
             {userLabel}
           </span>
           <span aria-hidden>·</span>
-          <span>Sign out</span>
+          <span>{t("portal.header.signOut")}</span>
         </button>
       </header>
 
@@ -266,10 +386,12 @@ export function PortalLayout({
                 >
                   {item.icon}
                 </span>
-                <span style={{ flex: 1 }}>{item.label}</span>
+                <span style={{ flex: 1 }}>{t(item.labelKey)}</span>
                 {showBadge ? (
                   <span
-                    aria-label={`${pendingBriefCount} new briefs`}
+                    aria-label={t("portal.header.briefsBadgeAria", {
+                      count: pendingBriefCount,
+                    })}
                     style={{
                       minWidth: 22,
                       padding: "2px 7px",
@@ -304,7 +426,7 @@ export function PortalLayout({
 
       <nav
         className="ehs-portal-bottomnav"
-        aria-label="Portal sections"
+        aria-label={t("portal.header.sectionsAria")}
         style={{
           position: "fixed",
           bottom: 0,
@@ -366,7 +488,7 @@ export function PortalLayout({
                   </span>
                 ) : null}
               </span>
-              <span>{item.label}</span>
+              <span>{t(item.labelKey)}</span>
             </Link>
           );
         })}
@@ -381,6 +503,9 @@ export function PortalLayout({
         }
         @media (max-width: 899px) {
           .ehs-portal-only-desktop { display: none !important; }
+          /* Hide the verbose theme labels on phones; the icons are enough
+             alongside the still-visible role tabs to keep the header tidy. */
+          .ehs-portal-theme-seg-label { display: none !important; }
         }
       `}</style>
     </div>

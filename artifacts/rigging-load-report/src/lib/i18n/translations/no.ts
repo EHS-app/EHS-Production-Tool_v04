@@ -192,4 +192,184 @@ export const no: Translations = {
   "fart.title.default": "{name} prompet nettopp 💨",
   "fart.title.destroyed": "{name} ødela atmosfæren 💨",
   "fart.title.nuclear": "{name} slapp løs en atombombe 💨",
+
+  // ---------- Theme picker ----------
+  "theme.label": "Tema",
+  "theme.light": "Lyst",
+  "theme.dark": "Mørkt",
+  "theme.system": "System",
+  "theme.lightAria": "Lyst tema",
+  "theme.darkAria": "Mørkt tema",
+  "theme.systemAria": "Systemtema",
+  "theme.title": "Velg tema: Lyst, Mørkt eller System",
+
+  // ---------- Sign-in screen ----------
+  "signin.title": "Logg inn på EHS",
+  "signin.role.employee": "Ansatt",
+  "signin.role.employee.sub": "Produksjonsverktøy",
+  "signin.role.freelancer": "Frilanser",
+  "signin.role.freelancer.sub": "Frilansportal",
+  "signin.role.aria": "Jeg logger inn som",
+  "signin.tab.signIn": "Logg inn",
+  "signin.tab.signUp": "Registrer deg",
+  "signin.contact": "Spørsmål? Kontakt {email}",
+  "signin.product.tool": "Produksjonsverktøy",
+  "signin.product.portal": "Frilansportal",
+
+  // ---------- Portal: header chrome (additional) ----------
+  "portal.header.helpAria": "Hjelp",
+  "portal.header.helpTitle": "Hjelp og tips",
+  "portal.header.toolTitle": "Bytt til Produksjonsverktøyet",
+  "portal.header.briefsBadgeAria": "{count} nye briefer",
+  "portal.header.signedInAs": "Innlogget som {label}. Klikk for å logge ut.",
+  "portal.header.sectionsAria": "Portal-seksjoner",
+
+  // ---------- Portal: gig status ----------
+  "portal.gigStatus.invited": "Invitert",
+  "portal.gigStatus.confirmed": "Bekreftet",
+  "portal.gigStatus.done": "Ferdig",
+  "portal.gigStatus.invoiced": "Fakturert",
+  "portal.gigStatus.paid": "Betalt",
+
+  // ---------- Portal: Hub screen ----------
+  "portal.hub.greetingNamed": "Hei {name}",
+  "portal.hub.greetingAnon": "Hei",
+  "portal.hub.banner.singleNew": "Ny prosjekt-brief: {venue}",
+  "portal.hub.banner.manyNew": "{count} nye prosjekt-briefer venter",
+  "portal.hub.untitledShow": "Show uten navn",
+  "portal.hub.stat.monthToDate": "Hittil i måneden",
+  "portal.hub.stat.readyToInvoice": "Klar for fakturering",
+  "portal.hub.stat.daysMarked": "Markerte dager",
+  "portal.hub.stat.daysSingular": "dag",
+  "portal.hub.stat.daysPlural": "dager",
+  "portal.hub.stat.loggedGigs": "Loggførte oppdrag",
+  "portal.hub.section.today": "I dag",
+  "portal.hub.section.thisWeek": "Denne uken",
+  "portal.hub.section.upcoming": "Kommende",
+  "portal.hub.empty.today": "Ingenting på planen i dag.",
+  "portal.hub.empty.week": "Ingen flere oppdrag denne uken.",
+  "portal.hub.empty.upcoming": "Ingen fremtidige oppdrag loggført ennå.",
+  "portal.hub.cta.logGig": "Loggfør et oppdrag",
+  "portal.hub.cta.viewAllUpcoming": "Se alle {count} kommende →",
+  "portal.hub.profile.title": "Fullfør profilen din",
+  "portal.hub.profile.body":
+    "En komplett profil hjelper EHS-ledere å finne deg til de riktige oppdragene. Legg til kontaktdetaljer, ferdigheter og sertifiseringer.",
+  "portal.hub.profile.cta": "Rediger profil",
+
+  // ---------- Portal: Briefs screen (additional) ----------
+  "portal.briefs.section.awaiting": "Venter på din avgjørelse",
+  "portal.briefs.section.history": "Historikk",
+  "portal.briefs.untitledShow": "Show uten navn",
+  "portal.briefs.genericBriefing": "Generell brief",
+  "portal.briefs.callPrefix": "innkalling {time}",
+  "portal.briefs.decision.filled": "Fylt",
+  "portal.briefs.newBadge": "{count} nye",
+  /* portal.briefs.empty.body already defined above */
+
+  // ---------- Portal: Help screen ----------
+  "portal.help.kicker": "Hjelp og tips",
+  "portal.help.title": "Slik bruker du Frilansportalen",
+  "portal.help.intro":
+    "En rask omvisning i alle seksjoner, pluss snarveiene som sparer deg mest tid. Trykk på en overskrift under for å hoppe inn.",
+  "portal.help.jumpTo": "Hopp til en seksjon",
+  "portal.help.shortcuts.title": "Snarveier du bør kjenne til",
+  "portal.help.shortcuts.intro": "Fem små funksjoner som utgjør en stor forskjell.",
+  "portal.help.tipPrefix": "Tips:",
+  "portal.help.stuck.title": "Står du fortsatt fast?",
+  "portal.help.stuck.before":
+    "Ta kontakt med din EHS-kontakt eller produsenten som delte briefen. Du kan også ",
+  "portal.help.stuck.linkText": "oppdatere kontaktdetaljene dine",
+  "portal.help.stuck.after": " så produsentene vet hvordan de kan nå deg.",
+
+  // Hub section
+  "portal.help.hub.short": "Hub",
+  "portal.help.hub.title": "Hub — dashbordet ditt",
+  "portal.help.hub.intro":
+    "Hub er det første du ser. Det viser hva du jobber med denne uken, denne måneden og hva som kommer videre.",
+  "portal.help.hub.step1":
+    "Skum gjennom toppkortene for inntjening hittil i uken og måneden.",
+  "portal.help.hub.step2":
+    "Sjekk listen over kommende oppdrag for å se neste innkallingstider på et øyeblikk.",
+  "portal.help.hub.step3":
+    "Trykk på et oppdragskort for å hoppe til detaljene på Oppdrag-siden.",
+  "portal.help.hub.tip":
+    "Om et kort ser tomt ut har du sannsynligvis ingen aksepterte oppdrag ennå — gå til Briefer for å akseptere ett, eller til Oppdrag for å legge til ett manuelt.",
+
+  // Briefs section
+  "portal.help.briefs.short": "Briefer",
+  "portal.help.briefs.title": "Briefer — innkommende oppdragsforespørsler",
+  "portal.help.briefs.intro":
+    "Når en produsent deler en prosjekt-brief med deg, havner den her. Tallet på Briefer-fanen viser hvor mange som venter på en avgjørelse.",
+  "portal.help.briefs.step1":
+    "Åpne en brief for å se venue, plan, rolle, innkalling/avslutning og dagspris.",
+  "portal.help.briefs.step2":
+    "Trykk Aksepter for å legge den til som Bekreftet i oppdragene dine, eller Avslå hvis du ikke kan ta den.",
+  "portal.help.briefs.step3":
+    "Hvis produsenten endrer en brief etter du har akseptert, ser du et gult \"Produsenten har oppdatert briefen\"-banner neste gang du åpner den — trykk Bekreft endringer når du har lest hva som er nytt.",
+  "portal.help.briefs.tip":
+    "Hvis en brief overlapper med et oppdrag du allerede har akseptert (eller en dag du har markert som Opptatt), vises et rødt Tidskonflikt-varsel før du bekrefter, og Aksepter-knappen endres til \"Aksepter likevel\".",
+
+  // Gigs section
+  "portal.help.gigs.short": "Oppdrag",
+  "portal.help.gigs.title": "Oppdrag — loggboken din",
+  "portal.help.gigs.intro":
+    "Hver bekreftet jobb bor her. Du kan også legge til oppdrag manuelt hvis en produsent ikke gikk via portalen.",
+  "portal.help.gigs.step1":
+    "Trykk + Legg til oppdrag for å loggføre en jobb manuelt med venue, datoer, rolle og pris.",
+  "portal.help.gigs.step2":
+    "På selve dagen for et Bekreftet oppdrag, trykk På vei når du drar, deretter Ankommet når du er på venue. Pillene blir indigo og grønne og husker tidspunktet.",
+  "portal.help.gigs.step3":
+    "Trykk Legg til i kalender på et oppdrag for å laste ned en kalenderfil (.ics) du kan åpne i Apple Calendar, Google Calendar eller Outlook.",
+  "portal.help.gigs.step4":
+    "Marker oppdrag som Ferdig når de er fullført, slik at de teller med i Inntjening-totalen din.",
+  "portal.help.gigs.tip":
+    "Trykk en grønn ✓ Ankommet-pille en gang til for å fjerne den hvis du trykket feil.",
+
+  // Availability section
+  "portal.help.availability.short": "Tilgjengelighet",
+  "portal.help.availability.title":
+    "Tilgjengelighet — blokker dager du ikke kan jobbe",
+  "portal.help.availability.intro":
+    "Marker dager som Opptatt for å holde din egen kalender ærlig. Portalen bruker disse datoene til å varsle deg om konflikter når du aksepterer nye briefer.",
+  "portal.help.availability.step1":
+    "Trykk på en dag i kalenderen for å bytte mellom Tilgjengelig og Opptatt.",
+  "portal.help.availability.step2":
+    "Opptatte dager dukker opp i konfliktvarsler på briefer som faller på de datoene.",
+
+  // Earnings section
+  "portal.help.earnings.short": "Inntjening",
+  "portal.help.earnings.title": "Inntjening — se hva du fakturerer",
+  "portal.help.earnings.intro":
+    "En månedlig oversikt over hva du har tjent på alle oppdrag. Nyttig når du fører regnskap eller fakturerer.",
+  "portal.help.earnings.step1":
+    "Velg en måned for å se oppdragene som bidro og total NOK.",
+  "portal.help.earnings.step2":
+    "Statusfiltre lar deg skille Bekreftet (kommer), Ferdig (utført, venter på betaling) og Betalt.",
+
+  // Profile section
+  "portal.help.profile.short": "Profil",
+  "portal.help.profile.title": "Profil — hvem du er for produsenter",
+  "portal.help.profile.intro":
+    "Navn, telefon og kontaktdetaljer som produsentene ser når du aksepterer briefen deres.",
+  "portal.help.profile.step1":
+    "Fyll inn fullt navn, telefon og rolletagger så produsentene finner deg.",
+  "portal.help.profile.step2":
+    "Bytt tema (Lyst, Mørkt eller System) med segmentvelgeren i toppen.",
+
+  // Quick actions
+  "portal.help.qa.calendar.title": "Legg til i kalender",
+  "portal.help.qa.calendar.body":
+    "På enhver brief eller akseptert oppdrag laster denne knappen ned en standard .ics-fil. Åpne den én gang så havner hendelsen i telefon- eller laptop-kalenderen med riktige datoer og tider.",
+  "portal.help.qa.callsheet.title": "Personlig call sheet PDF",
+  "portal.help.qa.callsheet.body":
+    "Inne i en brief åpner dette en utskriftsvennlig én-sides call sheet med rolle, innkalling/avslutning og hele planen. Fra utskriftsdialogen kan du lagre den som PDF.",
+  "portal.help.qa.conflict.title": "Tidskonflikt-varsel",
+  "portal.help.qa.conflict.body":
+    "Før du aksepterer en brief, kryssjekker portalen den mot eksisterende oppdrag og Opptatt-dager. Overlapper noe, ser du et rødt varsel som lister opp konfliktene.",
+  "portal.help.qa.checkin.title": "På vei / Ankommet-innsjekk",
+  "portal.help.qa.checkin.body":
+    "På Bekreftede oppdrag i Oppdrag-siden lar to pill-knapper deg stemple tidspunktet du dro og kom frem. De ligger igjen ved omlasting så du har et notat etterpå.",
+  "portal.help.qa.update.title": "Brief-oppdateringsbanner",
+  "portal.help.qa.update.body":
+    "Hvis en produsent deler en brief du allerede har akseptert på nytt, viser BriefDetail-siden et banner som lister opp hva som har endret seg (venue, dato, innkalling, notater…) så du ikke går glipp av stille endringer.",
 };

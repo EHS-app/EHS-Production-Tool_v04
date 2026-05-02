@@ -5,10 +5,20 @@ import { PALETTE, type ThemeMode } from "../lib/portalTheme";
 import {
   gigEarnings,
   statusColor,
-  statusLabel,
   type Gig,
+  type GigStatus,
   type PortalData,
 } from "../lib/portalStorage";
+import { useI18n, useT } from "../../lib/i18n/I18nContext";
+import type { TranslationKey } from "../../lib/i18n/types";
+
+/** BCP-47 mapping for `Intl` formatting. Norwegian uses `nb-NO` (the
+ *  catalog's locale code is `no` to match the rest of the app), English
+ *  uses `en-GB` so dates render `02 May 2026` rather than the US
+ *  `May 2, 2026` form which the Norwegian audience reads inconsistently. */
+function intlLocale(locale: string): string {
+  return locale === "no" ? "nb-NO" : "en-GB";
+}
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -45,6 +55,10 @@ function gigOverlaps(g: Gig, fromIso: string, toIso: string): boolean {
   return !(g.endDate < fromIso || g.startDate > toIso);
 }
 
+/** NOK is always formatted with the Norwegian locale regardless of UI
+ *  language — that's how money looks on local invoices and bank
+ *  statements, and English-speaking freelancers in Norway expect the
+ *  same convention. */
 function formatNok(n: number): string {
   return new Intl.NumberFormat("nb-NO", {
     style: "currency",
@@ -53,19 +67,29 @@ function formatNok(n: number): string {
   }).format(Math.round(n));
 }
 
-function formatDayShort(iso: string): string {
+function formatDayShort(iso: string, locale: string): string {
   if (!iso) return "—";
   const d = new Date(iso);
-  return d.toLocaleDateString("en-GB", {
+  return d.toLocaleDateString(intlLocale(locale), {
     weekday: "short",
     day: "2-digit",
     month: "short",
   });
 }
 
+const STATUS_KEY: Record<GigStatus, TranslationKey> = {
+  invited: "portal.gigStatus.invited",
+  confirmed: "portal.gigStatus.confirmed",
+  done: "portal.gigStatus.done",
+  invoiced: "portal.gigStatus.invoiced",
+  paid: "portal.gigStatus.paid",
+};
+
 export function Hub({ theme, data }: { theme: ThemeMode; data: PortalData }) {
   const c = PALETTE[theme];
   const { user } = useUser();
+  const { locale } = useI18n();
+  const t = useT();
 
   // Greeting first-name. Resolution order, picking the first non-empty
   // candidate so the greeting is "Hi Olti" the moment a user signs in
@@ -157,14 +181,16 @@ export function Hub({ theme, data }: { theme: ThemeMode; data: PortalData }) {
           }}
         >
           <span style={{ fontSize: 13, color: c.muted, fontWeight: 600 }}>
-            {new Date().toLocaleDateString("en-GB", {
+            {new Date().toLocaleDateString(intlLocale(locale), {
               weekday: "long",
               day: "numeric",
               month: "long",
             })}
           </span>
           <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800 }}>
-            Hi{firstName ? ` ${firstName}` : ""}
+            {firstName
+              ? t("portal.hub.greetingNamed", { name: firstName })
+              : t("portal.hub.greetingAnon")}
           </h1>
         </div>
       </section>
@@ -192,8 +218,14 @@ export function Hub({ theme, data }: { theme: ThemeMode; data: PortalData }) {
         >
           <span>
             {pendingBriefs.length === 1
-              ? `New project briefing: ${pendingBriefs[0].brief.project.venue || "Untitled show"}`
-              : `${pendingBriefs.length} new project briefings waiting`}
+              ? t("portal.hub.banner.singleNew", {
+                  venue:
+                    pendingBriefs[0].brief.project.venue ||
+                    t("portal.hub.untitledShow"),
+                })
+              : t("portal.hub.banner.manyNew", {
+                  count: pendingBriefs.length,
+                })}
           </span>
           <span aria-hidden style={{ fontSize: 18 }}>
             →
@@ -210,69 +242,73 @@ export function Hub({ theme, data }: { theme: ThemeMode; data: PortalData }) {
       >
         <StatCard
           theme={theme}
-          label="Month-to-date"
+          label={t("portal.hub.stat.monthToDate")}
           value={formatNok(monthEarnings)}
           accent
         />
         <StatCard
           theme={theme}
-          label="Ready to invoice"
+          label={t("portal.hub.stat.readyToInvoice")}
           value={formatNok(readyToInvoice)}
         />
         <StatCard
           theme={theme}
-          label="Days marked"
+          label={t("portal.hub.stat.daysMarked")}
           value={`${availabilityCount}`}
-          sublabel={availabilityCount === 1 ? "day" : "days"}
+          sublabel={
+            availabilityCount === 1
+              ? t("portal.hub.stat.daysSingular")
+              : t("portal.hub.stat.daysPlural")
+          }
         />
         <StatCard
           theme={theme}
-          label="Logged gigs"
+          label={t("portal.hub.stat.loggedGigs")}
           value={`${data.gigs.length}`}
         />
       </section>
 
-      <Card theme={theme} title="Today">
+      <Card theme={theme} title={t("portal.hub.section.today")}>
         {todaysGigs.length === 0 ? (
           <EmptyRow
             theme={theme}
-            text="Nothing on the schedule today."
-            ctaText="Log a gig"
+            text={t("portal.hub.empty.today")}
+            ctaText={t("portal.hub.cta.logGig")}
             ctaHref="/portal/gigs"
           />
         ) : (
           <Stack>
             {todaysGigs.map((g) => (
-              <GigRow key={g.id} g={g} theme={theme} />
+              <GigRow key={g.id} g={g} theme={theme} locale={locale} />
             ))}
           </Stack>
         )}
       </Card>
 
-      <Card theme={theme} title="This week">
+      <Card theme={theme} title={t("portal.hub.section.thisWeek")}>
         {weekGigs.length === 0 ? (
-          <EmptyRow theme={theme} text="No more gigs this week." />
+          <EmptyRow theme={theme} text={t("portal.hub.empty.week")} />
         ) : (
           <Stack>
             {weekGigs.map((g) => (
-              <GigRow key={g.id} g={g} theme={theme} />
+              <GigRow key={g.id} g={g} theme={theme} locale={locale} />
             ))}
           </Stack>
         )}
       </Card>
 
-      <Card theme={theme} title="Upcoming">
+      <Card theme={theme} title={t("portal.hub.section.upcoming")}>
         {upcoming.length === 0 ? (
           <EmptyRow
             theme={theme}
-            text="No future gigs logged yet."
-            ctaText="Log a gig"
+            text={t("portal.hub.empty.upcoming")}
+            ctaText={t("portal.hub.cta.logGig")}
             ctaHref="/portal/gigs"
           />
         ) : (
           <Stack>
             {upcoming.slice(0, 5).map((g) => (
-              <GigRow key={g.id} g={g} theme={theme} />
+              <GigRow key={g.id} g={g} theme={theme} locale={locale} />
             ))}
             {upcoming.length > 5 ? (
               <Link
@@ -286,7 +322,9 @@ export function Hub({ theme, data }: { theme: ThemeMode; data: PortalData }) {
                   textDecoration: "none",
                 }}
               >
-                View all {upcoming.length} upcoming →
+                {t("portal.hub.cta.viewAllUpcoming", {
+                  count: upcoming.length,
+                })}
               </Link>
             ) : null}
           </Stack>
@@ -296,10 +334,9 @@ export function Hub({ theme, data }: { theme: ThemeMode; data: PortalData }) {
       {!data.profile.fullName ||
       !data.profile.phone ||
       data.profile.skills.length === 0 ? (
-        <Card theme={theme} title="Finish your profile">
+        <Card theme={theme} title={t("portal.hub.profile.title")}>
           <div style={{ color: c.muted, fontSize: 14, lineHeight: 1.55 }}>
-            A complete profile helps EHS leads find you for the right gigs.
-            Add your contact details, skills and certifications.
+            {t("portal.hub.profile.body")}
           </div>
           <div style={{ marginTop: 12 }}>
             <Link
@@ -315,7 +352,7 @@ export function Hub({ theme, data }: { theme: ThemeMode; data: PortalData }) {
                 textDecoration: "none",
               }}
             >
-              Edit profile
+              {t("portal.hub.profile.cta")}
             </Link>
           </div>
         </Card>
@@ -412,8 +449,17 @@ function Stack({ children }: { children: React.ReactNode }) {
   return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{children}</div>;
 }
 
-function GigRow({ g, theme }: { g: Gig; theme: ThemeMode }) {
+function GigRow({
+  g,
+  theme,
+  locale,
+}: {
+  g: Gig;
+  theme: ThemeMode;
+  locale: string;
+}) {
   const c = PALETTE[theme];
+  const t = useT();
   const sc = statusColor(g.status);
   return (
     <Link
@@ -436,9 +482,9 @@ function GigRow({ g, theme }: { g: Gig; theme: ThemeMode }) {
           {g.projectName}
         </div>
         <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
-          {g.role || "—"} · {formatDayShort(g.startDate)}
+          {g.role || "—"} · {formatDayShort(g.startDate, locale)}
           {g.endDate && g.endDate !== g.startDate
-            ? ` → ${formatDayShort(g.endDate)}`
+            ? ` → ${formatDayShort(g.endDate, locale)}`
             : ""}
         </div>
       </div>
@@ -453,7 +499,7 @@ function GigRow({ g, theme }: { g: Gig; theme: ThemeMode }) {
           flexShrink: 0,
         }}
       >
-        {statusLabel(g.status)}
+        {t(STATUS_KEY[g.status])}
       </span>
     </Link>
   );

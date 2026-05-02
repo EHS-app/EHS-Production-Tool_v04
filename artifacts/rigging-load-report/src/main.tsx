@@ -12,7 +12,7 @@ import { dark } from "@clerk/themes";
 import { Redirect, Route, Router, Switch, useLocation } from "wouter";
 import App from "./App";
 import { Portal } from "./portal/Portal";
-import { I18nProvider } from "./lib/i18n/I18nContext";
+import { I18nProvider, useT } from "./lib/i18n/I18nContext";
 import { FartButton } from "./components/fart/FartButton";
 import { LanguageSelector } from "./components/LanguageSelector";
 import "./index.css";
@@ -241,14 +241,164 @@ function saveLoginIntent(intent: LoginIntent | null) {
   }
 }
 
-function SignInScreen({
+/**
+ * Three-way theme picker for the sign-in screen and any other surface
+ * that needs an inline-styled segmented control matching the
+ * Production Tool's `ThemeSegmentedControl`. Inline-styled so it works
+ * outside of `index.css` scope (sign-in is rendered before the
+ * dashboard mounts; Portal lives in its own visual shell).
+ *
+ * Implements the ARIA radiogroup keyboard pattern: only the selected
+ * radio is in the tab order; ArrowLeft/Right (and Home/End) move focus
+ * AND change the selection.
+ */
+function InlineThemeSegmentedControl({
+  pref,
+  onChange,
   theme,
-  onToggleTheme,
+  size = "md",
 }: {
+  pref: ThemePreference;
+  onChange: (next: ThemePreference) => void;
   theme: ThemeMode;
-  onToggleTheme: () => void;
+  size?: "sm" | "md";
 }) {
   const c = PALETTE[theme];
+  const t = useT();
+  const options: ReadonlyArray<{
+    value: ThemePreference;
+    labelKey:
+      | "theme.light"
+      | "theme.dark"
+      | "theme.system";
+    ariaKey:
+      | "theme.lightAria"
+      | "theme.darkAria"
+      | "theme.systemAria";
+    icon: string;
+  }> = [
+    {
+      value: "light",
+      labelKey: "theme.light",
+      ariaKey: "theme.lightAria",
+      icon: "☀",
+    },
+    {
+      value: "dark",
+      labelKey: "theme.dark",
+      ariaKey: "theme.darkAria",
+      icon: "☾",
+    },
+    {
+      value: "system",
+      labelKey: "theme.system",
+      ariaKey: "theme.systemAria",
+      icon: "⌬",
+    },
+  ];
+  const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const selectedIndex = Math.max(
+    0,
+    options.findIndex((o) => o.value === pref),
+  );
+  const move = (next: number) => {
+    const i = ((next % options.length) + options.length) % options.length;
+    onChange(options[i].value);
+    btnRefs.current[i]?.focus();
+  };
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    switch (e.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        e.preventDefault();
+        move(selectedIndex + 1);
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        e.preventDefault();
+        move(selectedIndex - 1);
+        break;
+      case "Home":
+        e.preventDefault();
+        move(0);
+        break;
+      case "End":
+        e.preventDefault();
+        move(options.length - 1);
+        break;
+      default:
+        break;
+    }
+  };
+  const padX = size === "sm" ? 8 : 10;
+  const padY = size === "sm" ? 5 : 7;
+  const fontSize = size === "sm" ? 12 : 13;
+  return (
+    <div
+      role="radiogroup"
+      aria-label={t("theme.label")}
+      title={t("theme.title")}
+      onKeyDown={onKeyDown}
+      style={{
+        display: "inline-flex",
+        gap: 2,
+        padding: 3,
+        background: c.pageBg,
+        border: `1px solid ${c.border}`,
+        borderRadius: 10,
+        fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+      }}
+    >
+      {options.map((o, i) => {
+        const selected = pref === o.value;
+        return (
+          <button
+            key={o.value}
+            ref={(el) => {
+              btnRefs.current[i] = el;
+            }}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            aria-label={t(o.ariaKey)}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => onChange(o.value)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              padding: `${padY}px ${padX}px`,
+              fontSize,
+              fontWeight: 600,
+              borderRadius: 7,
+              border: "none",
+              cursor: "pointer",
+              background: selected ? EHS_ORANGE : "transparent",
+              color: selected ? "#0b0b0b" : c.text,
+              transition: "background 120ms ease, color 120ms ease",
+              fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+            }}
+          >
+            <span aria-hidden>{o.icon}</span>
+            <span>{t(o.labelKey)}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SignInScreen({
+  theme,
+  pref,
+  setPref,
+}: {
+  theme: ThemeMode;
+  pref: ThemePreference;
+  setPref: (next: ThemePreference) => void;
+}) {
+  const c = PALETTE[theme];
+  const t = useT();
   const [mode, setModeState] = useState<AuthMode>(() => loadInitialAuthMode());
   const [intent, setIntentState] = useState<LoginIntent>(
     () => loadInitialLoginIntent() ?? "employee",
@@ -269,15 +419,25 @@ function SignInScreen({
 
   const roles: ReadonlyArray<{
     id: LoginIntent;
-    label: string;
-    sub: string;
+    labelKey: "signin.role.employee" | "signin.role.freelancer";
+    subKey: "signin.role.employee.sub" | "signin.role.freelancer.sub";
   }> = [
-    { id: "employee", label: "Employee", sub: "Production Tool" },
-    { id: "freelancer", label: "Freelancer", sub: "Freelance Portal" },
+    {
+      id: "employee",
+      labelKey: "signin.role.employee",
+      subKey: "signin.role.employee.sub",
+    },
+    {
+      id: "freelancer",
+      labelKey: "signin.role.freelancer",
+      subKey: "signin.role.freelancer.sub",
+    },
   ];
 
   const productLabel =
-    intent === "freelancer" ? "Freelance Portal" : "Production Tool";
+    intent === "freelancer"
+      ? t("signin.product.portal")
+      : t("signin.product.tool");
 
   return (
     <div
@@ -295,34 +455,22 @@ function SignInScreen({
         position: "relative",
       }}
     >
-      <button
-        type="button"
-        onClick={onToggleTheme}
-        title={
-          theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
-        }
+      {/* Three-way theme picker (Light / Dark / System). System is the
+          install default and follows OS prefers-color-scheme; users can
+          still pin a concrete preference. */}
+      <div
         style={{
           position: "absolute",
           top: 20,
           right: 20,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "8px 14px",
-          fontSize: 14,
-          fontWeight: 600,
-          borderRadius: 10,
-          cursor: "pointer",
-          background: c.cardBg,
-          color: c.text,
-          border: `1px solid ${c.border}`,
-          boxShadow: c.shadow,
-          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
         }}
       >
-        <span aria-hidden>{theme === "dark" ? "☀" : "☾"}</span>
-        <span>{theme === "dark" ? "Light" : "Dark"}</span>
-      </button>
+        <InlineThemeSegmentedControl
+          pref={pref}
+          onChange={setPref}
+          theme={theme}
+        />
+      </div>
 
       <div
         style={{
@@ -356,7 +504,7 @@ function SignInScreen({
               color: c.text,
             }}
           >
-            Sign in to <span style={{ color: EHS_ORANGE }}>EHS</span>
+            {t("signin.title")}
           </div>
           <div
             style={{
@@ -372,7 +520,7 @@ function SignInScreen({
 
         <div
           role="radiogroup"
-          aria-label="I am signing in as"
+          aria-label={t("signin.role.aria")}
           style={{
             display: "flex",
             width: "100%",
@@ -412,7 +560,7 @@ function SignInScreen({
                     "'Inter', system-ui, -apple-system, sans-serif",
                 }}
               >
-                <span>{role.label}</span>
+                <span>{t(role.labelKey)}</span>
                 <span
                   style={{
                     fontSize: 11,
@@ -421,7 +569,7 @@ function SignInScreen({
                     color: active ? "#0b0b0b" : c.muted,
                   }}
                 >
-                  {role.sub}
+                  {t(role.subKey)}
                 </span>
               </button>
             );
@@ -441,8 +589,8 @@ function SignInScreen({
         >
           {(
             [
-              { id: "signIn", label: "Sign in" },
-              { id: "signUp", label: "Sign up" },
+              { id: "signIn", labelKey: "signin.tab.signIn" as const },
+              { id: "signUp", labelKey: "signin.tab.signUp" as const },
             ] as const
           ).map((opt) => {
             const active = mode === opt.id;
@@ -471,7 +619,7 @@ function SignInScreen({
                     "color 120ms ease, border-color 120ms ease",
                 }}
               >
-                {opt.label}
+                {t(opt.labelKey)}
               </button>
             );
           })}
@@ -497,7 +645,7 @@ function SignInScreen({
           fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
         }}
       >
-        Questions? Contact{" "}
+        {t("signin.contact", { email: "" })}{" "}
         <a
           href="mailto:utleie@ehs.no"
           style={{ color: EHS_ORANGE, fontWeight: 600 }}
@@ -508,6 +656,9 @@ function SignInScreen({
     </div>
   );
 }
+
+export { InlineThemeSegmentedControl };
+export type { ThemePreference };
 
 
 function PostLoginRedirect() {
@@ -590,42 +741,41 @@ function Root() {
     saveThemePreference(pref);
   }, [pref]);
 
-  // Cycles light -> dark -> system -> light. Used by the sign-in screen
-  // (the dashboard has its own three-way segmented control).
-  const cyclePref = () =>
-    setPref((p) => (p === "light" ? "dark" : p === "dark" ? "system" : "light"));
-
   return (
-    <ClerkProvider
-      publishableKey={clerkPubKey!}
-      proxyUrl={clerkProxyUrl}
-      appearance={buildAppearance(theme)}
-      localization={{
-        signIn: {
-          start: {
-            title: "Sign in",
-            subtitle: "EHS Production Tool",
+    <I18nProvider>
+      <ClerkProvider
+        publishableKey={clerkPubKey!}
+        proxyUrl={clerkProxyUrl}
+        appearance={buildAppearance(theme)}
+        localization={{
+          signIn: {
+            start: {
+              title: "Sign in",
+              subtitle: "EHS Production Tool",
+            },
           },
-        },
-        signUp: {
-          start: {
-            title: "Create your account",
-            subtitle: "EHS Production Tool",
+          signUp: {
+            start: {
+              title: "Create your account",
+              subtitle: "EHS Production Tool",
+            },
           },
-        },
-      }}
-    >
-      <AuthGate theme={theme} onToggleTheme={cyclePref} />
-    </ClerkProvider>
+        }}
+      >
+        <AuthGate theme={theme} pref={pref} setPref={setPref} />
+      </ClerkProvider>
+    </I18nProvider>
   );
 }
 
 function AuthGate({
   theme,
-  onToggleTheme,
+  pref,
+  setPref,
 }: {
   theme: ThemeMode;
-  onToggleTheme: () => void;
+  pref: ThemePreference;
+  setPref: (next: ThemePreference) => void;
 }) {
   const { signIn } = useSignIn();
   const { isLoaded: authLoaded, isSignedIn } = useAuth();
@@ -699,16 +849,17 @@ function AuthGate({
     <>
       <Show when="signed-in">
         <ClearAuthMode />
-        {/* I18nProvider wraps the Router (and therefore both <App /> and
-            <Portal />) so the producer Production Tool and the freelancer
-            Portal share a single locale state and persistence channel. */}
-        <I18nProvider>
+        {/* Note: I18nProvider is mounted at <Root> above ClerkProvider so
+            both signed-in (Portal/App) and signed-out (SignInScreen) share
+            a single locale state. Don't re-wrap here — that would create
+            an inner provider with its own state and the language selector
+            on the sign-in screen would be invisible. */}
         <Router base={basePath}>
           <PostLoginRedirect />
           <FreelancerGuard />
           <Switch>
             <Route path="/portal">
-              <Portal theme={theme} onToggleTheme={onToggleTheme} />
+              <Portal theme={theme} pref={pref} setPref={setPref} />
             </Route>
             {/* Use the wildcard `*` rather than `:rest*` because regexparam
                 v3 (the matcher wouter v3 ships with) parses `:rest*` as a
@@ -716,7 +867,7 @@ function AuthGate({
                 `/portal/brief/import` would otherwise fall through to the
                 catchall and render the producer App. */}
             <Route path="/portal/*">
-              <Portal theme={theme} onToggleTheme={onToggleTheme} />
+              <Portal theme={theme} pref={pref} setPref={setPref} />
             </Route>
             <Route>
               {loadUserRole() === "freelancer" ||
@@ -740,14 +891,21 @@ function AuthGate({
             each page having to opt in. Self-contained: no Production-Tool
             state, no autosave coupling, no keyboard-shortcut interference. */}
         <FartButton />
-        </I18nProvider>
       </Show>
       <Show when="signed-out">
         <ClearUserRoleOnSignedOut />
         {devStatus === "pending" ? (
           <DevSigningInScreen theme={theme} />
         ) : (
-          <SignInScreen theme={theme} onToggleTheme={onToggleTheme} />
+          <>
+            <SignInScreen theme={theme} pref={pref} setPref={setPref} />
+            {/* Language selector also available before sign-in so users
+                can switch the UI language while reading the role tabs and
+                product label. */}
+            <div className="lang-fab-anchor">
+              <LanguageSelector />
+            </div>
+          </>
         )}
       </Show>
     </>

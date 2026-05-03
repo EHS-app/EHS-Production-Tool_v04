@@ -1313,6 +1313,13 @@ function HotelQuickPick({
   const assigned = row.assignedDates;
   const hotel = row.hotelDates;
   const hotelSet = useMemo(() => new Set(hotel), [hotel]);
+  // Collapsed by default so the table stays visually quiet — the
+  // producer only sees a compact summary chip per row, and the phase
+  // picker expands inline when they tap it. Keeping the state local
+  // (one boolean per row) means we don't need to persist anything;
+  // the picker auto-collapses on remount, which is what you want
+  // after a poll-driven refetch.
+  const [expanded, setExpanded] = useState(false);
   if (!onSet) {
     // Read-only fallback (e.g. a gig row whose handler the parent
     // didn't wire). Show the count if any nights are picked, else
@@ -1349,6 +1356,34 @@ function HotelQuickPick({
           {row.hotelRequired ? "hotel" : "no"}
         </span>
       </label>
+    );
+  }
+  // Collapsed state: a single compact summary button. Tapping it
+  // expands the phase picker. Two visual variants:
+  //   • No nights yet → "+ Hotel" (neutral chip, invites a click)
+  //   • Some nights   → "🏨 N nights" using the active-orange style
+  //                     so it's instantly readable in the table.
+  if (!expanded) {
+    const hasNights = hotel.length > 0;
+    return (
+      <button
+        type="button"
+        className={
+          "roster-day-quickpick-btn" +
+          (hasNights ? " roster-day-quickpick-btn-active" : "")
+        }
+        disabled={saving}
+        title={
+          hasNights
+            ? `Hotel: ${hotel.length} night${hotel.length === 1 ? "" : "s"} — click to edit`
+            : "Add hotel nights"
+        }
+        onClick={() => setExpanded(true)}
+      >
+        {hasNights
+          ? `🏨 ${hotel.length} night${hotel.length === 1 ? "" : "s"}`
+          : "+ Hotel"}
+      </button>
     );
   }
   const phaseEntries = (
@@ -1433,6 +1468,19 @@ function HotelQuickPick({
         onClick={() => onSet([])}
       >
         None
+      </button>
+      {/* Tiny ✕ collapses the picker back to the summary chip. We
+       *  leave this manual rather than auto-collapsing on save so the
+       *  producer can pick e.g. Setup then Show in two taps without
+       *  the picker disappearing between clicks. */}
+      <button
+        type="button"
+        className="roster-day-quickpick-btn roster-day-quickpick-btn-clear"
+        title="Hide hotel options"
+        aria-label="Hide hotel options"
+        onClick={() => setExpanded(false)}
+      >
+        ✕
       </button>
     </div>
   );

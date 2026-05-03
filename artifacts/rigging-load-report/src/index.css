@@ -8071,34 +8071,42 @@ html[data-shell="linear"] .container {
 .ehs-shell-workspace--stacked {
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   text-align: center;
   gap: 10px;
-  padding: 16px 12px;
+  padding: 18px 16px 14px;
   height: auto;
   position: relative;
 }
 .ehs-shell-workspace--stacked .ehs-shell-workspace-mark {
-  width: 140px;
-  min-width: 140px;
-  height: 56px;
+  width: 132px;
+  min-width: 132px;
+  height: 52px;
   background: transparent;
   border: none;
   box-shadow: none;
   padding: 0;
   overflow: hidden;
   border-radius: 6px;
+  margin: 0 auto;
 }
 .ehs-shell-workspace--stacked .ehs-shell-workspace-text {
   width: 100%;
   min-width: 0;
+  text-align: center;
+}
+.ehs-shell-workspace--stacked .ehs-shell-workspace-name {
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 .ehs-shell-workspace--stacked .ehs-shell-workspace-chevron {
   position: absolute;
   top: 14px;
   right: 12px;
-  opacity: 0.6;
+  opacity: 0.45;
 }
-.ehs-shell-workspace--stacked { position: relative; }
 .ehs-shell-workspace-text { flex: 1; min-width: 0; }
 .ehs-shell-workspace-logo {
   width: 100%;

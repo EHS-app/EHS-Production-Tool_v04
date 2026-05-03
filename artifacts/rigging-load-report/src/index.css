@@ -46,15 +46,23 @@ body {
 /* HEADER */
 .header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   background: var(--dark);
   color: white;
   padding: 22px 32px;
   border-radius: 12px;
   margin-bottom: 10px;
+  gap: 18px;
+}
+/* Top row — logo on the left, account cluster pinned to the absolute
+   top-right (theme picker + Portal link + signed-in user + Sign out). */
+.header-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
   flex-wrap: wrap;
-  gap: 15px;
 }
 .header-left {
   display: flex;
@@ -99,9 +107,8 @@ body {
 .header-actions {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: stretch;
   gap: 10px;
-  flex-wrap: wrap;
 }
 .header-account {
   display: flex;
@@ -115,7 +122,8 @@ body {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  /* Left-aligned, sitting under the logo — matches the GigSync layout. */
+  justify-content: flex-start;
 }
 
 /* ── Header doc-action pill row ────────────────────────────────────────
@@ -1825,9 +1833,10 @@ input:focus {
   color: white;
 }
 .view-tab.is-active {
-  background: var(--primary, #2563eb);
+  /* Selected report tab uses the EHS orange (matches the logo). */
+  background: var(--primary, #f88000);
   color: white;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 4px 14px rgba(248, 128, 0, 0.32);
 }
 .view-tab-badge {
   display: inline-flex;

@@ -4137,17 +4137,17 @@ function App() {
   return (
     <div className="container">
       <div className="header">
-        <div className="header-left">
-          <img src={ehsLogo} alt="EHS Logo" className="header-logo-img" />
-          <div className="header-title">
-            <h1>
-              Production <span className="header-title-accent">Tool</span>
-            </h1>
+        {/* Top row — logo on the left, signed-in user pinned to the
+            absolute top-right (matches the GigSync/Lovable layout). */}
+        <div className="header-top-row">
+          <div className="header-left">
+            <img src={ehsLogo} alt="EHS Logo" className="header-logo-img" />
+            <div className="header-title">
+              <h1>
+                Production <span className="header-title-accent">Tool</span>
+              </h1>
+            </div>
           </div>
-        </div>
-        <div className="header-actions">
-          {/* Account cluster — pinned to the top-right of the header.
-              Holds the theme picker, Portal link, and signed-in user / Sign out. */}
           <div className="header-account">
             <ThemeSegmentedControl
               pref={themePref}
@@ -4169,7 +4169,9 @@ function App() {
             </Link>
             <SignOutButton />
           </div>
-          {/* Document actions — below the account cluster.
+        </div>
+        <div className="header-actions">
+          {/* Document actions — below the top row.
               Uniform pill row inspired by the GigSync/Lovable layout: every
               secondary action is a small outlined ghost pill, only "Share
               with Crew" is filled in EHS orange as the primary CTA. */}

@@ -462,16 +462,23 @@ export function MasterCrewSheet({
               onChange={(e) => setShowProductionDetails(e.target.checked)}
               style={{
                 margin: 0,
+                padding: 0,
                 flex: "0 0 auto",
+                width: 16,
+                height: 16,
+                display: "block",
                 accentColor: "var(--primary, #f88000)",
                 cursor: "pointer",
+                verticalAlign: "middle",
               }}
             />
             <span
               style={{
                 whiteSpace: "nowrap",
                 fontSize: 13,
-                lineHeight: 1,
+                lineHeight: "16px",
+                display: "inline-block",
+                verticalAlign: "middle",
               }}
             >
               Production details

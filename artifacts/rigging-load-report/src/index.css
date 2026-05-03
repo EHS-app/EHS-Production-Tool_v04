@@ -6228,8 +6228,13 @@ input:focus {
 /* Production-details toggle, pill variant — used in compact mode so it
    matches the producer reference's small white pill with checkbox +
    label. */
-.roster-toggle-pill {
+/* NOTE: an older `.roster-toggle` rule lives further down the
+   stylesheet and would otherwise override these values via source
+   order. We chain `.roster-toggle.roster-toggle-pill` so this rule
+   wins on specificity (0,2,0 > 0,1,0) regardless of position. */
+.roster-toggle.roster-toggle-pill {
   display: inline-flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
   height: 36px;
@@ -6242,14 +6247,23 @@ input:focus {
   color: var(--text-main, #0f172a);
   cursor: pointer;
   user-select: none;
+  white-space: nowrap;
 }
-.roster-toggle-pill:hover {
+.roster-toggle.roster-toggle-pill:hover {
   border-color: rgba(15, 23, 42, 0.25);
 }
-.roster-toggle-pill input[type="checkbox"] {
+.roster-toggle.roster-toggle-pill input[type="checkbox"] {
   margin: 0;
   accent-color: var(--primary, #f88000);
   cursor: pointer;
+}
+.roster-toggle.roster-toggle-pill > span {
+  /* Keep the label text on a single line inside the pill — without
+     this the older base rule's smaller font + lack of nowrap let the
+     two words wrap and visually escape the pill. */
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text-main, #0f172a);
 }
 
 /* Print A4 — dark filled CTA, matching the reference. */

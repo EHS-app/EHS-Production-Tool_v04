@@ -4783,7 +4783,7 @@ function App() {
       <AppShell
         view={mainView as ShellView}
         onChangeView={(v) => setMainView(v as MainView)}
-        workspaceLabel="EHS Production"
+        workspaceLabel="Production Tool"
         workspaceLogoSrc={ehsLogo}
         projectTitle={venue || "Uten navn"}
         projectStatus={projectStatus}

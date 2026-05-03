@@ -312,11 +312,17 @@ export function AvailableCrewSidebar({
   }
 
   if (compact) {
-    // Compact mode shows only the available freelancers (no booked /
-    // pending noise) and caps the list at five rows so the right rail
-    // stays scannable. Producers reaching for the full filter UI are
-    // expected to open the dedicated directory view.
-    const available = rows.filter((r) => r.status === "available").slice(0, 5);
+    // Compact mode shows ONLY the freelancers who are truly addable
+    // right now: status === "available" (no booked/pending noise) AND
+    // not already part of an outgoing request for this project. The
+    // list is capped at five rows so the right rail stays scannable.
+    // Producers reaching for the full filter UI are expected to open
+    // the dedicated directory view.
+    const available = rows
+      .filter(
+        (r) => r.status === "available" && !requestedUserIds.has(r.userId),
+      )
+      .slice(0, 5);
     return (
       <aside className="acs acs-compact">
         <header className="acs-compact-head">

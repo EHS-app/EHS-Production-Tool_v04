@@ -489,22 +489,16 @@ export function MasterCrewSheet({
               <>🖨 Print</>
             )}
           </button>
-          {/* In compact (page-header) mode the "+ Add crew member" CTA is
-              moved off the head row to match the producer reference,
-              which keeps only Production-details + Print A4 there. The
-              add action is still available from the master sheet's
-              empty state, and we'll re-introduce it as a small
-              floating "+ Add" elsewhere if producers ask for it. */}
-          {compactHeader ? null : (
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={onAdd}
-              title="Add a manual crew member to the local call sheet"
-            >
-              + Add crew member
-            </button>
-          )}
+          <button
+            type="button"
+            className={
+              compactHeader ? "btn crew-add-btn" : "btn btn-primary"
+            }
+            onClick={onAdd}
+            title="Add a manual crew member to the local call sheet"
+          >
+            + Add crew
+          </button>
         </div>
       </div>
 

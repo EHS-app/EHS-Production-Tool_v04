@@ -6225,6 +6225,59 @@ input:focus {
   justify-content: flex-end;
 }
 
+/* Production-details toggle, pill variant — used in compact mode so it
+   matches the producer reference's small white pill with checkbox +
+   label. */
+.roster-toggle-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border, #e5e7eb);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main, #0f172a);
+  cursor: pointer;
+  user-select: none;
+}
+.roster-toggle-pill:hover {
+  border-color: rgba(15, 23, 42, 0.25);
+}
+.roster-toggle-pill input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--primary, #f88000);
+  cursor: pointer;
+}
+
+/* Print A4 — dark filled CTA, matching the reference. */
+.crew-print-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #ffffff;
+  border: 1px solid #0f172a;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.crew-print-btn:hover:not(:disabled) {
+  background: #1f2937;
+  border-color: #1f2937;
+  color: #ffffff;
+}
+.crew-print-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .crew-layout {
   display: grid;
   grid-template-columns: 1fr;

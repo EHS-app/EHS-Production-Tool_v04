@@ -5190,6 +5190,7 @@ function App() {
               sending={sendingRequests}
               sendError={sendError}
               onSendRequests={sendCrewRequests}
+              compact
             />
           }
         />

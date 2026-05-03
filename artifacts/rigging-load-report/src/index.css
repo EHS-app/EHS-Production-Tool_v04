@@ -6287,8 +6287,115 @@ input:focus {
 
 @media (min-width: 1100px) {
   .crew-layout {
-    grid-template-columns: minmax(0, 1fr) 360px;
+    /* Narrower right rail (was 360px) — the compact "Available crew"
+       list only needs ~280px and the producer reference shows a
+       calmer, less crowded sidebar. */
+    grid-template-columns: minmax(0, 1fr) 280px;
   }
+}
+
+/* --- Compact "Available crew" sidebar (used in Crew & Logistics) --- */
+.acs-compact {
+  padding: 14px 14px 12px;
+  gap: 10px;
+}
+.acs-compact-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 4px;
+}
+.acs-compact-head h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-main, #0f172a);
+}
+.acs-compact-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-muted, #f1f5f9);
+  color: var(--text-muted, #64748b);
+  font-size: 11px;
+  font-weight: 700;
+}
+.acs-compact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.acs-compact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  min-height: 36px;
+}
+.acs-compact-row:last-child {
+  border-bottom: none;
+}
+.acs-compact-row-main {
+  min-width: 0;
+  flex: 1 1 auto;
+  font-size: 13px;
+  color: var(--text-main, #0f172a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.acs-compact-name {
+  font-weight: 600;
+}
+.acs-compact-role {
+  color: var(--text-muted, #64748b);
+  font-weight: 500;
+}
+.acs-compact-add {
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  color: var(--primary, #f88000);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+}
+.acs-compact-add:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.acs-compact-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.acs-compact-tag {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.acs-compact-empty {
+  padding: 10px 0;
+  font-size: 12px;
+  color: var(--text-muted, #64748b);
+}
+.acs-compact-error {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #dc2626;
 }
 
 .crew-layout-main {

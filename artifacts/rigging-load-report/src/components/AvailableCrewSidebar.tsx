@@ -86,6 +86,12 @@ type Props = {
   /** Last error from a Send requests round-trip, surfaced in the
    *  sticky bottom bar. Cleared when the parent clears the prop. */
   sendError?: string | null;
+  /** Compact mode — renders a tight "Available crew" list with just
+   *  Name · Role and a quick "+ Add" link per row, no search / chip
+   *  filters / status summary. Used inside the Crew & Logistics page
+   *  where the producer wants a clean call-sheet feel and reaches for
+   *  the full filter UI somewhere else. */
+  compact?: boolean;
 };
 
 /** Build the chip groups once at module load. The library is static so
@@ -112,6 +118,21 @@ const CHIP_GROUPS: Array<{ label: string; items: SkillSuggestion[] }> = (() => {
 /** Status presentation. Keeping it colocated with the component (and
  *  not in CSS-modules) since these labels and colours are intrinsic
  *  to the sidebar's contract with the producer. */
+/** Abbreviate a freelancer's full name to "F. Last" for the compact
+ *  list — matches the producer reference where the right rail keeps
+ *  rows scannable at ~280px wide. Names with no surname fall through
+ *  unchanged so we don't accidentally strip a single-token name down
+ *  to an initial. */
+function shortName(full: string | null | undefined): string {
+  const raw = (full || "").trim();
+  if (!raw) return "Unnamed";
+  const parts = raw.split(/\s+/);
+  if (parts.length < 2) return raw;
+  const first = parts[0];
+  const last = parts[parts.length - 1];
+  return `${first.charAt(0).toUpperCase()}. ${last}`;
+}
+
 const STATUS_META: Record<Status, { label: string; dot: string; tone: string }> = {
   available: { label: "Available", dot: "#16a34a", tone: "ok" },
   pending: { label: "Pending Brief", dot: "#d97706", tone: "warn" },
@@ -125,6 +146,7 @@ export function AvailableCrewSidebar({
   requestedUserIds,
   sending = false,
   sendError = null,
+  compact = false,
 }: Props) {
   const { getToken, isSignedIn } = useAuth();
 
@@ -278,13 +300,82 @@ export function AvailableCrewSidebar({
 
   if (!isSignedIn) {
     return (
-      <aside className="acs">
+      <aside className={`acs${compact ? " acs-compact" : ""}`}>
         <header className="acs-head">
-          <h3>Available Crew</h3>
+          <h3>Available crew</h3>
         </header>
         <div className="acs-empty">
           Sign in to the Freelance Portal to see your roster.
         </div>
+      </aside>
+    );
+  }
+
+  if (compact) {
+    // Compact mode shows only the available freelancers (no booked /
+    // pending noise) and caps the list at five rows so the right rail
+    // stays scannable. Producers reaching for the full filter UI are
+    // expected to open the dedicated directory view.
+    const available = rows.filter((r) => r.status === "available").slice(0, 5);
+    return (
+      <aside className="acs acs-compact">
+        <header className="acs-compact-head">
+          <h3>Available crew</h3>
+          <span className="acs-compact-count">{available.length}</span>
+        </header>
+        {loading && rows.length === 0 ? (
+          <div className="acs-compact-empty">Loading…</div>
+        ) : error ? (
+          <div className="acs-compact-empty">{error}</div>
+        ) : available.length === 0 ? (
+          <div className="acs-compact-empty">
+            No free crew for this date.
+          </div>
+        ) : (
+          <ul className="acs-compact-list">
+            {available.map((r) => {
+              const already = requestedUserIds.has(r.userId);
+              const short = shortName(r.fullName);
+              return (
+                <li key={r.userId} className="acs-compact-row">
+                  <div className="acs-compact-row-main">
+                    <span className="acs-compact-name">{short}</span>
+                    {r.primaryRole ? (
+                      <span className="acs-compact-role">
+                        {" "}
+                        — {r.primaryRole}
+                      </span>
+                    ) : null}
+                  </div>
+                  {already ? (
+                    <span className="acs-compact-tag">Requested</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="acs-compact-add"
+                      disabled={sending}
+                      onClick={() =>
+                        void onSendRequests([
+                          {
+                            userId: r.userId,
+                            fullName: r.fullName,
+                            primaryRole: r.primaryRole,
+                          },
+                        ])
+                      }
+                      title={`Send a brief request to ${r.fullName || "this freelancer"}`}
+                    >
+                      + Add
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {sendError ? (
+          <div className="acs-compact-error">{sendError}</div>
+        ) : null}
       </aside>
     );
   }

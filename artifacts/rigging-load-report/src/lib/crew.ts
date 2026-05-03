@@ -208,6 +208,80 @@ export function expandProjectDays(
   return out;
 }
 
+/** Minimal shape of a project-schedule segment, mirrored from
+ *  ScheduleSegment in App.tsx. Duplicated here so this lib doesn't
+ *  pull in the App.tsx graph. Each segment covers a date range
+ *  (inclusive) plus an optional time-of-day window. */
+export type ScheduleTimeSegment = {
+  from: string;
+  to: string;
+  fromTime?: string;
+  toTime?: string;
+};
+
+/** Project-wide schedule keyed by phase ("setup" / "rehearsal" /
+ *  "show" / "downrig"), each phase carrying one or more segments. */
+export type ScheduleTimeMap = Partial<
+  Record<string, ReadonlyArray<ScheduleTimeSegment>>
+>;
+
+/** Pick the earliest call-time and the latest off-time across the
+ *  project-schedule segments that cover any of the given assigned
+ *  dates. Used to auto-fill a crew member's `callTime`/`offTime`
+ *  whenever the producer changes which days that person is working,
+ *  so the row's hours always match the schedule of the days that are
+ *  ticked on. Falls back to the supplied defaults (typically the
+ *  CrewMember's existing call/off) when no segment covers any of the
+ *  dates or no times are set on the matching segments.
+ *
+ *  Notes:
+ *  - Date matching is plain ISO YYYY-MM-DD lex compare against the
+ *    segment's [from..to] range, so timezone-free.
+ *  - "Earliest call" / "latest off" handles a multi-phase day (e.g. a
+ *    show day where Setup runs 08:00 and Show runs through 23:00) by
+ *    spanning both phases — the resulting shift covers the full
+ *    on-site window without the producer having to compute it. */
+export function pickScheduleTimesForDates(
+  dates: ReadonlyArray<string>,
+  schedule: ScheduleTimeMap,
+  defaults: { callTime: string; offTime: string },
+): { callTime: string; offTime: string } {
+  if (!dates || dates.length === 0) return defaults;
+  let earliestCallMin = Number.POSITIVE_INFINITY;
+  let latestOffMin = Number.NEGATIVE_INFINITY;
+  let earliestCall = "";
+  let latestOff = "";
+  for (const phase of Object.values(schedule)) {
+    if (!phase) continue;
+    for (const seg of phase) {
+      const from = seg.from || "";
+      const to = seg.to || from;
+      if (!from) continue;
+      // Does any assigned day fall inside this segment's date range?
+      const covered = dates.some((d) => d >= from && d <= to);
+      if (!covered) continue;
+      if (seg.fromTime && isValidHHMM(seg.fromTime)) {
+        const m = hhmmToMin(seg.fromTime);
+        if (m < earliestCallMin) {
+          earliestCallMin = m;
+          earliestCall = seg.fromTime;
+        }
+      }
+      if (seg.toTime && isValidHHMM(seg.toTime)) {
+        const m = hhmmToMin(seg.toTime);
+        if (m > latestOffMin) {
+          latestOffMin = m;
+          latestOff = seg.toTime;
+        }
+      }
+    }
+  }
+  return {
+    callTime: earliestCall || defaults.callTime,
+    offTime: latestOff || defaults.offTime,
+  };
+}
+
 function normalizeTimeField(raw: unknown, fallback: string): string {
   if (raw === "" || isValidHHMM(raw)) return raw as string;
   return fallback;

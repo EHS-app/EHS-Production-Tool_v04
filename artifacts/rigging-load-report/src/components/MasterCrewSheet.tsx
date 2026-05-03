@@ -73,6 +73,7 @@ export function MasterCrewSheet({
   onDuplicate,
   onMergedRolesChange,
   onCountsChange,
+  getTimesForDates,
   compactHeader = false,
 }: {
   /** Active brief id from App.tsx. When null/empty the sheet renders
@@ -113,6 +114,17 @@ export function MasterCrewSheet({
     pending: number;
     hotelRooms: number;
   }) => void;
+  /** Returns the earliest call → latest off times for the given
+   *  assigned days, derived from the project schedule (Setup /
+   *  Rehearsal / Show / Load Out). When provided, day-chip toggles
+   *  on local rows refresh callTime/offTime alongside assignedDates
+   *  so the row's shift always matches the days that are ticked on.
+   *  Optional — when undefined day toggles only patch assignedDates,
+   *  preserving the previous behaviour. */
+  getTimesForDates?: (
+    dates: ReadonlyArray<string>,
+    defaults: { callTime: string; offTime: string },
+  ) => { callTime: string; offTime: string };
   /** When true, hide the duplicated `<h3>Crew & Logistics</h3>` +
    *  subtitle inside the master sheet's own header — the parent
    *  (CrewReportView) is rendering its own redesigned title row and
@@ -723,9 +735,28 @@ export function MasterCrewSheet({
                             const cur = new Set(local.assignedDates ?? []);
                             if (cur.has(date)) cur.delete(date);
                             else cur.add(date);
-                            onUpdate(local.id, {
-                              assignedDates: [...cur].sort(),
-                            });
+                            const nextDates = [...cur].sort();
+                            // Re-derive call/off from the project
+                            // schedule so the row's shift always
+                            // matches the days that are ticked on
+                            // (earliest setup → latest downrig).
+                            const patch: Partial<CrewMember> = {
+                              assignedDates: nextDates,
+                            };
+                            if (getTimesForDates) {
+                              const t = getTimesForDates(nextDates, {
+                                callTime: local.callTime,
+                                offTime: local.offTime,
+                              });
+                              if (
+                                t.callTime !== local.callTime ||
+                                t.offTime !== local.offTime
+                              ) {
+                                patch.callTime = t.callTime;
+                                patch.offTime = t.offTime;
+                              }
+                            }
+                            onUpdate(local.id, patch);
                           }
                         : undefined
                     }

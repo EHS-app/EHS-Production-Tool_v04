@@ -61,6 +61,7 @@ import { StageReportView } from "./components/StageReportView";
 import {
   makeCrewMember,
   expandProjectDays,
+  pickScheduleTimesForDates,
   normalizeCrewMember,
   type CrewMember,
 } from "./lib/crew";
@@ -2634,6 +2635,15 @@ function App() {
       // manual + Add crew button. Computed once outside the map so a
       // batch send doesn't re-walk the date range per freelancer.
       const defaultDays = expandProjectDays(reportDate, reportEndDate);
+      // Auto-fill call/off times from the project schedule covering
+      // the seeded days. Earliest setup-time → latest downrig-time
+      // across all phases that touch the run, so the producer sees a
+      // realistic shift window on the new row out of the box.
+      const projSchedule = buildProjectSchedule(
+        reportDate,
+        reportEndDate,
+        extraSchedule,
+      );
       const newMembers: CrewMember[] = rows.map((r) => {
         const m = makeCrewMember(r.fullName);
         m.role = skillToCrewRole(r.primaryRole);
@@ -2648,7 +2658,15 @@ function App() {
           m.dietaryTags = [...r.dietaryTags];
         if (r.allergens && r.allergens.length > 0)
           m.allergens = [...r.allergens];
-        if (defaultDays.length > 0) m.assignedDates = [...defaultDays];
+        if (defaultDays.length > 0) {
+          m.assignedDates = [...defaultDays];
+          const t = pickScheduleTimesForDates(defaultDays, projSchedule, {
+            callTime: m.callTime,
+            offTime: m.offTime,
+          });
+          m.callTime = t.callTime;
+          m.offTime = t.offTime;
+        }
         return m;
       });
       const nextCrew = [...crew, ...newMembers];
@@ -2750,7 +2768,16 @@ function App() {
         setSendingRequests(false);
       }
     },
-    [crew, briefInput, activeBriefId, sendingRequests, getToken],
+    [
+      crew,
+      briefInput,
+      activeBriefId,
+      sendingRequests,
+      getToken,
+      reportDate,
+      reportEndDate,
+      extraSchedule,
+    ],
   );
 
   /** Producer-side polling. Whenever the producer is on the Crew tab
@@ -2850,14 +2877,48 @@ function App() {
     };
   }, [mainView, activeBriefId, getToken]);
 
+  /** Earliest call → latest off across the project-schedule segments
+   *  that cover the given assigned days. Memoised so MasterCrewSheet
+   *  can call it on every day-chip toggle without re-walking the whole
+   *  schedule unless a phase or the show dates actually change. */
+  const getCrewTimesForDates = useCallback(
+    (
+      dates: ReadonlyArray<string>,
+      defaults: { callTime: string; offTime: string },
+    ) => {
+      const sched = buildProjectSchedule(
+        reportDate,
+        reportEndDate,
+        extraSchedule,
+      );
+      return pickScheduleTimesForDates(dates, sched, defaults);
+    },
+    [reportDate, reportEndDate, extraSchedule],
+  );
+
   const addCrew = () => {
     // Auto-assign the new crew member to the project's full schedule
     // (load-in → load-out, derived from reportDate / reportEndDate)
     // so they're "on for the whole run" by default. The producer can
     // untick individual day-chips on the Crew tab to drop them off
-    // specific days.
+    // specific days. Call/off times are derived from the project
+    // schedule so the row's shift covers the actual on-site window
+    // (earliest setup → latest downrig across the seeded days).
     const days = expandProjectDays(reportDate, reportEndDate);
-    setCrew((all) => [...all, { ...makeCrewMember(), assignedDates: days }]);
+    const fresh = makeCrewMember();
+    const t = getCrewTimesForDates(days, {
+      callTime: fresh.callTime,
+      offTime: fresh.offTime,
+    });
+    setCrew((all) => [
+      ...all,
+      {
+        ...fresh,
+        assignedDates: days,
+        callTime: t.callTime,
+        offTime: t.offTime,
+      },
+    ]);
   };
   const updateCrew = (id: string, patch: Partial<CrewMember>) => {
     setCrew((all) => all.map((m) => (m.id === id ? { ...m, ...patch } : m)));
@@ -5211,6 +5272,7 @@ function App() {
           activeBriefId={activeBriefId}
           getToken={getToken}
           adequacyMetrics={adequacyMetrics}
+          getTimesForDates={getCrewTimesForDates}
           directorySidebar={
             <AvailableCrewSidebar
               projectStartDate={reportDate}

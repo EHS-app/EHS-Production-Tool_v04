@@ -34,6 +34,15 @@ type Props = {
     stageArea: number;
     fixtureCount: number;
   };
+  /** Returns the earliest call → latest off times across the project
+   *  schedule segments that cover the given assigned days. Threaded
+   *  through to MasterCrewSheet so day-chip toggles can keep each
+   *  row's call/off in sync with the schedule of the days actually
+   *  ticked on. */
+  getTimesForDates?: (
+    dates: ReadonlyArray<string>,
+    defaults: { callTime: string; offTime: string },
+  ) => { callTime: string; offTime: string };
 };
 
 /** Crew & Logistics view — one master sheet, one optional adequacy
@@ -55,6 +64,7 @@ export function CrewReportView({
   activeBriefId,
   getToken,
   adequacyMetrics,
+  getTimesForDates,
 }: Props) {
   // Headcount source for the adequacy meter: the merged roster the
   // master sheet is actually displaying (gig + local), bubbled up
@@ -161,6 +171,7 @@ export function CrewReportView({
             onDuplicate={onDuplicate}
             onMergedRolesChange={handleMergedRolesChange}
             onCountsChange={handleCountsChange}
+            getTimesForDates={getTimesForDates}
             compactHeader
           />
           {/* Adequacy panel — kept as a sidekick BELOW the master

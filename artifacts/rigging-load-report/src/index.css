@@ -6227,20 +6227,18 @@ input:focus {
 
 /* Production-details toggle, pill variant — used in compact mode so it
    matches the producer reference's small white pill with checkbox +
-   label. */
-/* NOTE: an older `.roster-toggle` rule lives further down the
-   stylesheet and would otherwise override these values via source
-   order. We chain `.roster-toggle.roster-toggle-pill` so this rule
-   wins on specificity (0,2,0 > 0,1,0) regardless of position. */
-.roster-toggle.roster-toggle-pill {
+   label. Standalone class (no inheritance from `.roster-toggle`) so we
+   don't have to fight cascade ordering. */
+.crew-toggle-pill {
   display: inline-flex;
+  flex: 0 0 auto;
   flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
   height: 36px;
   padding: 0 14px;
   border-radius: 999px;
-  background: var(--card-bg, #ffffff);
+  background: #ffffff;
   border: 1px solid var(--border, #e5e7eb);
   font-size: 13px;
   font-weight: 600;
@@ -6249,26 +6247,26 @@ input:focus {
   user-select: none;
   white-space: nowrap;
 }
-.roster-toggle.roster-toggle-pill:hover {
+.crew-toggle-pill:hover {
   border-color: rgba(15, 23, 42, 0.25);
 }
-.roster-toggle.roster-toggle-pill input[type="checkbox"] {
+.crew-toggle-pill input[type="checkbox"] {
   margin: 0;
   accent-color: var(--primary, #f88000);
   cursor: pointer;
+  flex: 0 0 auto;
 }
-.roster-toggle.roster-toggle-pill > span {
-  /* Keep the label text on a single line inside the pill — without
-     this the older base rule's smaller font + lack of nowrap let the
-     two words wrap and visually escape the pill. */
+.crew-toggle-pill > span {
   white-space: nowrap;
   font-size: 13px;
   color: var(--text-main, #0f172a);
+  line-height: 1;
 }
 
 /* Print A4 — dark filled CTA, matching the reference. */
 .crew-print-btn {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 8px;
   height: 36px;
@@ -6297,6 +6295,7 @@ input:focus {
    eye lands on it as the main action. */
 .crew-add-btn {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 6px;
   height: 36px;

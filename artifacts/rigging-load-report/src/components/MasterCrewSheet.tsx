@@ -447,7 +447,9 @@ export function MasterCrewSheet({
             </>
           )}
           <label
-            className={`roster-toggle${compactHeader ? " roster-toggle-pill" : ""}`}
+            className={
+              compactHeader ? "crew-toggle-pill" : "roster-toggle"
+            }
             title="Show call / off / day-rate columns"
           >
             <input

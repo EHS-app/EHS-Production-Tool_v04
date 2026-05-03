@@ -250,7 +250,9 @@ export function AppShell({
     <div className="ehs-shell">
       {/* SIDEBAR */}
       <aside className="ehs-shell-aside">
-        <div className="ehs-shell-workspace">
+        <div
+          className={`ehs-shell-workspace${workspaceLogoSrc ? " ehs-shell-workspace--stacked" : ""}`}
+        >
           <div className="ehs-shell-workspace-mark">
             {workspaceLogoSrc ? (
               <img
@@ -262,13 +264,16 @@ export function AppShell({
               workspaceLabel.charAt(0).toUpperCase()
             )}
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="ehs-shell-workspace-text">
             <div className="ehs-shell-workspace-name">{workspaceLabel}</div>
             {workspaceSublabel ? (
               <div className="ehs-shell-workspace-sub">{workspaceSublabel}</div>
             ) : null}
           </div>
-          <ChevronDown size={14} />
+          <ChevronDown
+            size={14}
+            className="ehs-shell-workspace-chevron"
+          />
         </div>
 
         <div style={{ padding: "10px 12px" }}>

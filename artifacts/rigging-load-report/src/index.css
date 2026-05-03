@@ -8066,12 +8066,21 @@ html[data-shell="linear"] .container {
 }
 
 /* Workspace logo inside the sidebar mark slot.
-   When a logo is provided we widen the mark slot, drop the brand tint
-   and let the bitmap breathe — the EHS wordmark is wide, not square. */
-.ehs-shell-workspace-mark:has(.ehs-shell-workspace-logo) {
-  width: 56px;
-  min-width: 56px;
-  height: 32px;
+   In stacked mode the logo gets its own row above the workspace text,
+   sized large enough to be legible on a 240px sidebar. */
+.ehs-shell-workspace--stacked {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 16px 12px;
+  height: auto;
+  position: relative;
+}
+.ehs-shell-workspace--stacked .ehs-shell-workspace-mark {
+  width: 140px;
+  min-width: 140px;
+  height: 56px;
   background: transparent;
   border: none;
   box-shadow: none;
@@ -8079,6 +8088,18 @@ html[data-shell="linear"] .container {
   overflow: hidden;
   border-radius: 6px;
 }
+.ehs-shell-workspace--stacked .ehs-shell-workspace-text {
+  width: 100%;
+  min-width: 0;
+}
+.ehs-shell-workspace--stacked .ehs-shell-workspace-chevron {
+  position: absolute;
+  top: 14px;
+  right: 12px;
+  opacity: 0.6;
+}
+.ehs-shell-workspace--stacked { position: relative; }
+.ehs-shell-workspace-text { flex: 1; min-width: 0; }
 .ehs-shell-workspace-logo {
   width: 100%;
   height: 100%;

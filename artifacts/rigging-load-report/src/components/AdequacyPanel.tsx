@@ -90,7 +90,7 @@ export function AdequacyPanel({
     <section className="led-card adequacy-card">
       <div className="led-card-head">
         <div>
-          <h3>Crew Adequacy</h3>
+          <h3>Role Coverage</h3>
           <p className="led-report-sub">
             Suggested headcount per role for this project's size, compared
             to who's on the roster. Always a range — your call on the exact

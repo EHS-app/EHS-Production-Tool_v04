@@ -50,6 +50,91 @@ const PHASE_ORDER: BriefSchedulePhaseKey[] = [
   "downrig",
 ];
 
+/** Expand an inclusive YYYY-MM-DD range into the list of day strings.
+ *  Bounded at 60 days defensively. Mirrors expandProjectDays in
+ *  lib/crew.ts but kept local to the portal so this screen has no
+ *  cross-package import. */
+function expandRangeDays(from: string, to: string): string[] {
+  if (!from) return [];
+  const end = to || from;
+  const m1 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(from);
+  const m2 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(end);
+  if (!m1 || !m2) return [];
+  const s = new Date(Number(m1[1]), Number(m1[2]) - 1, Number(m1[3]));
+  const e = new Date(Number(m2[1]), Number(m2[2]) - 1, Number(m2[3]));
+  if (e < s) return [];
+  const out: string[] = [];
+  const cur = new Date(s);
+  for (let i = 0; i < 60 && cur <= e; i += 1) {
+    const y = cur.getFullYear();
+    const mo = String(cur.getMonth() + 1).padStart(2, "0");
+    const da = String(cur.getDate()).padStart(2, "0");
+    out.push(`${y}-${mo}-${da}`);
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
+}
+
+/** Short calendar label, e.g. "Mon 5 May". Used for compact day chips. */
+function formatDayShort(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  const d = m
+    ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+    : new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}
+
+/** Bucket the assignment's working days into phase groups using the
+ *  brief's schedule, plus any "extras" that don't fall inside a phase
+ *  the producer scheduled. Used by the freelancer's AssignmentCard so
+ *  they immediately see "I'm here for Setup + Load Out, not the Show". */
+type AssignedPhaseBucket = {
+  key: BriefSchedulePhaseKey | "extra";
+  label: string;
+  days: string[];
+};
+function groupAssignedDaysByPhase(
+  assignedDates: ReadonlyArray<string>,
+  schedule: BriefSchedule | undefined,
+): AssignedPhaseBucket[] {
+  const dates = [...assignedDates].sort();
+  if (dates.length === 0) return [];
+  const remaining = new Set(dates);
+  const buckets: AssignedPhaseBucket[] = [];
+  if (schedule) {
+    for (const key of PHASE_ORDER) {
+      const segs = schedule[key] ?? [];
+      const phaseDays: string[] = [];
+      for (const seg of segs) {
+        for (const d of expandRangeDays(seg.from, seg.to)) {
+          if (remaining.has(d) && !phaseDays.includes(d)) phaseDays.push(d);
+        }
+      }
+      if (phaseDays.length > 0) {
+        for (const d of phaseDays) remaining.delete(d);
+        buckets.push({
+          key,
+          label: PHASE_LABELS[key],
+          days: phaseDays.sort(),
+        });
+      }
+    }
+  }
+  if (remaining.size > 0) {
+    buckets.push({
+      key: "extra",
+      label: "Extra days",
+      days: [...remaining].sort(),
+    });
+  }
+  return buckets;
+}
+
 function formatRange(from: string, to: string): string {
   if (from && to && from !== to) {
     return `${formatDate(from)} → ${formatDate(to)}`;
@@ -726,6 +811,7 @@ export function BriefDetail({
         <AssignmentCard
           theme={theme}
           assignment={myAssignment}
+          schedule={brief.project.schedule}
           decision={entry.decision}
           acceptedGigId={entry.acceptedGigId}
           conflicts={conflicts}
@@ -1397,6 +1483,7 @@ function formatBytes(n: number): string {
 function AssignmentCard({
   theme,
   assignment,
+  schedule,
   decision,
   acceptedGigId,
   conflicts,
@@ -1407,6 +1494,7 @@ function AssignmentCard({
 }: {
   theme: ThemeMode;
   assignment: BriefAssignment;
+  schedule: BriefSchedule | undefined;
   decision: BriefDecision;
   acceptedGigId?: string;
   conflicts: ScheduleConflict[];
@@ -1417,6 +1505,10 @@ function AssignmentCard({
 }) {
   const c = PALETTE[theme];
   const fee = assignment.dayRate;
+  const dayBreakdown = useMemo(
+    () => groupAssignedDaysByPhase(assignment.assignedDates, schedule),
+    [assignment.assignedDates, schedule],
+  );
   return (
     <section
       style={{
@@ -1469,6 +1561,67 @@ function AssignmentCard({
           strong
         />
       </div>
+      {dayBreakdown.length > 0 ? (
+        <div style={{ marginTop: 14 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: c.muted,
+              textTransform: "uppercase",
+              letterSpacing: 0.6,
+              marginBottom: 8,
+            }}
+          >
+            Working days
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            {dayBreakdown.map((bucket) => (
+              <div
+                key={bucket.key}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 10,
+                  padding: "8px 10px",
+                  background: c.cardBgSubtle,
+                  borderRadius: 10,
+                  borderLeft: `3px solid ${
+                    bucket.key === "extra" ? c.muted : c.accent
+                  }`,
+                }}
+              >
+                <div
+                  style={{
+                    minWidth: 110,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: bucket.key === "extra" ? c.muted : c.accent,
+                  }}
+                >
+                  {bucket.label} ({bucket.days.length}{" "}
+                  {bucket.days.length === 1 ? "day" : "days"})
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: c.text,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {bucket.days.map((d) => formatDayShort(d)).join(", ")}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {assignment.notes ? (
         <div
           style={{

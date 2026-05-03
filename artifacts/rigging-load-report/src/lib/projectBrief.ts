@@ -39,6 +39,12 @@ export type BriefAssignment = {
   /** Day rate in NOK (Norwegian kroner — the Production Tool is Norway-based). */
   dayRate: number;
   notes: string;
+  /** ISO YYYY-MM-DD calendar days this assignment is on call.
+   *  Mirrors `CrewMember.assignedDates` from the producer side and
+   *  drives the per-phase day breakdown shown on the freelancer's
+   *  brief. Empty array means "no specific days set" — older briefs
+   *  saved before this field existed normalise to []. */
+  assignedDates: string[];
   /** Optional Clerk user id of the freelancer this assignment is
    *  addressed to. Set when the producer picks the crew member from
    *  the shared directory in the Production Tool's Crew Report —
@@ -679,6 +685,7 @@ export function buildBrief(input: BuildBriefInput): ProjectBrief {
     hours: crewHours(m),
     dayRate: m.dayRate,
     notes: m.notes,
+    assignedDates: Array.isArray(m.assignedDates) ? [...m.assignedDates] : [],
     // Pass the freelancer's Clerk user id through when the crew row
     // originated from "Send requests" on the Available Crew sidebar.
     // The server uses this on POST /api/portal/briefs to create / sync
@@ -854,6 +861,10 @@ function normalizeAssignment(raw: unknown): BriefAssignment {
     hours: asNumber(r.hours),
     dayRate: asNumber(r.dayRate),
     notes: asString(r.notes),
+    assignedDates: Array.isArray(r.assignedDates)
+      ? (r.assignedDates as unknown[])
+          .filter((d): d is string => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d))
+      : [],
   };
 }
 

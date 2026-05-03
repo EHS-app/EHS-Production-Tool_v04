@@ -6943,6 +6943,16 @@ input:focus {
   color: #b45309;
   border-color: rgba(248, 128, 0, 0.45);
 }
+.roster-day-quickpick-btn-active {
+  background: #f88000;
+  color: #0b0b0b;
+  border-color: #c2410c;
+}
+.roster-day-quickpick-btn-active:hover {
+  background: #ea7300;
+  color: #0b0b0b;
+  border-color: #9a3412;
+}
 .roster-day-quickpick-btn-clear:hover {
   background: rgba(220, 38, 38, 0.10);
   color: #b91c1c;

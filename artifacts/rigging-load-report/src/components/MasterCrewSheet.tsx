@@ -1031,6 +1031,15 @@ function MasterRow({
                 show: "Show",
                 downrig: "Load Out",
               };
+              // Phase is "active" when every one of its days is in the
+              // current assignedDates set. Toggling an active phase
+              // removes its days; toggling an inactive one adds them.
+              // This lets the producer combine phases — e.g. tap
+              // "Setup" then "Load Out" to get a setup+load-out crew
+              // member without the Show days in the middle.
+              const assignedSet = new Set(row.assignedDates);
+              const isPhaseActive = (days: ReadonlyArray<string>) =>
+                days.length > 0 && days.every((d) => assignedSet.has(d));
               return (
                 <div
                   className="roster-day-quickpick"
@@ -1038,17 +1047,36 @@ function MasterRow({
                   aria-label="Quick-fill working days"
                 >
                   <span className="roster-day-quickpick-label">Days:</span>
-                  {phaseEntries.map((p) => (
-                    <button
-                      key={p.key}
-                      type="button"
-                      className="roster-day-quickpick-btn"
-                      title={`Work all ${phaseLabel[p.key]} days (${p.days.length})`}
-                      onClick={() => onLocalSetDays([...p.days])}
-                    >
-                      {phaseLabel[p.key]}
-                    </button>
-                  ))}
+                  {phaseEntries.map((p) => {
+                    const active = isPhaseActive(p.days);
+                    return (
+                      <button
+                        key={p.key}
+                        type="button"
+                        className={
+                          "roster-day-quickpick-btn" +
+                          (active ? " roster-day-quickpick-btn-active" : "")
+                        }
+                        aria-pressed={active}
+                        title={
+                          active
+                            ? `Remove ${phaseLabel[p.key]} days (${p.days.length})`
+                            : `Add ${phaseLabel[p.key]} days (${p.days.length})`
+                        }
+                        onClick={() => {
+                          const next = new Set(row.assignedDates);
+                          if (active) {
+                            for (const d of p.days) next.delete(d);
+                          } else {
+                            for (const d of p.days) next.add(d);
+                          }
+                          onLocalSetDays([...next]);
+                        }}
+                      >
+                        {phaseLabel[p.key]}
+                      </button>
+                    );
+                  })}
                   {allDays.length > 0 ? (
                     <button
                       type="button"

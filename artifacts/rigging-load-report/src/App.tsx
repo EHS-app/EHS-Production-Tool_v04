@@ -60,6 +60,7 @@ import {
 import { StageReportView } from "./components/StageReportView";
 import {
   makeCrewMember,
+  expandProjectDays,
   normalizeCrewMember,
   type CrewMember,
 } from "./lib/crew";
@@ -2828,7 +2829,13 @@ function App() {
   }, [mainView, activeBriefId, getToken]);
 
   const addCrew = () => {
-    setCrew((all) => [...all, makeCrewMember()]);
+    // Auto-assign the new crew member to the project's full schedule
+    // (load-in → load-out, derived from reportDate / reportEndDate)
+    // so they're "on for the whole run" by default. The producer can
+    // untick individual day-chips on the Crew tab to drop them off
+    // specific days.
+    const days = expandProjectDays(reportDate, reportEndDate);
+    setCrew((all) => [...all, { ...makeCrewMember(), assignedDates: days }]);
   };
   const updateCrew = (id: string, patch: Partial<CrewMember>) => {
     setCrew((all) => all.map((m) => (m.id === id ? { ...m, ...patch } : m)));

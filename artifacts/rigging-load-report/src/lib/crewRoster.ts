@@ -290,7 +290,11 @@ export function mergeRoster(
       //     declined, no-reply, too_late). Surface that state.
       //   - has no requestStatus → it's an in-house manual row.
       status: m.requestStatus ?? "manual",
-      assignedDates: [],
+      // Local rows carry their own `assignedDates` (defaulted to the
+      // full project schedule on add, editable per row via day-chip
+      // toggles). Falls back to [] for legacy rows persisted before
+      // this field existed.
+      assignedDates: m.assignedDates ? [...m.assignedDates] : [],
       hotelRequired: false,
       dietaryTags: [],
       allergens: [],

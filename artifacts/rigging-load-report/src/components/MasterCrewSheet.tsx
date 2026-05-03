@@ -10,6 +10,7 @@ import {
   CREW_ROLES,
   type CrewMember,
   type CrewRole,
+  type CrewRequestStatus,
 } from "../lib/crew";
 import { NumberField } from "./NumberField";
 import { openMasterSheet, type MasterSheetRow } from "../lib/masterSheetExport";
@@ -716,6 +717,18 @@ export function MasterCrewSheet({
                         ? (patch) => onUpdate(local.id, patch)
                         : undefined
                     }
+                    onLocalDayToggle={
+                      local
+                        ? (date) => {
+                            const cur = new Set(local.assignedDates ?? []);
+                            if (cur.has(date)) cur.delete(date);
+                            else cur.add(date);
+                            onUpdate(local.id, {
+                              assignedDates: [...cur].sort(),
+                            });
+                          }
+                        : undefined
+                    }
                     onLocalRemove={
                       local && row.source === "local"
                         ? () => onRemove(local.id)
@@ -751,6 +764,7 @@ function MasterRow({
   showProductionDetails,
   portalNames,
   onLocalUpdate,
+  onLocalDayToggle,
   onLocalRemove,
   onLocalDuplicate,
 }: {
@@ -766,6 +780,11 @@ function MasterRow({
    *  <datalist> autocomplete on editable name cells. */
   portalNames: ReadonlyArray<string>;
   onLocalUpdate?: (patch: Partial<CrewMember>) => void;
+  /** Toggle a single date on / off the local CrewMember's
+   *  `assignedDates`. Only provided when the row is backed by a
+   *  local CrewMember, so the chips stay read-only for unmatched
+   *  gig rows (those use `onDayToggle` against the gig endpoint). */
+  onLocalDayToggle?: (date: string) => void;
   onLocalRemove?: () => void;
   onLocalDuplicate?: () => void;
 }) {
@@ -838,9 +857,40 @@ function MasterRow({
         )}
       </td>
       <td>
-        <span className={`crew-pill crew-pill-${tone}`} title={label}>
-          {label}
-        </span>
+        {editableLocal ? (
+          // Editable status for local rows. Covers two real scenarios:
+          //   • Producer phoned a "requested" freelancer who confirmed
+          //     verbally — flip them to Accepted without waiting on
+          //     the portal click.
+          //   • Producer wants to mark a hand-typed crew member as
+          //     "manual" (no pill) vs an outgoing request flow.
+          <select
+            className="led-input"
+            value={local?.requestStatus ?? "manual"}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "manual") {
+                onLocalUpdate?.({ requestStatus: undefined });
+              } else {
+                onLocalUpdate?.({
+                  requestStatus: v as CrewRequestStatus,
+                });
+              }
+            }}
+            title="Set this person's confirmation status (e.g. mark Accepted after a phone call)"
+          >
+            <option value="manual">Manual</option>
+            <option value="requested">Requested</option>
+            <option value="accepted">Accepted</option>
+            <option value="declined">Declined</option>
+            <option value="no-reply">No reply</option>
+            <option value="too_late">Too late</option>
+          </select>
+        ) : (
+          <span className={`crew-pill crew-pill-${tone}`} title={label}>
+            {label}
+          </span>
+        )}
       </td>
       <td>
         {chips.length === 0 ? (
@@ -851,7 +901,13 @@ function MasterRow({
             aria-busy={datesSaving || undefined}
           >
             {chips.map((c) => {
-              const interactive = !!onDayToggle;
+              // Interactive when EITHER:
+              //  • The row is a gig row with a working onDayToggle
+              //    (PATCHes the gig endpoint), OR
+              //  • The row is a local row with onLocalDayToggle
+              //    (mutates the CrewMember.assignedDates locally).
+              const handler = onDayToggle ?? onLocalDayToggle;
+              const interactive = !!handler;
               const className = `roster-chip ${
                 c.on ? "roster-chip-on" : "roster-chip-off"
               }${interactive ? " roster-chip-interactive" : ""}`;
@@ -862,7 +918,7 @@ function MasterRow({
                   className={className}
                   title={`${c.date} — click to ${c.on ? "remove" : "add"}`}
                   disabled={datesSaving}
-                  onClick={() => onDayToggle?.(c.date)}
+                  onClick={() => handler!(c.date)}
                 >
                   {c.label}
                 </button>

@@ -81,6 +81,12 @@ export type CrewMember = {
    *  Used by the producer's poll loop to correlate accept/decline
    *  responses with the right local row. */
   briefAssignmentId?: string;
+  /** YYYY-MM-DD strings the producer has assigned this person to work.
+   *  Defaulted on creation to the project's full schedule (load-in →
+   *  load-out) so a freshly added crew member is "on for the whole
+   *  run" by default. The producer can untick individual day-chips on
+   *  the Crew tab to drop a person off specific days. */
+  assignedDates?: string[];
 };
 
 function newId(prefix: string): string {
@@ -143,7 +149,41 @@ export function normalizeCrewMember(raw: unknown): CrewMember {
       typeof r.briefAssignmentId === "string" && r.briefAssignmentId
         ? r.briefAssignmentId
         : undefined,
+    assignedDates: Array.isArray(r.assignedDates)
+      ? (r.assignedDates as unknown[])
+          .filter(
+            (d): d is string =>
+              typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d),
+          )
+          .sort()
+      : undefined,
   };
+}
+
+/** Expand a [start, end] inclusive YYYY-MM-DD range into the full list
+ *  of day strings between them. Returns [] when either bound is empty
+ *  or the range is invalid. Used to seed `assignedDates` on freshly
+ *  added crew so the new row is "on for the whole project" by default. */
+export function expandProjectDays(
+  startDate: string,
+  endDate: string,
+): string[] {
+  if (!startDate) return [];
+  const endIso = endDate || startDate;
+  const s = new Date(`${startDate}T00:00:00Z`);
+  const e = new Date(`${endIso}T00:00:00Z`);
+  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return [];
+  if (e < s) return [];
+  const out: string[] = [];
+  const cur = new Date(s);
+  // Hard cap at 60 days defensively — no real production schedule is
+  // longer, and an accidental year-long range shouldn't blow up the
+  // assigned-dates array.
+  for (let i = 0; i < 60 && cur <= e; i += 1) {
+    out.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return out;
 }
 
 function normalizeTimeField(raw: unknown, fallback: string): string {

@@ -4169,33 +4169,42 @@ function App() {
             </Link>
             <SignOutButton />
           </div>
-          {/* Document actions — below the account cluster. */}
+          {/* Document actions — below the account cluster.
+              Uniform pill row inspired by the GigSync/Lovable layout: every
+              secondary action is a small outlined ghost pill, only "Share
+              with Crew" is filled in EHS orange as the primary CTA. */}
           <div className="header-doc-actions">
             <span className="autosave-pill" title="Saved locally in your browser">
               ● Saved {savedAt}
             </span>
             <button
               type="button"
-              className="btn btn-help"
+              className="btn btn-pill"
               onClick={() => setHelpOpen(true)}
               title={tr("header.helpTitle")}
               aria-label={tr("header.help")}
             >
-              <span aria-hidden>?</span>
+              <span className="btn-pill-icon" aria-hidden>?</span>
               <span>{tr("header.help")}</span>
             </button>
             <button
-              className="btn btn-reset"
+              className="btn btn-pill"
               onClick={resetAll}
               title={tr("header.reset")}
             >
-              {tr("header.reset")}
-            </button>
-            <button className="btn btn-csv" onClick={downloadCsv} title="Download CSV">
-              CSV
+              <span className="btn-pill-icon" aria-hidden>↻</span>
+              <span>{tr("header.reset")}</span>
             </button>
             <button
-              className="btn btn-export"
+              className="btn btn-pill"
+              onClick={downloadCsv}
+              title="Download CSV"
+            >
+              <span className="btn-pill-icon" aria-hidden>⬇</span>
+              <span>CSV</span>
+            </button>
+            <button
+              className="btn btn-pill"
               onClick={() => {
                 if (mainView !== "rigging") {
                   setMainView("rigging");
@@ -4207,28 +4216,32 @@ function App() {
                 }
               }}
             >
-              {tr("header.exportReport")}
+              <span className="btn-pill-icon" aria-hidden>↗</span>
+              <span>{tr("header.exportReport")}</span>
             </button>
             <button
-              className="btn btn-export"
+              className="btn btn-pill"
               onClick={exportClientPackPdf}
               title="Open a printable, client-facing pack covering schedule, crew, rigging, lighting, sound, stage, LED, risks and cost"
             >
-              {tr("header.clientPack")}
+              <span className="btn-pill-icon" aria-hidden>▤</span>
+              <span>{tr("header.clientPack")}</span>
             </button>
             <button
-              className="btn btn-export"
+              className="btn btn-pill"
               onClick={simulateShow}
               title="Step through 10 production phases (load-in → show → load-out) with discipline status, risks and a final readiness verdict"
             >
-              {tr("header.simulateShow")}
+              <span className="btn-pill-icon" aria-hidden>▶</span>
+              <span>{tr("header.simulateShow")}</span>
             </button>
             <button
-              className="btn btn-export"
+              className="btn btn-pill btn-pill-primary"
               onClick={() => setShareOpen(true)}
               title="Generate per-crew brief links to share with freelancers"
             >
-              {tr("header.shareWithCrew")}
+              <span className="btn-pill-icon" aria-hidden>↗</span>
+              <span>{tr("header.shareWithCrew")}</span>
             </button>
           </div>
         </div>

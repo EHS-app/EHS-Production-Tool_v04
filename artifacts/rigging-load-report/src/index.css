@@ -113,10 +113,73 @@ body {
 .header-doc-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
+
+/* ── Header doc-action pill row ────────────────────────────────────────
+   Inspired by the GigSync/Lovable layout: every secondary action is a
+   small outlined ghost pill, only `.btn-pill-primary` is filled in EHS
+   orange as the primary CTA. Scoped to `.header-doc-actions` so the
+   `.btn` base class behavior elsewhere in the app is unchanged.
+*/
+.header-doc-actions .btn-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.04);
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  white-space: nowrap;
+}
+.header-doc-actions .btn-pill:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  opacity: 1;
+}
+.header-doc-actions .btn-pill:focus-visible {
+  outline: 2px solid var(--primary, #f88000);
+  outline-offset: 2px;
+}
+.header-doc-actions .btn-pill .btn-pill-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  opacity: 0.85;
+}
+/* Primary action — filled EHS orange. */
+.header-doc-actions .btn-pill.btn-pill-primary {
+  background: var(--primary, #f88000);
+  border-color: var(--primary, #f88000);
+  color: #ffffff;
+}
+.header-doc-actions .btn-pill.btn-pill-primary:hover {
+  background: #ff9020;
+  border-color: #ff9020;
+  color: #ffffff;
+}
+.header-doc-actions .btn-pill.btn-pill-primary .btn-pill-icon {
+  opacity: 1;
+}
+
+/* Light-theme override — header has a dark gradient regardless of theme,
+   so we keep the same translucent-on-dark look. No override needed. */
 /* Theme segmented control (Light / Dark / System) */
 .theme-seg {
   display: inline-flex;

@@ -446,19 +446,70 @@ export function MasterCrewSheet({
               ) : null}
             </>
           )}
-          <label
-            className={
-              compactHeader ? "crew-toggle-pill" : "roster-toggle"
-            }
-            title="Show call / off / day-rate columns"
-          >
-            <input
-              type="checkbox"
-              checked={showProductionDetails}
-              onChange={(e) => setShowProductionDetails(e.target.checked)}
-            />
-            <span>Production details</span>
-          </label>
+          {compactHeader ? (
+            // Inline styles here are deliberate: the surrounding
+            // stylesheet has several legacy rules that fight a
+            // class-based pill (justify-content / width inheritance,
+            // older `.roster-toggle` overrides further down the file).
+            // Pinning the layout inline guarantees the checkbox + label
+            // stay inside one tidy pill on the right side of the head.
+            <label
+              title="Show call / off / day-rate columns"
+              style={{
+                display: "inline-flex",
+                flex: "0 0 auto",
+                alignItems: "center",
+                justifyContent: "flex-start",
+                gap: 8,
+                height: 36,
+                padding: "0 14px",
+                borderRadius: 999,
+                background: "#ffffff",
+                border: "1px solid var(--border, #e5e7eb)",
+                fontSize: 13,
+                fontWeight: 600,
+                color: "var(--text-main, #0f172a)",
+                cursor: "pointer",
+                userSelect: "none",
+                whiteSpace: "nowrap",
+                width: "auto",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={showProductionDetails}
+                onChange={(e) => setShowProductionDetails(e.target.checked)}
+                style={{
+                  margin: 0,
+                  flex: "0 0 auto",
+                  accentColor: "var(--primary, #f88000)",
+                  cursor: "pointer",
+                }}
+              />
+              <span
+                style={{
+                  whiteSpace: "nowrap",
+                  fontSize: 13,
+                  lineHeight: 1,
+                  color: "var(--text-main, #0f172a)",
+                }}
+              >
+                Production details
+              </span>
+            </label>
+          ) : (
+            <label
+              className="roster-toggle"
+              title="Show call / off / day-rate columns"
+            >
+              <input
+                type="checkbox"
+                checked={showProductionDetails}
+                onChange={(e) => setShowProductionDetails(e.target.checked)}
+              />
+              <span>Production details</span>
+            </label>
+          )}
           <button
             type="button"
             className={

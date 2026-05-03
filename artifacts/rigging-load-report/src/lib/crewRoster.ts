@@ -295,7 +295,10 @@ export function mergeRoster(
       // toggles). Falls back to [] for legacy rows persisted before
       // this field existed.
       assignedDates: m.assignedDates ? [...m.assignedDates] : [],
-      hotelRequired: false,
+      // Local rows now carry a producer-set `needsHotel` flag so
+      // in-house / manual people can be ticked for hotel without
+      // having to go through the portal accept flow first.
+      hotelRequired: !!m.needsHotel,
       // Portal-sourced rows (added via the Available Crew sidebar)
       // carry phone / dietary / allergens copied from the freelancer's
       // profile, so the producer sees their contact info immediately

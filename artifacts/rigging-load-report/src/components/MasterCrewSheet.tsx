@@ -283,7 +283,10 @@ export function MasterCrewSheet({
       const tone = statusTone(r.status);
       if (tone === "ok") accepted += 1;
       else if (tone === "warn") pending += 1;
-      if (r.source === "gig" && r.hotelRequired) hotelCount += 1;
+      // Count any row flagged for hotel — gig-backed (server flag)
+      // OR local/manual (producer-set `needsHotel`, surfaced via
+      // mergeRoster as `hotelRequired`).
+      if (r.hotelRequired) hotelCount += 1;
     }
     const hotelRooms = Math.ceil(hotelCount / 2);
     return `${total}|${accepted}|${pending}|${hotelRooms}`;
@@ -978,13 +981,24 @@ function MasterRow({
               {row.hotelRequired ? "hotel" : "no"}
             </span>
           </label>
+        ) : editableLocal ? (
+          // Local / manual rows: producer can tick "needs hotel"
+          // directly. Stored on the CrewMember as `needsHotel` so
+          // it survives reloads and feeds the Hotel-rooms stat-card.
+          <label className="roster-hotel" title="Tick when this person needs a hotel">
+            <input
+              type="checkbox"
+              checked={row.hotelRequired}
+              onChange={(e) =>
+                onLocalUpdate?.({ needsHotel: e.target.checked })
+              }
+            />
+            <span className="roster-hotel-label">
+              {row.hotelRequired ? "hotel" : "no"}
+            </span>
+          </label>
         ) : (
-          <span
-            className="crew-pill-empty"
-            title="Hotel only tracked once a freelancer has accepted"
-          >
-            —
-          </span>
+          <span className="crew-pill-empty">—</span>
         )}
       </td>
       <td>

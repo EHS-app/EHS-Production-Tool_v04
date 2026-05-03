@@ -98,6 +98,12 @@ export type CrewMember = {
   /** Pre-split allergens copied from the freelancer's portal profile
    *  (e.g. ["Nøtter"], ["Skalldyr"]). Surfaces alongside dietaryTags. */
   allergens?: string[];
+  /** Producer-set flag: this crew member needs a hotel for the run.
+   *  Tracked locally so manual / in-house rows (which never go
+   *  through the gig accept flow) can still be ticked for hotel.
+   *  Gig-backed rows continue to use the server-side
+   *  `gigs.hotelRequired` column instead — see `mergeRoster`. */
+  needsHotel?: boolean;
 };
 
 function newId(prefix: string): string {

@@ -124,6 +124,11 @@ export function MasterCrewSheet({
   const [loading, setLoading] = useState(true);
   const [savingByKey, setSavingByKey] = useState<Record<string, boolean>>({});
   const [showProductionDetails, setShowProductionDetails] = useState(false);
+  // Names of freelancers registered in the portal directory. Used to
+  // power the <datalist> autocomplete on the editable name cell so
+  // producers can pick a registered freelancer with one click, while
+  // still typing freely for non-portal walk-ups.
+  const [portalNames, setPortalNames] = useState<ReadonlyArray<string>>([]);
 
   const baseUrl =
     (typeof import.meta !== "undefined" &&
@@ -152,6 +157,43 @@ export function MasterCrewSheet({
     if (!json.ok) throw new Error(json.error ?? "Could not load crew roster.");
     return json;
   }, [briefId, getToken, baseUrl]);
+
+  // Fetch the portal freelancer directory once on mount so the editable
+  // name cells can offer an autocomplete of registered names. The
+  // endpoint is cheap (no date params → just a sorted name list) and
+  // we only need names + roles, not the full directory metadata. We
+  // fail silently — autocomplete is a nice-to-have, the input still
+  // accepts free text if the fetch fails.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch(`${baseUrl}api/portal/freelancers`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) return;
+        const body = (await res.json()) as {
+          ok?: boolean;
+          freelancers?: ReadonlyArray<{ name?: string | null }>;
+        };
+        if (cancelled || !body.ok || !Array.isArray(body.freelancers)) return;
+        const names = Array.from(
+          new Set(
+            body.freelancers
+              .map((f) => (f.name ?? "").trim())
+              .filter((n) => n.length > 0),
+          ),
+        ).sort((a, b) => a.localeCompare(b));
+        setPortalNames(names);
+      } catch {
+        // Silent — autocomplete is optional.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, baseUrl]);
 
   // Polled fetch loop — same 60s cadence as Hotel/Catering. Skipped
   // entirely when no brief is active so the master sheet stays
@@ -668,6 +710,7 @@ export function MasterCrewSheet({
                     }
                     local={local}
                     showProductionDetails={showProductionDetails}
+                    portalNames={portalNames}
                     onLocalUpdate={
                       local
                         ? (patch) => onUpdate(local.id, patch)
@@ -706,6 +749,7 @@ function MasterRow({
   onDayToggle,
   local,
   showProductionDetails,
+  portalNames,
   onLocalUpdate,
   onLocalRemove,
   onLocalDuplicate,
@@ -718,6 +762,9 @@ function MasterRow({
   onDayToggle?: (date: string) => void;
   local: CrewMember | null;
   showProductionDetails: boolean;
+  /** Names of registered portal freelancers, used to power the
+   *  <datalist> autocomplete on editable name cells. */
+  portalNames: ReadonlyArray<string>;
   onLocalUpdate?: (patch: Partial<CrewMember>) => void;
   onLocalRemove?: () => void;
   onLocalDuplicate?: () => void;
@@ -735,13 +782,28 @@ function MasterRow({
     <tr>
       <td>
         {editableLocal ? (
-          <input
-            className="led-input"
-            type="text"
-            value={local?.name ?? ""}
-            onChange={(e) => onLocalUpdate?.({ name: e.target.value })}
-            placeholder="Full name"
-          />
+          <>
+            <input
+              className="led-input"
+              type="text"
+              value={local?.name ?? ""}
+              onChange={(e) => onLocalUpdate?.({ name: e.target.value })}
+              placeholder="Full name"
+              list="crew-portal-names"
+              autoComplete="off"
+            />
+            {/* Single shared datalist (rendered per row but identical
+             *  id is fine — the browser merges them and uses the union
+             *  of options). Native <datalist> gives us free typeahead
+             *  filtering against registered portal freelancers, while
+             *  still allowing the producer to type a non-portal name
+             *  freely (datalist is a suggestion list, not a select). */}
+            <datalist id="crew-portal-names">
+              {portalNames.map((n) => (
+                <option key={n} value={n} />
+              ))}
+            </datalist>
+          </>
         ) : (
           <div className="roster-name">
             <strong>{row.name || "—"}</strong>

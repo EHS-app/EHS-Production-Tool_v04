@@ -74,28 +74,32 @@ function saveThemePreference(pref: ThemePreference) {
   } catch {}
 }
 
-const EHS_ORANGE = "#f88000";
+// Linear v2 brand accent — was EHS-orange (#f88000), now electric purple
+// to match the Tactical Command Center redesign that ships across the app.
+// Constant name kept as `EHS_ORANGE` to avoid a sweeping rename across
+// dozens of inline-styled call sites; treat it as "EHS brand accent".
+const EHS_ORANGE = "#7B5BFF";
 
 const PALETTE = {
   light: {
-    pageBg: "#f1f5f9",
+    pageBg: "#f7f7fb",
     cardBg: "#ffffff",
-    border: "#e2e8f0",
+    border: "#e6e6ee",
     text: "#0f172a",
     muted: "#64748b",
     inputBg: "#ffffff",
     inviteBg: "#ffffff",
-    shadow: "0 20px 60px rgba(15,23,42,0.12)",
+    shadow: "0 20px 60px rgba(15,23,42,0.10)",
   },
   dark: {
-    pageBg: "#0f172a",
-    cardBg: "#1e293b",
-    border: "#334155",
-    text: "#f1f5f9",
-    muted: "#94a3b8",
-    inputBg: "#0f172a",
-    inviteBg: "rgba(15,23,42,0.6)",
-    shadow: "0 20px 60px rgba(0,0,0,0.45)",
+    pageBg: "#1C1C24",
+    cardBg: "#25252F",
+    border: "rgba(255,255,255,0.08)",
+    text: "#E5E5EC",
+    muted: "#9999A6",
+    inputBg: "#1C1C24",
+    inviteBg: "rgba(28,28,36,0.6)",
+    shadow: "0 20px 60px rgba(0,0,0,0.55)",
   },
 } as const;
 

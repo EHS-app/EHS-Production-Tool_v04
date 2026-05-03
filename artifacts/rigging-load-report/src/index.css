@@ -1,28 +1,45 @@
 :root {
-  --primary: #2563eb;
+  /* Linear v2 — Tactical Command Center
+     Primary brand accent is now electric purple (#7B5BFF) instead of
+     EHS-orange. Status colors (success/warning/danger) keep their
+     semantic meaning so existing UI affordances still read correctly. */
+  --primary: #7B5BFF;
+  --primary-hover: #8B6BFF;
+  --primary-soft: rgba(123, 91, 255, 0.12);
   --secondary: #f97316;
   --static-bar: #64748b;
-  --danger: #dc2626;
+  --danger: #f43f5e;
   --warning: #f59e0b;
-  --success: #16a34a;
-  --dark: #0f172a;
-  --light: #f1f5f9;
+  --success: #10b981;
+  --dark: #1C1C24;
+  --light: #f7f7fb;
   --card-bg: #ffffff;
   --text-main: #0f172a;
   --text-muted: #64748b;
-  --border-color: #e2e8f0;
+  --border-color: #e6e6ee;
   --input-bg: #ffffff;
-  --track-bg: #e2e8f0;
+  --track-bg: #e6e6ee;
+  --radius-card: 12px;
 }
 
 [data-theme="dark"] {
-  --light: #020617;
-  --card-bg: #1e293b;
-  --text-main: #f1f5f9;
-  --text-muted: #94a3b8;
-  --border-color: #334155;
-  --input-bg: #0f172a;
-  --track-bg: #334155;
+  /* Linear-style deep neutrals: page #1C1C24, surfaces #25252F,
+     borders white/8, text gray-200/400. Cards float subtly above the
+     page via slightly lighter background + 1px translucent border. */
+  --light: #1C1C24;
+  --dark: #15151B;
+  --card-bg: #25252F;
+  --text-main: #E5E5EC;
+  --text-muted: #9999A6;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --input-bg: #1C1C24;
+  --track-bg: rgba(255, 255, 255, 0.06);
+  --primary: #7B5BFF;
+  --primary-hover: #8B6BFF;
+  --primary-soft: rgba(123, 91, 255, 0.16);
+  --danger: #f43f5e;
+  --warning: #f59e0b;
+  --success: #10b981;
 }
 
 * {
@@ -88,7 +105,7 @@ body {
   font-weight: 800;
   letter-spacing: 2.5px;
   text-transform: uppercase;
-  color: #f88000;
+  color: #7B5BFF;
   line-height: 1;
 }
 .header-left h1 {
@@ -102,7 +119,7 @@ body {
 }
 .header-title-accent {
   font-weight: 900;
-  color: #f88000;
+  color: #7B5BFF;
 }
 .header-actions {
   display: flex;
@@ -155,11 +172,11 @@ body {
   color: #ffffff;
 }
 .header-account .theme-seg-btn.is-selected {
-  background: var(--primary, #f88000);
+  background: var(--primary, #7B5BFF);
   color: #ffffff;
 }
 .header-account .theme-seg-btn.is-selected:hover {
-  background: #ff9020;
+  background: #8B6BFF;
 }
 
 /* Plain-text email — no border, just muted white. */
@@ -198,7 +215,7 @@ body {
   color: #ffffff;
 }
 .header-icon-btn:focus-visible {
-  outline: 2px solid var(--primary, #f88000);
+  outline: 2px solid var(--primary, #7B5BFF);
   outline-offset: 2px;
 }
 
@@ -240,7 +257,7 @@ body {
 }
 .header-doc-actions .btn-pill:focus-visible,
 .header-account .btn-pill:focus-visible {
-  outline: 2px solid var(--primary, #f88000);
+  outline: 2px solid var(--primary, #7B5BFF);
   outline-offset: 2px;
 }
 .header-doc-actions .btn-pill .btn-pill-icon,
@@ -257,13 +274,13 @@ body {
 }
 /* Primary action — filled EHS orange. */
 .header-doc-actions .btn-pill.btn-pill-primary {
-  background: var(--primary, #f88000);
-  border-color: var(--primary, #f88000);
+  background: var(--primary, #7B5BFF);
+  border-color: var(--primary, #7B5BFF);
   color: #ffffff;
 }
 .header-doc-actions .btn-pill.btn-pill-primary:hover {
-  background: #ff9020;
-  border-color: #ff9020;
+  background: #8B6BFF;
+  border-color: #8B6BFF;
   color: #ffffff;
 }
 .header-doc-actions .btn-pill.btn-pill-primary .btn-pill-icon {
@@ -709,7 +726,7 @@ body {
   font-weight: 500;
 }
 .meta-field input:focus {
-  border-color: var(--primary, #f88000);
+  border-color: var(--primary, #7B5BFF);
   box-shadow: 0 0 0 2px rgba(248, 128, 0, 0.25);
 }
 
@@ -1952,7 +1969,7 @@ input:focus {
 }
 .view-tab.is-active {
   /* Selected report tab uses the EHS orange (matches the logo). */
-  background: var(--primary, #f88000);
+  background: var(--primary, #7B5BFF);
   color: white;
   box-shadow: 0 4px 14px rgba(248, 128, 0, 0.32);
 }
@@ -6216,7 +6233,7 @@ input:focus {
   color: #16a34a;
 }
 .crew-stat-value-warn {
-  color: var(--primary, #f88000);
+  color: var(--primary, #7B5BFF);
 }
 
 /* Compact head for MasterCrewSheet when the parent renders its own
@@ -6252,7 +6269,7 @@ input:focus {
 }
 .crew-toggle-pill input[type="checkbox"] {
   margin: 0;
-  accent-color: var(--primary, #f88000);
+  accent-color: var(--primary, #7B5BFF);
   cursor: pointer;
   flex: 0 0 auto;
 }
@@ -6301,9 +6318,9 @@ input:focus {
   height: 36px;
   padding: 0 14px;
   border-radius: 8px;
-  background: var(--primary, #f88000);
+  background: var(--primary, #7B5BFF);
   color: #ffffff;
-  border: 1px solid var(--primary, #f88000);
+  border: 1px solid var(--primary, #7B5BFF);
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
@@ -6407,7 +6424,7 @@ input:focus {
   background: transparent;
   border: none;
   padding: 2px 4px;
-  color: var(--primary, #f88000);
+  color: var(--primary, #7B5BFF);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -6757,7 +6774,7 @@ input:focus {
   position: relative;
 }
 .acs-card.is-selected {
-  border-color: var(--accent, #f88000);
+  border-color: var(--accent, #7B5BFF);
   box-shadow: 0 0 0 2px rgba(248, 128, 0, 0.18);
 }
 .acs-card.is-disabled {
@@ -6944,7 +6961,7 @@ input:focus {
   border-color: rgba(248, 128, 0, 0.45);
 }
 .roster-day-quickpick-btn-active {
-  background: #f88000;
+  background: #7B5BFF;
   color: #0b0b0b;
   border-color: #c2410c;
 }

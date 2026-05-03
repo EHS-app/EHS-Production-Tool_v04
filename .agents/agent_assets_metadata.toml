@@ -72,3 +72,9 @@ id = "xWpF-nKbxMO_dxweQvnVw"
 uri = "file://backups/ehs-COMPLETE-BACKUP-2026-05-02.zip"
 type = "unspecified"
 title = "EHS Complete Backup (source + database + restore instructions)"
+
+[[outputs]]
+id = "cURpm_i8esUPmz7MDBvur"
+uri = "file://backups/MASTER-PROMPT.md"
+type = "text"
+title = "EHS Production Tool — Master Build Prompt"

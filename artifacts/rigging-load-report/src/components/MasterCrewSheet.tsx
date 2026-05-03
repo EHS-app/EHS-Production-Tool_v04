@@ -113,7 +113,14 @@ export function MasterCrewSheet({
     total: number;
     accepted: number;
     pending: number;
+    /** Number of people who need at least one hotel night. We surface
+     *  this as "rooms" on the stat card because the producer thinks
+     *  in heads-needing-a-bed first; the rooming sheet still pairs
+     *  twins separately. */
     hotelRooms: number;
+    /** Sum of `hotelDates.length` across the roster — total bookable
+     *  room-nights for the run. */
+    hotelNights: number;
   }) => void;
   /** Returns the earliest call → latest off times for the given
    *  assigned days, derived from the project schedule (Setup /
@@ -285,28 +292,32 @@ export function MasterCrewSheet({
     let total = 0;
     let accepted = 0;
     let pending = 0;
-    let hotelCount = 0;
+    let hotelRooms = 0;
+    let hotelNights = 0;
     for (const r of rows) {
       total += 1;
       const tone = statusTone(r.status);
       if (tone === "ok") accepted += 1;
       else if (tone === "warn") pending += 1;
-      // Count any row flagged for hotel — gig-backed (server flag)
-      // OR local/manual (producer-set `needsHotel`, surfaced via
-      // mergeRoster as `hotelRequired`).
-      if (r.hotelRequired) hotelCount += 1;
+      // "Rooms" = people with at least one hotel night picked. The
+      // producer wants heads, not paired-room counts — the rooming
+      // sheet handles pairing separately. "Nights" = sum across all
+      // people, which is what the hotel actually invoices.
+      const nights = r.hotelDates.length;
+      if (nights > 0) hotelRooms += 1;
+      hotelNights += nights;
     }
-    const hotelRooms = Math.ceil(hotelCount / 2);
-    return `${total}|${accepted}|${pending}|${hotelRooms}`;
+    return `${total}|${accepted}|${pending}|${hotelRooms}|${hotelNights}`;
   }, [rows]);
   useEffect(() => {
     if (!onCountsChange) return;
-    const [t, a, p, h] = countsKey.split("|").map((n) => Number(n));
+    const [t, a, p, h, n] = countsKey.split("|").map((x) => Number(x));
     onCountsChange({
       total: t ?? 0,
       accepted: a ?? 0,
       pending: p ?? 0,
       hotelRooms: h ?? 0,
+      hotelNights: n ?? 0,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [countsKey, onCountsChange]);
@@ -349,7 +360,11 @@ export function MasterCrewSheet({
   const patchGig = useCallback(async function patchGig(
     gigId: string,
     field: "hotel" | "dates",
-    optimistic: Partial<{ hotelRequired: boolean; assignedDates: string[] }>,
+    optimistic: Partial<{
+      hotelRequired: boolean;
+      hotelDates: string[];
+      assignedDates: string[];
+    }>,
     requestPath: string,
     body: object,
   ) {
@@ -424,6 +439,26 @@ export function MasterCrewSheet({
         { hotelRequired },
         `api/portal/briefs/${briefId}/hotel/${gigId}`,
         { hotelRequired },
+      );
+    },
+    [briefId, patchGig],
+  );
+
+  /** Replace a gig row's `hotelDates` wholesale (used by the per-phase
+   *  hotel quick-pick on the Crew tab). Server keeps `hotelRequired`
+   *  in lockstep with `hotelDates.length > 0`, but we mirror that
+   *  here too so the optimistic state matches what the refetch will
+   *  return. */
+  const handleHotelDatesSet = useCallback(
+    (gigId: string, nextDates: ReadonlyArray<string>) => {
+      const sorted = [...nextDates].sort();
+      const hotelRequired = sorted.length > 0;
+      void patchGig(
+        gigId,
+        "hotel",
+        { hotelDates: sorted, hotelRequired },
+        `api/portal/briefs/${briefId}/hotel/${gigId}`,
+        { hotelDates: sorted },
       );
     },
     [briefId, patchGig],
@@ -721,6 +756,11 @@ export function MasterCrewSheet({
                         ? (next) => handleHotelToggle(row.gigId!, next)
                         : undefined
                     }
+                    onHotelDatesSet={
+                      row.gigId
+                        ? (dates) => handleHotelDatesSet(row.gigId!, dates)
+                        : undefined
+                    }
                     onDayToggle={
                       row.gigId
                         ? (date) =>
@@ -825,6 +865,7 @@ function MasterRow({
   hotelSaving,
   datesSaving,
   onHotelToggle,
+  onHotelDatesSet,
   onDayToggle,
   local,
   showProductionDetails,
@@ -841,6 +882,10 @@ function MasterRow({
   hotelSaving: boolean;
   datesSaving: boolean;
   onHotelToggle?: (next: boolean) => void;
+  /** Replace this gig row's hotelDates wholesale. Used by the
+   *  per-phase hotel quick-pick. Only wired for gig-backed rows;
+   *  local rows mutate `CrewMember.hotelDates` via onLocalUpdate. */
+  onHotelDatesSet?: (dates: ReadonlyArray<string>) => void;
   onDayToggle?: (date: string) => void;
   local: CrewMember | null;
   showProductionDetails: boolean;
@@ -1101,37 +1146,29 @@ function MasterRow({
           : null}
       </td>
       <td>
-        {row.source === "gig" ? (
-          <label className="roster-hotel" title="Toggle hotel for this person">
-            <input
-              type="checkbox"
-              checked={row.hotelRequired}
-              disabled={hotelSaving || !onHotelToggle}
-              onChange={(e) => onHotelToggle?.(e.target.checked)}
-            />
-            <span className="roster-hotel-label">
-              {row.hotelRequired ? "hotel" : "no"}
-            </span>
-          </label>
-        ) : editableLocal ? (
-          // Local / manual rows: producer can tick "needs hotel"
-          // directly. Stored on the CrewMember as `needsHotel` so
-          // it survives reloads and feeds the Hotel-rooms stat-card.
-          <label className="roster-hotel" title="Tick when this person needs a hotel">
-            <input
-              type="checkbox"
-              checked={row.hotelRequired}
-              onChange={(e) =>
-                onLocalUpdate?.({ needsHotel: e.target.checked })
-              }
-            />
-            <span className="roster-hotel-label">
-              {row.hotelRequired ? "hotel" : "no"}
-            </span>
-          </label>
-        ) : (
-          <span className="crew-pill-empty">—</span>
-        )}
+        <HotelQuickPick
+          row={row}
+          phaseDays={phaseDays}
+          saving={hotelSaving}
+          onSet={
+            row.source === "gig" && onHotelDatesSet
+              ? onHotelDatesSet
+              : editableLocal && onLocalUpdate
+                ? (dates) => {
+                    const sorted = [...dates].sort();
+                    onLocalUpdate({
+                      hotelDates: sorted,
+                      needsHotel: sorted.length > 0,
+                    });
+                  }
+                : undefined
+          }
+          onLegacyToggle={
+            row.source === "gig" && onHotelToggle && row.hotelDates.length === 0
+              ? onHotelToggle
+              : undefined
+          }
+        />
       </td>
       <td>
         {row.source === "gig" ? (
@@ -1244,6 +1281,160 @@ function MasterRow({
         ) : null}
       </td>
     </tr>
+  );
+}
+
+/** Per-day hotel quick-pick. Mirrors the working-days quick-pick on
+ *  the days cell, but constrained to `row.assignedDates` — the
+ *  producer can never book a hotel night for a day the person isn't
+ *  on call. Each phase button toggles its overlap with assignedDates
+ *  in/out of `hotelDates`; "All" fills every assigned day, "None"
+ *  clears. Active state = every overlap day is currently in
+ *  hotelDates. Hides phases with zero overlap so the row only shows
+ *  what's actually pickable. */
+function HotelQuickPick({
+  row,
+  phaseDays,
+  saving,
+  onSet,
+  onLegacyToggle,
+}: {
+  row: RosterRow;
+  phaseDays?: Partial<Record<string, ReadonlyArray<string>>>;
+  saving: boolean;
+  onSet?: (dates: ReadonlyArray<string>) => void;
+  /** Legacy boolean toggle — only used for gig rows that have no
+   *  hotelDates yet AND no assignedDates (e.g. a freshly-confirmed
+   *  gig before the producer picked working days). Lets the producer
+   *  flag the person for a hotel before the day picker becomes
+   *  meaningful. */
+  onLegacyToggle?: (next: boolean) => void;
+}) {
+  const assigned = row.assignedDates;
+  const hotel = row.hotelDates;
+  const hotelSet = useMemo(() => new Set(hotel), [hotel]);
+  if (!onSet) {
+    // Read-only fallback (e.g. a gig row whose handler the parent
+    // didn't wire). Show the count if any nights are picked, else
+    // a quiet em-dash.
+    return hotel.length > 0 ? (
+      <span className="roster-hotel-label" title={hotel.join(", ")}>
+        {hotel.length} night{hotel.length === 1 ? "" : "s"}
+      </span>
+    ) : (
+      <span className="crew-pill-empty">—</span>
+    );
+  }
+  if (assigned.length === 0) {
+    // No working days yet — fall back to the legacy boolean toggle so
+    // the producer can still flag "this person needs a hotel" before
+    // picking dates. Once dates exist the picker takes over and the
+    // boolean is derived from hotelDates.length > 0.
+    if (!onLegacyToggle) {
+      return (
+        <span className="crew-pill-empty" title="Pick working days first.">
+          —
+        </span>
+      );
+    }
+    return (
+      <label className="roster-hotel" title="Tick when this person needs a hotel">
+        <input
+          type="checkbox"
+          checked={row.hotelRequired}
+          disabled={saving}
+          onChange={(e) => onLegacyToggle(e.target.checked)}
+        />
+        <span className="roster-hotel-label">
+          {row.hotelRequired ? "hotel" : "no"}
+        </span>
+      </label>
+    );
+  }
+  const phaseEntries = (
+    ["setup", "rehearsal", "show", "downrig"] as const
+  )
+    .map((k) => ({
+      key: k,
+      // Constrain each phase to the row's working days so the producer
+      // can't accidentally pick a Show-day hotel night for someone
+      // who's only on call during Setup.
+      days: (phaseDays?.[k] ?? []).filter((d) => assigned.includes(d)),
+    }))
+    .filter((p) => p.days.length > 0);
+  const phaseLabel: Record<string, string> = {
+    setup: "Setup",
+    rehearsal: "Rehearsal",
+    show: "Show",
+    downrig: "Load Out",
+  };
+  const isPhaseActive = (days: ReadonlyArray<string>) =>
+    days.length > 0 && days.every((d) => hotelSet.has(d));
+  return (
+    <div
+      className={`roster-day-quickpick${saving ? " is-saving" : ""}`}
+      role="group"
+      aria-label="Quick-fill hotel nights"
+      aria-busy={saving || undefined}
+    >
+      <span className="roster-day-quickpick-label">
+        Hotel{hotel.length > 0 ? ` (${hotel.length})` : ""}:
+      </span>
+      {phaseEntries.map((p) => {
+        const active = isPhaseActive(p.days);
+        return (
+          <button
+            key={p.key}
+            type="button"
+            className={
+              "roster-day-quickpick-btn" +
+              (active ? " roster-day-quickpick-btn-active" : "")
+            }
+            aria-pressed={active}
+            disabled={saving}
+            title={
+              active
+                ? `Remove ${phaseLabel[p.key]} hotel nights (${p.days.length})`
+                : `Add ${phaseLabel[p.key]} hotel nights (${p.days.length})`
+            }
+            onClick={() => {
+              const next = new Set(hotel);
+              if (active) {
+                for (const d of p.days) next.delete(d);
+              } else {
+                for (const d of p.days) next.add(d);
+              }
+              onSet([...next]);
+            }}
+          >
+            {phaseLabel[p.key]}
+          </button>
+        );
+      })}
+      <button
+        type="button"
+        className={
+          "roster-day-quickpick-btn" +
+          (assigned.every((d) => hotelSet.has(d)) && hotel.length > 0
+            ? " roster-day-quickpick-btn-active"
+            : "")
+        }
+        disabled={saving}
+        title="Hotel for every working day"
+        onClick={() => onSet([...assigned])}
+      >
+        All
+      </button>
+      <button
+        type="button"
+        className="roster-day-quickpick-btn roster-day-quickpick-btn-clear"
+        disabled={saving || hotel.length === 0}
+        title="Clear all hotel nights"
+        onClick={() => onSet([])}
+      >
+        None
+      </button>
+    </div>
   );
 }
 

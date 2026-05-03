@@ -97,11 +97,13 @@ export function CrewReportView({
     accepted: number;
     pending: number;
     hotelRooms: number;
+    hotelNights: number;
   }>(() => ({
     total: crew.length,
     accepted: 0,
     pending: 0,
     hotelRooms: 0,
+    hotelNights: 0,
   }));
   const handleCountsChange = useCallback(
     (next: {
@@ -109,6 +111,7 @@ export function CrewReportView({
       accepted: number;
       pending: number;
       hotelRooms: number;
+      hotelNights: number;
     }) => setCounts(next),
     [],
   );
@@ -158,6 +161,10 @@ export function CrewReportView({
         <div className="crew-stat-card">
           <div className="crew-stat-label">Hotel rooms</div>
           <div className="crew-stat-value">{counts.hotelRooms}</div>
+        </div>
+        <div className="crew-stat-card">
+          <div className="crew-stat-label">Hotel nights</div>
+          <div className="crew-stat-value">{counts.hotelNights}</div>
         </div>
       </div>
 

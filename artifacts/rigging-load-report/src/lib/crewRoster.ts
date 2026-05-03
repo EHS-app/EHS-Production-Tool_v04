@@ -90,9 +90,13 @@ export type RosterRow = {
    *  picked working days (which is the default for a fresh accept). */
   assignedDates: string[];
   /** True when the producer has flagged this person as needing a
-   *  hotel for the run. Always `false` for purely-local rows (the
-   *  hotel system only knows about gigs). */
+   *  hotel for the run. Derived from `hotelDates.length > 0` for
+   *  both gig and local rows. */
   hotelRequired: boolean;
+  /** Per-day hotel nights, sorted ISO YYYY-MM-DD strings. Always a
+   *  subset of `assignedDates`. Empty when the producer hasn't
+   *  picked any nights for this person. */
+  hotelDates: string[];
   dietaryTags: DietaryTag[];
   /** Free-text allergens the freelancer typed in their profile,
    *  pre-split by the server. Empty for local rows. */
@@ -139,6 +143,7 @@ export type RosterGig = {
   status: RosterGigStatus;
   assignedDates: string[];
   hotelRequired: boolean;
+  hotelDates: string[];
   dietaryTags: DietaryTag[];
   allergens: string[];
   profileless: boolean;
@@ -233,6 +238,14 @@ export function mergeRoster(
       // hotelRequired: any-true wins (a "yes" on any gig means we
       // need a room).
       existing.hotelRequired = existing.hotelRequired || g.hotelRequired;
+      // hotelDates: union across sibling gigs, then sort. The PATCH
+      // cascade keeps siblings in sync, but a stale value from a
+      // legacy gig might still differ — be defensive.
+      if (g.hotelDates.length > 0) {
+        const merged = new Set(existing.hotelDates);
+        for (const d of g.hotelDates) merged.add(d);
+        existing.hotelDates = [...merged].sort();
+      }
       // Status: keep the one further along the lifecycle.
       if (STATUS_RANK[g.status] > STATUS_RANK[existing.status as RosterGigStatus]) {
         existing.status = g.status;
@@ -263,6 +276,7 @@ export function mergeRoster(
       status: g.status,
       assignedDates: g.assignedDates,
       hotelRequired: g.hotelRequired,
+      hotelDates: g.hotelDates,
       dietaryTags: g.dietaryTags,
       allergens: g.allergens,
       profileless: g.profileless,
@@ -297,8 +311,11 @@ export function mergeRoster(
       assignedDates: m.assignedDates ? [...m.assignedDates] : [],
       // Local rows now carry a producer-set `needsHotel` flag so
       // in-house / manual people can be ticked for hotel without
-      // having to go through the portal accept flow first.
-      hotelRequired: !!m.needsHotel,
+      // having to go through the portal accept flow first. Now
+      // derived from `hotelDates.length > 0` so the picker and the
+      // boolean stay in lockstep.
+      hotelRequired: (m.hotelDates ?? []).length > 0 || !!m.needsHotel,
+      hotelDates: m.hotelDates ? [...m.hotelDates] : [],
       // Portal-sourced rows (added via the Available Crew sidebar)
       // carry phone / dietary / allergens copied from the freelancer's
       // profile, so the producer sees their contact info immediately

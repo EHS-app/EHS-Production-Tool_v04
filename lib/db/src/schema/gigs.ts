@@ -43,8 +43,18 @@ export const gigsTable = pgTable(
     assignedDates: date("assigned_dates").array().notNull().default([]),
     /** Producer-controlled flag. When true the producer agrees to put
      *  this freelancer in a hotel for the run. Defaults false because
-     *  most local crew don't need it. */
+     *  most local crew don't need it.
+     *  Now derived from `hotelDates`: true iff hotelDates is non-empty.
+     *  Kept as a column for back-compat with the rooming/pairing
+     *  engine that filters on it directly. */
     hotelRequired: boolean("hotel_required").notNull().default(false),
+    /** Per-day hotel nights for this gig. Empty array = no hotel.
+     *  Always a subset of `assignedDates` (the producer's UI enforces
+     *  this — you can only book a hotel night on a day the person is
+     *  on call). When empty, `hotelRequired` is false; when non-empty,
+     *  `hotelRequired` is true. The Crew tab's Hotel quick-pick (per
+     *  phase) writes this column directly. */
+    hotelDates: date("hotel_dates").array().notNull().default([]),
     /** Hotel check-in / check-out. When `hotelRequired` flips true the
      *  server pre-fills these from min(assignedDates) and
      *  max(assignedDates) + 1, but the producer can always override

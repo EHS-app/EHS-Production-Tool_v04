@@ -104,6 +104,12 @@ export type CrewMember = {
    *  Gig-backed rows continue to use the server-side
    *  `gigs.hotelRequired` column instead — see `mergeRoster`. */
   needsHotel?: boolean;
+  /** Per-day hotel nights for this crew member. Always a subset of
+   *  `assignedDates` — the Crew tab's hotel quick-pick enforces this.
+   *  Empty array means no hotel. `needsHotel` is treated as derived
+   *  (`hotelDates.length > 0`) but the boolean is kept around for
+   *  back-compat with the older toggle. */
+  hotelDates?: string[];
 };
 
 function newId(prefix: string): string {
@@ -166,6 +172,17 @@ export function normalizeCrewMember(raw: unknown): CrewMember {
       typeof r.briefAssignmentId === "string" && r.briefAssignmentId
         ? r.briefAssignmentId
         : undefined,
+    hotelDates: Array.isArray(r.hotelDates)
+      ? (r.hotelDates as unknown[])
+          .filter(
+            (d): d is string =>
+              typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d),
+          )
+      : undefined,
+    needsHotel:
+      typeof r.needsHotel === "boolean"
+        ? r.needsHotel
+        : Array.isArray(r.hotelDates) && r.hotelDates.length > 0,
     assignedDates: Array.isArray(r.assignedDates)
       ? (r.assignedDates as unknown[])
           .filter(

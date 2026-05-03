@@ -1446,6 +1446,72 @@ router.patch(
         return;
       }
       patch.hotelRequired = body.hotelRequired;
+      // Toggling the legacy boolean off should also clear hotelDates,
+      // otherwise the per-day picker on the next refresh would
+      // re-light all the saved nights and contradict the boolean.
+      if (body.hotelRequired === false && body.hotelDates === undefined) {
+        patch.hotelDates = [];
+      }
+    }
+    if (body.hotelDates !== undefined) {
+      // Per-day hotel selection from the Crew tab's phase quick-pick.
+      // Strict array-of-ISO-date validation; empty array clears the
+      // person's hotel and also flips hotelRequired false so the
+      // pairing engine drops them from the rooming list.
+      if (!Array.isArray(body.hotelDates)) {
+        res
+          .status(400)
+          .json({ ok: false, error: "hotelDates must be an array." });
+        return;
+      }
+      const cleaned: string[] = [];
+      for (const raw of body.hotelDates) {
+        const parsed = parseDateField(raw);
+        if (!parsed.ok || parsed.value === null) {
+          res
+            .status(400)
+            .json({ ok: false, error: "hotelDates contains invalid date." });
+          return;
+        }
+        if (!cleaned.includes(parsed.value)) cleaned.push(parsed.value);
+      }
+      cleaned.sort();
+      // Defence-in-depth: hotelDates must be a subset of the gig's
+      // assignedDates. The UI enforces this with phase-overlap
+      // filtering, but a buggy / malicious client could still POST
+      // a hotel night for a day the person isn't on call. Reject
+      // those instead of silently storing them, otherwise the
+      // pairing engine and the catering totals would disagree on
+      // who's actually on site.
+      if (cleaned.length > 0) {
+        const guardRows = await db
+          .select({ assignedDates: gigsTable.assignedDates })
+          .from(gigsTable)
+          .where(eq(gigsTable.id, gigId))
+          .limit(1);
+        const assigned = new Set(
+          (guardRows[0]?.assignedDates ?? []).map((d) =>
+            typeof d === "string" ? d.slice(0, 10) : String(d).slice(0, 10),
+          ),
+        );
+        const stray = cleaned.filter((d) => !assigned.has(d));
+        if (stray.length > 0) {
+          res.status(400).json({
+            ok: false,
+            error:
+              "hotelDates must be a subset of the gig's working days.",
+          });
+          return;
+        }
+      }
+      patch.hotelDates = cleaned;
+      // Keep hotelRequired in lockstep with hotelDates: any night
+      // → true; zero nights → false. The producer never edits the
+      // boolean independently anymore (the UI only shows the picker)
+      // so this guarantees the two columns can't drift.
+      if (body.hotelRequired === undefined) {
+        patch.hotelRequired = cleaned.length > 0;
+      }
     }
     if (body.checkInDate !== undefined) {
       const parsed = parseDateField(body.checkInDate);
@@ -1543,6 +1609,7 @@ router.patch(
           .returning({
             id: gigsTable.id,
             hotelRequired: gigsTable.hotelRequired,
+            hotelDates: gigsTable.hotelDates,
             checkInDate: gigsTable.checkInDate,
             checkOutDate: gigsTable.checkOutDate,
           });
@@ -1893,6 +1960,7 @@ router.get(
           assignedDates: gigsTable.assignedDates,
           status: gigsTable.status,
           hotelRequired: gigsTable.hotelRequired,
+          hotelDates: gigsTable.hotelDates,
           checkInDate: gigsTable.checkInDate,
           checkOutDate: gigsTable.checkOutDate,
           freelancerUserId: gigsTable.freelancerUserId,
@@ -1939,6 +2007,21 @@ router.get(
             )
             .filter((d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d))
             .sort();
+          // Hotel dates — same coercion as assignedDates. Constrained
+          // to the assignedDates set defensively (a stale value from
+          // before the producer trimmed working days could otherwise
+          // include a day the person isn't actually on call).
+          const dateSet = new Set(dates);
+          const hotelDates: string[] = (
+            Array.isArray(r.hotelDates) ? r.hotelDates : []
+          )
+            .map((d: unknown) =>
+              typeof d === "string" ? d.slice(0, 10) : String(d).slice(0, 10),
+            )
+            .filter((d: string) =>
+              /^\d{4}-\d{2}-\d{2}$/.test(d) && dateSet.has(d),
+            )
+            .sort();
           // Mirror the hotel endpoint's check-in/-out resolution so
           // the pairing engine sees the same window the rooming list
           // would. Without this, two endpoints could disagree on
@@ -1967,6 +2050,7 @@ router.get(
             status: r.status,
             assignedDates: dates,
             hotelRequired: !!r.hotelRequired,
+            hotelDates,
             dietaryTags: classifyDietary(r.profileDietary),
             allergens: splitAllergens(r.profileAllergies),
             phone: typeof r.profilePhone === "string" ? r.profilePhone : "",

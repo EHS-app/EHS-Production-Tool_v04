@@ -1066,7 +1066,19 @@ function MasterRow({
               )
                 .map((k) => ({ key: k, days: phaseDays[k] ?? [] }))
                 .filter((p) => p.days.length > 0);
-              const allDays = projectDays ?? [];
+              // "All" must cover every workable day, not just the
+              // project's start→end range. Phases like Setup or Load
+              // Out can spill before/after the project window, and
+              // `projectDays` is sometimes null when no schedule has
+              // been imported yet — in either case the old "All" did
+              // nothing useful (or didn't render). Union project days
+              // with every phase day, dedupe, and sort so the button
+              // always reflects what's actually pickable.
+              const allDaysSet = new Set<string>(projectDays ?? []);
+              for (const p of phaseEntries) {
+                for (const d of p.days) allDaysSet.add(d);
+              }
+              const allDays = [...allDaysSet].sort();
               const hasAnyButtons =
                 phaseEntries.length > 0 || allDays.length > 0;
               if (!hasAnyButtons) return null;
@@ -1122,16 +1134,40 @@ function MasterRow({
                       </button>
                     );
                   })}
-                  {allDays.length > 0 ? (
-                    <button
-                      type="button"
-                      className="roster-day-quickpick-btn"
-                      title="Work every project day"
-                      onClick={() => onLocalSetDays([...allDays])}
-                    >
-                      All
-                    </button>
-                  ) : null}
+                  {allDays.length > 0
+                    ? (() => {
+                        // Active when every workable day is already
+                        // assigned. Clicking an active "All" clears
+                        // everything (mirrors the phase buttons'
+                        // toggle behaviour) so the producer doesn't
+                        // need to hunt for "None" right after.
+                        const allActive = allDays.every((d) =>
+                          assignedSet.has(d),
+                        );
+                        return (
+                          <button
+                            type="button"
+                            className={
+                              "roster-day-quickpick-btn" +
+                              (allActive
+                                ? " roster-day-quickpick-btn-active"
+                                : "")
+                            }
+                            aria-pressed={allActive}
+                            title={
+                              allActive
+                                ? "Clear all working days"
+                                : `Work every day (${allDays.length})`
+                            }
+                            onClick={() =>
+                              onLocalSetDays(allActive ? [] : [...allDays])
+                            }
+                          >
+                            All
+                          </button>
+                        );
+                      })()
+                    : null}
                   <button
                     type="button"
                     className="roster-day-quickpick-btn roster-day-quickpick-btn-clear"

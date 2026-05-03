@@ -993,29 +993,49 @@ function SignOutButton() {
     user?.username ??
     user?.firstName ??
     "Account";
+  const handleSignOut = () => {
+    try {
+      sessionStorage.setItem("ehs-skip-dev-auto-signin", "1");
+    } catch {
+      /* sessionStorage may be unavailable */
+    }
+    try {
+      localStorage.removeItem("ehs-user-role");
+    } catch {
+      /* localStorage may be unavailable */
+    }
+    void signOut();
+  };
   return (
-    <button
-      className="btn btn-reset"
-      onClick={() => {
-        try {
-          sessionStorage.setItem("ehs-skip-dev-auto-signin", "1");
-        } catch {
-          /* sessionStorage may be unavailable */
-        }
-        try {
-          localStorage.removeItem("ehs-user-role");
-        } catch {
-          /* localStorage may be unavailable */
-        }
-        void signOut();
-      }}
-      title={`Signed in as ${label}. Click to sign out.`}
-      style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-    >
-      <span style={{ opacity: 0.85 }}>{label}</span>
-      <span aria-hidden>·</span>
-      <span>Sign out</span>
-    </button>
+    <>
+      <span className="header-user-email" title={`Signed in as ${label}`}>
+        {label}
+      </span>
+      <button
+        type="button"
+        className="header-icon-btn header-signout-btn"
+        onClick={handleSignOut}
+        title={`Sign out (${label})`}
+        aria-label="Sign out"
+      >
+        {/* Lucide-style "log-out" glyph: door + arrow leaving. */}
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <polyline points="16 17 21 12 16 7" />
+          <line x1="21" y1="12" x2="9" y2="12" />
+        </svg>
+      </button>
+    </>
   );
 }
 
@@ -4143,6 +4163,7 @@ function App() {
           <div className="header-left">
             <img src={ehsLogo} alt="EHS Logo" className="header-logo-img" />
             <div className="header-title">
+              <span className="header-eyebrow">LYD · LYS · BILDE</span>
               <h1>
                 Production <span className="header-title-accent">Tool</span>
               </h1>
@@ -4156,16 +4177,26 @@ function App() {
             <Link
               href="/portal"
               title="Go to your Freelance Portal"
-              className="btn btn-reset"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                textDecoration: "none",
-              }}
+              aria-label="Go to your Freelance Portal"
+              className="header-icon-btn header-portal-btn"
             >
-              <span aria-hidden>◉</span>
-              <span>Portal</span>
+              {/* Lucide-style "users" glyph for Portal. */}
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
             </Link>
             <SignOutButton />
           </div>

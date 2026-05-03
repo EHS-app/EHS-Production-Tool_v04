@@ -1211,11 +1211,82 @@ export function BriefDetail({
         )}
       </SectionCard>
 
-      {brief.riggPlan ? (
-        <SectionCard theme={theme} title="Rigg plan (top-down)">
-          <RiggPlanMap theme={theme} plan={brief.riggPlan} />
-        </SectionCard>
-      ) : null}
+      {(() => {
+        // Producer's uploaded drawing wins over the auto-generated
+        // top-down map. We pick the first attachment that looks like a
+        // venue drawing — any image or PDF whose filename is NOT one of
+        // our auto-generated LED diagrams (those end in `_<W>x<H>.png`,
+        // see lib/ledExport.ts). Falls back to the generated SVG when
+        // no such attachment was uploaded.
+        const drawing = brief.attachments.find((a) => {
+          const ct = (a.contentType || "").toLowerCase();
+          const isImage = ct.startsWith("image/");
+          const isPdf = ct === "application/pdf" || /\.pdf$/i.test(a.name);
+          if (!isImage && !isPdf) return false;
+          if (/_\d+x\d+\.png$/i.test(a.name)) return false;
+          return true;
+        });
+        if (drawing) {
+          const url = attachmentDownloadUrl(drawing);
+          const isPdf =
+            (drawing.contentType || "").toLowerCase() === "application/pdf" ||
+            /\.pdf$/i.test(drawing.name);
+          return (
+            <SectionCard theme={theme} title="Rigg plan (top-down)">
+              {isPdf ? (
+                <iframe
+                  src={url}
+                  title={drawing.name}
+                  style={{
+                    width: "100%",
+                    height: "70vh",
+                    minHeight: 480,
+                    border: `1px solid ${c.border}`,
+                    borderRadius: 8,
+                    background: "#fff",
+                  }}
+                />
+              ) : (
+                <img
+                  src={url}
+                  alt={drawing.name}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    height: "auto",
+                    borderRadius: 8,
+                    border: `1px solid ${c.border}`,
+                    background: "#fff",
+                  }}
+                />
+              )}
+              <div
+                style={{
+                  marginTop: 8,
+                  fontSize: 12,
+                  color: c.muted,
+                }}
+              >
+                Drawing from the producer ·{" "}
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  download={drawing.name}
+                  style={{ color: c.text, fontWeight: 600 }}
+                >
+                  Open original
+                </a>
+              </div>
+            </SectionCard>
+          );
+        }
+        return brief.riggPlan ? (
+          <SectionCard theme={theme} title="Rigg plan (top-down)">
+            <RiggPlanMap theme={theme} plan={brief.riggPlan} />
+          </SectionCard>
+        ) : null;
+      })()}
 
       {brief.attachments.length > 0 ? (
         <SectionCard theme={theme} title="Drawings & attachments">

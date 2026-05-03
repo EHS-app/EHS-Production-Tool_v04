@@ -420,10 +420,129 @@ export function MasterCrewSheet({
 
   return (
     <section className="led-card roster-card master-sheet-card">
-      <div
-        className={`led-card-head${compactHeader ? " led-card-head-compact" : ""}`}
-      >
-        {compactHeader ? null : (
+      {compactHeader ? (
+        // Dedicated head for compact mode. We deliberately avoid
+        // `.led-card-head` / `.led-controls` and `.btn` here so we are
+        // not affected by older flex / wrap / hover rules that kept
+        // pushing the pill and Print A4 into each other. Everything is
+        // pinned with inline styles for a bulletproof layout.
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            flexWrap: "wrap",
+            columnGap: 12,
+            rowGap: 8,
+            marginBottom: 12,
+          }}
+        >
+          <label
+            style={{
+              display: "inline-flex",
+              flex: "0 0 auto",
+              alignItems: "center",
+              gap: 8,
+              height: 36,
+              padding: "0 14px",
+              borderRadius: 999,
+              background: "#ffffff",
+              border: "1px solid var(--border, #e5e7eb)",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "var(--text-main, #0f172a)",
+              cursor: "pointer",
+              userSelect: "none",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={showProductionDetails}
+              onChange={(e) => setShowProductionDetails(e.target.checked)}
+              style={{
+                margin: 0,
+                flex: "0 0 auto",
+                accentColor: "var(--primary, #f88000)",
+                cursor: "pointer",
+              }}
+            />
+            <span
+              style={{
+                whiteSpace: "nowrap",
+                fontSize: 13,
+                lineHeight: 1,
+              }}
+            >
+              Production details
+            </span>
+          </label>
+          <button
+            type="button"
+            onClick={handlePrint}
+            disabled={rows.length === 0}
+            style={{
+              display: "inline-flex",
+              flex: "0 0 auto",
+              alignItems: "center",
+              gap: 8,
+              height: 36,
+              padding: "0 14px",
+              borderRadius: 8,
+              background: "#0f172a",
+              color: "#ffffff",
+              border: "1px solid #0f172a",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: rows.length === 0 ? "not-allowed" : "pointer",
+              opacity: rows.length === 0 ? 0.5 : 1,
+              fontFamily: "inherit",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <polyline points="6 9 6 2 18 2 18 9" />
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+              <rect x="6" y="14" width="12" height="8" />
+            </svg>
+            <span>Print A4</span>
+          </button>
+          <button
+            type="button"
+            onClick={onAdd}
+            style={{
+              display: "inline-flex",
+              flex: "0 0 auto",
+              alignItems: "center",
+              gap: 6,
+              height: 36,
+              padding: "0 14px",
+              borderRadius: 8,
+              background: "var(--primary, #f88000)",
+              color: "#ffffff",
+              border: "1px solid var(--primary, #f88000)",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              whiteSpace: "nowrap",
+            }}
+          >
+            + Add crew
+          </button>
+        </div>
+      ) : (
+        <div className="led-card-head">
           <div>
             <h3>Crew &amp; Logistics</h3>
             <p className="led-report-sub">
@@ -432,72 +551,15 @@ export function MasterCrewSheet({
                 : <>Local call sheet only — pick a brief above to also pull in portal crew, hotel, roommates and food.</>}
             </p>
           </div>
-        )}
-        <div className="led-controls">
-          {compactHeader ? null : (
-            <>
+          <div className="led-controls">
+            <span className="badge">
+              <strong>{totalCount}</strong> on roster
+            </span>
+            {data?.projectDays.length ? (
               <span className="badge">
-                <strong>{totalCount}</strong> on roster
+                <strong>{data.projectDays.length}</strong> project days
               </span>
-              {data?.projectDays.length ? (
-                <span className="badge">
-                  <strong>{data.projectDays.length}</strong> project days
-                </span>
-              ) : null}
-            </>
-          )}
-          {compactHeader ? (
-            // Inline styles here are deliberate: the surrounding
-            // stylesheet has several legacy rules that fight a
-            // class-based pill (justify-content / width inheritance,
-            // older `.roster-toggle` overrides further down the file).
-            // Pinning the layout inline guarantees the checkbox + label
-            // stay inside one tidy pill on the right side of the head.
-            <label
-              title="Show call / off / day-rate columns"
-              style={{
-                display: "inline-flex",
-                flex: "0 0 auto",
-                alignItems: "center",
-                justifyContent: "flex-start",
-                gap: 8,
-                height: 36,
-                padding: "0 14px",
-                borderRadius: 999,
-                background: "#ffffff",
-                border: "1px solid var(--border, #e5e7eb)",
-                fontSize: 13,
-                fontWeight: 600,
-                color: "var(--text-main, #0f172a)",
-                cursor: "pointer",
-                userSelect: "none",
-                whiteSpace: "nowrap",
-                width: "auto",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={showProductionDetails}
-                onChange={(e) => setShowProductionDetails(e.target.checked)}
-                style={{
-                  margin: 0,
-                  flex: "0 0 auto",
-                  accentColor: "var(--primary, #f88000)",
-                  cursor: "pointer",
-                }}
-              />
-              <span
-                style={{
-                  whiteSpace: "nowrap",
-                  fontSize: 13,
-                  lineHeight: 1,
-                  color: "var(--text-main, #0f172a)",
-                }}
-              >
-                Production details
-              </span>
-            </label>
-          ) : (
+            ) : null}
             <label
               className="roster-toggle"
               title="Show call / off / day-rate columns"
@@ -509,51 +571,26 @@ export function MasterCrewSheet({
               />
               <span>Production details</span>
             </label>
-          )}
-          <button
-            type="button"
-            className={
-              compactHeader ? "btn crew-print-btn" : "btn btn-soft"
-            }
-            onClick={handlePrint}
-            disabled={rows.length === 0}
-            title="Open a printable version of this sheet"
-          >
-            {compactHeader ? (
-              <>
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <polyline points="6 9 6 2 18 2 18 9" />
-                  <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                  <rect x="6" y="14" width="12" height="8" />
-                </svg>
-                <span>Print A4</span>
-              </>
-            ) : (
-              <>🖨 Print</>
-            )}
-          </button>
-          <button
-            type="button"
-            className={
-              compactHeader ? "btn crew-add-btn" : "btn btn-primary"
-            }
-            onClick={onAdd}
-            title="Add a manual crew member to the local call sheet"
-          >
-            + Add crew
-          </button>
+            <button
+              type="button"
+              className="btn btn-soft"
+              onClick={handlePrint}
+              disabled={rows.length === 0}
+              title="Open a printable version of this sheet"
+            >
+              🖨 Print
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={onAdd}
+              title="Add a manual crew member to the local call sheet"
+            >
+              + Add crew
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {error ? <div className="led-error">{error}</div> : null}
 

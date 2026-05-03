@@ -6923,8 +6923,52 @@ input:focus {
 .master-sheet-card { margin-bottom: 16px; }
 .master-sheet-table th { white-space: nowrap; }
 .master-sheet-table td { vertical-align: middle; }
-.master-sheet-table .led-input { min-width: 120px; }
-.master-sheet-table .led-input-num { min-width: 70px; }
+
+/* Make the master crew sheet fit without horizontal scrolling, even
+ * with the "Production details" toggle on. Shrinks input min-widths,
+ * tightens padding and font, and disables the wrap's horizontal
+ * scrollbar so the whole table is visible at once on a normal laptop
+ * screen. The columns will compress to fit the available width;
+ * `white-space: nowrap` on headers still reserves a sensible minimum. */
+.led-table-wrap:has(.master-sheet-table) {
+  overflow-x: hidden;
+}
+.master-sheet-table {
+  table-layout: auto;
+  font-size: 0.78rem;
+}
+.master-sheet-table th,
+.master-sheet-table td {
+  padding: 6px 6px;
+}
+.master-sheet-table .led-input {
+  min-width: 0;
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 0.78rem;
+  box-sizing: border-box;
+}
+.master-sheet-table .led-input-num {
+  min-width: 0;
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 0.78rem;
+  box-sizing: border-box;
+}
+.master-sheet-table .roster-chips { gap: 2px; }
+.master-sheet-table .roster-chip {
+  padding: 2px 4px;
+  font-size: 0.7rem;
+  min-width: 0;
+}
+.master-sheet-table .crew-pill {
+  padding: 2px 6px;
+  font-size: 0.7rem;
+}
+.master-sheet-table .btn-sm {
+  padding: 3px 6px;
+  font-size: 0.72rem;
+}
 .roster-toggle {
   display: inline-flex;
   align-items: center;

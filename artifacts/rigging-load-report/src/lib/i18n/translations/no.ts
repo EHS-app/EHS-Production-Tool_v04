@@ -119,11 +119,11 @@ export const no: Translations = {
   // match what the rest of the team sees in printed reports,
   // exports, and internal documentation.
   "view.rigging": "Rigging Report",
-  "view.lighting": "Lighting Report",
-  "view.led": "LED Screen Report",
-  "view.stage": "Stage Report",
+  "view.lighting": "Lights",
+  "view.led": "LED Screen",
+  "view.stage": "Stage",
   "view.crew": "Mannskap og logistikk",
-  "view.sound": "Sound Report",
+  "view.sound": "Sound",
   "view.riggPlan": "Smash It",
 
   // ---------- Reset confirm ----------

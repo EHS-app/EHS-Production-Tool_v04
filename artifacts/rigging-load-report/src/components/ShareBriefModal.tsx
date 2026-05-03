@@ -45,6 +45,16 @@ export function ShareBriefModal({ onClose, state }: ShareBriefModalProps) {
   const [uploadStatus, setUploadStatus] = useState<string | null>(
     "Preparing brief…",
   );
+  /** Free-text note the producer types just before sharing — gets
+   *  embedded into every generated brief as `project.description`. */
+  const [description, setDescription] = useState<string>("");
+  /** Attachments uploaded once on open and re-used for every link. We
+   *  hoist them out of the upload effect so editing the description
+   *  re-builds the links without re-uploading the floor plan / LED
+   *  diagrams. `null` while uploads are still in flight. */
+  const [readyAttachments, setReadyAttachments] = useState<
+    BriefAttachment[] | null
+  >(null);
   const { getToken } = useAuth();
 
   // Generate the links once on open. Encoding is async (gzip is async)
@@ -53,11 +63,6 @@ export function ShareBriefModal({ onClose, state }: ShareBriefModalProps) {
     let cancelled = false;
     (async () => {
       try {
-        const baseUrl =
-          (typeof import.meta !== "undefined" &&
-            (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
-          "/";
-
         // Step 1 — if the producer has a floor plan stashed, upload it
         // once. Every brief we generate below embeds the resulting
         // attachment metadata, so all recipients pull the same object
@@ -148,47 +153,10 @@ export function ShareBriefModal({ onClose, state }: ShareBriefModalProps) {
 
         if (cancelled) return;
         setUploadStatus(null);
-
-        const generated: RecipientLink[] = [];
-
-        // Generic link (no recipient highlighted) — usable when the
-        // producer just wants to share the brief broadly (e.g. with a
-        // venue contact who isn't on the call sheet).
-        {
-          const brief = buildBrief({
-            ...state,
-            recipientCrewId: null,
-            attachments,
-          });
-          if (!previewBrief) setPreviewBrief(brief);
-          const encoded = await encodeBrief(brief);
-          generated.push({
-            crewId: null,
-            label: "Generic link",
-            sublabel: "No assignment highlighted — for venue / production contacts",
-            url: buildShareUrl(encoded, baseUrl),
-            payloadBytes: encoded.length,
-          });
-        }
-
-        // Per-crew links.
-        for (const m of state.crew) {
-          const brief = buildBrief({
-            ...state,
-            recipientCrewId: m.id,
-            attachments,
-          });
-          const encoded = await encodeBrief(brief);
-          generated.push({
-            crewId: m.id,
-            label: m.name || "(unnamed)",
-            sublabel: `${m.role} · call ${m.callTime || "—"} → off ${m.offTime || "—"} · ${formatCrewDayRate(m.dayRate)}/day`,
-            url: buildShareUrl(encoded, baseUrl),
-            payloadBytes: encoded.length,
-          });
-        }
-
-        if (!cancelled) setLinks(generated);
+        // Hand off to the link-building effect below. It rebuilds links
+        // whenever the description changes too, so editing the note
+        // doesn't re-upload anything.
+        setReadyAttachments(attachments);
       } catch (e) {
         if (!cancelled) {
           setError(
@@ -207,6 +175,78 @@ export function ShareBriefModal({ onClose, state }: ShareBriefModalProps) {
     // producer can re-open it after editing the project to get new links.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Build / rebuild the share links whenever the uploaded attachments
+  // are ready *or* the producer edits the description. Splitting this
+  // out from the upload effect means typing in the note doesn't kick
+  // off another floor-plan / LED-diagram upload — only the (cheap)
+  // gzip + base64url encoding re-runs.
+  useEffect(() => {
+    if (!readyAttachments) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const baseUrl =
+          (typeof import.meta !== "undefined" &&
+            (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+          "/";
+        const generated: RecipientLink[] = [];
+        // Generic link (no recipient highlighted) — usable when the
+        // producer just wants to share the brief broadly (e.g. with a
+        // venue contact who isn't on the call sheet).
+        {
+          const brief = buildBrief({
+            ...state,
+            description,
+            recipientCrewId: null,
+            attachments: readyAttachments,
+          });
+          if (!cancelled) setPreviewBrief(brief);
+          const encoded = await encodeBrief(brief);
+          generated.push({
+            crewId: null,
+            label: "Generic link",
+            sublabel: "No assignment highlighted — for venue / production contacts",
+            url: buildShareUrl(encoded, baseUrl),
+            payloadBytes: encoded.length,
+          });
+        }
+        // Per-crew links.
+        for (const m of state.crew) {
+          const brief = buildBrief({
+            ...state,
+            description,
+            recipientCrewId: m.id,
+            attachments: readyAttachments,
+          });
+          const encoded = await encodeBrief(brief);
+          generated.push({
+            crewId: m.id,
+            label: m.name || "(unnamed)",
+            sublabel: `${m.role} · call ${m.callTime || "—"} → off ${m.offTime || "—"} · ${formatCrewDayRate(m.dayRate)}/day`,
+            url: buildShareUrl(encoded, baseUrl),
+            payloadBytes: encoded.length,
+          });
+        }
+        if (!cancelled) setLinks(generated);
+      } catch (e) {
+        if (!cancelled) {
+          setError(
+            e instanceof Error
+              ? e.message
+              : "Could not generate the brief links.",
+          );
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // `state` is captured by reference from the parent and is intended
+    // to be stable for the lifetime of the modal — only the description
+    // and attachments should drive a rebuild.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readyAttachments, description]);
 
   async function copyLink(key: string, url: string) {
     try {
@@ -350,6 +390,58 @@ export function ShareBriefModal({ onClose, state }: ShareBriefModalProps) {
             <SummaryStat label="Sound rows" value={`${projectSummary.soundRows}`} />
           </div>
         ) : null}
+
+        {/* Producer-written note. Sits above the link list so the
+            producer reads "type your note → grab a link" top-to-bottom.
+            Editing this re-runs only the encoding pass — the floor
+            plan / LED diagrams already uploaded above are reused. */}
+        <div
+          style={{
+            padding: "14px 20px",
+            borderBottom: "1px solid #e2e8f0",
+            background: "#fff",
+          }}
+        >
+          <label
+            htmlFor="share-brief-description"
+            style={{
+              display: "block",
+              fontSize: 12,
+              fontWeight: 700,
+              color: "#0f172a",
+              marginBottom: 6,
+            }}
+          >
+            Note for the crew{" "}
+            <span style={{ color: "#94a3b8", fontWeight: 500 }}>
+              (optional)
+            </span>
+          </label>
+          <textarea
+            id="share-brief-description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="e.g. Wear black. Park behind the venue, gate code 1234. Lunch is provided. Bring your own headset."
+            rows={3}
+            style={{
+              width: "100%",
+              padding: "8px 10px",
+              fontSize: 13,
+              lineHeight: 1.45,
+              fontFamily: "inherit",
+              border: "1px solid #cbd5e1",
+              borderRadius: 8,
+              background: "#fff",
+              color: "#0f172a",
+              boxSizing: "border-box",
+              resize: "vertical",
+              minHeight: 64,
+            }}
+          />
+          <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
+            Shown at the top of every freelancer's brief in the EHS Portal.
+          </div>
+        </div>
 
         <div style={{ padding: "16px 20px 20px" }}>
           {error ? (

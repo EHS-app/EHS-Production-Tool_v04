@@ -260,6 +260,13 @@ export type ProjectBrief = {
      *  range. Omitted phases simply do not appear in the brief view. */
     schedule?: BriefSchedule;
     preparedBy: string;
+    /** Free-text note from the producer, written in the Share-with-crew
+     *  modal just before links are generated. Shown verbatim on the
+     *  freelancer's brief detail page so the producer can add context
+     *  ("Wear black", "Park behind the venue", "Lunch is provided",
+     *  etc.) without editing any structured field. Optional — empty /
+     *  missing means "no note", and the section is hidden in that case. */
+    description?: string;
   };
   assignments: BriefAssignment[];
   rigging: BriefRiggingTotals;
@@ -403,6 +410,10 @@ export type BuildBriefInput = {
   /** Optional schedule covering setup/rehearsal/show/downrig. */
   schedule?: BriefSchedule;
   engineer: string;
+  /** Optional free-text note from the producer, captured in the
+   *  Share-with-crew modal. Stored on `project.description` of the
+   *  generated brief. */
+  description?: string;
   recipientCrewId: string | null;
   crew: CrewMember[];
   rigging: BriefRiggingInput;
@@ -689,6 +700,9 @@ export function buildBrief(input: BuildBriefInput): ProjectBrief {
       endDate: input.reportEndDate ? input.reportEndDate : undefined,
       schedule: input.schedule ? cleanSchedule(input.schedule) : undefined,
       preparedBy: input.engineer,
+      ...(input.description && input.description.trim()
+        ? { description: input.description.trim() }
+        : {}),
     },
     assignments,
     rigging: summariseRigging(input.rigging),
@@ -1085,6 +1099,9 @@ export function normalizeBrief(raw: unknown): ProjectBrief | null {
           : undefined,
       schedule: normalizeSchedule(project.schedule),
       preparedBy: asString(project.preparedBy),
+      ...(typeof project.description === "string" && project.description.trim()
+        ? { description: project.description.trim() }
+        : {}),
     },
     assignments: asArray(r.assignments).map(normalizeAssignment),
     rigging: normalizeRigging(r.rigging),

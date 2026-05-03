@@ -632,6 +632,48 @@ export function BriefDetail({
         </div>
       </section>
 
+      {/* Producer's free-text note for the crew, written in the
+          Share-with-crew modal just before sharing. Plain text — we
+          preserve line breaks with white-space:pre-wrap so the
+          producer can format with newlines but no markdown. Hidden
+          when missing / empty. */}
+      {brief.project.description ? (
+        <section
+          style={{
+            background: c.cardBg,
+            border: `1px solid ${c.border}`,
+            borderLeft: "4px solid #f88000",
+            borderRadius: 12,
+            padding: "12px 14px",
+            marginBottom: 12,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: 0.4,
+              color: c.muted,
+              marginBottom: 6,
+            }}
+          >
+            Note from the producer
+          </div>
+          <div
+            style={{
+              color: c.text,
+              fontSize: 14,
+              lineHeight: 1.5,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {brief.project.description}
+          </div>
+        </section>
+      ) : null}
+
       {/* "What changed since you accepted" banner — only when there is a
           newer producer revision than the snapshot we kept locally. */}
       {diffs.length > 0 ? (

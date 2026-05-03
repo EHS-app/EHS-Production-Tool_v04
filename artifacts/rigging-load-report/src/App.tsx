@@ -2620,13 +2620,35 @@ function App() {
    *  path so the call sheet stays in sync with what the server
    *  actually accepted. */
   const sendCrewRequests = useCallback(
-    async (rows: { userId: string; fullName: string; primaryRole: string | null }[]) => {
+    async (rows: {
+      userId: string;
+      fullName: string;
+      primaryRole: string | null;
+      phone?: string;
+      dietaryTags?: string[];
+      allergens?: string[];
+    }[]) => {
       if (rows.length === 0 || sendingRequests) return;
+      // Seed every new row with the project's full schedule so the
+      // producer can immediately tick days off — same default as the
+      // manual + Add crew button. Computed once outside the map so a
+      // batch send doesn't re-walk the date range per freelancer.
+      const defaultDays = expandProjectDays(reportDate, reportEndDate);
       const newMembers: CrewMember[] = rows.map((r) => {
         const m = makeCrewMember(r.fullName);
         m.role = skillToCrewRole(r.primaryRole);
         m.freelancerUserId = r.userId;
         m.requestStatus = "requested" as CrewRequestStatus;
+        // Copy contact + catering data from the portal directory so
+        // the producer sees phone/food/allergens on the call sheet
+        // the moment the row appears — no need to wait for the
+        // freelancer to accept the brief.
+        if (r.phone) m.phone = r.phone;
+        if (r.dietaryTags && r.dietaryTags.length > 0)
+          m.dietaryTags = [...r.dietaryTags];
+        if (r.allergens && r.allergens.length > 0)
+          m.allergens = [...r.allergens];
+        if (defaultDays.length > 0) m.assignedDates = [...defaultDays];
         return m;
       });
       const nextCrew = [...crew, ...newMembers];

@@ -296,13 +296,15 @@ export function mergeRoster(
       // this field existed.
       assignedDates: m.assignedDates ? [...m.assignedDates] : [],
       hotelRequired: false,
-      dietaryTags: [],
-      allergens: [],
+      // Portal-sourced rows (added via the Available Crew sidebar)
+      // carry phone / dietary / allergens copied from the freelancer's
+      // profile, so the producer sees their contact info immediately
+      // — no waiting for accept. Manual rows have these unset and
+      // render as a muted dash.
+      dietaryTags: (m.dietaryTags ?? []) as DietaryTag[],
+      allergens: m.allergens ?? [],
       profileless: false,
-      // Local rows have no portal data to pull phone/room from.
-      // Empty string + null are the sentinel "unknown" values the
-      // master sheet renders as a muted dash.
-      phone: "",
+      phone: m.phone ?? "",
       roomKey: null,
       roommateName: null,
       dayRate: m.dayRate,

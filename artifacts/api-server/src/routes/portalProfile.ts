@@ -7,6 +7,7 @@ import {
 } from "@workspace/db";
 import { sanitizeSkills, isValidSkill, groupSkills } from "@workspace/skills";
 import { logger } from "../lib/logger";
+import { classifyDietary, splitAllergens } from "../lib/dietaryTags";
 
 /** Pull a YYYY-MM-DD string off a query param, or null. */
 function pickDate(raw: unknown): string | null {
@@ -299,13 +300,25 @@ router.get("/portal/freelancers", requireSignedIn, async (req, res) => {
         city: freelancerProfilesTable.city,
         skills: freelancerProfilesTable.skills,
         languages: freelancerProfilesTable.languages,
+        phone: freelancerProfilesTable.phone,
+        dietary: freelancerProfilesTable.dietary,
+        allergies: freelancerProfilesTable.allergies,
         status: statusExpr.as("status"),
       })
       .from(freelancerProfilesTable)
       .where(where)
       .orderBy(freelancerProfilesTable.fullName)
       .limit(100);
-    res.json({ ok: true, freelancers: rows });
+    // Pre-classify dietary / allergens server-side so the Production
+    // Tool can drop the raw fields straight onto a CrewMember without
+    // re-implementing the keyword classifier on the client.
+    const enriched = rows.map((r) => ({
+      ...r,
+      phone: typeof r.phone === "string" ? r.phone : "",
+      dietaryTags: classifyDietary(r.dietary),
+      allergens: splitAllergens(r.allergies),
+    }));
+    res.json({ ok: true, freelancers: enriched });
   } catch (err) {
     logger.error(
       { err: err instanceof Error ? err.message : String(err) },

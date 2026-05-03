@@ -87,6 +87,17 @@ export type CrewMember = {
    *  run" by default. The producer can untick individual day-chips on
    *  the Crew tab to drop a person off specific days. */
   assignedDates?: string[];
+  /** Contact phone copied from the freelancer's portal profile when
+   *  the row was added via the Available Crew sidebar. Empty string
+   *  for manual in-house rows. */
+  phone?: string;
+  /** Dietary tags pre-classified by the server from the freelancer's
+   *  free-text dietary string (e.g. ["vegan"], ["halal"]). Surfaces
+   *  in the master sheet Food column. */
+  dietaryTags?: string[];
+  /** Pre-split allergens copied from the freelancer's portal profile
+   *  (e.g. ["Nøtter"], ["Skalldyr"]). Surfaces alongside dietaryTags. */
+  allergens?: string[];
 };
 
 function newId(prefix: string): string {
@@ -156,6 +167,17 @@ export function normalizeCrewMember(raw: unknown): CrewMember {
               typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d),
           )
           .sort()
+      : undefined,
+    phone: typeof r.phone === "string" ? r.phone : undefined,
+    dietaryTags: Array.isArray(r.dietaryTags)
+      ? (r.dietaryTags as unknown[]).filter(
+          (t): t is string => typeof t === "string",
+        )
+      : undefined,
+    allergens: Array.isArray(r.allergens)
+      ? (r.allergens as unknown[]).filter(
+          (t): t is string => typeof t === "string",
+        )
       : undefined,
   };
 }

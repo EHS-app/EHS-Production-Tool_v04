@@ -53,6 +53,13 @@ type DirectoryRow = {
   city: string | null;
   skills: string[];
   languages: string[];
+  /** Phone copied from the freelancer's profile so the producer can
+   *  reach them as soon as the row lands in the call sheet. */
+  phone?: string;
+  /** Server-classified dietary tags (vegan / halal / etc). */
+  dietaryTags?: string[];
+  /** Server-split free-text allergens. */
+  allergens?: string[];
   status: Status;
 };
 
@@ -60,6 +67,9 @@ export type SendRequestsRow = {
   userId: string;
   fullName: string;
   primaryRole: string | null;
+  phone?: string;
+  dietaryTags?: string[];
+  allergens?: string[];
 };
 
 type Props = {
@@ -279,6 +289,9 @@ export function AvailableCrewSidebar({
         userId: r.userId,
         fullName: r.fullName,
         primaryRole: r.primaryRole,
+        phone: r.phone,
+        dietaryTags: r.dietaryTags,
+        allergens: r.allergens,
       }));
     if (selected.length === 0) return;
     // Optimistically clear the picks now — the parent owns the network
@@ -366,6 +379,9 @@ export function AvailableCrewSidebar({
                             userId: r.userId,
                             fullName: r.fullName,
                             primaryRole: r.primaryRole,
+                            phone: r.phone,
+                            dietaryTags: r.dietaryTags,
+                            allergens: r.allergens,
                           },
                         ])
                       }

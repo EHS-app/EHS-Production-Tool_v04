@@ -79,6 +79,7 @@ interface AppShellProps {
   onChangeView: (next: ShellView) => void;
   workspaceLabel: string;
   workspaceSublabel?: string;
+  workspaceLogoSrc?: string;
   projectTitle: string;
   projectStatus?: { label: string; tone: "success" | "warning" | "danger" | "neutral" };
   badges: Partial<Record<ShellView, number>>;
@@ -178,6 +179,7 @@ export function AppShell({
   view,
   onChangeView,
   workspaceLabel,
+  workspaceLogoSrc,
   workspaceSublabel,
   projectTitle,
   projectStatus,
@@ -250,7 +252,15 @@ export function AppShell({
       <aside className="ehs-shell-aside">
         <div className="ehs-shell-workspace">
           <div className="ehs-shell-workspace-mark">
-            {workspaceLabel.charAt(0).toUpperCase()}
+            {workspaceLogoSrc ? (
+              <img
+                src={workspaceLogoSrc}
+                alt={workspaceLabel}
+                className="ehs-shell-workspace-logo"
+              />
+            ) : (
+              workspaceLabel.charAt(0).toUpperCase()
+            )}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="ehs-shell-workspace-name">{workspaceLabel}</div>

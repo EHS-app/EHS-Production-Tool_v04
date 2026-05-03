@@ -4785,6 +4785,7 @@ function App() {
         onChangeView={(v) => setMainView(v as MainView)}
         workspaceLabel="EHS Production"
         workspaceSublabel="Lyd · Lys · Bilde"
+        workspaceLogoSrc={ehsLogo}
         projectTitle={venue || "Uten navn"}
         projectStatus={projectStatus}
         badges={overviewBadges}

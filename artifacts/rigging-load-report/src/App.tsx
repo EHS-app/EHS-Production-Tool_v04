@@ -2877,6 +2877,35 @@ function App() {
     };
   }, [mainView, activeBriefId, getToken]);
 
+  /** Days covered by each schedule phase ({setup, rehearsal, show,
+   *  downrig} → ISO date arrays), derived from the producer's
+   *  reportDate/reportEndDate plus extraSchedule. Threaded down to
+   *  MasterCrewSheet so each crew row can offer one-click "fill from
+   *  Setup days", "from Show days", etc. quick-pick buttons. Empty
+   *  phases are omitted so the row only shows buttons for phases the
+   *  producer has actually scheduled. */
+  const phaseDays = useMemo<Partial<Record<SchedulePhaseKey, string[]>>>(() => {
+    const sched = buildProjectSchedule(
+      reportDate,
+      reportEndDate,
+      extraSchedule,
+    );
+    const out: Partial<Record<SchedulePhaseKey, string[]>> = {};
+    (Object.keys(sched) as SchedulePhaseKey[]).forEach((k) => {
+      const segs = sched[k];
+      if (!segs || segs.length === 0) return;
+      const set = new Set<string>();
+      for (const seg of segs) {
+        for (const d of expandProjectDays(seg.from, seg.to || seg.from)) {
+          set.add(d);
+        }
+      }
+      const days = [...set].sort();
+      if (days.length > 0) out[k] = days;
+    });
+    return out;
+  }, [reportDate, reportEndDate, extraSchedule]);
+
   /** Earliest call → latest off across the project-schedule segments
    *  that cover the given assigned days. Memoised so MasterCrewSheet
    *  can call it on every day-chip toggle without re-walking the whole
@@ -5273,6 +5302,7 @@ function App() {
           getToken={getToken}
           adequacyMetrics={adequacyMetrics}
           getTimesForDates={getCrewTimesForDates}
+          phaseDays={phaseDays}
           directorySidebar={
             <AvailableCrewSidebar
               projectStartDate={reportDate}

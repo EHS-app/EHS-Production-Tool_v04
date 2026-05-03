@@ -74,6 +74,7 @@ export function MasterCrewSheet({
   onMergedRolesChange,
   onCountsChange,
   getTimesForDates,
+  phaseDays,
   compactHeader = false,
 }: {
   /** Active brief id from App.tsx. When null/empty the sheet renders
@@ -125,6 +126,13 @@ export function MasterCrewSheet({
     dates: ReadonlyArray<string>,
     defaults: { callTime: string; offTime: string },
   ) => { callTime: string; offTime: string };
+  /** Days covered by each schedule phase ("setup" / "rehearsal" /
+   *  "show" / "downrig" → ISO date arrays). When provided, each
+   *  local crew row gets one-click quick-pick buttons that fill the
+   *  row's `assignedDates` from the chosen phase. Empty / missing
+   *  phases simply hide their button so the row only shows phases
+   *  the producer has actually scheduled. */
+  phaseDays?: Partial<Record<string, ReadonlyArray<string>>>;
   /** When true, hide the duplicated `<h3>Crew & Logistics</h3>` +
    *  subtitle inside the master sheet's own header — the parent
    *  (CrewReportView) is rendering its own redesigned title row and
@@ -773,6 +781,31 @@ export function MasterCrewSheet({
                         ? () => onDuplicate(local.id)
                         : undefined
                     }
+                    phaseDays={phaseDays}
+                    onLocalSetDays={
+                      local
+                        ? (nextDates) => {
+                            // Replace the row's working days wholesale
+                            // (used by the per-phase quick-pick
+                            // buttons). Re-derives call/off from the
+                            // schedule so the shift matches the new
+                            // day set, same as a single-day toggle.
+                            const sorted = [...nextDates].sort();
+                            const patch: Partial<CrewMember> = {
+                              assignedDates: sorted,
+                            };
+                            if (getTimesForDates) {
+                              const t = getTimesForDates(sorted, {
+                                callTime: local.callTime,
+                                offTime: local.offTime,
+                              });
+                              patch.callTime = t.callTime;
+                              patch.offTime = t.offTime;
+                            }
+                            onUpdate(local.id, patch);
+                          }
+                        : undefined
+                    }
                   />
                 );
               })}
@@ -801,6 +834,8 @@ function MasterRow({
   onLocalDayToggle,
   onLocalRemove,
   onLocalDuplicate,
+  phaseDays,
+  onLocalSetDays,
 }: {
   row: RosterRow;
   projectDays: ReadonlyArray<string> | null;
@@ -821,6 +856,13 @@ function MasterRow({
   onLocalDayToggle?: (date: string) => void;
   onLocalRemove?: () => void;
   onLocalDuplicate?: () => void;
+  /** Days covered by each schedule phase. Drives the per-phase
+   *  quick-pick buttons rendered next to the day chips on local
+   *  rows. */
+  phaseDays?: Partial<Record<string, ReadonlyArray<string>>>;
+  /** Replace the local row's working days wholesale (used by the
+   *  quick-pick buttons). Recomputes call/off from the schedule. */
+  onLocalSetDays?: (dates: ReadonlyArray<string>) => void;
 }) {
   const chips = useMemo(
     () => buildDayChips(row.assignedDates, projectDays),
@@ -967,6 +1009,69 @@ function MasterRow({
             </span>
           </div>
         )}
+        {/* Per-phase quick-pick buttons. Only on local rows that have
+            both a setter and at least one scheduled phase — clicking a
+            button replaces the row's working days with that phase's
+            days, so the producer can say "this person does Setup
+            only" or "Show only" with one click instead of toggling
+            every chip. "All" / "None" cover the simple cases. */}
+        {editableLocal && onLocalSetDays && phaseDays
+          ? (() => {
+              const phaseEntries = (
+                ["setup", "rehearsal", "show", "downrig"] as const
+              )
+                .map((k) => ({ key: k, days: phaseDays[k] ?? [] }))
+                .filter((p) => p.days.length > 0);
+              const allDays = projectDays ?? [];
+              const hasAnyButtons =
+                phaseEntries.length > 0 || allDays.length > 0;
+              if (!hasAnyButtons) return null;
+              const phaseLabel: Record<string, string> = {
+                setup: "Setup",
+                rehearsal: "Rehearsal",
+                show: "Show",
+                downrig: "Load Out",
+              };
+              return (
+                <div
+                  className="roster-day-quickpick"
+                  role="group"
+                  aria-label="Quick-fill working days"
+                >
+                  <span className="roster-day-quickpick-label">Days:</span>
+                  {phaseEntries.map((p) => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      className="roster-day-quickpick-btn"
+                      title={`Work all ${phaseLabel[p.key]} days (${p.days.length})`}
+                      onClick={() => onLocalSetDays([...p.days])}
+                    >
+                      {phaseLabel[p.key]}
+                    </button>
+                  ))}
+                  {allDays.length > 0 ? (
+                    <button
+                      type="button"
+                      className="roster-day-quickpick-btn"
+                      title="Work every project day"
+                      onClick={() => onLocalSetDays([...allDays])}
+                    >
+                      All
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="roster-day-quickpick-btn roster-day-quickpick-btn-clear"
+                    title="Clear all working days"
+                    onClick={() => onLocalSetDays([])}
+                  >
+                    None
+                  </button>
+                </div>
+              );
+            })()
+          : null}
       </td>
       <td>
         {row.source === "gig" ? (

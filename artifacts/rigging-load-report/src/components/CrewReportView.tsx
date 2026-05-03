@@ -43,6 +43,11 @@ type Props = {
     dates: ReadonlyArray<string>,
     defaults: { callTime: string; offTime: string },
   ) => { callTime: string; offTime: string };
+  /** Days covered by each schedule phase (Setup / Rehearsal / Show /
+   *  Load Out). Threaded through to MasterCrewSheet so each local
+   *  crew row can offer one-click "fill from Setup days", "from Show
+   *  days", etc. quick-pick buttons. */
+  phaseDays?: Partial<Record<string, ReadonlyArray<string>>>;
 };
 
 /** Crew & Logistics view — one master sheet, one optional adequacy
@@ -65,6 +70,7 @@ export function CrewReportView({
   getToken,
   adequacyMetrics,
   getTimesForDates,
+  phaseDays,
 }: Props) {
   // Headcount source for the adequacy meter: the merged roster the
   // master sheet is actually displaying (gig + local), bubbled up
@@ -172,6 +178,7 @@ export function CrewReportView({
             onMergedRolesChange={handleMergedRolesChange}
             onCountsChange={handleCountsChange}
             getTimesForDates={getTimesForDates}
+            phaseDays={phaseDays}
             compactHeader
           />
           {/* Adequacy panel — kept as a sidekick BELOW the master

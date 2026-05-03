@@ -10,7 +10,7 @@
  * Sheet structure:
  *   1. Header band: project name + venue + generated timestamp.
  *   2. Single wide table mirroring the on-screen master sheet:
- *      Name · Role · Status · Days · Hotel · Roommate · Food · Phone
+ *      Name · Role · Status · Days · Hotel · Food · Phone
  *      · Notes (and Call/Off/Day-rate when "Show production details"
  *      is on, so the printed handoff matches what the producer sees).
  *   3. Footer with brief reference + a small legend explaining the
@@ -169,11 +169,6 @@ function rowsHtml(input: MasterSheetInput): string {
             ? '<span class="ms-pill ms-pill-ok">hotel</span>'
             : '<span class="ms-muted">no</span>'
           : '<span class="ms-empty">—</span>';
-      const roommate = row.roommateName
-        ? `<span class="ms-roommate">${escHtml(row.roommateName)}</span>`
-        : row.hotelRequired && row.roomKey
-          ? '<span class="ms-muted">solo</span>'
-          : '<span class="ms-empty">—</span>';
       const phone = row.phone
         ? `<span class="ms-phone">${escHtml(row.phone)}</span>`
         : '<span class="ms-empty">—</span>';
@@ -195,7 +190,6 @@ function rowsHtml(input: MasterSheetInput): string {
         <td>${escHtml(status)}</td>
         <td class="ms-cell-days">${dayChipsHtml(row.assignedDates, input.projectDays)}</td>
         <td>${hotel}</td>
-        <td>${roommate}</td>
         <td>${foodHtml(row)}</td>
         <td>${phone}</td>
         <td class="ms-cell-notes">${notes}</td>${productionCells}
@@ -469,7 +463,6 @@ export function openMasterSheet(input: MasterSheetInput): { ok: boolean } {
           <th>Status</th>
           <th>Days</th>
           <th>Hotel</th>
-          <th>Roommate</th>
           <th>Food</th>
           <th>Phone</th>
           <th>Notes</th>${productionHeaders}

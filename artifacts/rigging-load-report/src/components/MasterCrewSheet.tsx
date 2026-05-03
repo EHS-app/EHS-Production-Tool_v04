@@ -52,7 +52,7 @@ import { openMasterSheet, type MasterSheetRow } from "../lib/masterSheetExport";
  *      scope for this consolidation pass.
  *
  *  Visible columns (always):
- *    Name · Role · Status · Days · Hotel · Roommate · Food · Phone
+ *    Name · Role · Status · Days · Hotel · Food · Phone
  *    · Notes · Actions (local rows only)
  *
  *  "Show production details" toggle adds:
@@ -620,8 +620,8 @@ export function MasterCrewSheet({
             <h3>Crew &amp; Logistics</h3>
             <p className="led-report-sub">
               {briefId
-                ? <>Everyone on <strong>{briefName || "this brief"}</strong> — days, hotel, roommate, food and phone in one sheet.</>
-                : <>Local call sheet only — pick a brief above to also pull in portal crew, hotel, roommates and food.</>}
+                ? <>Everyone on <strong>{briefName || "this brief"}</strong> — days, hotel, food and phone in one sheet.</>
+                : <>Local call sheet only — pick a brief above to also pull in portal crew, hotel and food.</>}
             </p>
           </div>
           <div className="led-controls">
@@ -685,7 +685,6 @@ export function MasterCrewSheet({
                 <th>Status</th>
                 <th>Days</th>
                 <th>Hotel</th>
-                <th>Roommate</th>
                 <th>Food</th>
                 <th>Phone</th>
                 <th>Notes</th>
@@ -1102,19 +1101,6 @@ function MasterRow({
               {row.hotelRequired ? "hotel" : "no"}
             </span>
           </label>
-        ) : (
-          <span className="crew-pill-empty">—</span>
-        )}
-      </td>
-      <td>
-        {row.roommateName ? (
-          <span className="roster-roommate" title={`Sharing room ${row.roomKey ?? ""}`}>
-            {row.roommateName}
-          </span>
-        ) : row.hotelRequired && row.roomKey ? (
-          <span className="crew-pill-empty" title="Solo room">
-            solo
-          </span>
         ) : (
           <span className="crew-pill-empty">—</span>
         )}

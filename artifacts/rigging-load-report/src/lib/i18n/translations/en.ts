@@ -77,7 +77,7 @@ export const en = {
   "help.tabs.sound":
     "Capture the PA, monitor and mic plot for the show.",
   "help.tabs.crew":
-    "One unified master sheet for everyone on the show: name, role, status, days worked, hotel, roommate, food and phone. Toggle Production details for call/off times and day rate, then Print for an A4 hand-off to the runner, hotel or catering.",
+    "One unified master sheet for everyone on the show: name, role, status, days worked, hotel, food and phone. Toggle Production details for call/off times and day rate, then Print for an A4 hand-off to the runner, hotel or catering.",
   "help.tabs.riggPlan":
     "Upload a venue PDF or photo. The drawing analyser extracts trusses, lighting, LED and sound items into editable overlay boxes — pre-fills the other tabs and learns from your corrections per venue.",
   "help.section.tips": "Good to know",

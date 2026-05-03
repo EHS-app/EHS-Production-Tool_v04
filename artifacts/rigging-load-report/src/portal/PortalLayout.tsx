@@ -1,8 +1,24 @@
-import { useRef, type ReactNode } from "react";
+import React, { useEffect, useRef, type ReactNode } from "react";
 import { Link } from "wouter";
 import { useClerk } from "@clerk/react";
+import {
+  Activity,
+  Bell,
+  Calendar,
+  ChevronDown,
+  Clock,
+  Command,
+  HelpCircle,
+  Inbox,
+  LogOut,
+  MoreHorizontal,
+  Search,
+  TrendingUp,
+  User,
+  Wallet,
+} from "lucide-react";
 import ehsLogo from "../assets/ehs-logo.png";
-import { PALETTE, EHS_ORANGE, PORTAL_FONT, type ThemeMode } from "./lib/portalTheme";
+import { PALETTE, PORTAL_FONT, type ThemeMode } from "./lib/portalTheme";
 import { useT } from "../lib/i18n/I18nContext";
 import type { TranslationKey } from "../lib/i18n/types";
 
@@ -23,148 +39,39 @@ type NavItem = {
   key: PortalNavKey;
   labelKey: TranslationKey;
   href: string;
-  icon: string;
+  icon: React.ComponentType<{ size?: number | string; strokeWidth?: number }>;
 };
 
-const NAV: NavItem[] = [
-  { key: "hub", labelKey: "portal.nav.hub", href: "/portal", icon: "◉" },
-  { key: "briefs", labelKey: "portal.nav.briefs", href: "/portal/briefs", icon: "✉" },
-  { key: "gigs", labelKey: "portal.nav.gigs", href: "/portal/gigs", icon: "▤" },
+const NAV_WORK: NavItem[] = [
+  { key: "hub", labelKey: "portal.nav.hub", href: "/portal", icon: Activity },
+  { key: "briefs", labelKey: "portal.nav.briefs", href: "/portal/briefs", icon: Inbox },
+  { key: "gigs", labelKey: "portal.nav.gigs", href: "/portal/gigs", icon: Calendar },
   {
     key: "availability",
     labelKey: "portal.nav.availability",
     href: "/portal/availability",
-    icon: "◐",
+    icon: Clock,
   },
-  { key: "earnings", labelKey: "portal.nav.earnings", href: "/portal/earnings", icon: "kr" },
-  { key: "profile", labelKey: "portal.nav.profile", href: "/portal/profile", icon: "◆" },
-  { key: "help", labelKey: "portal.nav.help", href: "/portal/help", icon: "?" },
 ];
 
-/**
- * Inline three-way segmented control for the portal header. Keeps
- * styling self-contained (the `index.css` `.theme-seg` rules belong to
- * the Production Tool's chrome) and matches the segmented control on
- * the sign-in screen so the experience is consistent across the
- * employee/freelancer surfaces.
- *
- * ARIA: implements the `radiogroup` keyboard pattern — only the
- * selected option is in the tab order; arrow keys (and Home/End) move
- * focus AND change the selection.
- */
-function PortalThemeSeg({
-  pref,
-  onChange,
-  c,
-}: {
-  pref: PortalThemePref;
-  onChange: (next: PortalThemePref) => void;
-  /* PALETTE is declared `as const` so its `light` and `dark` entries
-     are distinct literal types. We only read a handful of fields off
-     `c`, so taking the union keeps the type accurate without forcing
-     callers to widen their palette by hand. */
-  c: (typeof PALETTE)[keyof typeof PALETTE];
-}) {
-  const t = useT();
-  const options: ReadonlyArray<{
-    value: PortalThemePref;
-    labelKey: "theme.light" | "theme.dark" | "theme.system";
-    ariaKey: "theme.lightAria" | "theme.darkAria" | "theme.systemAria";
-    icon: string;
-  }> = [
-    { value: "light", labelKey: "theme.light", ariaKey: "theme.lightAria", icon: "☀" },
-    { value: "dark", labelKey: "theme.dark", ariaKey: "theme.darkAria", icon: "☾" },
-    { value: "system", labelKey: "theme.system", ariaKey: "theme.systemAria", icon: "⌬" },
-  ];
-  const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const selectedIndex = Math.max(
-    0,
-    options.findIndex((o) => o.value === pref),
-  );
-  const move = (next: number) => {
-    const i = ((next % options.length) + options.length) % options.length;
-    onChange(options[i].value);
-    btnRefs.current[i]?.focus();
-  };
-  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    switch (e.key) {
-      case "ArrowRight":
-      case "ArrowDown":
-        e.preventDefault();
-        move(selectedIndex + 1);
-        break;
-      case "ArrowLeft":
-      case "ArrowUp":
-        e.preventDefault();
-        move(selectedIndex - 1);
-        break;
-      case "Home":
-        e.preventDefault();
-        move(0);
-        break;
-      case "End":
-        e.preventDefault();
-        move(options.length - 1);
-        break;
-      default:
-        break;
-    }
-  };
-  return (
-    <div
-      role="radiogroup"
-      aria-label={t("theme.label")}
-      title={t("theme.title")}
-      onKeyDown={onKeyDown}
-      className="ehs-portal-theme-seg"
-      style={{
-        display: "inline-flex",
-        gap: 2,
-        padding: 3,
-        background: c.cardBgSubtle,
-        border: `1px solid ${c.border}`,
-        borderRadius: 8,
-        fontFamily: PORTAL_FONT,
-      }}
-    >
-      {options.map((o, i) => {
-        const selected = pref === o.value;
-        return (
-          <button
-            key={o.value}
-            ref={(el) => {
-              btnRefs.current[i] = el;
-            }}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            aria-label={t(o.ariaKey)}
-            tabIndex={selected ? 0 : -1}
-            onClick={() => onChange(o.value)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-              padding: "5px 9px",
-              fontSize: 12,
-              fontWeight: 600,
-              borderRadius: 6,
-              border: "none",
-              cursor: "pointer",
-              background: selected ? EHS_ORANGE : "transparent",
-              color: selected ? "#0b0b0b" : c.text,
-              transition: "background 120ms ease, color 120ms ease",
-              fontFamily: PORTAL_FONT,
-            }}
-          >
-            <span aria-hidden>{o.icon}</span>
-            <span className="ehs-portal-theme-seg-label">{t(o.labelKey)}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+const NAV_ACCOUNT: NavItem[] = [
+  { key: "earnings", labelKey: "portal.nav.earnings", href: "/portal/earnings", icon: Wallet },
+  { key: "profile", labelKey: "portal.nav.profile", href: "/portal/profile", icon: User },
+  { key: "help", labelKey: "portal.nav.help", href: "/portal/help", icon: HelpCircle },
+];
+
+const NAV_GROUPS: ReadonlyArray<{ labelKey: TranslationKey; items: NavItem[] }> = [
+  { labelKey: "portal.nav.hub", items: NAV_WORK }, // group label rendered separately below
+  { labelKey: "portal.nav.profile", items: NAV_ACCOUNT },
+];
+
+/** Section headings for the nav groups. Kept inline (not via i18n) so we
+ *  don't need to add new translation keys for the chrome refresh; the
+ *  existing item labels carry the language-specific text. */
+const GROUP_LABELS: Record<"work" | "account", { no: string; en: string }> = {
+  work: { no: "Arbeid", en: "Work" },
+  account: { no: "Konto", en: "Account" },
+};
 
 export function PortalLayout({
   theme,
@@ -185,233 +92,260 @@ export function PortalLayout({
   pendingBriefCount: number;
   children: ReactNode;
 }) {
-  const c = PALETTE[theme];
+  // `theme` is intentionally referenced (consumers still pass it) but the
+  // chrome now reads CSS variables from `[data-theme]` on <html>, so we
+  // don't fork styles by mode here.
+  void theme;
+  const c = PALETTE.dark; // unused after refactor; kept import for type stability
+  void c;
+
   const { signOut } = useClerk();
   const t = useT();
+  const lang = (typeof document !== "undefined"
+    ? document.documentElement.lang
+    : "no") === "en"
+    ? "en"
+    : "no";
+
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    const onPointer = (e: MouseEvent) => {
+      const t2 = e.target as Node | null;
+      if (menuRef.current && t2 && !menuRef.current.contains(t2)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onPointer);
+    };
+  }, [menuOpen]);
+
+  const allItems = [...NAV_WORK, ...NAV_ACCOUNT];
+  const activeItem = allItems.find((i) => i.key === active);
+  const activeLabel = activeItem ? t(activeItem.labelKey) : "";
+  const userInitial = (userLabel || "?").trim().charAt(0).toUpperCase();
 
   return (
     <div
-      style={{
-        minHeight: "100dvh",
-        background: c.pageBg,
-        color: c.text,
-        fontFamily: PORTAL_FONT,
-        display: "flex",
-        flexDirection: "column",
-      }}
+      className="ehs-shell"
+      style={{ fontFamily: PORTAL_FONT, minHeight: "100dvh" }}
     >
-      <header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          padding: "14px 20px",
-          background: c.cardBg,
-          borderBottom: `1px solid ${c.border}`,
-          position: "sticky",
-          top: 0,
-          zIndex: 20,
-        }}
-      >
-        <Link
-          href="/portal"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 10,
-            textDecoration: "none",
-            color: c.text,
-          }}
-        >
-          <img src={ehsLogo} alt="EHS" style={{ height: 30, width: "auto" }} />
-          <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
-            <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: 0.2 }}>
+      {/* SIDEBAR — same chrome as production tool */}
+      <aside className="ehs-shell-aside ehs-portal-aside">
+        <div className="ehs-shell-workspace ehs-shell-workspace--stacked">
+          <Link
+            href="/portal"
+            className="ehs-shell-workspace-mark"
+            style={{ textDecoration: "none" }}
+            aria-label={t("portal.header.title")}
+          >
+            <img
+              src={ehsLogo}
+              alt="EHS"
+              className="ehs-shell-workspace-logo"
+            />
+          </Link>
+          <div className="ehs-shell-workspace-text">
+            <div className="ehs-shell-workspace-name">
               {t("portal.header.title")}
-            </span>
-            <span style={{ fontSize: 11, color: c.muted, fontWeight: 500 }}>
-              {t("portal.header.subtitle")}
-            </span>
+            </div>
           </div>
-        </Link>
+          <ChevronDown size={14} className="ehs-shell-workspace-chevron" />
+        </div>
 
-        <div style={{ flex: 1 }} />
+        <div style={{ padding: "10px 12px" }}>
+          <button
+            type="button"
+            className="ehs-shell-side-action"
+            disabled
+            title={t("portal.nav.gigs")}
+          >
+            <Search size={14} />
+            <span>{t("portal.nav.gigs")}</span>
+            <span className="ehs-shell-kbd-row">
+              <kbd className="ehs-shell-kbd">
+                <Command size={10} />
+              </kbd>
+              <kbd className="ehs-shell-kbd">K</kbd>
+            </span>
+          </button>
+        </div>
 
-        <Link
-          href="/"
-          title={t("portal.header.toolTitle")}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "7px 12px",
-            fontSize: 13,
-            fontWeight: 600,
-            borderRadius: 8,
-            color: c.text,
-            background: c.cardBgSubtle,
-            border: `1px solid ${c.border}`,
-            textDecoration: "none",
-          }}
-        >
-          <span aria-hidden>↗</span>
-          <span className="ehs-portal-only-desktop">
-            {t("portal.header.productionTool")}
-          </span>
-          <span className="ehs-portal-only-mobile" aria-hidden>
-            {t("portal.header.productionToolShort")}
-          </span>
-        </Link>
-
-        <Link
-          href="/portal/help"
-          title={t("portal.header.helpTitle")}
-          aria-label={t("portal.header.helpAria")}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 34,
-            height: 34,
-            fontSize: 15,
-            fontWeight: 800,
-            borderRadius: 8,
-            background: c.cardBgSubtle,
-            color: c.text,
-            border: `1px solid ${c.border}`,
-            textDecoration: "none",
-          }}
-        >
-          ?
-        </Link>
-
-        {/* Three-way theme picker (Light / Dark / System). System is
-            the install default and follows OS prefers-color-scheme;
-            users can pin a concrete preference here. Replaces the old
-            single-icon cycle button. */}
-        <PortalThemeSeg pref={pref} onChange={setPref} c={c} />
-
-        <button
-          type="button"
-          onClick={() => {
-            try {
-              sessionStorage.setItem("ehs-skip-dev-auto-signin", "1");
-            } catch {
-              /* sessionStorage may be unavailable */
-            }
-            try {
-              localStorage.removeItem("ehs-user-role");
-            } catch {
-              /* localStorage may be unavailable */
-            }
-            void signOut();
-          }}
-          title={t("portal.header.signedInAs", { label: userLabel })}
-          className="ehs-portal-only-desktop"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "7px 12px",
-            fontSize: 13,
-            fontWeight: 600,
-            borderRadius: 8,
-            cursor: "pointer",
-            background: "transparent",
-            color: c.text,
-            border: `1px solid ${c.border}`,
-            fontFamily: PORTAL_FONT,
-          }}
-        >
-          <span style={{ opacity: 0.85, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {userLabel}
-          </span>
-          <span aria-hidden>·</span>
-          <span>{t("portal.header.signOut")}</span>
-        </button>
-      </header>
-
-      <div
-        style={{
-          flex: 1,
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr)",
-        }}
-        className="ehs-portal-shell"
-      >
-        <aside
-          className="ehs-portal-sidebar"
-          style={{
-            background: c.cardBg,
-            borderRight: `1px solid ${c.border}`,
-            padding: "24px 14px",
-            display: "none",
-            flexDirection: "column",
-            gap: 6,
-            position: "sticky",
-            top: 60,
-            alignSelf: "start",
-            height: "calc(100dvh - 60px)",
-          }}
-        >
-          {NAV.map((item) => {
-            const isActive = active === item.key;
-            const showBadge = item.key === "briefs" && pendingBriefCount > 0;
+        <nav className="ehs-shell-nav">
+          {(["work", "account"] as const).map((groupKey, groupIdx) => {
+            const items = groupIdx === 0 ? NAV_WORK : NAV_ACCOUNT;
             return (
-              <Link
-                key={item.key}
-                href={item.href}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "11px 14px",
-                  borderRadius: 10,
-                  textDecoration: "none",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: isActive ? "#0b0b0b" : c.text,
-                  background: isActive ? c.accent : "transparent",
-                  border: `1px solid ${isActive ? c.accent : "transparent"}`,
-                  transition: "background 120ms ease",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 15,
-                    width: 22,
-                    textAlign: "center",
-                    opacity: isActive ? 1 : 0.7,
-                  }}
-                  aria-hidden
-                >
-                  {item.icon}
-                </span>
-                <span style={{ flex: 1 }}>{t(item.labelKey)}</span>
-                {showBadge ? (
-                  <span
-                    aria-label={t("portal.header.briefsBadgeAria", {
-                      count: pendingBriefCount,
-                    })}
-                    style={{
-                      minWidth: 22,
-                      padding: "2px 7px",
-                      fontSize: 11,
-                      fontWeight: 800,
-                      borderRadius: 999,
-                      textAlign: "center",
-                      background: isActive ? "#0b0b0b" : c.accent,
-                      color: isActive ? c.accent : "#0b0b0b",
-                    }}
-                  >
-                    {pendingBriefCount}
-                  </span>
-                ) : null}
-              </Link>
+              <div key={groupKey} style={{ marginTop: 18 }}>
+                <div className="ehs-shell-nav-label">
+                  {GROUP_LABELS[groupKey][lang]}
+                </div>
+                {items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = item.key === active;
+                  const showBadge =
+                    item.key === "briefs" && pendingBriefCount > 0;
+                  return (
+                    <Link
+                      key={item.key}
+                      href={item.href}
+                      className={`ehs-shell-nav-item${isActive ? " is-active" : ""}`}
+                    >
+                      <Icon size={15} strokeWidth={1.75} />
+                      <span style={{ flex: 1, textAlign: "left" }}>
+                        {t(item.labelKey)}
+                      </span>
+                      {showBadge ? (
+                        <span
+                          className="ehs-shell-nav-badge"
+                          aria-label={t("portal.header.briefsBadgeAria", {
+                            count: pendingBriefCount,
+                          })}
+                        >
+                          {pendingBriefCount}
+                        </span>
+                      ) : null}
+                    </Link>
+                  );
+                })}
+              </div>
             );
           })}
-        </aside>
+        </nav>
 
-        <main
+        <div className="ehs-shell-user">
+          <div className="ehs-shell-user-avatar">{userInitial}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="ehs-shell-user-name">{userLabel}</div>
+            <div className="ehs-shell-user-role">Freelancer</div>
+          </div>
+          <div style={{ position: "relative" }} ref={menuRef}>
+            <button
+              type="button"
+              className="ehs-shell-icon-btn"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-label={t("portal.header.signOut")}
+            >
+              <MoreHorizontal size={14} />
+            </button>
+            {menuOpen ? (
+              <div className="ehs-shell-menu" role="menu">
+                <div className="ehs-shell-menu-label">
+                  {lang === "no" ? "Tema" : "Theme"}
+                </div>
+                {(["light", "dark", "system"] as const).map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={pref === opt}
+                    className={`ehs-shell-menu-item${pref === opt ? " is-active" : ""}`}
+                    onClick={() => {
+                      setPref(opt);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    {opt === "light"
+                      ? lang === "no"
+                        ? "Lys"
+                        : "Light"
+                      : opt === "dark"
+                      ? lang === "no"
+                        ? "Mørk"
+                        : "Dark"
+                      : "System"}
+                  </button>
+                ))}
+                <div className="ehs-shell-menu-sep" />
+                <Link
+                  href="/"
+                  className="ehs-shell-menu-item"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  {t("portal.header.productionTool")}
+                </Link>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="ehs-shell-menu-item is-danger"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    try {
+                      sessionStorage.setItem("ehs-skip-dev-auto-signin", "1");
+                    } catch {
+                      /* sessionStorage may be unavailable */
+                    }
+                    try {
+                      localStorage.removeItem("ehs-user-role");
+                    } catch {
+                      /* localStorage may be unavailable */
+                    }
+                    void signOut();
+                  }}
+                >
+                  <LogOut size={12} /> {t("portal.header.signOut")}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </aside>
+
+      {/* MAIN */}
+      <main className="ehs-shell-main">
+        <header className="ehs-shell-topbar">
+          <div className="ehs-shell-crumbs">
+            <Link href="/portal" className="ehs-shell-crumb-link">
+              {t("portal.header.title")}
+            </Link>
+            <span className="ehs-shell-crumb-sep">/</span>
+            <span className="ehs-shell-crumb-current">{activeLabel}</span>
+          </div>
+
+          <div className="ehs-shell-topbar-actions">
+            <Link
+              href="/"
+              title={t("portal.header.toolTitle")}
+              className="ehs-shell-action"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                color: "var(--text-main)",
+                border: "1px solid var(--border-color)",
+                textDecoration: "none",
+              }}
+            >
+              <TrendingUp size={13} />
+              <span className="ehs-portal-only-desktop">
+                {t("portal.header.productionTool")}
+              </span>
+              <span className="ehs-portal-only-mobile" aria-hidden>
+                {t("portal.header.productionToolShort")}
+              </span>
+            </Link>
+            <button
+              type="button"
+              className="ehs-shell-icon-btn"
+              aria-label="Notifications"
+              title="Notifications"
+            >
+              <Bell size={14} />
+            </button>
+          </div>
+        </header>
+
+        <div className="ehs-shell-glow" aria-hidden />
+        <div
+          className="ehs-shell-content"
           style={{
             padding: "20px 16px 96px",
             maxWidth: 1100,
@@ -421,69 +355,29 @@ export function PortalLayout({
           }}
         >
           {children}
-        </main>
-      </div>
+        </div>
+      </main>
 
+      {/* MOBILE BOTTOM NAV — kept for phones since the sidebar collapses */}
       <nav
         className="ehs-portal-bottomnav"
         aria-label={t("portal.header.sectionsAria")}
-        style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          display: "flex",
-          justifyContent: "space-around",
-          background: c.cardBg,
-          borderTop: `1px solid ${c.border}`,
-          padding: "6px 4px max(6px, env(safe-area-inset-bottom))",
-          zIndex: 30,
-        }}
       >
-        {NAV.map((item) => {
+        {allItems.map((item) => {
+          const Icon = item.icon;
           const isActive = active === item.key;
           const showBadge = item.key === "briefs" && pendingBriefCount > 0;
           return (
             <Link
               key={item.key}
               href={item.href}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 2,
-                padding: "6px 6px",
-                fontSize: 11,
-                fontWeight: 600,
-                textDecoration: "none",
-                color: isActive ? c.accent : c.muted,
-                minWidth: 48,
-                position: "relative",
-              }}
+              className="ehs-portal-bottomnav-item"
               data-active={isActive}
             >
-              <span style={{ fontSize: 16, position: "relative" }} aria-hidden>
-                {item.icon}
+              <span style={{ position: "relative", display: "inline-flex" }}>
+                <Icon size={18} strokeWidth={isActive ? 2.25 : 1.75} />
                 {showBadge ? (
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: -4,
-                      right: -10,
-                      minWidth: 16,
-                      height: 16,
-                      padding: "0 4px",
-                      fontSize: 10,
-                      fontWeight: 800,
-                      borderRadius: 999,
-                      background: c.accent,
-                      color: "#0b0b0b",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      lineHeight: 1,
-                    }}
-                  >
+                  <span className="ehs-portal-bottomnav-badge">
                     {pendingBriefCount}
                   </span>
                 ) : null}
@@ -495,17 +389,13 @@ export function PortalLayout({
       </nav>
 
       <style>{`
-        @media (min-width: 900px) {
-          .ehs-portal-shell { grid-template-columns: 240px minmax(0,1fr) !important; }
-          .ehs-portal-sidebar { display: flex !important; }
-          .ehs-portal-bottomnav { display: none !important; }
-          .ehs-portal-only-mobile { display: none !important; }
-        }
         @media (max-width: 899px) {
+          .ehs-portal-aside { display: none !important; }
           .ehs-portal-only-desktop { display: none !important; }
-          /* Hide the verbose theme labels on phones; the icons are enough
-             alongside the still-visible role tabs to keep the header tidy. */
-          .ehs-portal-theme-seg-label { display: none !important; }
+        }
+        @media (min-width: 900px) {
+          .ehs-portal-only-mobile { display: none !important; }
+          .ehs-portal-bottomnav { display: none !important; }
         }
       `}</style>
     </div>

@@ -1335,19 +1335,45 @@ input:focus {
   opacity: 1;
 }
 
-/* HELP MODAL */
+/* HELP MODAL
+   NOTE: We intentionally use the compound selector `.modal-content.help-modal`
+   so we beat the base `.modal-content` rule defined later in this file
+   (which sets width: 400px / padding: 28px). Without the extra specificity
+   the help dialog would render at 400px on every screen — looking like
+   an iPhone sheet even on a 1440px laptop. */
 .help-modal-backdrop {
   z-index: 200;
+  /* On small screens dock the panel to the bottom edge so it reads as a
+     native mobile sheet instead of a tiny floating box. */
+  padding: 16px;
 }
-.help-modal {
-  width: 720px;
-  max-width: 92vw;
+.modal-content.help-modal {
+  width: min(760px, 100%);
+  max-width: 100%;
   max-height: 86vh;
   padding: 0;
   display: flex;
   flex-direction: column;
   border-radius: 18px;
   overflow: hidden;
+}
+@media (min-width: 1100px) {
+  .modal-content.help-modal {
+    width: 820px;
+  }
+}
+@media (max-width: 600px) {
+  .help-modal-backdrop {
+    /* Mobile sheet: align panel to bottom, leave a small top gap. */
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal-content.help-modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92vh;
+    border-radius: 18px 18px 0 0;
+  }
 }
 .help-modal-header {
   display: flex;

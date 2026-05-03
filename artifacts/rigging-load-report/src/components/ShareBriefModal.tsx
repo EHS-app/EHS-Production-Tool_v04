@@ -223,7 +223,11 @@ export function ShareBriefModal({ onClose, state }: ShareBriefModalProps) {
           generated.push({
             crewId: m.id,
             label: m.name || "(unnamed)",
-            sublabel: `${m.role} · call ${m.callTime || "—"} → off ${m.offTime || "—"} · ${formatCrewDayRate(m.dayRate)}/day`,
+            sublabel: `${m.role} · call ${m.callTime || "—"} → off ${m.offTime || "—"} · ${formatCrewDayRate(m.dayRate)}/day${
+              (m.hotelDates?.length ?? 0) > 0
+                ? ` · 🏨 ${m.hotelDates!.length} night${m.hotelDates!.length === 1 ? "" : "s"}`
+                : ""
+            }`,
             url: buildShareUrl(encoded, baseUrl),
             payloadBytes: encoded.length,
           });

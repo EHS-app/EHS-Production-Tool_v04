@@ -1560,6 +1560,14 @@ function AssignmentCard({
           value={fee > 0 ? formatNok(fee) : "—"}
           strong
         />
+        {(assignment.hotelDates?.length ?? 0) > 0 ? (
+          <Field
+            theme={theme}
+            label="Hotel"
+            value={`🏨 ${assignment.hotelDates.length} night${assignment.hotelDates.length === 1 ? "" : "s"}`}
+            strong
+          />
+        ) : null}
       </div>
       {dayBreakdown.length > 0 ? (
         <div style={{ marginTop: 14 }}>

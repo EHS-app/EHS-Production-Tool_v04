@@ -350,32 +350,51 @@ function renderCrew(crew: CrewMember[]): string {
   <p class="muted">${NS}</p>
 </section>`;
   }
+  let totalRooms = 0;
+  let totalNights = 0;
   const rows = crew
     .map((c) => {
       const hours = crewHours(c);
+      const nights = c.hotelDates?.length ?? 0;
+      if (nights > 0) {
+        totalRooms += 1;
+        totalNights += nights;
+      }
+      const hotelCell =
+        nights > 0
+          ? `🏨 ${nights}n`
+          : c.needsHotel
+            ? `hotel`
+            : `<span class="muted">—</span>`;
       return `<tr>
         <td>${orNS(c.name)}</td>
         <td>${escapeHtml(c.role)}</td>
         <td>${orNS(c.callTime)}</td>
         <td>${orNS(c.offTime)}</td>
         <td class="num">${hours > 0 ? `${fmt(hours, 1)} h` : `<span class="muted">—</span>`}</td>
+        <td>${hotelCell}</td>
         <td class="num">${c.dayRate > 0 ? escapeHtml(formatCrewDayRate(c.dayRate)) : `<span class="muted">—</span>`}</td>
       </tr>`;
     })
     .join("");
   const totals = computeCrewTotals(crew);
+  const hotelTotal =
+    totalRooms > 0
+      ? `${totalRooms} room${totalRooms === 1 ? "" : "s"} · ${totalNights} night${totalNights === 1 ? "" : "s"}`
+      : `<span class="muted">—</span>`;
   return `
 <section class="section">
   <h2>4 · Crew List</h2>
   <table>
     <thead>
-      <tr><th>Name</th><th>Role</th><th>Call</th><th>Off</th><th class="num">Hours</th><th class="num">Day rate</th></tr>
+      <tr><th>Name</th><th>Role</th><th>Call</th><th>Off</th><th class="num">Hours</th><th>Hotel</th><th class="num">Day rate</th></tr>
     </thead>
     <tbody>${rows}</tbody>
     <tfoot>
       <tr class="row-total">
         <td colspan="4">Totals · ${totals.count} crew · ${fmt(totals.totalHours, 1)} h</td>
         <td class="num">${fmt(totals.totalHours, 1)} h</td>
+        <td>${hotelTotal}</td>
         <td class="num">${escapeHtml(formatCrewDayRate(totals.totalCost))}</td>
       </tr>
     </tfoot>

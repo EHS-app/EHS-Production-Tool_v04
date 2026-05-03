@@ -477,6 +477,26 @@ function crewBlock(crew: CrewMember[]): string {
   const present = crew.filter((c) => c.callTime && c.name?.trim());
   const missing = crew.filter((c) => !c.callTime || !c.name?.trim());
   const lvl: RiskLevel = missing.length > 0 ? "warn" : "safe";
+  let hotelRooms = 0;
+  let hotelNights = 0;
+  const hotelLines: string[] = [];
+  for (const c of crew) {
+    const n = c.hotelDates?.length ?? 0;
+    if (n > 0) {
+      hotelRooms += 1;
+      hotelNights += n;
+      hotelLines.push(
+        `<li>${escapeHtml(c.name?.trim() || "(unnamed)")} · ${escapeHtml(c.role || NS)} · 🏨 ${n} night${n === 1 ? "" : "s"}</li>`,
+      );
+    }
+  }
+  const hotelBlock =
+    hotelRooms > 0
+      ? `<div style="margin-top:10px;padding:8px 10px;background:#e7f5ec;border-left:3px solid #2f9b5b;border-radius:4px;font-size:13px;">
+           <strong>🏨 Hotel:</strong> ${hotelRooms} room${hotelRooms === 1 ? "" : "s"} · ${hotelNights} night${hotelNights === 1 ? "" : "s"}
+           <ul class="crew-list" style="margin-top:6px;">${hotelLines.join("")}</ul>
+         </div>`
+      : "";
   const presentList = present
     .map(
       (c) =>
@@ -503,6 +523,7 @@ function crewBlock(crew: CrewMember[]): string {
         ${missing.length > 0 ? `<ul class="crew-list missing">${missingList}</ul>` : `<p class="muted">None</p>`}
       </div>
     </div>
+    ${hotelBlock}
   </div>`;
 }
 

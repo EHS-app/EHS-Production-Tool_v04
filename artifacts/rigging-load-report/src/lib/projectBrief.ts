@@ -45,6 +45,11 @@ export type BriefAssignment = {
    *  brief. Empty array means "no specific days set" — older briefs
    *  saved before this field existed normalise to []. */
   assignedDates: string[];
+  /** YYYY-MM-DD strings the producer ticked on the Crew tab's hotel
+   *  picker for this person. Always a subset of `assignedDates`.
+   *  Empty array means no hotel. Older briefs saved before this field
+   *  existed normalise to []. */
+  hotelDates: string[];
   /** Optional Clerk user id of the freelancer this assignment is
    *  addressed to. Set when the producer picks the crew member from
    *  the shared directory in the Production Tool's Crew Report —
@@ -686,6 +691,7 @@ export function buildBrief(input: BuildBriefInput): ProjectBrief {
     dayRate: m.dayRate,
     notes: m.notes,
     assignedDates: Array.isArray(m.assignedDates) ? [...m.assignedDates] : [],
+    hotelDates: Array.isArray(m.hotelDates) ? [...m.hotelDates] : [],
     // Pass the freelancer's Clerk user id through when the crew row
     // originated from "Send requests" on the Available Crew sidebar.
     // The server uses this on POST /api/portal/briefs to create / sync
@@ -863,6 +869,10 @@ function normalizeAssignment(raw: unknown): BriefAssignment {
     notes: asString(r.notes),
     assignedDates: Array.isArray(r.assignedDates)
       ? (r.assignedDates as unknown[])
+          .filter((d): d is string => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d))
+      : [],
+    hotelDates: Array.isArray(r.hotelDates)
+      ? (r.hotelDates as unknown[])
           .filter((d): d is string => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d))
       : [],
   };

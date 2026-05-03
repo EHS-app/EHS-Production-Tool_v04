@@ -163,12 +163,13 @@ function rowsHtml(input: MasterSheetInput): string {
   return input.rows
     .map((row) => {
       const status = statusLabel(row.status);
+      const nights = row.hotelDates?.length ?? 0;
       const hotel =
-        row.source === "gig"
-          ? row.hotelRequired
+        nights > 0
+          ? `<span class="ms-pill ms-pill-ok" title="${escHtml(row.hotelDates.join(", "))}">🏨 ${nights}n</span>`
+          : row.hotelRequired
             ? '<span class="ms-pill ms-pill-ok">hotel</span>'
-            : '<span class="ms-muted">no</span>'
-          : '<span class="ms-empty">—</span>';
+            : '<span class="ms-muted">no</span>';
       const phone = row.phone
         ? `<span class="ms-phone">${escHtml(row.phone)}</span>`
         : '<span class="ms-empty">—</span>';
@@ -450,6 +451,20 @@ export function openMasterSheet(input: MasterSheetInput): { ok: boolean } {
       <div class="ms-band-right">
         Generated ${escHtml(generated)}
         <span class="ms-band-count">${input.rows.length} on roster</span>
+        ${(() => {
+          let rooms = 0;
+          let nights = 0;
+          for (const r of input.rows) {
+            const n = r.hotelDates?.length ?? 0;
+            if (n > 0) {
+              rooms += 1;
+              nights += n;
+            }
+          }
+          return rooms > 0
+            ? `<div style="font-size:11px;color:#15683a;font-weight:600;margin-top:2px;">🏨 ${rooms} room${rooms === 1 ? "" : "s"} · ${nights} night${nights === 1 ? "" : "s"}</div>`
+            : "";
+        })()}
       </div>
     </div>
     ${

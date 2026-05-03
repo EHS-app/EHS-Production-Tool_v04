@@ -78,3 +78,21 @@ id = "cURpm_i8esUPmz7MDBvur"
 uri = "file://backups/MASTER-PROMPT.md"
 type = "text"
 title = "EHS Production Tool — Master Build Prompt"
+
+[[outputs]]
+id = "WjsP5ZXHkV7RnRzg0QxCe"
+uri = "file://attached_assets/screenshots/9cd161cd-b092-4cb9-849f-98a2f7f2a312-00-qywaehzrdctw_riker_replit_dev_mockup_preview_ehs-redesign_Stripe.png"
+type = "image"
+title = "Variant 1 — Stripe-style"
+
+[[outputs]]
+id = "B04xKdKFDiTvnZY9uzm-k"
+uri = "file://attached_assets/screenshots/9cd161cd-b092-4cb9-849f-98a2f7f2a312-00-qywaehzrdctw_riker_replit_dev_mockup_preview_ehs-redesign_Vercel.png"
+type = "image"
+title = "Variant 2 — Vercel-style"
+
+[[outputs]]
+id = "mbVihRtTmU2OsxDcsjfdB"
+uri = "file://attached_assets/screenshots/9cd161cd-b092-4cb9-849f-98a2f7f2a312-00-qywaehzrdctw_riker_replit_dev_mockup_preview_ehs-redesign_Linear.png"
+type = "image"
+title = "Variant 3 — Linear-style"

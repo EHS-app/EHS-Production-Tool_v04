@@ -51,8 +51,10 @@ body {
   background: var(--dark);
   color: white;
   padding: 22px 32px;
-  border-radius: 12px;
-  margin-bottom: 10px;
+  /* Square bottom corners so the dark project-meta strip below sits
+     flush against the header without a visible seam. */
+  border-radius: 12px 12px 0 0;
+  margin-bottom: 0;
   gap: 18px;
 }
 /* Top row — logo on the left, account cluster pinned to the absolute
@@ -206,7 +208,11 @@ body {
    orange as the primary CTA. Scoped to `.header-doc-actions` so the
    `.btn` base class behavior elsewhere in the app is unchanged.
 */
-.header-doc-actions .btn-pill {
+/* Scoped to the header so the global `.btn` rules elsewhere don't leak in
+   and so we don't restyle every `.btn-pill` in unrelated parts of the app
+   that may collide on the same class name in the future. */
+.header-doc-actions .btn-pill,
+.header-account .btn-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -221,20 +227,24 @@ body {
   color: #e2e8f0;
   border: 1px solid rgba(255, 255, 255, 0.14);
   cursor: pointer;
+  text-decoration: none;
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
   white-space: nowrap;
 }
-.header-doc-actions .btn-pill:hover {
+.header-doc-actions .btn-pill:hover,
+.header-account .btn-pill:hover {
   background: rgba(255, 255, 255, 0.10);
   border-color: rgba(255, 255, 255, 0.28);
   color: #ffffff;
   opacity: 1;
 }
-.header-doc-actions .btn-pill:focus-visible {
+.header-doc-actions .btn-pill:focus-visible,
+.header-account .btn-pill:focus-visible {
   outline: 2px solid var(--primary, #f88000);
   outline-offset: 2px;
 }
-.header-doc-actions .btn-pill .btn-pill-icon {
+.header-doc-actions .btn-pill .btn-pill-icon,
+.header-account .btn-pill .btn-pill-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -647,43 +657,74 @@ body {
 }
 .project-meta {
   display: grid;
-  grid-template-columns: 2fr 1fr 1.5fr;
-  gap: 16px;
-  padding-top: 14px;
-  border-top: 1px dashed var(--border-color);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 1100px) {
+  .project-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 @media (max-width: 700px) {
   .project-meta {
     grid-template-columns: 1fr;
   }
 }
+/* Each meta card is its own dark tile (matches the GigSync reference). */
 .meta-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 10px;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.meta-field:hover,
+.meta-field:focus-within {
+  border-color: rgba(255, 255, 255, 0.22);
 }
 .meta-field label {
   font-size: 10px;
   font-weight: 800;
-  color: var(--text-muted);
+  color: rgba(226, 232, 240, 0.55);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 1.2px;
 }
 .meta-field input {
-  font-size: 14px;
-  font-weight: 600;
-  padding: 9px 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--input-bg);
-  color: var(--text-main);
+  font-size: 16px;
+  font-weight: 700;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #ffffff;
   outline: none;
 }
+.meta-field input::placeholder {
+  color: rgba(226, 232, 240, 0.35);
+  font-weight: 600;
+}
 .meta-field input:focus {
-  border-color: var(--primary);
+  border-color: transparent;
 }
 
-/* PROJECT-LEVEL CARDS */
+/* PROJECT-LEVEL CARDS — the project metadata strip is the dark, header-
+   adjacent slab from the GigSync reference. Other `.project-card`
+   instances elsewhere in the app keep the original light treatment via
+   the more-specific selector below. */
+.system-identity.project-card {
+  background: var(--dark);
+  border: none;
+  padding: 16px 18px;
+  margin-top: -10px;
+  /* Sit flush under the header — top corners squared, bottom rounded. */
+  border-radius: 0 0 12px 12px;
+}
+.system-identity.project-card label {
+  color: rgba(226, 232, 240, 0.55);
+}
 .project-card {
   background: linear-gradient(180deg, var(--card-bg) 0%, var(--card-bg) 100%);
 }

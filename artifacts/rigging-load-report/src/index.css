@@ -693,21 +693,24 @@ body {
   letter-spacing: 1.2px;
 }
 .meta-field input {
-  font-size: 16px;
-  font-weight: 700;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  /* Only the actual writing area is white — the surrounding card stays
+     dark so the meta strip still matches the GigSync reference. */
+  background: #ffffff;
+  color: #0f172a;
   outline: none;
 }
 .meta-field input::placeholder {
-  color: rgba(226, 232, 240, 0.35);
-  font-weight: 600;
+  color: #94a3b8;
+  font-weight: 500;
 }
 .meta-field input:focus {
-  border-color: transparent;
+  border-color: var(--primary, #f88000);
+  box-shadow: 0 0 0 2px rgba(248, 128, 0, 0.25);
 }
 
 /* PROJECT-LEVEL CARDS — the project metadata strip is the dark, header-

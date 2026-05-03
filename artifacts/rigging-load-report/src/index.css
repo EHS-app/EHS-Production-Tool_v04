@@ -6138,6 +6138,93 @@ input:focus {
    sidebar stacks underneath so the layout still works on an
    iPad held landscape and on phones. */
 
+/* ── Crew & Logistics — page header + stat cards row ─────────────────
+   Matches the producer reference (small uppercase eyebrow, large title,
+   then 4 stat cards: CREW / ACCEPTED / PENDING / HOTEL ROOMS). The
+   eyebrow uses the EHS muted-uppercase pattern that already shows up
+   under the production-tool title. */
+.crew-page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.crew-eyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--text-soft, #6b7280);
+}
+.crew-page-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.crew-page-title h2 {
+  margin: 0;
+  font-size: 1.6rem;
+  letter-spacing: -0.01em;
+}
+
+.crew-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+@media (max-width: 900px) {
+  .crew-stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .crew-stats-row {
+    grid-template-columns: 1fr;
+  }
+}
+.crew-stat-card {
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.crew-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-soft, #6b7280);
+}
+.crew-stat-value {
+  font-size: 1.9rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-main, #0f172a);
+  line-height: 1;
+}
+/* Tone-coloured numbers — green for accepted, orange for pending,
+   matching the status-pill palette used in the master sheet's table
+   so the producer's eye lands on the right colour-meaning. */
+.crew-stat-value-ok {
+  color: #16a34a;
+}
+.crew-stat-value-warn {
+  color: var(--primary, #f88000);
+}
+
+/* Compact head for MasterCrewSheet when the parent renders its own
+   page header — controls hug the right side, no leading title block. */
+.led-card-head-compact {
+  justify-content: flex-end;
+}
+
 .crew-layout {
   display: grid;
   grid-template-columns: 1fr;

@@ -71,6 +71,8 @@ export function MasterCrewSheet({
   onRemove,
   onDuplicate,
   onMergedRolesChange,
+  onCountsChange,
+  compactHeader = false,
 }: {
   /** Active brief id from App.tsx. When null/empty the sheet renders
    *  ONLY local crew (no portal data) and shows a friendly empty
@@ -95,6 +97,27 @@ export function MasterCrewSheet({
    *  count only local rows — fine before the consolidation, but
    *  confusing now that the master sheet is the visible roster. */
   onMergedRolesChange?: (roles: ReadonlyArray<string>) => void;
+  /** Optional callback fired whenever the merged roster changes, with
+   *  pre-computed totals the parent can render as a stat-card row.
+   *  We compute these here (not in CrewReportView) because the merge
+   *  + status classification already happens in this component — it
+   *  would be wasteful to either re-merge upstream or expose the
+   *  whole RosterRow[] just so the parent could re-derive what we
+   *  already know. `hotelRooms` is `ceil(hotelCount / 2)` — the
+   *  industry rule-of-thumb the producer reference UI uses, so the
+   *  number on the card matches what they'd manually book. */
+  onCountsChange?: (counts: {
+    total: number;
+    accepted: number;
+    pending: number;
+    hotelRooms: number;
+  }) => void;
+  /** When true, hide the duplicated `<h3>Crew & Logistics</h3>` +
+   *  subtitle inside the master sheet's own header — the parent
+   *  (CrewReportView) is rendering its own redesigned title row and
+   *  doesn't need the duplicate. The right-side controls (toggle,
+   *  Print, Add) are still rendered. */
+  compactHeader?: boolean;
 }) {
   const [data, setData] = useState<RosterResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -186,6 +209,41 @@ export function MasterCrewSheet({
     // identical-shaped roster array doesn't fire the callback.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rolesKey, onMergedRolesChange]);
+
+  // Stat-card counts for the parent's redesigned header. Same key
+  // strategy as roles above: snapshot to a string so we don't fire
+  // the callback on identical re-renders. Status buckets mirror
+  // statusTone(): "ok" tones count as accepted (confirmed/done/paid
+  // also accepted-equivalent for the "we have a person" sense),
+  // "warn" tones count as pending. `hotelRooms` uses the
+  // industry-standard ceil(hotelCount / 2) rule so two crew sharing
+  // a roommate count as one room — matches the producer reference.
+  const countsKey = useMemo(() => {
+    let total = 0;
+    let accepted = 0;
+    let pending = 0;
+    let hotelCount = 0;
+    for (const r of rows) {
+      total += 1;
+      const tone = statusTone(r.status);
+      if (tone === "ok") accepted += 1;
+      else if (tone === "warn") pending += 1;
+      if (r.source === "gig" && r.hotelRequired) hotelCount += 1;
+    }
+    const hotelRooms = Math.ceil(hotelCount / 2);
+    return `${total}|${accepted}|${pending}|${hotelRooms}`;
+  }, [rows]);
+  useEffect(() => {
+    if (!onCountsChange) return;
+    const [t, a, p, h] = countsKey.split("|").map((n) => Number(n));
+    onCountsChange({
+      total: t ?? 0,
+      accepted: a ?? 0,
+      pending: p ?? 0,
+      hotelRooms: h ?? 0,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countsKey, onCountsChange]);
 
   // Index local crew by id so a gig-backed row can resolve its
   // matched local row's id for the editable notes/dayRate cells.
@@ -362,24 +420,32 @@ export function MasterCrewSheet({
 
   return (
     <section className="led-card roster-card master-sheet-card">
-      <div className="led-card-head">
-        <div>
-          <h3>Crew &amp; Logistics</h3>
-          <p className="led-report-sub">
-            {briefId
-              ? <>Everyone on <strong>{briefName || "this brief"}</strong> — days, hotel, roommate, food and phone in one sheet.</>
-              : <>Local call sheet only — pick a brief above to also pull in portal crew, hotel, roommates and food.</>}
-          </p>
-        </div>
+      <div
+        className={`led-card-head${compactHeader ? " led-card-head-compact" : ""}`}
+      >
+        {compactHeader ? null : (
+          <div>
+            <h3>Crew &amp; Logistics</h3>
+            <p className="led-report-sub">
+              {briefId
+                ? <>Everyone on <strong>{briefName || "this brief"}</strong> — days, hotel, roommate, food and phone in one sheet.</>
+                : <>Local call sheet only — pick a brief above to also pull in portal crew, hotel, roommates and food.</>}
+            </p>
+          </div>
+        )}
         <div className="led-controls">
-          <span className="badge">
-            <strong>{totalCount}</strong> on roster
-          </span>
-          {data?.projectDays.length ? (
-            <span className="badge">
-              <strong>{data.projectDays.length}</strong> project days
-            </span>
-          ) : null}
+          {compactHeader ? null : (
+            <>
+              <span className="badge">
+                <strong>{totalCount}</strong> on roster
+              </span>
+              {data?.projectDays.length ? (
+                <span className="badge">
+                  <strong>{data.projectDays.length}</strong> project days
+                </span>
+              ) : null}
+            </>
+          )}
           <label className="roster-toggle" title="Show call / off / day-rate columns">
             <input
               type="checkbox"

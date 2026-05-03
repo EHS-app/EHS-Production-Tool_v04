@@ -2,8 +2,6 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { MasterCrewSheet } from "./MasterCrewSheet";
 import { AdequacyPanel } from "./AdequacyPanel";
 import {
-  computeCrewTotals,
-  formatCrewDayRate,
   type CrewMember,
 } from "../lib/crew";
 
@@ -38,9 +36,6 @@ type Props = {
   };
 };
 
-const fmtNum = (n: number, d = 1) =>
-  n.toLocaleString("en-US", { maximumFractionDigits: d });
-
 /** Crew & Logistics view — one master sheet, one optional adequacy
  *  panel, one optional crew directory sidebar. The previous version
  *  stacked four sections (per-dept dashboard, RosterTable, AdequacyPanel,
@@ -61,16 +56,12 @@ export function CrewReportView({
   getToken,
   adequacyMetrics,
 }: Props) {
-  const totals = useMemo(() => computeCrewTotals(crew), [crew]);
   // Headcount source for the adequacy meter: the merged roster the
   // master sheet is actually displaying (gig + local), bubbled up
   // from MasterCrewSheet via onMergedRolesChange. Falls back to the
   // local crew[] until the first roster fetch lands so the meter
   // still works on day-1 planning before any portal brief is
-  // pushed. This fixes the architect-flagged inconsistency where
-  // the panel could say "short by 2 riggers" while the visible
-  // table showed enough people (because they were gig-only and not
-  // mirrored into local rows).
+  // pushed.
   const localRoles = useMemo(() => crew.map((m) => m.role), [crew]);
   const [mergedRoles, setMergedRoles] = useState<ReadonlyArray<string> | null>(
     null,
@@ -80,6 +71,31 @@ export function CrewReportView({
     [],
   );
   const rosterRoles = mergedRoles ?? localRoles;
+
+  // Stat-card counts bubbled up from MasterCrewSheet so the redesigned
+  // header row (CREW / ACCEPTED / PENDING / HOTEL ROOMS) reflects the
+  // merged gig+local roster. Initialised from the local crew so the
+  // cards are populated before the first portal fetch lands.
+  const [counts, setCounts] = useState<{
+    total: number;
+    accepted: number;
+    pending: number;
+    hotelRooms: number;
+  }>(() => ({
+    total: crew.length,
+    accepted: 0,
+    pending: 0,
+    hotelRooms: 0,
+  }));
+  const handleCountsChange = useCallback(
+    (next: {
+      total: number;
+      accepted: number;
+      pending: number;
+      hotelRooms: number;
+    }) => setCounts(next),
+    [],
+  );
 
   // Default getToken so MasterCrewSheet's signature stays simple
   // (always defined). When the parent didn't pass one we fall back
@@ -96,28 +112,38 @@ export function CrewReportView({
           : "led-report"
       }
     >
-      <header className="led-report-header">
-        <div>
+      <header className="crew-page-header">
+        <p className="crew-eyebrow">Roster, hotel, catering and call sheets.</p>
+        <div className="crew-page-title">
           <h2>Crew &amp; Logistics</h2>
-          <p className="led-report-sub">
-            One sheet for the whole production: who's confirmed, what
-            days they work, where they sleep, what they eat, and how to
-            reach them. Print or save as PDF for the runner / hotel /
-            catering handoff.
-          </p>
-        </div>
-        <div className="led-report-meta">
-          <span className="badge">
-            <strong>{totals.count}</strong> crew
-          </span>
-          <span className="badge">
-            <strong>{fmtNum(totals.totalHours, 1)}</strong> person-hours
-          </span>
-          <span className="badge">
-            <strong>{formatCrewDayRate(totals.totalCost)}</strong> total
-          </span>
         </div>
       </header>
+
+      {/* 4 stat cards in a row, matching the producer reference. The
+          counts come from MasterCrewSheet via onCountsChange so they
+          always reflect the merged gig+local roster. */}
+      <div className="crew-stats-row">
+        <div className="crew-stat-card">
+          <div className="crew-stat-label">Crew</div>
+          <div className="crew-stat-value">{counts.total}</div>
+        </div>
+        <div className="crew-stat-card">
+          <div className="crew-stat-label">Accepted</div>
+          <div className="crew-stat-value crew-stat-value-ok">
+            {counts.accepted}
+          </div>
+        </div>
+        <div className="crew-stat-card">
+          <div className="crew-stat-label">Pending</div>
+          <div className="crew-stat-value crew-stat-value-warn">
+            {counts.pending}
+          </div>
+        </div>
+        <div className="crew-stat-card">
+          <div className="crew-stat-label">Hotel rooms</div>
+          <div className="crew-stat-value">{counts.hotelRooms}</div>
+        </div>
+      </div>
 
       {/* Two-column layout: master sheet on the left, freelancer
           directory on the right. The grid collapses to a single column
@@ -134,6 +160,8 @@ export function CrewReportView({
             onRemove={onRemove}
             onDuplicate={onDuplicate}
             onMergedRolesChange={handleMergedRolesChange}
+            onCountsChange={handleCountsChange}
+            compactHeader
           />
           {/* Adequacy panel — kept as a sidekick BELOW the master
               sheet so it doesn't compete for attention. Still surfaces

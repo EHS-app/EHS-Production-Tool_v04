@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import type { ThemePreference } from "../main";
 import { useT, type Translator } from "../lib/i18n/I18nContext";
+import { CommandPalette } from "./CommandPalette";
 
 /**
  * Linear v2 — Tactical Command Center shell.
@@ -208,8 +209,26 @@ export function AppShell({
   const t = useT();
   const [overflowOpen, setOverflowOpen] = React.useState(false);
   const [themeOpen, setThemeOpen] = React.useState(false);
+  const [cmdOpen, setCmdOpen] = React.useState(false);
   const overflowRef = React.useRef<HTMLDivElement | null>(null);
   const themeRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCmdOpen((v) => !v);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  const allActions: ShellAction[] = [
+    ...primaryActions,
+    ...secondaryActions,
+    ...overflowActions,
+  ];
 
   // Accessibility: close any open menu on Escape, and close it when the
   // user clicks outside the trigger/menu container. Producers don't
@@ -288,7 +307,7 @@ export function AppShell({
             type="button"
             className="ehs-shell-side-action"
             title={t("shell.searchTitle")}
-            disabled
+            onClick={() => setCmdOpen(true)}
           >
             <Search size={14} />
             <span>{t("shell.search")}</span>
@@ -529,6 +548,15 @@ export function AppShell({
         <div className="ehs-shell-glow" aria-hidden />
         <div className="ehs-shell-content">{children}</div>
       </main>
+
+      <CommandPalette
+        open={cmdOpen}
+        onClose={() => setCmdOpen(false)}
+        onNavigate={(v) => onChangeView(v)}
+        actions={allActions}
+        showHotel={showHotel}
+        showCatering={showCatering}
+      />
     </div>
   );
 }

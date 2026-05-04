@@ -52,6 +52,8 @@ import { findProcessor } from "./lib/ledProcessors";
 import { NumberField } from "./components/NumberField";
 import { ShareBriefModal } from "./components/ShareBriefModal";
 import { HelpModal } from "./components/HelpModal";
+import { ProjectListModal } from "./components/ProjectListModal";
+import { FolderOpen as ShellFolderOpen, Copy as ShellCopy } from "lucide-react";
 import { useI18n } from "./lib/i18n/I18nContext";
 import { buildBrief, type BuildBriefInput } from "./lib/projectBrief";
 import type { CrewRequestStatus } from "./lib/crew";
@@ -1342,8 +1344,75 @@ function App() {
   const [custArea, setCustArea] = useState("");
 
   const [savedAt, setSavedAt] = useState<string>("");
+  const [cloudSavedAt, setCloudSavedAt] = useState<string>("");
   const [shareOpen, setShareOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [projectsOpen, setProjectsOpen] = useState(false);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem("ehs-current-project-id");
+    } catch {
+      return null;
+    }
+  });
+  const projectSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const projectSaveVersion = useRef(0);
+  const cloudSaveInFlight = useRef(false);
+
+  const cloudSave = useCallback(async (data: PersistedV2) => {
+    if (cloudSaveInFlight.current) return;
+    cloudSaveInFlight.current = true;
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+      const body = {
+        name: data.venue || "",
+        venue: data.venue || "",
+        client: data.client || "",
+        data,
+      };
+      let res: Response;
+      if (currentProjectId) {
+        res = await fetch(`/api/projects/${currentProjectId}`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify(body),
+        });
+      } else {
+        res = await fetch("/api/projects", {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        });
+      }
+      if (res.ok) {
+        const json = await res.json();
+        if (!currentProjectId && json.project?.id) {
+          setCurrentProjectId(json.project.id);
+          try {
+            localStorage.setItem("ehs-current-project-id", json.project.id);
+          } catch { /* ignore */ }
+        }
+        setCloudSavedAt(
+          new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        );
+      }
+    } catch {
+      /* network error — will retry on next change */
+    } finally {
+      cloudSaveInFlight.current = false;
+    }
+  }, [currentProjectId, getToken]);
+
+  const cloudSaveRef = useRef(cloudSave);
+  useEffect(() => { cloudSaveRef.current = cloudSave; }, [cloudSave]);
   // Transient toast text for the Power Plan "Export to crew" action.
   // Cleared by the PowerPlanView after its auto-fade timer fires, or
   // when the user clicks the close (×) on the toast itself.
@@ -1364,43 +1433,8 @@ function App() {
     };
   }, []);
 
-  useEffect(() => {
-    const data: PersistedV2 = {
-      theme: themePref,
-      venue,
-      client,
-      reportDate,
-      reportEndDate,
-      extraSchedule,
-      engineer,
-      systems,
-      activeSystemId,
-      showFixtures,
-      mainView,
-      linkedMeta,
-      ledScreens,
-      ledLinkedMeta,
-      ledSettings,
-      stages,
-      crew,
-      soundItems,
-      power,
-      activeBriefId,
-      riggPlan,
-    };
-    try {
-      localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(data));
-      setSavedAt(
-        new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      );
-    } catch {
-      /* ignore quota errors */
-    }
-  }, [
-    themePref,
+  const buildPersistedData = useCallback((): PersistedV2 => ({
+    theme: themePref,
     venue,
     client,
     reportDate,
@@ -1419,8 +1453,43 @@ function App() {
     crew,
     soundItems,
     power,
+    activeBriefId,
     riggPlan,
+  }), [
+    themePref, venue, client, reportDate, reportEndDate, extraSchedule,
+    engineer, systems, activeSystemId, showFixtures, mainView, linkedMeta,
+    ledScreens, ledLinkedMeta, ledSettings, stages, crew, soundItems,
+    power, activeBriefId, riggPlan,
   ]);
+
+  useEffect(() => {
+    const data = buildPersistedData();
+    try {
+      localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(data));
+      setSavedAt(
+        new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      );
+    } catch {
+      /* ignore quota errors */
+    }
+
+    if (projectSaveTimer.current) clearTimeout(projectSaveTimer.current);
+    const ver = ++projectSaveVersion.current;
+    projectSaveTimer.current = setTimeout(() => {
+      if (ver !== projectSaveVersion.current) return;
+      void cloudSaveRef.current(data);
+    }, 5000);
+
+    return () => {
+      if (projectSaveTimer.current) {
+        clearTimeout(projectSaveTimer.current);
+        projectSaveTimer.current = null;
+      }
+    };
+  }, [buildPersistedData]);
 
   const activeSystem =
     systems.find((s) => s.id === activeSystemId) ?? systems[0];
@@ -4120,7 +4189,154 @@ function App() {
     setCustWatt("");
     setCustArea("");
     setShareOpen(false);
+    setCurrentProjectId(null);
+    setCloudSavedAt("");
+    try { localStorage.removeItem("ehs-current-project-id"); } catch { /* ignore */ }
   };
+
+  const hydrateFromData = useCallback((d: Partial<PersistedV2>) => {
+    if (d.theme) setThemePref(d.theme);
+    setVenue(d.venue ?? "");
+    setClient(d.client ?? "");
+    setReportDate(d.reportDate ?? new Date().toISOString().slice(0, 10));
+    setReportEndDate(d.reportEndDate ?? "");
+    setExtraSchedule(d.extraSchedule ?? {});
+    setEngineer(d.engineer ?? "");
+    const sysList = d.systems && d.systems.length > 0 ? d.systems : [makeEmptySystem("LX1")];
+    setSystems(sysList);
+    setActiveSystemId(
+      d.activeSystemId && sysList.some((s) => s.id === d.activeSystemId)
+        ? d.activeSystemId
+        : sysList[0].id,
+    );
+    setShowFixtures(d.showFixtures ?? []);
+    setLinkedMeta(d.linkedMeta ?? {});
+    setLedScreens((d.ledScreens ?? []).map((s) => ({ ...s, panelKey: migrateLedPanelKey(s.panelKey) })));
+    setLedLinkedMeta(() => {
+      const raw = d.ledLinkedMeta ?? {};
+      const out: Record<string, LedLinkedMeta> = {};
+      for (const [k, v] of Object.entries(raw)) {
+        out[k] = { ...v, panelKey: migrateLedPanelKey(v.panelKey) };
+      }
+      return out;
+    });
+    setLedSettings(normalizeLedSettings(d.ledSettings));
+    setStages((d.stages ?? []).map(normalizeStage));
+    setCrew((d.crew ?? []).map(normalizeCrewMember));
+    setSoundItems((d.soundItems ?? []).map(normalizeSoundItem));
+    setPower(normalizePowerPlan(d.power));
+    setRiggPlan(normalizeRiggPlan(d.riggPlan));
+    setActiveBriefId(d.activeBriefId ?? null);
+    if (d.mainView) setMainView(d.mainView);
+    setPickerTarget(null);
+    setModalTarget(null);
+  }, []);
+
+  const flushPendingSave = useCallback(async () => {
+    if (projectSaveTimer.current) {
+      clearTimeout(projectSaveTimer.current);
+      projectSaveTimer.current = null;
+    }
+    ++projectSaveVersion.current;
+    await cloudSaveRef.current(buildPersistedData());
+  }, [buildPersistedData]);
+
+  const loadProject = useCallback(async (id: string) => {
+    try {
+      await flushPendingSave();
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`/api/projects/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+      const p = json.project;
+      if (!p?.data) return;
+      hydrateFromData(p.data as Partial<PersistedV2>);
+      setCurrentProjectId(id);
+      setCloudSavedAt(
+        new Date(p.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      );
+      try { localStorage.setItem("ehs-current-project-id", id); } catch { /* ignore */ }
+    } catch { /* network error */ }
+  }, [getToken, hydrateFromData, flushPendingSave]);
+
+  const newProject = useCallback(async () => {
+    await flushPendingSave();
+    const fresh = makeEmptySystem("LX1");
+    setVenue("");
+    setClient("");
+    setReportDate(new Date().toISOString().slice(0, 10));
+    setReportEndDate("");
+    setExtraSchedule({});
+    setEngineer("");
+    setSystems([fresh]);
+    setActiveSystemId(fresh.id);
+    setShowFixtures([]);
+    setLinkedMeta({});
+    setLedScreens([]);
+    setLedLinkedMeta({});
+    setLedSettings(DEFAULT_LED_SETTINGS);
+    setStages([]);
+    setCrew([]);
+    setActiveBriefId(null);
+    setSendError(null);
+    setSoundItems([]);
+    setPower(defaultPowerPlan());
+    setRiggPlan({ ...DEFAULT_RIGG_PLAN, trussById: {} });
+    setFloorPlanLibrary(emptyFloorPlanLibrary());
+    setMainView("rigging");
+    setPickerTarget(null);
+    setModalTarget(null);
+    setCustName("");
+    setCustWeight("");
+    setCustWatt("");
+    setCustArea("");
+    setShareOpen(false);
+    setCurrentProjectId(null);
+    setCloudSavedAt("");
+    try { localStorage.removeItem("ehs-current-project-id"); } catch { /* ignore */ }
+  }, [flushPendingSave]);
+
+  const saveAsNewProject = useCallback(async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const data = buildPersistedData();
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: venue || "",
+          venue: venue || "",
+          client: client || "",
+          data,
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.project?.id) {
+          setCurrentProjectId(json.project.id);
+          try { localStorage.setItem("ehs-current-project-id", json.project.id); } catch { /* ignore */ }
+          setCloudSavedAt(
+            new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          );
+        }
+      }
+    } catch { /* network error */ }
+  }, [getToken, buildPersistedData, venue, client]);
+
+  const handleProjectDelete = useCallback((deletedId: string) => {
+    if (currentProjectId === deletedId) {
+      setCurrentProjectId(null);
+      setCloudSavedAt("");
+      try { localStorage.removeItem("ehs-current-project-id"); } catch { /* ignore */ }
+    }
+  }, [currentProjectId]);
 
   const metricsByActive = useMemo(() => computeMetrics(activeSystem), [activeSystem]);
 
@@ -4701,6 +4917,19 @@ function App() {
   const shellOverflowActions: ShellAction[] = useMemo(
     () => [
       {
+        id: "open-projects",
+        label: tr("projects.title"),
+        icon: ShellFolderOpen,
+        onClick: () => setProjectsOpen(true),
+      },
+      {
+        id: "save-as-new",
+        label: tr("projects.saveAs"),
+        icon: ShellCopy,
+        onClick: () => void saveAsNewProject(),
+        title: tr("projects.saveAsTitle"),
+      },
+      {
         id: "export-report",
         label: tr("shell.action.printReport"),
         icon: ShellFileDown,
@@ -4742,7 +4971,7 @@ function App() {
         onClick: () => setHelpOpen(true),
       },
     ],
-    [mainView, downloadCsv, simulateShow, resetAll, tr],
+    [mainView, downloadCsv, simulateShow, resetAll, saveAsNewProject, tr],
   );
 
   const projectMetaSlot = (
@@ -4812,6 +5041,8 @@ function App() {
         userEmail={userEmail}
         onSignOut={handleShellSignOut}
         onHelp={() => setHelpOpen(true)}
+        onOpenProjects={() => setProjectsOpen(true)}
+        cloudSavedAt={cloudSavedAt}
       >
       {mainView === "oversikt" && (
         <OverviewView
@@ -6016,6 +6247,16 @@ function App() {
       ) : null}
 
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
+
+      <ProjectListModal
+        open={projectsOpen}
+        onClose={() => setProjectsOpen(false)}
+        onOpen={loadProject}
+        onNew={newProject}
+        onDelete={handleProjectDelete}
+        currentProjectId={currentProjectId}
+        getToken={getToken}
+      />
 
       <EquipmentPicker
         open={pickerTarget !== null}

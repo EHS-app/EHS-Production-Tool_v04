@@ -100,6 +100,8 @@ interface AppShellProps {
   userEmail?: string;
   onSignOut: () => void;
   onHelp?: () => void;
+  onOpenProjects?: () => void;
+  cloudSavedAt?: string;
   children: ReactNode;
 }
 
@@ -204,6 +206,8 @@ export function AppShell({
   userEmail,
   onSignOut,
   onHelp,
+  onOpenProjects,
+  cloudSavedAt,
   children,
 }: AppShellProps) {
   const t = useT();
@@ -444,7 +448,7 @@ export function AppShell({
             <button
               type="button"
               className="ehs-shell-crumb-link"
-              onClick={() => onChangeView("oversikt")}
+              onClick={() => onOpenProjects ? onOpenProjects() : onChangeView("oversikt")}
             >
               {t("shell.breadcrumb.projects")}
             </button>
@@ -460,7 +464,11 @@ export function AppShell({
                 {projectStatus.label}
               </span>
             ) : null}
-            {savedAt ? (
+            {cloudSavedAt ? (
+              <span className="ehs-shell-saved ehs-shell-saved--cloud" title={t("shell.savedCloud", { time: cloudSavedAt })}>
+                <span className="ehs-shell-saved-dot ehs-shell-saved-dot--cloud" /> {t("shell.savedCloud", { time: cloudSavedAt })}
+              </span>
+            ) : savedAt ? (
               <span className="ehs-shell-saved" title={t("shell.savedTitle")}>
                 <span className="ehs-shell-saved-dot" /> {t("shell.saved", { time: savedAt })}
               </span>

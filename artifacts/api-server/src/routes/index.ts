@@ -7,6 +7,7 @@ import storageRouter from "./storage";
 import portalProfileRouter from "./portalProfile";
 import portalBriefsRouter from "./portalBriefs";
 import portalGigsRouter from "./portalGigs";
+import projectsRouter from "./projects";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(storageRouter);
 router.use(portalProfileRouter);
 router.use(portalBriefsRouter);
 router.use(portalGigsRouter);
+router.use(projectsRouter);
 
 export default router;

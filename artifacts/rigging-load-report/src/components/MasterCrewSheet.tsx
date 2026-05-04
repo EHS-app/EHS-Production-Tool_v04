@@ -547,7 +547,7 @@ export function MasterCrewSheet({
               height: 36,
               padding: "0 14px",
               borderRadius: 999,
-              background: "#ffffff",
+              background: "var(--card-bg, #ffffff)",
               border: "1px solid var(--border, #e5e7eb)",
               fontSize: 13,
               fontWeight: 600,

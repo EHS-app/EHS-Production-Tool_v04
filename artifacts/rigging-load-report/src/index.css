@@ -23,9 +23,6 @@
 }
 
 [data-theme="dark"] {
-  /* Linear-style deep neutrals: page #1C1C24, surfaces #25252F,
-     borders white/8, text gray-200/400. Cards float subtly above the
-     page via slightly lighter background + 1px translucent border. */
   --light: #1C1C24;
   --dark: #15151B;
   --card-bg: #25252F;
@@ -40,6 +37,24 @@
   --danger: #f43f5e;
   --warning: #f59e0b;
   --success: #10b981;
+
+  --border: rgba(255, 255, 255, 0.08);
+  --card: #25252F;
+  --card-soft: #2A2A35;
+  --bg-elev: #25252F;
+  --bg-elev-2: #2A2A35;
+  --bg-soft: #22222C;
+  --surface: #25252F;
+  --surface-2: #2A2A35;
+  --surface-soft: #22222C;
+  --surface-soft-hover: #2A2A35;
+  --surface-muted: #2A2A35;
+  --text-soft: #9999A6;
+  --muted: #9999A6;
+  --text: #E5E5EC;
+  --accent: #7B5BFF;
+  --ink: #E5E5EC;
+  --ink-soft: #9999A6;
 }
 
 * {
@@ -715,10 +730,8 @@ body {
   padding: 8px 10px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 6px;
-  /* Only the actual writing area is white — the surrounding card stays
-     dark so the meta strip still matches the GigSync reference. */
-  background: #ffffff;
-  color: #0f172a;
+  background: var(--input-bg, #ffffff);
+  color: var(--text-main, #0f172a);
   outline: none;
 }
 .meta-field input::placeholder {
@@ -1202,7 +1215,7 @@ body {
   right: 14px;
   font-size: 11px;
   font-weight: 900;
-  background: white;
+  background: var(--card-bg, #fff);
   color: var(--danger);
   padding: 5px 10px;
   border-radius: 6px;
@@ -2075,11 +2088,8 @@ input:focus {
 .fx-input:focus {
   outline: none;
   border-color: var(--primary, #2563eb);
-  background: white;
+  background: var(--card-bg, #fff);
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
-}
-[data-theme="dark"] .fx-input:focus {
-  background: #0f1421;
 }
 .fx-input-num {
   width: 70px;
@@ -2131,7 +2141,7 @@ input:focus {
   width: 26px;
   height: 26px;
   border: 1px solid var(--border, #d4d8e2);
-  background: white;
+  background: var(--card-bg, #fff);
   border-radius: 6px;
   cursor: pointer;
   font-size: 0.95rem;
@@ -2666,7 +2676,7 @@ input:focus {
   border-left-width: 4px;
   border-radius: 10px;
   padding: 12px 14px;
-  background: #f8fafc;
+  background: var(--surface-soft, #f8fafc);
   display: grid;
   gap: 10px;
 }
@@ -2793,8 +2803,8 @@ input:focus {
   font-size: 13px;
   padding: 6px 10px;
   border-radius: 6px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
 }
 .led-proc-issue.is-warn {
   border-color: #fcd34d;
@@ -3028,7 +3038,7 @@ input:focus {
   padding: 0;
   cursor: pointer;
   transition: transform 0.1s ease;
-  background: #fff;
+  background: var(--card-bg, #fff);
 }
 .led-preset-chip:hover {
   transform: scale(1.12);
@@ -3286,7 +3296,7 @@ input:focus {
 .stage-name-input:focus {
   outline: none;
   border-color: var(--accent, #2563eb);
-  background: #fff;
+  background: var(--card-bg, #fff);
 }
 .stage-card-actions {
   display: flex;
@@ -4946,8 +4956,8 @@ input:focus {
   z-index: 30;
   margin-top: 4px;
   min-width: 280px;
-  background: #fff;
-  border: 1px solid #cbd5e1;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #cbd5e1);
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
   padding: 0;
@@ -5072,8 +5082,8 @@ input:focus {
   top: 100%;
   left: 0;
   margin-top: 4px;
-  background: #fff;
-  border: 1px solid #cbd5e1;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #cbd5e1);
   border-radius: 8px;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
   display: flex;
@@ -5116,13 +5126,9 @@ input:focus {
 .led-bom-card {
   margin-top: 16px;
   padding: 12px 14px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e2e8f0);
   border-radius: 12px;
-}
-[data-theme="dark"] .led-bom-card {
-  background: #0f172a;
-  border-color: #334155;
 }
 .led-bom-head {
   display: flex;
@@ -6255,7 +6261,7 @@ input:focus {
   height: 36px;
   padding: 0 14px;
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   border: 1px solid var(--border, #e5e7eb);
   font-size: 13px;
   font-weight: 600;
@@ -6609,6 +6615,11 @@ input:focus {
   border-color: #fecaca;
   background: #fef2f2;
 }
+[data-theme="dark"] .acs-error {
+  color: #fca5a5;
+  border-color: rgba(220, 38, 38, 0.3);
+  background: rgba(220, 38, 38, 0.1);
+}
 
 /* --- A single freelancer card --- */
 .acs-card {
@@ -6662,15 +6673,27 @@ input:focus {
   background: #dcfce7;
   color: #166534;
 }
+[data-theme="dark"] .acs-status-ok {
+  background: rgba(22, 163, 74, 0.18);
+  color: #86efac;
+}
 
 .acs-status-warn {
   background: #fef3c7;
   color: #854d0e;
 }
+[data-theme="dark"] .acs-status-warn {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fcd34d;
+}
 
 .acs-status-bad {
   background: #fee2e2;
   color: #991b1b;
+}
+[data-theme="dark"] .acs-status-bad {
+  background: rgba(220, 38, 38, 0.18);
+  color: #fca5a5;
 }
 
 .acs-status-dot {

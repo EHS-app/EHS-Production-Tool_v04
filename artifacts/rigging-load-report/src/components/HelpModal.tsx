@@ -9,27 +9,32 @@ type Props = {
 
 type Item = { label: TranslationKey; body: TranslationKey };
 
-const HEADER_ACTIONS: Item[] = [
-  { label: "header.reset", body: "help.headerActions.reset" },
-  { label: "header.exportReport", body: "help.headerActions.exportReport" },
-  { label: "header.clientPack", body: "help.headerActions.clientPack" },
-  { label: "header.simulateShow", body: "help.headerActions.simulateShow" },
-  { label: "header.shareWithCrew", body: "help.headerActions.shareWithCrew" },
+const SIDEBAR_ITEMS: Item[] = [
+  { label: "shell.nav.overview", body: "help.sidebar.overview" },
+  { label: "shell.nav.rigging", body: "help.sidebar.rigging" },
+  { label: "shell.nav.lighting", body: "help.sidebar.lighting" },
+  { label: "shell.nav.led", body: "help.sidebar.led" },
+  { label: "shell.nav.sound", body: "help.sidebar.sound" },
+  { label: "shell.nav.stage", body: "help.sidebar.stage" },
+  { label: "shell.nav.riggPlan", body: "help.sidebar.riggPlan" },
+  { label: "shell.nav.crew", body: "help.sidebar.crew" },
+  { label: "shell.nav.hotel", body: "help.sidebar.hotel" },
+  { label: "shell.nav.catering", body: "help.sidebar.catering" },
 ];
 
-const TABS: Item[] = [
-  { label: "view.rigging", body: "help.tabs.rigging" },
-  { label: "view.lighting", body: "help.tabs.lighting" },
-  { label: "view.led", body: "help.tabs.led" },
-  { label: "view.stage", body: "help.tabs.stage" },
-  { label: "view.sound", body: "help.tabs.sound" },
-  { label: "view.crew", body: "help.tabs.crew" },
-  { label: "view.riggPlan", body: "help.tabs.riggPlan" },
+const HEADER_ACTIONS: Item[] = [
+  { label: "shell.action.shareBrief", body: "help.headerActions.shareBrief" },
+  { label: "shell.action.clientPack", body: "help.headerActions.clientPack" },
+  { label: "shell.action.printReport", body: "help.headerActions.exportReport" },
+  { label: "shell.action.downloadCsv", body: "help.headerActions.csv" },
+  { label: "shell.action.simulate", body: "help.headerActions.simulateShow" },
+  { label: "shell.action.resetProject", body: "help.headerActions.reset" },
 ];
 
 const TIPS: TranslationKey[] = [
   "help.tips.autosave",
   "help.tips.language",
+  "help.tips.theme",
   "help.tips.portal",
   "help.tips.print",
 ];
@@ -41,12 +46,8 @@ export function HelpModal({ open, onClose }: Props) {
   const { t } = useI18n();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
-  // Capture the element that had focus before the modal opened so we can
-  // restore it on close (keyboard / screen-reader expectation).
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
-  // Keep `onClose` reachable from event handlers without re-binding the
-  // window listener on every parent re-render.
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -56,8 +57,6 @@ export function HelpModal({ open, onClose }: Props) {
     onCloseRef.current();
   }, []);
 
-  // Mount lifecycle: capture focus, install key handler, restore focus
-  // when the modal closes.
   useEffect(() => {
     if (!open) return;
 
@@ -72,7 +71,6 @@ export function HelpModal({ open, onClose }: Props) {
       }
       if (e.key !== "Tab") return;
 
-      // Focus trap — keep Tab/Shift+Tab cycling within the dialog.
       const root = dialogRef.current;
       if (!root) return;
       const focusables = Array.from(
@@ -102,7 +100,6 @@ export function HelpModal({ open, onClose }: Props) {
     };
 
     window.addEventListener("keydown", handleKey, true);
-    // Defer focus until after the DOM is painted so the ref is mounted.
     const focusTimer = window.setTimeout(() => {
       closeBtnRef.current?.focus();
     }, 0);
@@ -110,8 +107,6 @@ export function HelpModal({ open, onClose }: Props) {
     return () => {
       window.removeEventListener("keydown", handleKey, true);
       window.clearTimeout(focusTimer);
-      // Restore focus to the element that opened the modal, if it's still
-      // in the DOM and focusable.
       const prev = previouslyFocusedRef.current;
       if (prev && document.contains(prev)) {
         prev.focus();
@@ -159,14 +154,10 @@ export function HelpModal({ open, onClose }: Props) {
           </section>
 
           <section className="help-section">
-            <h4>{t("help.section.headerActions")}</h4>
+            <h4>{t("help.section.sidebar")}</h4>
             <ul className="help-list">
-              <li>
-                <strong>CSV</strong>
-                <span>{t("help.headerActions.csv")}</span>
-              </li>
-              {HEADER_ACTIONS.map((item) => (
-                <li key={item.label}>
+              {SIDEBAR_ITEMS.map((item) => (
+                <li key={item.body}>
                   <strong>{t(item.label)}</strong>
                   <span>{t(item.body)}</span>
                 </li>
@@ -175,12 +166,12 @@ export function HelpModal({ open, onClose }: Props) {
           </section>
 
           <section className="help-section">
-            <h4>{t("help.section.tabs")}</h4>
+            <h4>{t("help.section.headerActions")}</h4>
             <ul className="help-list">
-              {TABS.map((tab) => (
-                <li key={tab.label}>
-                  <strong>{t(tab.label)}</strong>
-                  <span>{t(tab.body)}</span>
+              {HEADER_ACTIONS.map((item) => (
+                <li key={item.body}>
+                  <strong>{t(item.label)}</strong>
+                  <span>{t(item.body)}</span>
                 </li>
               ))}
             </ul>

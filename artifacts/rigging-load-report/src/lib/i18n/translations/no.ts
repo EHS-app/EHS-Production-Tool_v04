@@ -52,51 +52,62 @@ export const no: Translations = {
   "header.reset": "Nullstill",
   "header.shareBrief": "Del brief",
   "header.help": "Hjelp",
-  "header.helpTitle": "Slik fungerer Produksjonsverktøyet",
+  "header.helpTitle": "EHS Produksjonsverktøy",
 
   // ---------- Help modal ----------
   "help.subtitle":
-    "En rask omvisning i Produksjonsverktøyet — knappene i toppen, alle fanene, og småtingene som sparer deg tid.",
-  "help.section.overview": "Hva er Produksjonsverktøyet?",
+    "Ditt taktiske kommandosenter for teknisk produksjon — alle fagområder, alle tall, ett arbeidsområde.",
+  "help.section.overview": "Hva er dette?",
   "help.overview.body":
-    "Det er produsentens arbeidsark for hele showet — riggvekter, lys, lyd, LED, scenebygg, mannskap og logistikk, og tegningsanalysatoren. Alt du skriver lagres automatisk i nettleseren mens du jobber (se etter den grønne ● Lagret-pillen i toppen). Når du er klar til å dele kan du lage en Kundepakke-PDF eller sende personlige briefer ut i Frilanserportalen.",
-  "help.section.headerActions": "Knappene i toppen",
-  "help.headerActions.reset":
-    "Tømmer hele prosjektet — systemer, mannskap, lys, lyd, scene og LED — tilbake til blanke ark. Nyttig når du starter et nytt show.",
-  "help.headerActions.csv":
-    "Laster ned aktiv Riggrapport som regnearksvennlig CSV (én rad per heisepunkt).",
-  "help.headerActions.exportReport":
-    "Sender Riggrapporten til skriveren / Lagre-som-PDF-dialogen. Utskriftsmalen er tilpasset A4 liggende.",
+    "Produksjonsverktøyet er et komplett arbeidsområde for planlegging og styring av live-eventer. Du bygger showet på tvers av fanene i sidemenyen — riggvekter, lys, LED, lyd, scene, crew og logistikk — og Oversikt-dashbordet gir deg et sanntidsbilde av hele produksjonen. Alt lagres automatisk i nettleseren mens du jobber.",
+
+  "help.section.sidebar": "Sidemeny — prosjektet ditt",
+  "help.sidebar.overview":
+    "Det levende dashbordet. Viser KPI-kort (topplast, effekt, LED-paneler, crew-antall), et crew-ruteskjema, systemkort, logistikk-chips for hotell og catering, og en aktivitetslogg — alt oppdateres i sanntid.",
+  "help.sidebar.rigging":
+    "Bygg heisesystemer med punkter og trusser. Statisk og dynamisk last beregnes per punkt med live SWL-varsler — overlastede punkter blir røde umiddelbart.",
+  "help.sidebar.lighting":
+    "Hold styr på armaturer per system: type, antall, watt, DMX-kanaler. Total effekt mates automatisk tilbake til riggsammendraget.",
+  "help.sidebar.led":
+    "Konfigurer LED-skjermer — paneltype, prosessorkapasitet, pikseltetthet, riggemetode. Effekt og vekt rulles opp i prosjektets totaler.",
+  "help.sidebar.sound":
+    "Logg PA, monitorer og mik-oppsett. Vekt per enhet mates inn i riggberegningene.",
+  "help.sidebar.stage":
+    "Definer scenegeometri, dekke og monteringsnummerering. SVG-forhåndsvisningen viser bein-antall og byggeretning.",
+  "help.sidebar.riggPlan":
+    "Et 2D-lerret sett ovenfra for plassering av trusser på venue-plantegningen. Last opp en PDF eller et bilde, og dra og slipp rigg-oppsettet ditt.",
+  "help.sidebar.crew":
+    "Hovedark for crew — navn, rolle, status, tildelte dager, hotell, kostholdsbehov og telefon. Slå på produksjonsdetaljer for innkallingstider og dagspris.",
+  "help.sidebar.hotel":
+    "Romliste aggregert fra crew-briefer. Aktiveres automatisk når du deler en brief og crew svarer med sine hotellbehov.",
+  "help.sidebar.catering":
+    "Kostholdsbehov og måltidsplan aggregert fra crew-svar. Viser allergier, dietter og antall per måltid.",
+
+  "help.section.headerActions": "Handlinger i topplinjen",
+  "help.headerActions.shareBrief":
+    "Hovedhandlingen. Oppretter personlige brieflenker for hver frilanser — de åpner dem i Frilanserportalen for å akseptere eller avslå, se sine gigs, hotell og innkallingstider.",
   "help.headerActions.clientPack":
-    "Åpner en kundeklar utskrift som dekker plan, mannskap, rigg, lys, lyd, scene, LED, risiko og kostnadsoppsummering — alt i én PDF.",
+    "Genererer en komplett, klar-for-kunden PDF som dekker plan, crew, rigg, lys, lyd, scene, LED, risikovurdering og kostnadsoppsummering — hele produksjonen i ett dokument.",
+  "help.headerActions.reset":
+    "Tømmer hele prosjektet — alle systemer, crew, lys, lyd, scene og LED — tilbake til blanke ark. Bruk når du starter et nytt show.",
+  "help.headerActions.csv":
+    "Laster ned riggrapporten som en regnearksvennlig CSV-fil (én rad per heisepunkt).",
+  "help.headerActions.exportReport":
+    "Sender riggrapporten til skriveren eller Lagre-som-PDF-dialogen. Utskriftsmalen er optimalisert for A4 liggende.",
   "help.headerActions.simulateShow":
-    "Kjører en gjennomgang i 10 faser fra inn-rigg til utlast. Hver fase rapporterer status per fagområde, risiko og en endelig klar-til-å-kjøre-vurdering, så du fanger opp hull før de blir et problem.",
-  "help.headerActions.shareWithCrew":
-    "Genererer personlige brieflenker du kan sende til frilansere. Mannskapet åpner dem i Frilanserportalen for å akseptere eller avslå, og se sine gigs, hotell og innkalling.",
-  "help.section.tabs": "Fanene",
-  "help.tabs.rigging":
-    "Legg til heisesystemer, fyll på trusser og punkter, og se kg/W-tellerne i den mørke statlinjen oppdateres live. Overlastede punkter blir røde.",
-  "help.tabs.lighting":
-    "Hold styr på armaturer per system: type, antall, watt, dimmer / DMX-behov. Mater total effekt videre til riggsammendraget.",
-  "help.tabs.led":
-    "Logg LED-paneler, prosessering og riggemetode. Tar effekt og vekt med i prosjektets totaler.",
-  "help.tabs.stage":
-    "Definer scenegeometri, dekke og bygge-nummerering per dekk. SVG-forhåndsvisningen viser bein-antall og byggeretning.",
-  "help.tabs.sound":
-    "Fang opp PA, monitor og mikrofon-oppsett for showet.",
-  "help.tabs.crew":
-    "Ett samlet hovedark for alle på showet: navn, rolle, status, antall dager, hotell, romkamerat, mat og telefon. Slå på Produksjonsdetaljer for innkalling/avslutning og dagspris, og trykk Skriv ut for en A4-overlevering til runner, hotell eller catering.",
-  "help.tabs.riggPlan":
-    "Last opp en venue-PDF eller -bilde. Tegningsanalysatoren henter ut trusser, lys, LED og lyd til redigerbare overlegg — fyller forhåndvis de andre fanene og lærer av rettelsene dine per venue.",
+    "Kjører en 10-fases gjennomgang fra inn-rigg til utlast. Hver fase rapporterer status per fagområde, risiko og en klar-vurdering — så du fanger opp hull før de blir problemer.",
+
   "help.section.tips": "Verdt å vite",
   "help.tips.autosave":
-    "Alt lagres automatisk i nettleseren. ● Lagret-pillen i toppen viser tidspunktet for siste skriving.",
+    "Alt lagres automatisk i nettleseren. Den grønne «Lagret»-indikatoren i topplinjen viser siste lagringstidspunkt.",
   "help.tips.language":
-    "Bytt mellom engelsk og norsk når som helst med EN / NO-velgeren oppe til høyre.",
+    "Bytt mellom engelsk og norsk når som helst med EN/NO-knappen oppe til høyre.",
   "help.tips.portal":
-    "Portal-knappen (oppe til høyre) åpner frilanser-siden, der mannskapet ser briefene du har delt.",
+    "Frilanserportal-lenken nederst i sidemenyen åpner crew-siden, der frilansere ser briefene du har delt, håndterer sine gigs og ser sin reiseplan.",
   "help.tips.print":
-    "Alle Eksport- og Skriv ut-knapper er tilpasset A4 liggende — Lagre-som-PDF i utskriftsdialogen gir det reneste resultatet.",
+    "Alle utskrifts- og eksportfunksjoner er optimalisert for A4 liggende. Bruk Lagre-som-PDF i utskriftsdialogen for det reneste resultatet.",
+  "help.tips.theme":
+    "Bytt mellom lyst, mørkt og system-tema fra innstillingsmenyen ved siden av navnet ditt nederst i sidemenyen.",
   "help.close": "Skjønner",
 
   // ---------- Project meta card ----------

@@ -226,7 +226,7 @@ function ItineraryDayCard({
   return (
     <div
       style={{
-        background: theme === "dark" ? "rgba(255,255,255,0.03)" : "#fafafa",
+        background: c.cardBgSubtle,
         border: `1px solid ${c.border}`,
         borderRadius: 10,
         padding: "10px 12px",

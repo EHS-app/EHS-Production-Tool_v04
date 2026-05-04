@@ -24,6 +24,7 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import type { ThemePreference } from "../main";
+import { useT, type Translator } from "../lib/i18n/I18nContext";
 
 /**
  * Linear v2 — Tactical Command Center shell.
@@ -100,28 +101,30 @@ interface AppShellProps {
   children: ReactNode;
 }
 
-const NAV_GROUPS: NavGroup[] = [
-  {
-    label: "Prosjekt",
-    items: [
-      { id: "oversikt", label: "Oversikt", icon: Activity },
-      { id: "rigging", label: "Rigg", icon: Briefcase },
-      { id: "lighting", label: "Lys", icon: Zap },
-      { id: "led", label: "LED", icon: MonitorPlay },
-      { id: "sound", label: "Lyd", icon: Speaker },
-      { id: "stage", label: "Scene", icon: AlignLeft },
-      { id: "riggPlan", label: "Rigg-plan", icon: LayoutGrid },
-    ],
-  },
-  {
-    label: "Logistikk",
-    items: [
-      { id: "crew", label: "Crew", icon: Users },
-      { id: "hotel", label: "Hotell", icon: Bed },
-      { id: "catering", label: "Catering", icon: Coffee },
-    ],
-  },
-];
+function buildNavGroups(t: Translator): NavGroup[] {
+  return [
+    {
+      label: t("shell.nav.project"),
+      items: [
+        { id: "oversikt", label: t("shell.nav.overview"), icon: Activity },
+        { id: "rigging", label: t("shell.nav.rigging"), icon: Briefcase },
+        { id: "lighting", label: t("shell.nav.lighting"), icon: Zap },
+        { id: "led", label: t("shell.nav.led"), icon: MonitorPlay },
+        { id: "sound", label: t("shell.nav.sound"), icon: Speaker },
+        { id: "stage", label: t("shell.nav.stage"), icon: AlignLeft },
+        { id: "riggPlan", label: t("shell.nav.riggPlan"), icon: LayoutGrid },
+      ],
+    },
+    {
+      label: t("shell.nav.logistics"),
+      items: [
+        { id: "crew", label: t("shell.nav.crew"), icon: Users },
+        { id: "hotel", label: t("shell.nav.hotel"), icon: Bed },
+        { id: "catering", label: t("shell.nav.catering"), icon: Coffee },
+      ],
+    },
+  ];
+}
 
 function statusToneStyle(tone: "success" | "warning" | "danger" | "neutral"): React.CSSProperties {
   switch (tone) {
@@ -200,6 +203,7 @@ export function AppShell({
   onSignOut,
   children,
 }: AppShellProps) {
+  const t = useT();
   const [overflowOpen, setOverflowOpen] = React.useState(false);
   const [themeOpen, setThemeOpen] = React.useState(false);
   const overflowRef = React.useRef<HTMLDivElement | null>(null);
@@ -234,7 +238,7 @@ export function AppShell({
   }, [overflowOpen, themeOpen]);
 
   // Hide Catering / Hotel rows when no server brief exists yet.
-  const groups = NAV_GROUPS.map((g) => ({
+  const groups = buildNavGroups(t).map((g) => ({
     ...g,
     items: g.items
       .map((it) => ({
@@ -281,11 +285,11 @@ export function AppShell({
           <button
             type="button"
             className="ehs-shell-side-action"
-            title="Søk i prosjektet (kommer snart)"
+            title={t("shell.searchTitle")}
             disabled
           >
             <Search size={14} />
-            <span>Søk i prosjekt</span>
+            <span>{t("shell.search")}</span>
             <span className="ehs-shell-kbd-row">
               <kbd className="ehs-shell-kbd">
                 <Command size={10} />
@@ -297,11 +301,11 @@ export function AppShell({
             type="button"
             className="ehs-shell-side-action"
             onClick={() => onChangeView("rigging")}
-            title="Legg til nytt system"
+            title={t("shell.newSystemTitle")}
             style={{ marginTop: 4 }}
           >
             <Plus size={14} />
-            <span>Nytt system</span>
+            <span>{t("shell.newSystem")}</span>
             <span className="ehs-shell-kbd-row">
               <kbd className="ehs-shell-kbd">N</kbd>
             </span>
@@ -341,7 +345,7 @@ export function AppShell({
             style={{ textDecoration: "none" }}
           >
             <HelpCircle size={15} strokeWidth={1.75} />
-            <span style={{ flex: 1, textAlign: "left" }}>Hjelp</span>
+            <span style={{ flex: 1, textAlign: "left" }}>{t("shell.help")}</span>
           </Link>
         </div>
 
@@ -356,8 +360,8 @@ export function AppShell({
               type="button"
               className="ehs-shell-icon-btn"
               onClick={() => setThemeOpen((v) => !v)}
-              title="Innstillinger"
-              aria-label="Innstillinger"
+              title={t("shell.settings")}
+              aria-label={t("shell.settings")}
               aria-haspopup="menu"
               aria-expanded={themeOpen}
             >
@@ -365,7 +369,7 @@ export function AppShell({
             </button>
             {themeOpen ? (
               <div className="ehs-shell-menu" role="menu">
-                <div className="ehs-shell-menu-label">Tema</div>
+                <div className="ehs-shell-menu-label">{t("theme.label")}</div>
                 {(["light", "dark", "system"] as const).map((opt) => (
                   <button
                     key={opt}
@@ -378,7 +382,7 @@ export function AppShell({
                       setThemeOpen(false);
                     }}
                   >
-                    {opt === "light" ? "Lys" : opt === "dark" ? "Mørk" : "System"}
+                    {opt === "light" ? t("theme.light") : opt === "dark" ? t("theme.dark") : t("theme.system")}
                   </button>
                 ))}
                 <div className="ehs-shell-menu-sep" />
@@ -387,7 +391,7 @@ export function AppShell({
                   className="ehs-shell-menu-item"
                   onClick={() => setThemeOpen(false)}
                 >
-                  Freelance Portal
+                  {t("shell.portalLink")}
                 </Link>
                 {userEmail ? (
                   <div className="ehs-shell-menu-meta" title={userEmail}>
@@ -403,7 +407,7 @@ export function AppShell({
                     onSignOut();
                   }}
                 >
-                  <LogOut size={12} /> Logg ut
+                  <LogOut size={12} /> {t("shell.signOut")}
                 </button>
               </div>
             ) : null}
@@ -420,11 +424,11 @@ export function AppShell({
               className="ehs-shell-crumb-link"
               onClick={() => onChangeView("oversikt")}
             >
-              Prosjekter
+              {t("shell.breadcrumb.projects")}
             </button>
             <span className="ehs-shell-crumb-sep">/</span>
             <span className="ehs-shell-crumb-current" title={projectTitle}>
-              {projectTitle || "Uten navn"}
+              {projectTitle || t("shell.breadcrumb.untitled")}
             </span>
             {projectStatus ? (
               <span
@@ -435,8 +439,8 @@ export function AppShell({
               </span>
             ) : null}
             {savedAt ? (
-              <span className="ehs-shell-saved" title="Lagret lokalt i nettleseren">
-                <span className="ehs-shell-saved-dot" /> Lagret {savedAt}
+              <span className="ehs-shell-saved" title={t("shell.savedTitle")}>
+                <span className="ehs-shell-saved-dot" /> {t("shell.saved", { time: savedAt })}
               </span>
             ) : null}
           </div>
@@ -480,10 +484,10 @@ export function AppShell({
                   type="button"
                   className="ehs-shell-icon-btn"
                   onClick={() => setOverflowOpen((v) => !v)}
-                  aria-label="Flere handlinger"
+                  aria-label={t("shell.moreActions")}
                   aria-haspopup="menu"
                   aria-expanded={overflowOpen}
-                  title="Flere handlinger"
+                  title={t("shell.moreActions")}
                 >
                   <MoreHorizontal size={14} />
                 </button>

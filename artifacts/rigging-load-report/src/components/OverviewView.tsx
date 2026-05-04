@@ -14,6 +14,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import type { ShellView } from "./AppShell";
+import { useT } from "../lib/i18n/I18nContext";
 
 /**
  * Linear v2 dashboard — the new "Oversikt" landing page.
@@ -165,11 +166,12 @@ export function OverviewView({
   activity,
   onJump,
 }: Props) {
+  const t = useT();
   return (
     <div className="ehs-overview">
       {/* Title */}
       <header className="ehs-overview-head">
-        <h1 className="ehs-overview-title">{projectTitle || "Uten navn"}</h1>
+        <h1 className="ehs-overview-title">{projectTitle || t("shell.breadcrumb.untitled")}</h1>
         <div className="ehs-overview-meta">
           {dateLabel ? (
             <span className="ehs-overview-meta-item">
@@ -240,26 +242,26 @@ export function OverviewView({
           <section>
             <div className="ehs-overview-section-head">
               <h2 className="ehs-overview-section-title">
-                <Users size={14} style={{ color: "var(--primary)" }} /> Crew &amp; Tidsplan
+                <Users size={14} style={{ color: "var(--primary)" }} /> {t("overview.crewSchedule")}
               </h2>
               <button
                 type="button"
                 className="ehs-overview-section-action"
                 onClick={() => onJump("crew")}
               >
-                Se full tidsplan <ArrowUpRight size={12} />
+                {t("overview.viewFullSchedule")} <ArrowUpRight size={12} />
               </button>
             </div>
             <div className="ehs-card ehs-overview-crew">
               {crewRows.length === 0 ? (
                 <div className="ehs-overview-empty">
-                  Ingen crew lagt til ennå.{" "}
+                  {t("overview.noCrew")}{" "}
                   <button
                     type="button"
                     className="ehs-overview-link"
                     onClick={() => onJump("crew")}
                   >
-                    Legg til crew
+                    {t("overview.addCrew")}
                   </button>
                 </div>
               ) : (
@@ -267,7 +269,7 @@ export function OverviewView({
                   <table className="ehs-overview-crew-table">
                     <thead>
                       <tr>
-                        <th style={{ width: "30%" }}>Navn &amp; Rolle</th>
+                        <th style={{ width: "30%" }}>{t("overview.nameRole")}</th>
                         {crewDayHeaders.map((h) => (
                           <th key={h}>{h}</th>
                         ))}
@@ -284,7 +286,7 @@ export function OverviewView({
                                 aria-hidden
                               />
                               <div style={{ minWidth: 0 }}>
-                                <div className="ehs-overview-crew-name">{row.name || "Uten navn"}</div>
+                                <div className="ehs-overview-crew-name">{row.name || t("shell.breadcrumb.untitled")}</div>
                                 <div className="ehs-overview-crew-role">{row.role || "—"}</div>
                               </div>
                             </div>
@@ -310,9 +312,9 @@ export function OverviewView({
               )}
               <div className="ehs-overview-crew-foot">
                 <div className="ehs-overview-crew-legend">
-                  <span><span className="ehs-overview-crew-dot" style={{ background: "#7B5BFF" }} /> Bekreftet</span>
-                  <span><span className="ehs-overview-crew-dot" style={{ background: "#f59e0b" }} /> Venter svar</span>
-                  <span><span className="ehs-overview-crew-dot" style={{ background: "#f43f5e" }} /> Avlyst</span>
+                  <span><span className="ehs-overview-crew-dot" style={{ background: "#7B5BFF" }} /> {t("overview.legend.confirmed")}</span>
+                  <span><span className="ehs-overview-crew-dot" style={{ background: "#f59e0b" }} /> {t("overview.legend.pending")}</span>
+                  <span><span className="ehs-overview-crew-dot" style={{ background: "#f43f5e" }} /> {t("overview.legend.cancelled")}</span>
                 </div>
                 <div className="ehs-overview-crew-summary">{crewSummary}</div>
               </div>
@@ -322,25 +324,25 @@ export function OverviewView({
           <section style={{ marginTop: 32 }}>
             <div className="ehs-overview-section-head">
               <h2 className="ehs-overview-section-title">
-                <Activity size={14} style={{ color: "var(--primary)" }} /> Tekniske Systemer
+                <Activity size={14} style={{ color: "var(--primary)" }} /> {t("overview.technicalSystems")}
               </h2>
               <button
                 type="button"
                 className="ehs-overview-section-action"
                 onClick={() => onJump("rigging")}
               >
-                Åpne rigg-rapport <ArrowUpRight size={12} />
+                {t("overview.openRigReport")} <ArrowUpRight size={12} />
               </button>
             </div>
             {systems.length === 0 ? (
               <div className="ehs-card ehs-overview-empty" style={{ padding: 24 }}>
-                Ingen systemer registrert ennå.{" "}
+                {t("overview.noSystems")}{" "}
                 <button
                   type="button"
                   className="ehs-overview-link"
                   onClick={() => onJump("rigging")}
                 >
-                  Bygg første system
+                  {t("overview.buildFirstSystem")}
                 </button>
               </div>
             ) : (
@@ -380,7 +382,7 @@ export function OverviewView({
         <aside className="ehs-overview-col-side">
           <section>
             <div className="ehs-overview-section-head">
-              <h2 className="ehs-overview-section-title">Logistikk</h2>
+              <h2 className="ehs-overview-section-title">{t("overview.logistics")}</h2>
             </div>
             <div className="ehs-overview-logistics">
               {hotelSummary ? (
@@ -412,8 +414,8 @@ export function OverviewView({
                       <Bed size={14} />
                     </span>
                     <div style={{ flex: 1 }}>
-                      <div className="ehs-overview-system-title">Hotell</div>
-                      <div className="ehs-overview-system-sub">Del brief for å aktivere hotell-info</div>
+                      <div className="ehs-overview-system-title">{t("overview.hotel")}</div>
+                      <div className="ehs-overview-system-sub">{t("overview.shareBriefHotel")}</div>
                     </div>
                   </div>
                 </div>
@@ -447,8 +449,8 @@ export function OverviewView({
                       <Coffee size={14} />
                     </span>
                     <div style={{ flex: 1 }}>
-                      <div className="ehs-overview-system-title">Catering</div>
-                      <div className="ehs-overview-system-sub">Del brief for å aktivere catering</div>
+                      <div className="ehs-overview-system-title">{t("overview.catering")}</div>
+                      <div className="ehs-overview-system-sub">{t("overview.shareBriefCatering")}</div>
                     </div>
                   </div>
                 </div>
@@ -458,11 +460,11 @@ export function OverviewView({
 
           <section style={{ marginTop: 32 }}>
             <div className="ehs-overview-section-head">
-              <h2 className="ehs-overview-section-title">Aktivitet</h2>
+              <h2 className="ehs-overview-section-title">{t("overview.activityTitle")}</h2>
             </div>
             <div className="ehs-card ehs-overview-activity">
               {activity.length === 0 ? (
-                <div className="ehs-overview-empty">Ingen aktivitet ennå.</div>
+                <div className="ehs-overview-empty">{t("overview.noActivity")}</div>
               ) : (
                 activity.map((a) => (
                   <div key={a.id} className="ehs-overview-activity-row">

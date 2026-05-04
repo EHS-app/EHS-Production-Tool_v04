@@ -52,7 +52,7 @@ import { findProcessor } from "./lib/ledProcessors";
 import { NumberField } from "./components/NumberField";
 import { ShareBriefModal } from "./components/ShareBriefModal";
 import { HelpModal } from "./components/HelpModal";
-import { useT } from "./lib/i18n/I18nContext";
+import { useI18n } from "./lib/i18n/I18nContext";
 import { buildBrief, type BuildBriefInput } from "./lib/projectBrief";
 import type { CrewRequestStatus } from "./lib/crew";
 import { exportScreenAsPng, getLogoDataUrl } from "./lib/ledExport";
@@ -1158,7 +1158,8 @@ function App() {
   // Aliased to `tr` because this file already uses `t` as a local variable
   // name in many places (e.g. `const t = persisted?.theme`); using the
   // translator under a distinct name avoids accidental shadowing.
-  const tr = useT();
+  const { t: tr, locale: i18nLocale } = useI18n();
+  const dateLocale = i18nLocale === "no" ? "nb-NO" : "en-US";
 
   const [themePref, setThemePref] = useState<ThemePref>(() => {
     const t = persisted?.theme;
@@ -4310,19 +4311,19 @@ function App() {
   const dateLabel = useMemo(() => {
     if (!reportDate) return "";
     const start = new Date(reportDate);
-    const startStr = start.toLocaleDateString("nb-NO", {
+    const startStr = start.toLocaleDateString(dateLocale, {
       day: "numeric",
       month: "short",
     });
     if (!reportEndDate || reportEndDate === reportDate) return startStr;
     const end = new Date(reportEndDate);
-    const endStr = end.toLocaleDateString("nb-NO", {
+    const endStr = end.toLocaleDateString(dateLocale, {
       day: "numeric",
       month: "short",
       year: "numeric",
     });
     return `${startStr} – ${endStr}`;
-  }, [reportDate, reportEndDate]);
+  }, [reportDate, reportEndDate, dateLocale]);
 
   const overviewCrewDays = useMemo(() => {
     const seen = new Map<string, { label: string; phase: string }>();
@@ -4332,7 +4333,7 @@ function App() {
       for (const d of days) {
         if (!seen.has(d)) {
           const dt = new Date(d);
-          const wd = dt.toLocaleDateString("nb-NO", { weekday: "short" });
+          const wd = dt.toLocaleDateString(dateLocale, { weekday: "short" });
           const dn = dt.getDate();
           const cap = wd.charAt(0).toUpperCase() + wd.slice(1, 3);
           seen.set(d, { label: `${cap} ${dn}`, phase });
@@ -4340,7 +4341,7 @@ function App() {
       }
     }
     return [...seen.entries()].map(([date, v]) => ({ date, label: v.label, phase: v.phase }));
-  }, [phaseDays]);
+  }, [phaseDays, dateLocale]);
 
   const overviewCrewDayHeaders = useMemo(
     () => overviewCrewDays.map((d) => d.label),
@@ -4391,9 +4392,9 @@ function App() {
         c.requestStatus === "no-reply" ||
         c.requestStatus === "too_late",
     ).length;
-    if (total === 0) return "Ingen crew lagt til";
-    return `${confirmed}/${total} bekreftet · ${pending} venter · ${declined} avlyst`;
-  }, [crew]);
+    if (total === 0) return tr("overview.crewSummary.none");
+    return tr("overview.crewSummary.line", { confirmed: String(confirmed), total: String(total), pending: String(pending), declined: String(declined) });
+  }, [crew, tr]);
 
   const overviewKpis = useMemo<OverviewKpi[]>(() => {
     const totalCrew = crew.length;
@@ -4414,41 +4415,43 @@ function App() {
     const totalKw = projectTotals.totalPower / 1000;
     return [
       {
-        label: "Crew",
+        label: tr("overview.kpi.crew"),
         value: String(totalCrew),
-        caption: totalCrew > 0 ? `· ${confirmed} bekreftet` : "",
+        caption: totalCrew > 0 ? `· ${tr("overview.kpi.confirmedOf", { confirmed: String(confirmed) })}` : "",
         progressValue: confirmed,
         progressMax: Math.max(1, totalCrew),
         progressColor: "#7B5BFF",
         trend:
           totalCrew > 0
             ? {
-                label: `${Math.round((confirmed / Math.max(1, totalCrew)) * 100)}% klart`,
+                label: tr("overview.kpi.readyPct", { pct: String(Math.round((confirmed / Math.max(1, totalCrew)) * 100)) }),
                 tone: "up",
               }
             : undefined,
       },
       {
-        label: "Topplast",
+        label: tr("overview.kpi.peakLoad"),
         value: peakTon.toFixed(2),
-        caption: "tonn",
+        caption: tr("overview.kpi.tonnes"),
         progressValue: peakTon,
         progressMax: Math.max(0.001, totalSwlTon),
         progressColor:
           projectTotals.overloadedPoints > 0 ? "#f43f5e" : "#7B5BFF",
         trend:
           projectTotals.overloadedPoints > 0
-            ? { label: `${projectTotals.overloadedPoints} overlast`, tone: "down" }
+            ? { label: tr("overview.kpi.overloadCount", { n: String(projectTotals.overloadedPoints) }), tone: "down" }
             : totalSwlTon > 0
-              ? { label: `SWL-tak ${totalSwlTon.toFixed(1)} t`, tone: "neutral" }
+              ? { label: tr("overview.kpi.swlCap", { value: totalSwlTon.toFixed(1) }), tone: "neutral" }
               : undefined,
       },
       {
-        label: "LED-paneler",
+        label: tr("overview.kpi.ledPanels"),
         value: String(ledPanels),
         caption:
           ledPanels > 0
-            ? `i ${ledTotals.screens} skjerm${ledTotals.screens === 1 ? "" : "er"}`
+            ? (ledTotals.screens === 1
+                ? tr("overview.kpi.inScreens", { n: String(ledTotals.screens) })
+                : tr("overview.kpi.inScreensPlural", { n: String(ledTotals.screens) }))
             : "",
         progressValue: ledPanels,
         progressMax: ledMax,
@@ -4459,7 +4462,7 @@ function App() {
             : undefined,
       },
       {
-        label: "Effekt",
+        label: tr("overview.kpi.power"),
         value: totalKw.toFixed(1),
         caption: "kW",
         progressValue: totalKw,
@@ -4468,13 +4471,13 @@ function App() {
         trend:
           projectTotals.totalPoints > 0
             ? {
-                label: `${projectTotals.totalPoints} hoist-punkt`,
+                label: tr("overview.kpi.hoistPoints", { n: String(projectTotals.totalPoints) }),
                 tone: "neutral",
               }
             : undefined,
       },
     ];
-  }, [crew, projectTotals, systems, ledTotals]);
+  }, [crew, projectTotals, systems, ledTotals, tr]);
 
   const overviewSystems = useMemo<OverviewSystemCard[]>(() => {
     const cards: OverviewSystemCard[] = [];
@@ -4483,29 +4486,31 @@ function App() {
       cards.push({
         id: s.id,
         title: s.name,
-        subtitle: `${s.pointCount} punkt · ${getHoist(s.hoistIndex).label}`,
+        subtitle: `${tr("overview.system.points", { n: String(s.pointCount) })} · ${getHoist(s.hoistIndex).label}`,
         icon: "rig",
         rows: [
-          { label: "Statisk", value: `${(m?.static ?? 0).toFixed(0)} kg` },
+          { label: tr("overview.system.static"), value: `${(m?.static ?? 0).toFixed(0)} kg` },
           {
-            label: "Topplast",
+            label: tr("overview.system.peakLoad"),
             value: `${(m?.peak ?? 0).toFixed(0)} kg`,
             warn: !!m && m.swl > 0 && m.peak > m.swl,
           },
-          { label: "Effekt", value: `${((m?.power ?? 0) / 1000).toFixed(1)} kW` },
+          { label: tr("overview.system.power"), value: `${((m?.power ?? 0) / 1000).toFixed(1)} kW` },
         ],
       });
     }
     if (allLedScreens.length > 0) {
       cards.push({
         id: "led-summary",
-        title: "LED-vegg",
-        subtitle: `${allLedScreens.length} skjerm${allLedScreens.length === 1 ? "" : "er"} · ${ledTotals.panels} paneler`,
+        title: tr("overview.system.ledWall"),
+        subtitle: allLedScreens.length === 1
+          ? tr("overview.system.screens", { n: String(allLedScreens.length), panels: String(ledTotals.panels) })
+          : tr("overview.system.screensPlural", { n: String(allLedScreens.length), panels: String(ledTotals.panels) }),
         icon: "led",
         rows: [
-          { label: "Areal", value: `${ledTotals.areaM2.toFixed(1)} m²` },
-          { label: "Effekt", value: `${(ledTotals.powerW / 1000).toFixed(1)} kW` },
-          { label: "Vekt", value: `${ledTotals.weightKg.toFixed(0)} kg` },
+          { label: tr("overview.system.area"), value: `${ledTotals.areaM2.toFixed(1)} m²` },
+          { label: tr("overview.system.power"), value: `${(ledTotals.powerW / 1000).toFixed(1)} kW` },
+          { label: tr("overview.system.weight"), value: `${ledTotals.weightKg.toFixed(0)} kg` },
         ],
       });
     }
@@ -4516,10 +4521,12 @@ function App() {
       );
       cards.push({
         id: "sound-summary",
-        title: "Lyd",
-        subtitle: `${soundItems.length} enhet${soundItems.length === 1 ? "" : "er"}`,
+        title: tr("overview.system.sound"),
+        subtitle: soundItems.length === 1
+          ? tr("overview.system.units", { n: String(soundItems.length) })
+          : tr("overview.system.unitsPlural", { n: String(soundItems.length) }),
         icon: "sound",
-        rows: [{ label: "Vekt", value: `${totalKg.toFixed(0)} kg` }],
+        rows: [{ label: tr("overview.system.weight"), value: `${totalKg.toFixed(0)} kg` }],
       });
     }
     if (allLightingFixtures.length > 0) {
@@ -4530,31 +4537,33 @@ function App() {
       );
       cards.push({
         id: "lights-summary",
-        title: "Lysrigg",
-        subtitle: `${qty} fixtures totalt`,
+        title: tr("overview.system.lights"),
+        subtitle: tr("overview.system.fixturesTotalPlural", { n: String(qty) }),
         icon: "lights",
-        rows: [{ label: "Effekt", value: `${(watts / 1000).toFixed(1)} kW` }],
+        rows: [{ label: tr("overview.system.power"), value: `${(watts / 1000).toFixed(1)} kW` }],
       });
     }
     if (stages.length > 0) {
       cards.push({
         id: "stage-summary",
-        title: "Scene",
-        subtitle: `${stages.length} scene-enhet${stages.length === 1 ? "" : "er"}`,
+        title: tr("overview.system.stage"),
+        subtitle: stages.length === 1
+          ? tr("overview.system.stageUnits", { n: String(stages.length) })
+          : tr("overview.system.stageUnitsPlural", { n: String(stages.length) }),
         icon: "stage",
         rows: [],
       });
     }
     return cards;
-  }, [systems, allMetrics, allLedScreens, ledTotals, soundItems, allLightingFixtures, stages]);
+  }, [systems, allMetrics, allLedScreens, ledTotals, soundItems, allLightingFixtures, stages, tr]);
 
   const overviewActivity = useMemo<OverviewActivityItem[]>(() => {
     const items: OverviewActivityItem[] = [];
     if (savedAt) {
       items.push({
         id: "saved",
-        title: "Prosjekt lagret",
-        body: "Endringer er lagret i nettleseren din",
+        title: tr("overview.activity.saved"),
+        body: tr("overview.activity.savedBody"),
         timeLabel: savedAt,
         tone: "success",
       });
@@ -4562,25 +4571,25 @@ function App() {
     if (projectTotals.overloadedPoints > 0) {
       items.push({
         id: "overload",
-        title: `${projectTotals.overloadedPoints} hoist-punkt over SWL`,
-        body: "Sjekk Rigg-rapporten og fordel lasten",
-        timeLabel: "Nå",
+        title: tr("overview.activity.overloadTitle", { n: String(projectTotals.overloadedPoints) }),
+        body: tr("overview.activity.overloadBody"),
+        timeLabel: tr("overview.activity.now"),
         tone: "warning",
       });
     }
     if (activeBriefId) {
       items.push({
         id: "brief",
-        title: "Brief delt med crew",
-        body: "Catering- og hotell-info aktiveres når crew svarer",
-        timeLabel: "Aktiv",
+        title: tr("overview.activity.briefShared"),
+        body: tr("overview.activity.briefSharedBody"),
+        timeLabel: tr("overview.activity.active"),
         tone: "info",
       });
     } else if (crew.length > 0) {
       items.push({
         id: "no-brief",
-        title: "Brief ikke delt ennå",
-        body: 'Klikk "Del brief" for å sende invitasjon til crew',
+        title: tr("overview.activity.noBrief"),
+        body: tr("overview.activity.noBriefBody"),
         timeLabel: "—",
         tone: "neutral",
       });
@@ -4588,14 +4597,14 @@ function App() {
     if (systems.length === 0 && crew.length === 0) {
       items.push({
         id: "empty",
-        title: "Velkommen til EHS Production Tool",
-        body: "Start med å registrere venue og legg inn ditt første rigg-system.",
+        title: tr("overview.activity.welcome"),
+        body: tr("overview.activity.welcomeBody"),
         timeLabel: "—",
         tone: "info",
       });
     }
     return items;
-  }, [savedAt, projectTotals.overloadedPoints, activeBriefId, crew.length, systems.length]);
+  }, [savedAt, projectTotals.overloadedPoints, activeBriefId, crew.length, systems.length, tr]);
 
   const overviewBadges = useMemo<Partial<Record<ShellView, number>>>(
     () => ({
@@ -4621,25 +4630,26 @@ function App() {
     tone: "success" | "warning" | "danger" | "neutral";
   }>(() => {
     if (projectTotals.overloadedPoints > 0) {
-      return { label: "● Overlast", tone: "danger" };
+      return { label: `● ${tr("overview.status.overload")}`, tone: "danger" };
     }
     if (systems.length === 0 && crew.length === 0) {
-      return { label: "● Tomt", tone: "neutral" };
+      return { label: `● ${tr("overview.status.empty")}`, tone: "neutral" };
     }
     if (activeBriefId) {
-      return { label: "● Aktiv", tone: "success" };
+      return { label: `● ${tr("overview.status.active")}`, tone: "success" };
     }
-    return { label: "● Utkast", tone: "neutral" };
+    return { label: `● ${tr("overview.status.draft")}`, tone: "neutral" };
   }, [
     projectTotals.overloadedPoints,
     systems.length,
     crew.length,
     activeBriefId,
+    tr,
   ]);
 
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? undefined;
   const userName =
-    user?.fullName || user?.firstName || userEmail || "Bruker";
+    user?.fullName || user?.firstName || userEmail || tr("overview.defaultUser");
   const userInitial = (
     user?.firstName?.[0] ||
     userEmail?.[0] ||
@@ -4664,35 +4674,35 @@ function App() {
     () => [
       {
         id: "share",
-        label: "Del brief",
+        label: tr("shell.action.shareBrief"),
         icon: ShellShare2,
         variant: "primary",
         onClick: () => setShareOpen(true),
-        title: "Generer per-crew brief-lenker for freelancere",
+        title: tr("shell.action.shareBriefTitle"),
       },
     ],
-    [],
+    [tr],
   );
 
   const shellSecondaryActions: ShellAction[] = useMemo(
     () => [
       {
         id: "client-pack",
-        label: "Client Pack",
+        label: tr("shell.action.clientPack"),
         icon: ShellFileText,
         variant: "secondary",
         onClick: exportClientPackPdf,
-        title: "Åpne klient-pack med tidsplan, crew, rigg og kost",
+        title: tr("shell.action.clientPackTitle"),
       },
     ],
-    [exportClientPackPdf],
+    [exportClientPackPdf, tr],
   );
 
   const shellOverflowActions: ShellAction[] = useMemo(
     () => [
       {
         id: "export-report",
-        label: "Skriv ut rapport",
+        label: tr("shell.action.printReport"),
         icon: ShellFileDown,
         onClick: () => {
           if (mainView !== "rigging") {
@@ -4704,35 +4714,35 @@ function App() {
             window.print();
           }
         },
-        title: "Skriv ut rigg-rapporten",
+        title: tr("shell.action.printReportTitle"),
       },
       {
         id: "csv",
-        label: "Last ned CSV",
+        label: tr("shell.action.downloadCsv"),
         icon: ShellDownload,
         onClick: downloadCsv,
       },
       {
         id: "simulate",
-        label: "Simuler show",
+        label: tr("shell.action.simulate"),
         icon: ShellPlayCircle,
         onClick: simulateShow,
-        title: "Gå gjennom 10 produksjonsfaser med risiko og verdikt",
+        title: tr("shell.action.simulateTitle"),
       },
       {
         id: "reset",
-        label: "Nullstill prosjekt",
+        label: tr("shell.action.resetProject"),
         icon: ShellRotateCcw,
         onClick: resetAll,
       },
       {
         id: "help",
-        label: "Hjelp",
+        label: tr("shell.help"),
         icon: ShellHelpCircle,
         onClick: () => setHelpOpen(true),
       },
     ],
-    [mainView, downloadCsv, simulateShow, resetAll],
+    [mainView, downloadCsv, simulateShow, resetAll, tr],
   );
 
   const projectMetaSlot = (
@@ -4785,7 +4795,7 @@ function App() {
         onChangeView={(v) => setMainView(v as MainView)}
         workspaceLabel="Production Tool"
         workspaceLogoSrc={ehsLogo}
-        projectTitle={venue || "Uten navn"}
+        projectTitle={venue || tr("shell.breadcrumb.untitled")}
         projectStatus={projectStatus}
         badges={overviewBadges}
         showCatering={!!activeBriefId}
@@ -4798,13 +4808,13 @@ function App() {
         onChangeTheme={setThemePref}
         userInitial={userInitial}
         userName={userName}
-        userRole="Produsent"
+        userRole={tr("shell.userRole.producer")}
         userEmail={userEmail}
         onSignOut={handleShellSignOut}
       >
       {mainView === "oversikt" && (
         <OverviewView
-          projectTitle={venue || "Uten navn"}
+          projectTitle={venue || tr("shell.breadcrumb.untitled")}
           dateLabel={dateLabel}
           venueLabel={venue}
           metaSlot={projectMetaSlot}
@@ -4816,18 +4826,18 @@ function App() {
           hotelSummary={
             activeBriefId
               ? {
-                  headline: "Hotell aktivt",
-                  sub: "Per-natt aggregert fra brief",
-                  cta: { label: "Åpne hotell-fane", onClick: () => setMainView("hotel") },
+                  headline: tr("overview.hotelActive"),
+                  sub: tr("overview.hotelActiveSub"),
+                  cta: { label: tr("overview.openHotelTab"), onClick: () => setMainView("hotel") },
                 }
               : null
           }
           cateringSummary={
             activeBriefId
               ? {
-                  headline: "Catering aktivt",
-                  sub: "Allergier og dietter aggregert fra crew",
-                  cta: { label: "Åpne catering-fane", onClick: () => setMainView("catering") },
+                  headline: tr("overview.cateringActive"),
+                  sub: tr("overview.cateringActiveSub"),
+                  cta: { label: tr("overview.openCateringTab"), onClick: () => setMainView("catering") },
                 }
               : null
           }

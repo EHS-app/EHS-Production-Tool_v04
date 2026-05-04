@@ -4811,6 +4811,7 @@ function App() {
         userRole={tr("shell.userRole.producer")}
         userEmail={userEmail}
         onSignOut={handleShellSignOut}
+        onHelp={() => setHelpOpen(true)}
       >
       {mainView === "oversikt" && (
         <OverviewView

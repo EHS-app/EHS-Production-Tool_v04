@@ -98,6 +98,7 @@ interface AppShellProps {
   userRole: string;
   userEmail?: string;
   onSignOut: () => void;
+  onHelp?: () => void;
   children: ReactNode;
 }
 
@@ -201,6 +202,7 @@ export function AppShell({
   userRole,
   userEmail,
   onSignOut,
+  onHelp,
   children,
 }: AppShellProps) {
   const t = useT();
@@ -339,14 +341,15 @@ export function AppShell({
         </nav>
 
         <div style={{ padding: "0 12px", marginTop: "auto", marginBottom: 4 }}>
-          <Link
-            href="/portal/help"
+          <button
+            type="button"
             className="ehs-shell-nav-item"
-            style={{ textDecoration: "none" }}
+            style={{ background: "none", border: "none", cursor: "pointer", width: "100%", textDecoration: "none" }}
+            onClick={onHelp}
           >
             <HelpCircle size={15} strokeWidth={1.75} />
             <span style={{ flex: 1, textAlign: "left" }}>{t("shell.help")}</span>
-          </Link>
+          </button>
         </div>
 
         <div className="ehs-shell-user">

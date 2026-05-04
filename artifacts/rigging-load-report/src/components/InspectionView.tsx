@@ -178,7 +178,7 @@ export function InspectionView({ data, onChange }: Props) {
   };
 
   return (
-    <div style={{ padding: "32px 40px", maxWidth: 1400 }}>
+    <div className="inspection-view" style={{ padding: "32px 40px", maxWidth: 1400 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <ClipboardCheck size={24} style={{ color: "var(--primary)" }} />
         <h1 style={{ fontSize: 22, fontWeight: 600, color: "var(--text-main)", margin: 0 }}>
@@ -201,6 +201,7 @@ export function InspectionView({ data, onChange }: Props) {
       </div>
 
       <div
+        className="inspection-split"
         style={{
           display: "grid",
           gridTemplateColumns: hasExtracted ? "1fr 1fr" : "1fr",

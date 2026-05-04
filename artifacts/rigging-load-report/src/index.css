@@ -8423,3 +8423,128 @@ html[data-shell="linear"] .container {
 [data-theme="light"] .proj-row.is-current {
   background: rgba(123, 91, 255, 0.08);
 }
+
+/* ──────────────────────────────────────────────────────────────────
+   MOBILE LAYOUT (≤900px)
+   Slides the sidebar off-canvas behind a backdrop and shrinks the
+   main padding. Desktop appearance is fully preserved above 900px.
+   Hamburger button is hidden by default and only revealed inside
+   the mobile media query.
+   ────────────────────────────────────────────────────────────── */
+.ehs-shell-mobile-menu-btn {
+  display: none;
+}
+.ehs-shell-backdrop {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  body {
+    padding: 0;
+  }
+  .ehs-shell {
+    grid-template-columns: 1fr;
+  }
+  .ehs-shell-aside {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    max-width: 85vw;
+    height: 100dvh;
+    transform: translateX(-100%);
+    transition: transform 220ms ease;
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.35);
+    z-index: 60;
+  }
+  .ehs-shell-aside.is-open {
+    transform: translateX(0);
+  }
+  .ehs-shell-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 55;
+    animation: ehs-mobile-fade 180ms ease both;
+  }
+  @keyframes ehs-mobile-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  .ehs-shell-mobile-menu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-right: 6px;
+    padding: 0;
+  }
+  .ehs-shell-mobile-menu-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .ehs-shell-content {
+    padding: 16px 14px 40px;
+  }
+  .ehs-shell-topbar {
+    padding: 0 12px;
+    height: 56px;
+    gap: 4px;
+  }
+  .ehs-shell-crumbs {
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .ehs-shell-crumb-current {
+    max-width: 16ch;
+    font-size: 13px;
+  }
+  .ehs-shell-saved {
+    display: none;
+  }
+  .ehs-shell-status {
+    display: none;
+  }
+  .ehs-shell-topbar-actions {
+    gap: 4px;
+  }
+  .ehs-shell-action {
+    padding: 0 8px;
+    height: 32px;
+  }
+  .ehs-shell-action span {
+    display: none;
+  }
+
+  /* Inspection / Befaring tab — collapse split layout to a single
+     column on mobile. !important is required because the component
+     sets these via inline style. */
+  .inspection-view {
+    padding: 16px 14px !important;
+  }
+  .inspection-split {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .ehs-shell-crumb-link,
+  .ehs-shell-crumb-sep {
+    display: none;
+  }
+  .ehs-shell-crumb-current {
+    max-width: 22ch;
+  }
+}

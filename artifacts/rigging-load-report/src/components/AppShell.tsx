@@ -13,6 +13,7 @@ import {
   Download,
   LogOut,
   MapPin,
+  Menu,
   MonitorPlay,
   MoreHorizontal,
   Plus,
@@ -217,8 +218,40 @@ export function AppShell({
   const [overflowOpen, setOverflowOpen] = React.useState(false);
   const [themeOpen, setThemeOpen] = React.useState(false);
   const [cmdOpen, setCmdOpen] = React.useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const overflowRef = React.useRef<HTMLDivElement | null>(null);
   const themeRef = React.useRef<HTMLDivElement | null>(null);
+  const mobileMenuBtnRef = React.useRef<HTMLButtonElement | null>(null);
+  const wasMobileMenuOpenRef = React.useRef(false);
+
+  // Auto-close the mobile drawer when the user picks a nav item.
+  const handleChangeView = React.useCallback(
+    (next: ShellView) => {
+      setMobileMenuOpen(false);
+      onChangeView(next);
+    },
+    [onChangeView],
+  );
+
+  // Close the drawer on Escape so keyboard users aren't trapped.
+  React.useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileMenuOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileMenuOpen]);
+
+  // When the drawer closes, return focus to the hamburger button so
+  // keyboard users land back on the trigger they came from instead of
+  // somewhere off-screen.
+  React.useEffect(() => {
+    if (wasMobileMenuOpenRef.current && !mobileMenuOpen) {
+      mobileMenuBtnRef.current?.focus();
+    }
+    wasMobileMenuOpenRef.current = mobileMenuOpen;
+  }, [mobileMenuOpen]);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -281,8 +314,18 @@ export function AppShell({
 
   return (
     <div className="ehs-shell">
+      {/* Mobile drawer backdrop — only renders when the drawer is open
+          AND the viewport is narrow (the .ehs-shell-backdrop class is
+          display:none above 900px so this is harmless on desktop). */}
+      {mobileMenuOpen ? (
+        <div
+          className="ehs-shell-backdrop"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-hidden
+        />
+      ) : null}
       {/* SIDEBAR */}
-      <aside className="ehs-shell-aside">
+      <aside className={`ehs-shell-aside${mobileMenuOpen ? " is-open" : ""}`}>
         <div
           className={`ehs-shell-workspace${workspaceLogoSrc ? " ehs-shell-workspace--stacked" : ""}`}
         >
@@ -328,7 +371,7 @@ export function AppShell({
           <button
             type="button"
             className="ehs-shell-side-action"
-            onClick={() => onChangeView("rigging")}
+            onClick={() => handleChangeView("rigging")}
             title={t("shell.newSystemTitle")}
             style={{ marginTop: 4 }}
           >
@@ -351,7 +394,7 @@ export function AppShell({
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => onChangeView(item.id)}
+                    onClick={() => handleChangeView(item.id)}
                     className={`ehs-shell-nav-item${active ? " is-active" : ""}`}
                   >
                     <Icon size={15} strokeWidth={1.75} />
@@ -447,6 +490,16 @@ export function AppShell({
       {/* MAIN */}
       <main className="ehs-shell-main">
         <header className="ehs-shell-topbar">
+          <button
+            ref={mobileMenuBtnRef}
+            type="button"
+            className="ehs-shell-mobile-menu-btn"
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            aria-label={t("shell.nav.project")}
+            aria-expanded={mobileMenuOpen}
+          >
+            <Menu size={18} />
+          </button>
           <div className="ehs-shell-crumbs">
             <button
               type="button"
@@ -563,7 +616,7 @@ export function AppShell({
       <CommandPalette
         open={cmdOpen}
         onClose={() => setCmdOpen(false)}
-        onNavigate={(v) => onChangeView(v)}
+        onNavigate={(v) => handleChangeView(v)}
         actions={allActions}
         showHotel={showHotel}
         showCatering={showCatering}

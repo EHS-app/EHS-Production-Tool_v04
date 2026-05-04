@@ -20,6 +20,7 @@ import {
   Speaker,
   Users,
   Zap,
+  HelpCircle,
   LayoutGrid,
 } from "lucide-react";
 import type { ThemePreference } from "../main";
@@ -332,6 +333,17 @@ export function AppShell({
             </div>
           ))}
         </nav>
+
+        <div style={{ padding: "0 12px", marginTop: "auto", marginBottom: 4 }}>
+          <Link
+            href="/portal/help"
+            className="ehs-shell-nav-item"
+            style={{ textDecoration: "none" }}
+          >
+            <HelpCircle size={15} strokeWidth={1.75} />
+            <span style={{ flex: 1, textAlign: "left" }}>Hjelp</span>
+          </Link>
+        </div>
 
         <div className="ehs-shell-user">
           <div className="ehs-shell-user-avatar">{userInitial.toUpperCase()}</div>

@@ -7,6 +7,7 @@ import {
   Bell,
   Briefcase,
   ChevronDown,
+  ClipboardCheck,
   Coffee,
   Command,
   Download,
@@ -53,7 +54,8 @@ export type ShellView =
   | "crew"
   | "hotel"
   | "catering"
-  | "riggPlan";
+  | "riggPlan"
+  | "inspection";
 
 type NavItem = {
   id: ShellView;
@@ -117,6 +119,7 @@ function buildNavGroups(t: Translator): NavGroup[] {
         { id: "sound", label: t("shell.nav.sound"), icon: Speaker },
         { id: "stage", label: t("shell.nav.stage"), icon: AlignLeft },
         { id: "riggPlan", label: t("shell.nav.riggPlan"), icon: LayoutGrid },
+        { id: "inspection", label: t("shell.nav.inspection"), icon: ClipboardCheck },
       ],
     },
     {

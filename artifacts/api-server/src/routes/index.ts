@@ -8,6 +8,7 @@ import portalProfileRouter from "./portalProfile";
 import portalBriefsRouter from "./portalBriefs";
 import portalGigsRouter from "./portalGigs";
 import projectsRouter from "./projects";
+import inspectionExtractRouter from "./inspectionExtract";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(portalProfileRouter);
 router.use(portalBriefsRouter);
 router.use(portalGigsRouter);
 router.use(projectsRouter);
+router.use(inspectionExtractRouter);
 
 export default router;

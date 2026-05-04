@@ -96,6 +96,7 @@ import {
   type SoundItem,
 } from "./lib/sound";
 import { SoundReportView } from "./components/SoundReportView";
+import { InspectionView, type InspectionData, EMPTY_INSPECTION } from "./components/InspectionView";
 import { EquipmentPicker } from "./components/EquipmentPicker";
 import type { LibraryItem } from "./lib/equipmentLibrary";
 import {
@@ -647,7 +648,8 @@ type MainView =
   | "catering"
   | "hotel"
   | "sound"
-  | "riggPlan";
+  | "riggPlan"
+  | "inspection";
 
 type ShowFixture = {
   id: string;
@@ -870,6 +872,9 @@ type PersistedV2 = {
    *  all freelancers see the same brief in their portal and the
    *  producer's polling endpoint stays addressable across reloads. */
   activeBriefId?: string | null;
+  /** Site inspection / befaring — free-form notes + AI-extracted
+   *  structured data (equipment, schedule, technical, general). */
+  inspection?: InspectionData;
 };
 
 /** Defensive read of arbitrary persisted JSON into a clean
@@ -1283,6 +1288,9 @@ function App() {
   const [soundItems, setSoundItems] = useState<SoundItem[]>(
     () => (persisted?.soundItems ?? []).map(normalizeSoundItem),
   );
+  const [inspection, setInspection] = useState<InspectionData>(
+    () => persisted?.inspection ?? { ...EMPTY_INSPECTION },
+  );
   const [power, setPower] = useState<PowerPlan>(
     () => normalizePowerPlan(persisted?.power),
   );
@@ -1455,11 +1463,12 @@ function App() {
     power,
     activeBriefId,
     riggPlan,
+    inspection,
   }), [
     themePref, venue, client, reportDate, reportEndDate, extraSchedule,
     engineer, systems, activeSystemId, showFixtures, mainView, linkedMeta,
     ledScreens, ledLinkedMeta, ledSettings, stages, crew, soundItems,
-    power, activeBriefId, riggPlan,
+    power, activeBriefId, riggPlan, inspection,
   ]);
 
   useEffect(() => {
@@ -4171,6 +4180,7 @@ function App() {
     setActiveBriefId(null);
     setSendError(null);
     setSoundItems([]);
+    setInspection({ ...EMPTY_INSPECTION });
     setPower(defaultPowerPlan());
     // DEFAULT_RIGG_PLAN now starts with `venue: null` and an empty
     // trussById, so this returns the Rigg Plan tab to a truly blank
@@ -4227,6 +4237,7 @@ function App() {
     setPower(normalizePowerPlan(d.power));
     setRiggPlan(normalizeRiggPlan(d.riggPlan));
     setActiveBriefId(d.activeBriefId ?? null);
+    setInspection(d.inspection ?? { ...EMPTY_INSPECTION });
     if (d.mainView) setMainView(d.mainView);
     setPickerTarget(null);
     setModalTarget(null);
@@ -4283,6 +4294,7 @@ function App() {
     setActiveBriefId(null);
     setSendError(null);
     setSoundItems([]);
+    setInspection({ ...EMPTY_INSPECTION });
     setPower(defaultPowerPlan());
     setRiggPlan({ ...DEFAULT_RIGG_PLAN, trussById: {} });
     setFloorPlanLibrary(emptyFloorPlanLibrary());
@@ -6160,6 +6172,13 @@ function App() {
           onAddFloorPlan={addFloorPlan}
           onRemoveFloorPlan={removeFloorPlan}
           onSelectFloorPlan={selectFloorPlan}
+        />
+      )}
+
+      {mainView === "inspection" && (
+        <InspectionView
+          data={inspection}
+          onChange={setInspection}
         />
       )}
 

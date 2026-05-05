@@ -8015,19 +8015,9 @@ html[data-shell="linear"] .container {
   margin-left: 6px;
 }
 
-/* On smaller screens collapse the sidebar so the main content is usable.
-   Full mobile drawer is a future enhancement. */
-@media (max-width: 720px) {
-  .ehs-shell {
-    grid-template-columns: 1fr;
-  }
-  .ehs-shell-aside {
-    display: none;
-  }
-  .ehs-shell-content {
-    padding: 18px 14px 40px;
-  }
-}
+/* (Mobile sidebar drawer is now handled by the @media (max-width: 900px)
+   block at the bottom of this file — the old "display: none" rule has
+   been replaced by an off-canvas drawer pattern.) */
 
 /* Print: hide the chrome, let the legacy print styles take over. */
 @media print {

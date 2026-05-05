@@ -416,8 +416,13 @@ function SignInScreen({
     setModeState(next);
   };
   const setIntent = (next: LoginIntent) => {
+    // Only persist the session-scoped intent here. The persistent
+    // `ehs-user-role` key is promoted from intent by `PostLoginRedirect`
+    // *after* a successful sign-in. Writing it on tab toggle would mean
+    // a user who merely clicks "Freelancer" once (without signing in)
+    // would be auto-routed to the Portal forever on subsequent sessions
+    // whenever Clerk restored their cookie.
     saveLoginIntent(next);
-    saveUserRole(next);
     setIntentState(next);
   };
 

@@ -394,79 +394,96 @@ export function buildStageReportHtml(input: {
 <style>
   *, *::before, *::after { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
+  /* The Stage Build Sheet HTML is rendered into a hidden iframe pinned
+     at A4-portrait width (~794px) by htmlToPdf.ts, so all spacing here
+     is sized for a real A4 page — tight margins, compact tables, and
+     section blocks that are page-break-aware. */
   body {
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     color: #0f172a;
     background: #fff;
-    padding: 24px;
-    font-size: 13px;
-    line-height: 1.45;
+    padding: 16px 18px 24px;
+    font-size: 11px;
+    line-height: 1.4;
   }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  h2 { font-size: 16px; margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #e2e8f0; }
-  h3 { font-size: 13px; margin: 12px 0 6px; color: #475569; text-transform: uppercase; letter-spacing: 0.04em; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 {
+    font-size: 14px; margin: 14px 0 6px;
+    padding-bottom: 3px; border-bottom: 1px solid #e2e8f0;
+    page-break-after: avoid; break-after: avoid;
+  }
+  h3 { font-size: 11px; margin: 10px 0 4px; color: #475569; text-transform: uppercase; letter-spacing: 0.04em; }
   .header {
     display: flex; align-items: flex-start; justify-content: space-between;
-    gap: 16px; padding-bottom: 16px; border-bottom: 2px solid #f88000;
-    margin-bottom: 16px;
+    gap: 12px; padding-bottom: 10px; border-bottom: 2px solid #f88000;
+    margin-bottom: 12px;
   }
-  .header-left { display: flex; gap: 12px; align-items: center; }
-  .logo { height: 48px; width: auto; }
-  .brand { font-size: 13px; color: #64748b; }
-  .brand strong { color: #0f172a; font-size: 15px; display: block; }
-  .header-right { text-align: right; font-size: 12px; color: #64748b; }
+  .header-left { display: flex; gap: 10px; align-items: center; }
+  .logo { height: 38px; width: auto; }
+  .brand { font-size: 11px; color: #64748b; }
+  .brand strong { color: #0f172a; font-size: 13px; display: block; }
+  .header-right { text-align: right; font-size: 10px; color: #64748b; }
   .meta-grid {
-    display: grid; grid-template-columns: repeat(4, 1fr);
-    gap: 12px 24px; margin-bottom: 16px;
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 8px 18px; margin-bottom: 12px;
   }
-  .meta-item .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
-  .meta-item .value { font-weight: 600; font-size: 14px; word-break: break-word; }
+  .meta-item .label { font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
+  .meta-item .value { font-weight: 600; font-size: 12px; word-break: break-word; }
   .stage-visual {
-    border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px;
-    background: #f8fafc; margin-bottom: 16px;
+    border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px;
+    background: #f8fafc; margin-bottom: 12px;
+    page-break-inside: avoid; break-inside: avoid;
   }
+  .stage-visual svg { max-width: 100%; height: auto; }
   .legend {
-    display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px;
-    font-size: 11px; color: #475569;
+    display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px;
+    font-size: 10px; color: #475569;
   }
-  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
   .legend i {
-    width: 12px; height: 12px; display: inline-block; border-radius: 2px;
+    width: 10px; height: 10px; display: inline-block; border-radius: 2px;
     border: 1px solid rgba(15, 23, 42, 0.4);
   }
-  .legend i.leg { border-radius: 50%; background: #0f172a; border: none; width: 9px; height: 9px; }
+  .legend i.leg { border-radius: 50%; background: #0f172a; border: none; width: 8px; height: 8px; }
   .specs-grid {
     display: grid; grid-template-columns: repeat(4, 1fr);
-    gap: 8px; margin-bottom: 16px;
+    gap: 6px; margin-bottom: 12px;
   }
   .spec-card {
-    border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px;
+    border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px;
     background: #fff;
   }
-  .spec-card .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; }
-  .spec-card .value { font-size: 18px; font-weight: 700; color: #0f172a; }
-  .spec-card .unit { font-size: 12px; font-weight: 500; color: #64748b; margin-left: 4px; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 12px; }
-  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
-  th { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+  .spec-card .label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; }
+  .spec-card .value { font-size: 16px; font-weight: 700; color: #0f172a; }
+  .spec-card .unit { font-size: 11px; font-weight: 500; color: #64748b; margin-left: 3px; }
+  table {
+    width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 10.5px;
+    page-break-inside: avoid; break-inside: avoid;
+  }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  th { font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
   .row-total td { font-weight: 700; background: #f1f5f9; }
   .muted { color: #64748b; font-style: italic; }
   .warn {
     background: #fff7ed; border: 1px solid #fdba74; color: #9a3412;
-    padding: 8px 12px; border-radius: 4px; margin: 8px 0; font-size: 12px;
+    padding: 6px 10px; border-radius: 4px; margin: 6px 0; font-size: 11px;
   }
   .notes-box {
-    border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px;
-    background: #f8fafc; white-space: pre-wrap; font-size: 12px;
+    border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px;
+    background: #f8fafc; white-space: pre-wrap; font-size: 11px;
   }
   .grand-total {
-    margin-top: 16px; padding: 12px 16px; background: #0f172a; color: #fff;
+    margin-top: 12px; padding: 10px 14px; background: #0f172a; color: #fff;
     border-radius: 6px; display: flex; justify-content: space-between;
-    align-items: center; font-size: 14px;
+    align-items: center; font-size: 12px;
+    page-break-inside: avoid; break-inside: avoid;
   }
-  .grand-total strong { font-size: 18px; }
-  .footer { margin-top: 18px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center; }
-  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .grand-total strong { font-size: 16px; }
+  .footer { margin-top: 14px; padding-top: 8px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center; }
+  .two-col {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    page-break-inside: avoid; break-inside: avoid;
+  }
   @media print {
     body { padding: 12mm; font-size: 11px; }
     .stage-visual { break-inside: avoid; }

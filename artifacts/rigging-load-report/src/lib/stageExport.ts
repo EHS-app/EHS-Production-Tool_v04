@@ -2,10 +2,32 @@ import {
   STAGE_DECKS,
   STAGE_LEGS,
   computeStage,
+  effectiveConnectorSide,
   nivtecBracingNote,
+  type ConnectorSide,
   type Stage,
   type StageDeckKey,
 } from "./stage";
+
+/** Human label for a male-connector compass side (matches the on-screen
+ *  dropdown in StageReportView). */
+const CONNECTOR_LABEL: Record<ConnectorSide, string> = {
+  N: "Upstage (back)",
+  E: "Stage right",
+  S: "Downstage (front)",
+  W: "Stage left",
+};
+
+/** Compact compass label used in tables and badges. */
+const CONNECTOR_SHORT: Record<ConnectorSide, string> = {
+  N: "↑ Up",
+  E: "→ SR",
+  S: "↓ Down",
+  W: "← SL",
+};
+
+/** EHS orange — male connector edge stripe. Matches StageReportView. */
+const MALE_EDGE_COLOR = "#f88000";
 
 type StageCalc = ReturnType<typeof computeStage>;
 
@@ -142,6 +164,35 @@ function buildStageSvg(stage: Stage, calc: StageCalc): string {
         );
       }
     }
+  }
+
+  // Male-connector edge stripes — one thin orange band along the side
+  // of each deck where the male pins face. Matches the on-screen view.
+  const STRIPE_PX = 5;
+  for (const p of calc.decks) {
+    const side = effectiveConnectorSide(stage, p);
+    const dx = PAD + LABEL + p.x * scale;
+    const dy = PAD + p.y * scale;
+    const dw = p.w * scale;
+    const dh = p.d * scale;
+    let rx = dx;
+    let ry = dy;
+    let rw = dw;
+    let rh = dh;
+    if (side === "N") {
+      rh = STRIPE_PX;
+    } else if (side === "S") {
+      ry = dy + dh - STRIPE_PX;
+      rh = STRIPE_PX;
+    } else if (side === "E") {
+      rx = dx + dw - STRIPE_PX;
+      rw = STRIPE_PX;
+    } else {
+      rw = STRIPE_PX;
+    }
+    parts.push(
+      `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${MALE_EDGE_COLOR}" fill-opacity="0.9" />`,
+    );
   }
 
   // Leg dots.
@@ -296,15 +347,24 @@ export function buildStageReportHtml(input: {
   // are added per deck so the build crew can pre-stage hardware.
   const assemblyRows =
     calc.assembly.length === 0
-      ? `<tr><td colspan="3" class="muted">— no decks placed —</td></tr>`
+      ? `<tr><td colspan="4" class="muted">— no decks placed —</td></tr>`
       : calc.assembly
           .map((a) => {
             const deck = calc.decks[a.sequence - 1];
             const sizeLabel = deck ? DECK_LABEL[deck.key] : "—";
-            return `<tr><td><strong>${a.sequence}</strong></td><td>${sizeLabel}</td><td>+${a.legsAdded} ${a.legsAdded === 1 ? "leg" : "legs"}</td></tr>`;
+            const side = deck ? effectiveConnectorSide(stage, deck) : null;
+            const isOverride = deck
+              ? stage.connectorOverrides[
+                  `${deck.x.toFixed(2)},${deck.y.toFixed(2)}`
+                ] !== undefined
+              : false;
+            const sideCell = side
+              ? `${CONNECTOR_SHORT[side]}${isOverride ? ' <span style="color:#b45309;font-weight:600">●</span>' : ""}`
+              : "—";
+            return `<tr><td><strong>${a.sequence}</strong></td><td>${sizeLabel}</td><td>${sideCell}</td><td>+${a.legsAdded} ${a.legsAdded === 1 ? "leg" : "legs"}</td></tr>`;
           })
           .join("") +
-        `<tr class="row-total"><td>Total</td><td>${calc.decks.length} decks</td><td>${calc.legCount} legs</td></tr>`;
+        `<tr class="row-total"><td>Total</td><td>${calc.decks.length} decks</td><td></td><td>${calc.legCount} legs</td></tr>`;
 
   const railsEnabled = (
     ["front", "back", "left", "right"] as const
@@ -456,6 +516,14 @@ export function buildStageReportHtml(input: {
     <div class="label">Build direction</div>
     <div class="value">${stage.buildOrder === "rightToLeft" ? "Right → left" : "Left → right"}</div>
   </div>
+  <div class="meta-item">
+    <div class="label">Male side faces</div>
+    <div class="value">${CONNECTOR_LABEL[stage.connectorSide]}${
+      Object.keys(stage.connectorOverrides).length > 0
+        ? ` <span style="color:#b45309;font-weight:600">(+${Object.keys(stage.connectorOverrides).length} override${Object.keys(stage.connectorOverrides).length === 1 ? "" : "s"})</span>`
+        : ""
+    }</div>
+  </div>
 </div>
 
 <h2>Stage Layout (top-down)</h2>
@@ -472,6 +540,7 @@ export function buildStageReportHtml(input: {
     <span><i style="background:${DECK_FILL["0.5x1"]}"></i> 0.5 × 1</span>
     <span><i style="background:#dc2626"></i> Handrail</span>
     <span><i class="leg"></i> Leg</span>
+    <span><i style="background:${MALE_EDGE_COLOR}"></i> Male edge (${CONNECTOR_SHORT[stage.connectorSide]})</span>
   </div>
 </div>
 
@@ -527,7 +596,7 @@ ${
 
 <h2>Build sequence (${stage.buildOrder === "rightToLeft" ? "right → left" : "left → right"})</h2>
 <table>
-  <thead><tr><th>#</th><th>Deck</th><th>Legs to install</th></tr></thead>
+  <thead><tr><th>#</th><th>Deck</th><th>Male side</th><th>Legs to install</th></tr></thead>
   <tbody>${assemblyRows}</tbody>
 </table>
 <p class="muted" style="font-size:11px;margin:0 0 12px">

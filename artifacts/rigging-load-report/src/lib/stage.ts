@@ -202,6 +202,38 @@ export type StageLegMode = "shared" | "perDeck";
  *    right and the crew naturally builds from that side first. */
 export type StageBuildOrder = "leftToRight" | "rightToLeft";
 
+/** Compass side of a Nivtec deck where the MALE connectors (the pin
+ *  side) face. The opposite edge therefore carries the female sockets.
+ *  Audience sits to the SOUTH (downstage); upstage is NORTH.
+ *  - "N" = male edge faces upstage (back of stage)
+ *  - "E" = male edge faces stage-right (audience right)
+ *  - "S" = male edge faces downstage (front, toward the audience)
+ *  - "W" = male edge faces stage-left  (audience left)
+ *  This is purely informational — it does not change the load
+ *  calculations or the leg geometry — but it lets the build crew see at
+ *  a glance which way each deck must be oriented before it's bolted in. */
+export type ConnectorSide = "N" | "E" | "S" | "W";
+
+export const CONNECTOR_SIDES: ConnectorSide[] = ["N", "E", "S", "W"];
+
+/** Stable key for a per-deck connector override, derived from the
+ *  placement's snapped (x, y). Works for both auto-tiled and manual
+ *  placements; auto-mode overrides may go stale when the stage is
+ *  resized, which is an acceptable trade-off for a simple data model. */
+export function connectorOverrideKey(p: { x: number; y: number }): string {
+  return `${p.x.toFixed(2)},${p.y.toFixed(2)}`;
+}
+
+/** Resolve the effective male-side compass direction for a placed deck:
+ *  per-deck override if set, otherwise the stage-wide default. */
+export function effectiveConnectorSide(
+  stage: Stage,
+  p: { x: number; y: number },
+): ConnectorSide {
+  const override = stage.connectorOverrides[connectorOverrideKey(p)];
+  return override ?? stage.connectorSide;
+}
+
 /** How the stage layout is produced.
  *  - "auto" (default): the user enters a Width × Depth and the greedy tiler
  *    fills the rectangle with standard Nivtec decks.
@@ -228,6 +260,14 @@ export type Stage = {
    *  Affects the deck assembly numbering and the per-deck "+N legs"
    *  count in shared mode; geometry and total leg count are unchanged. */
   buildOrder: StageBuildOrder;
+  /** Stage-wide default for which compass side of every deck the male
+   *  Nivtec connectors face. See {@link ConnectorSide}. Default "N"
+   *  (male edge faces upstage / back of stage). */
+  connectorSide: ConnectorSide;
+  /** Per-deck overrides for the male connector side, keyed by
+   *  {@link connectorOverrideKey}. A missing entry means the deck uses
+   *  {@link Stage.connectorSide}. */
+  connectorOverrides: Record<string, ConnectorSide>;
   /** Which sides have handrails. */
   rails: StageRailSides;
   /** Free-form rail segments drawn on the stage canvas. */
@@ -798,6 +838,21 @@ export function normalizeStage(raw: Partial<Stage>): Stage {
     raw.legMode === "perDeck" ? "perDeck" : "shared";
   const buildOrder: StageBuildOrder =
     raw.buildOrder === "rightToLeft" ? "rightToLeft" : "leftToRight";
+  const isConnectorSide = (v: unknown): v is ConnectorSide =>
+    v === "N" || v === "E" || v === "S" || v === "W";
+  const connectorSide: ConnectorSide = isConnectorSide(raw.connectorSide)
+    ? raw.connectorSide
+    : "N";
+  const connectorOverrides: Record<string, ConnectorSide> = {};
+  if (raw.connectorOverrides && typeof raw.connectorOverrides === "object") {
+    for (const [k, v] of Object.entries(
+      raw.connectorOverrides as Record<string, unknown>,
+    )) {
+      if (typeof k === "string" && isConnectorSide(v)) {
+        connectorOverrides[k] = v;
+      }
+    }
+  }
   const editMode: StageEditMode =
     raw.editMode === "manual" ? "manual" : "auto";
   // Allowed (w, d) pairs per deck key — both the natural and rotated
@@ -864,6 +919,8 @@ export function normalizeStage(raw: Partial<Stage>): Stage {
     legHeightCm,
     legMode,
     buildOrder,
+    connectorSide,
+    connectorOverrides,
     rails,
     customRails,
     notes: typeof raw.notes === "string" ? raw.notes : "",
@@ -885,6 +942,8 @@ export function makeDefaultStage(name: string): Stage {
     legHeightCm: 60,
     legMode: "shared",
     buildOrder: "leftToRight",
+    connectorSide: "N",
+    connectorOverrides: {},
     rails: { ...DEFAULT_RAIL_SIDES },
     customRails: [],
     notes: "",

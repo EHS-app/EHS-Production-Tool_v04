@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NumberField } from "./NumberField";
 import {
+  CONNECTOR_SIDES,
   STAGE_DECKS,
   STAGE_LEG_HEIGHTS_CM,
   STAGE_LEGS,
   computeStage,
   computeStageTotals,
+  connectorOverrideKey,
+  effectiveConnectorSide,
   nivtecBracingNote,
   placementCollides,
   placementsBounds,
   snapHalfMetre,
+  type ConnectorSide,
   type CustomRail,
   type DeckPlacement,
   type Stage,
@@ -18,6 +22,23 @@ import {
   type StageBuildOrder,
   type StageLegMode,
 } from "../lib/stage";
+
+const CONNECTOR_SIDE_LABEL: Record<ConnectorSide, string> = {
+  N: "Upstage (back)",
+  E: "Stage right",
+  S: "Downstage (front)",
+  W: "Stage left",
+};
+
+const CONNECTOR_SIDE_SHORT: Record<ConnectorSide, string> = {
+  N: "↑ Up",
+  E: "→ SR",
+  S: "↓ Down",
+  W: "← SL",
+};
+
+/** EHS orange — used for the male-connector edge stripe. */
+const MALE_EDGE_COLOR = "#f88000";
 
 /** Custom-rail edit mode set by the toolbar. */
 type RailMode = "off" | "add1" | "add2" | "delete";
@@ -275,6 +296,29 @@ function StageCard({
    *  decks (1×1) are ignored. If the rotated rectangle would collide
    *  with another placed deck, the rotation is silently refused — so
    *  the user just sees nothing happen, same UX as a colliding click. */
+  /** Cycle the male-connector side override for the deck under the
+   *  given placement. The cycle is keyed off the EXPLICIT override
+   *  (not the effective side), so a 5-step loop is reachable by
+   *  repeated clicking regardless of the current stage default:
+   *    inherit → N → E → S → W → inherit → …
+   *  Critically this means changing the stage-wide default never
+   *  silently drops a per-deck override the user explicitly picked. */
+  const cycleConnectorAtPlacement = (p: DeckPlacement) => {
+    const k = connectorOverrideKey(p);
+    const currentOverride = stage.connectorOverrides[k];
+    const overrides = { ...stage.connectorOverrides };
+    if (currentOverride === undefined) {
+      overrides[k] = "N";
+    } else if (currentOverride === "W") {
+      // End of the explicit cycle — drop back to "inherit stage default".
+      delete overrides[k];
+    } else {
+      const idx = CONNECTOR_SIDES.indexOf(currentOverride);
+      overrides[k] = CONNECTOR_SIDES[idx + 1];
+    }
+    onUpdate({ connectorOverrides: overrides });
+  };
+
   const rotateDeckAtCell = (cellX: number, cellY: number) => {
     const px = cellX * HALF_M;
     const py = cellY * HALF_M;
@@ -425,6 +469,53 @@ function StageCard({
             </select>
           </label>
 
+          <label className="stage-field">
+            <span>Male side faces</span>
+            <select
+              value={stage.connectorSide}
+              onChange={(e) =>
+                onUpdate({ connectorSide: e.target.value as ConnectorSide })
+              }
+              title="Stage-wide default for which side of every Nivtec deck the male connectors face. Click an orange edge stripe on the layout to override an individual deck."
+            >
+              {CONNECTOR_SIDES.map((s) => (
+                <option key={s} value={s}>
+                  {CONNECTOR_SIDE_LABEL[s]}
+                </option>
+              ))}
+            </select>
+            {Object.keys(stage.connectorOverrides).length > 0 && (
+              <small
+                style={{
+                  color: "#b45309",
+                  fontSize: 11,
+                  marginTop: 4,
+                  lineHeight: 1.3,
+                  display: "block",
+                }}
+              >
+                {Object.keys(stage.connectorOverrides).length} per-deck
+                override{Object.keys(stage.connectorOverrides).length === 1 ? "" : "s"}.{" "}
+                <button
+                  type="button"
+                  className="btn-link"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#b45309",
+                    textDecoration: "underline",
+                    cursor: "pointer",
+                    padding: 0,
+                    font: "inherit",
+                  }}
+                  onClick={() => onUpdate({ connectorOverrides: {} })}
+                >
+                  Reset all
+                </button>
+              </small>
+            )}
+          </label>
+
           <fieldset className="stage-rails">
             <legend>Handrails</legend>
             <label>
@@ -534,6 +625,7 @@ function StageCard({
               onAddAtCell={addDeckAtCell}
               onRemoveAtCell={removeDeckAtCell}
               onRotateAtCell={rotateDeckAtCell}
+              onCycleConnector={cycleConnectorAtPlacement}
               railMode={railMode}
               onAddCustomRail={addCustomRail}
               onRemoveCustomRail={removeCustomRail}
@@ -701,6 +793,7 @@ function StageSvg({
   onAddAtCell,
   onRemoveAtCell,
   onRotateAtCell,
+  onCycleConnector,
   railMode = "off",
   onAddCustomRail,
   onRemoveCustomRail,
@@ -720,6 +813,9 @@ function StageSvg({
   /** Right-click (or Shift+click) on a placed deck: rotate it 90° in
    *  place (top-left corner stays anchored). No-op on 1×1 decks. */
   onRotateAtCell?: (cellX: number, cellY: number) => void;
+  /** Click on the orange male-edge stripe of a placed deck: cycle
+   *  that deck's connector orientation (N → E → S → W → inherit). */
+  onCycleConnector?: (p: DeckPlacement) => void;
   /** Currently-selected custom-rail tool (set by the toolbar). */
   railMode?: RailMode;
   /** Commit a fully-snapped, validated custom rail (no id yet). */
@@ -1398,6 +1494,69 @@ function StageSvg({
             )),
           )}
 
+        {/* Male-connector edge stripes — drawn AFTER the click-catcher
+            cells so they sit on top in interactive mode and absorb the
+            click for the per-deck connector cycle. In non-interactive
+            mode (auto-mode preview, exports, etc.) they're purely
+            informational. */}
+        {calc.decks.map((p, i) => {
+          const side = effectiveConnectorSide(stage, p);
+          const stripe = 5;
+          const x0 = PAD + p.x * scale;
+          const y0 = PAD + p.y * scale;
+          const dw = p.w * scale;
+          const dh = p.d * scale;
+          const isOverride =
+            stage.connectorOverrides[connectorOverrideKey(p)] !== undefined;
+          let rx = x0;
+          let ry = y0;
+          let rw = dw;
+          let rh = dh;
+          if (side === "N") {
+            rh = stripe;
+          } else if (side === "S") {
+            ry = y0 + dh - stripe;
+            rh = stripe;
+          } else if (side === "E") {
+            rx = x0 + dw - stripe;
+            rw = stripe;
+          } else {
+            rw = stripe;
+          }
+          const clickable = interactive && railMode === "off" && !!onCycleConnector;
+          return (
+            <rect
+              key={`male-${i}`}
+              x={rx}
+              y={ry}
+              width={rw}
+              height={rh}
+              fill={MALE_EDGE_COLOR}
+              fillOpacity={isOverride ? 1 : 0.85}
+              stroke={isOverride ? "#7c2d12" : "none"}
+              strokeWidth={isOverride ? 1 : 0}
+              style={clickable ? { cursor: "pointer" } : undefined}
+              pointerEvents={clickable ? "all" : "none"}
+              onClick={
+                clickable
+                  ? (e) => {
+                      e.stopPropagation();
+                      onCycleConnector?.(p);
+                    }
+                  : undefined
+              }
+            >
+              {clickable && (
+                <title>
+                  Male side: {CONNECTOR_SIDE_LABEL[side]}
+                  {isOverride ? " (override)" : " (stage default)"} — click to
+                  cycle
+                </title>
+              )}
+            </rect>
+          );
+        })}
+
         {/* Rail-add click overlay — drawn last so it sits above
             everything and captures the two clicks needed to drop a
             custom rail. Only rendered while the user has Add 1 m or
@@ -1434,6 +1593,10 @@ function StageSvg({
         </span>
         <span>
           <i style={{ background: "#0f172a", borderRadius: "50%" }} /> Leg
+        </span>
+        <span title="Click an orange edge in the layout to override an individual deck.">
+          <i style={{ background: MALE_EDGE_COLOR }} /> Male edge (
+          {CONNECTOR_SIDE_SHORT[stage.connectorSide]})
         </span>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import {
+  CONNECTOR_SIDES,
   STAGE_DECKS,
   STAGE_LEGS,
   computeStage,
@@ -170,29 +171,37 @@ function buildStageSvg(stage: Stage, calc: StageCalc): string {
   // of each deck where the male pins face. Matches the on-screen view.
   const STRIPE_PX = 5;
   for (const p of calc.decks) {
-    const side = effectiveConnectorSide(stage, p);
+    const primary = effectiveConnectorSide(stage, p);
+    // Per Nivtec's "tongue rear AND right" rule each deck has TWO male
+    // edges 90° apart, clockwise from the primary.
+    const adjacent =
+      CONNECTOR_SIDES[
+        (CONNECTOR_SIDES.indexOf(primary) + 1) % CONNECTOR_SIDES.length
+      ];
     const dx = PAD + LABEL + p.x * scale;
     const dy = PAD + p.y * scale;
     const dw = p.w * scale;
     const dh = p.d * scale;
-    let rx = dx;
-    let ry = dy;
-    let rw = dw;
-    let rh = dh;
-    if (side === "N") {
-      rh = STRIPE_PX;
-    } else if (side === "S") {
-      ry = dy + dh - STRIPE_PX;
-      rh = STRIPE_PX;
-    } else if (side === "E") {
-      rx = dx + dw - STRIPE_PX;
-      rw = STRIPE_PX;
-    } else {
-      rw = STRIPE_PX;
+    for (const side of [primary, adjacent]) {
+      let rx = dx;
+      let ry = dy;
+      let rw = dw;
+      let rh = dh;
+      if (side === "N") {
+        rh = STRIPE_PX;
+      } else if (side === "S") {
+        ry = dy + dh - STRIPE_PX;
+        rh = STRIPE_PX;
+      } else if (side === "E") {
+        rx = dx + dw - STRIPE_PX;
+        rw = STRIPE_PX;
+      } else {
+        rw = STRIPE_PX;
+      }
+      parts.push(
+        `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${MALE_EDGE_COLOR}" fill-opacity="0.9" />`,
+      );
     }
-    parts.push(
-      `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${MALE_EDGE_COLOR}" fill-opacity="0.9" />`,
-    );
   }
 
   // Leg dots.
@@ -540,7 +549,7 @@ export function buildStageReportHtml(input: {
     <span><i style="background:${DECK_FILL["0.5x1"]}"></i> 0.5 × 1</span>
     <span><i style="background:#dc2626"></i> Handrail</span>
     <span><i class="leg"></i> Leg</span>
-    <span><i style="background:${MALE_EDGE_COLOR}"></i> Male edge / tongue (${CONNECTOR_SHORT[stage.connectorSide]})</span>
+    <span><i style="background:${MALE_EDGE_COLOR}"></i> Male edges / tongue (${CONNECTOR_SHORT[stage.connectorSide]} + adjacent short side)</span>
   </div>
   <p class="muted" style="font-size:11px;margin:6px 0 0;line-height:1.4">
     Tongue (male) hooks into groove (female) — never the other way around.

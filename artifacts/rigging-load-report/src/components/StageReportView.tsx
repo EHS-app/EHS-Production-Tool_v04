@@ -1516,8 +1516,15 @@ function StageSvg({
             click for the per-deck connector cycle. In non-interactive
             mode (auto-mode preview, exports, etc.) they're purely
             informational. */}
-        {calc.decks.map((p, i) => {
-          const side = effectiveConnectorSide(stage, p);
+        {calc.decks.flatMap((p, i) => {
+          const primary = effectiveConnectorSide(stage, p);
+          // Per Nivtec: tongues face "rear AND right" — i.e. the male
+          // edges are on TWO adjacent sides 90° apart, clockwise from
+          // the primary. CONNECTOR_SIDES is ordered N,E,S,W so +1 mod 4
+          // is always the clockwise neighbour.
+          const adjIdx =
+            (CONNECTOR_SIDES.indexOf(primary) + 1) % CONNECTOR_SIDES.length;
+          const adjacent = CONNECTOR_SIDES[adjIdx];
           const stripe = 5;
           const x0 = PAD + p.x * scale;
           const y0 = PAD + p.y * scale;
@@ -1525,53 +1532,66 @@ function StageSvg({
           const dh = p.d * scale;
           const isOverride =
             stage.connectorOverrides[connectorOverrideKey(p)] !== undefined;
-          let rx = x0;
-          let ry = y0;
-          let rw = dw;
-          let rh = dh;
-          if (side === "N") {
-            rh = stripe;
-          } else if (side === "S") {
-            ry = y0 + dh - stripe;
-            rh = stripe;
-          } else if (side === "E") {
-            rx = x0 + dw - stripe;
-            rw = stripe;
-          } else {
-            rw = stripe;
-          }
-          const clickable = interactive && railMode === "off" && !!onCycleConnector;
-          return (
-            <rect
-              key={`male-${i}`}
-              x={rx}
-              y={ry}
-              width={rw}
-              height={rh}
-              fill={MALE_EDGE_COLOR}
-              fillOpacity={isOverride ? 1 : 0.85}
-              stroke={isOverride ? "#7c2d12" : "none"}
-              strokeWidth={isOverride ? 1 : 0}
-              style={clickable ? { cursor: "pointer" } : undefined}
-              pointerEvents={clickable ? "all" : "none"}
-              onClick={
-                clickable
-                  ? (e) => {
-                      e.stopPropagation();
-                      onCycleConnector?.(p);
-                    }
-                  : undefined
-              }
-            >
-              {clickable && (
-                <title>
-                  Male side: {CONNECTOR_SIDE_LABEL[side]}
-                  {isOverride ? " (override)" : " (stage default)"} — click to
-                  cycle
-                </title>
-              )}
-            </rect>
-          );
+          const clickable =
+            interactive && railMode === "off" && !!onCycleConnector;
+          const stripeRect = (side: ConnectorSide) => {
+            let rx = x0;
+            let ry = y0;
+            let rw = dw;
+            let rh = dh;
+            if (side === "N") {
+              rh = stripe;
+            } else if (side === "S") {
+              ry = y0 + dh - stripe;
+              rh = stripe;
+            } else if (side === "E") {
+              rx = x0 + dw - stripe;
+              rw = stripe;
+            } else {
+              rw = stripe;
+            }
+            return { rx, ry, rw, rh };
+          };
+          return [primary, adjacent].map((side, j) => {
+            const { rx, ry, rw, rh } = stripeRect(side);
+            // Only the primary stripe absorbs clicks for cycling; the
+            // adjacent stripe is informational so it can't shift the
+            // hit-area expectations.
+            const isPrimary = j === 0;
+            const interactiveStripe = clickable && isPrimary;
+            return (
+              <rect
+                key={`male-${i}-${side}`}
+                x={rx}
+                y={ry}
+                width={rw}
+                height={rh}
+                fill={MALE_EDGE_COLOR}
+                fillOpacity={isOverride ? 1 : 0.85}
+                stroke={isOverride ? "#7c2d12" : "none"}
+                strokeWidth={isOverride ? 1 : 0}
+                style={interactiveStripe ? { cursor: "pointer" } : undefined}
+                pointerEvents={interactiveStripe ? "all" : "none"}
+                onClick={
+                  interactiveStripe
+                    ? (e) => {
+                        e.stopPropagation();
+                        onCycleConnector?.(p);
+                      }
+                    : undefined
+                }
+              >
+                {interactiveStripe && (
+                  <title>
+                    Male sides: {CONNECTOR_SIDE_LABEL[primary]} +{" "}
+                    {CONNECTOR_SIDE_LABEL[adjacent]}
+                    {isOverride ? " (override)" : " (stage default)"} — click to
+                    cycle
+                  </title>
+                )}
+              </rect>
+            );
+          });
         })}
 
         {/* Rail-add click overlay — drawn last so it sits above
@@ -1612,8 +1632,8 @@ function StageSvg({
           <i style={{ background: "#0f172a", borderRadius: "50%" }} /> Leg
         </span>
         <span title="Click an orange edge in the layout to override an individual deck.">
-          <i style={{ background: MALE_EDGE_COLOR }} /> Male edge (
-          {CONNECTOR_SIDE_SHORT[stage.connectorSide]})
+          <i style={{ background: MALE_EDGE_COLOR }} /> Male edges (
+          {CONNECTOR_SIDE_SHORT[stage.connectorSide]} + adjacent short side)
         </span>
       </div>
     </div>

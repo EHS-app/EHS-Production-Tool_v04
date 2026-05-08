@@ -22,10 +22,12 @@ import {
 } from "./stage";
 import {
   computeLedTotals,
+  NOVASTAR_PROCESSOR_CATALOG,
   type LedPanel,
   type LedScreen,
   type LedSettings,
 } from "./led";
+import { findProcessor } from "./ledProcessors";
 
 /** Minimal slice of `System` we need from the producer app. We accept a
  *  pre-computed metric bundle so the export module stays free of the
@@ -661,6 +663,25 @@ function renderLed(input: ClientPackInput): string {
     input.ledSettings,
     input.ledPanels,
   );
+  // Resolve processor labels for a single screen. Per-screen processors
+  // (`screen.processors`) take precedence — that's what the producer
+  // explicitly assigned in the LED tab. If none are attached we fall
+  // back to the global `ledSettings.processorId` so older projects that
+  // never adopted per-screen processors still surface a sensible value.
+  const globalProcName =
+    findProcessor(input.ledSettings.processorId)?.name ?? null;
+  const procLabelsFor = (screen: LedScreen): string => {
+    const list = screen.processors ?? [];
+    if (list.length === 0) return globalProcName ?? NS;
+    return list
+      .map((p) => {
+        const name =
+          NOVASTAR_PROCESSOR_CATALOG[p.model]?.name ?? p.model ?? "Processor";
+        return p.label ? `${name} (${p.label})` : name;
+      })
+      .join(", ");
+  };
+
   const rows = input.ledScreens
     .map((s) => {
       const panel = input.ledPanels.find((p) => p.key === s.panelKey);
@@ -671,12 +692,14 @@ function renderLed(input: ClientPackInput): string {
         panel && panel.pixelWidth && panel.pixelHeight
           ? `${s.panelsWide * panel.pixelWidth} × ${s.panelsTall * panel.pixelHeight} px`
           : NS;
+      const procLabels = procLabelsFor(s);
       return `<tr>
         <td><strong>${orNS(s.name)}</strong></td>
         <td>${escapeHtml(panelLabel)}</td>
         <td class="num">${grid}</td>
         <td class="num">${panelCount}</td>
         <td class="num">${px}</td>
+        <td>${escapeHtml(procLabels)}</td>
       </tr>`;
     })
     .join("");
@@ -694,9 +717,13 @@ function renderLed(input: ClientPackInput): string {
     .map((s) => {
       const dataUrl = pixelMaps[s.id];
       if (!dataUrl) return "";
+      const procLabels = procLabelsFor(s);
+      const caption = procLabels && procLabels !== NS
+        ? `${escapeHtml(s.name || "LED screen")} — pixel map · Processor: ${escapeHtml(procLabels)}`
+        : `${escapeHtml(s.name || "LED screen")} — pixel map`;
       return `<figure class="led-figure">
         <img src="${dataUrl}" alt="${escapeHtml(s.name || "LED screen")} pixel map" />
-        <figcaption>${escapeHtml(s.name || "LED screen")} — pixel map</figcaption>
+        <figcaption>${caption}</figcaption>
       </figure>`;
     })
     .filter(Boolean)
@@ -717,6 +744,7 @@ function renderLed(input: ClientPackInput): string {
       <tr>
         <th>Screen</th><th>Panel type</th>
         <th class="num">Grid (W×H)</th><th class="num">Cabinets</th><th class="num">Resolution</th>
+        <th>Processor</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>

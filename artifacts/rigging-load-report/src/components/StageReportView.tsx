@@ -484,6 +484,23 @@ function StageCard({
                 </option>
               ))}
             </select>
+            <small
+              style={{
+                color: "#64748b",
+                fontSize: 11,
+                marginTop: 4,
+                lineHeight: 1.35,
+                display: "block",
+              }}
+            >
+              Tongue (male) hooks into groove (female). The opposite (female)
+              side is where the stage can be expanded later.
+              <br />
+              <em>
+                Tunge (hann) hektes i spor (hunn). Motsatt (hunn) side er der
+                scenen kan utvides senere.
+              </em>
+            </small>
             {Object.keys(stage.connectorOverrides).length > 0 && (
               <small
                 style={{

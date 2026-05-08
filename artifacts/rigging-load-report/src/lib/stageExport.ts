@@ -540,8 +540,13 @@ export function buildStageReportHtml(input: {
     <span><i style="background:${DECK_FILL["0.5x1"]}"></i> 0.5 × 1</span>
     <span><i style="background:#dc2626"></i> Handrail</span>
     <span><i class="leg"></i> Leg</span>
-    <span><i style="background:${MALE_EDGE_COLOR}"></i> Male edge (${CONNECTOR_SHORT[stage.connectorSide]})</span>
+    <span><i style="background:${MALE_EDGE_COLOR}"></i> Male edge / tongue (${CONNECTOR_SHORT[stage.connectorSide]})</span>
   </div>
+  <p class="muted" style="font-size:11px;margin:6px 0 0;line-height:1.4">
+    Tongue (male) hooks into groove (female) — never the other way around.
+    The opposite (female / groove) side is where the stage can be expanded later,
+    so plan future thrusts, B-stages or runways accordingly.
+  </p>
 </div>
 
 <div class="specs-grid">

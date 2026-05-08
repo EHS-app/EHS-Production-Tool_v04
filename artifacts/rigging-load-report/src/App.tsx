@@ -1499,9 +1499,13 @@ function App() {
         }),
       );
 
+      // Single source of truth for the html2canvas pixel scale so the
+      // break-coordinate math below cannot silently drift if we ever
+      // change the capture resolution.
+      const CAPTURE_SCALE = 2;
       try {
         const canvas = await html2canvas(body, {
-          scale: 2,
+          scale: CAPTURE_SCALE,
           backgroundColor: "#ffffff",
           useCORS: true,
           windowWidth: A4_WIDTH_PX,
@@ -1510,19 +1514,80 @@ function App() {
         const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
         const pageW = pdf.internal.pageSize.getWidth();
         const pageH = pdf.internal.pageSize.getHeight();
-        const imgW = pageW;
-        const imgH = (canvas.height * imgW) / canvas.width;
-        let heightLeft = imgH;
-        let position = 0;
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-        pdf.addImage(dataUrl, "JPEG", 0, position, imgW, imgH);
-        heightLeft -= pageH;
-        while (heightLeft > 0) {
-          position -= pageH;
-          pdf.addPage();
-          pdf.addImage(dataUrl, "JPEG", 0, position, imgW, imgH);
-          heightLeft -= pageH;
+        // Canvas-pixel height of one A4 page at the captured scale.
+        // canvas.width corresponds to pageW (in mm), so ratio is fixed.
+        const pageHPx = (pageH * canvas.width) / pageW;
+
+        // Section-aware page breaks. Naive slicing at fixed page
+        // heights cuts sections in half — we instead collect the
+        // top-Y of every "logical block" in the popup (cover page,
+        // each phase, verdict, floor plan, footer / Client-Pack
+        // sections) and end each PDF page at the LARGEST candidate
+        // that still fits within one page-height of the cursor.
+        // Sections taller than a single A4 page fall back to the
+        // hard pageHPx cut, so very long phases don't deadlock.
+        const bodyTop = body.getBoundingClientRect().top;
+        const breakSelectors = [
+          ".cover",
+          ".phase",
+          ".verdict",
+          ".floor-plan",
+          ".muted",
+          "section",
+          "h2",
+        ];
+        const breakSet = new Set<number>([0, canvas.height]);
+        for (const sel of breakSelectors) {
+          doc.querySelectorAll<HTMLElement>(sel).forEach((el) => {
+            const top =
+              (el.getBoundingClientRect().top - bodyTop) * CAPTURE_SCALE;
+            if (top > 0 && top < canvas.height) breakSet.add(top);
+          });
         }
+        const breaks = Array.from(breakSet).sort((a, b) => a - b);
+
+        const ranges: Array<{ from: number; to: number }> = [];
+        let cursor = 0;
+        const EPS = 1; // tolerate sub-pixel rounding
+        while (cursor < canvas.height - EPS) {
+          const maxEnd = cursor + pageHPx;
+          // Largest break in (cursor, maxEnd]; if none, hard cut.
+          let end = -1;
+          for (const b of breaks) {
+            if (b > cursor + EPS && b <= maxEnd + EPS) {
+              if (b > end) end = b;
+            } else if (b > maxEnd) {
+              break;
+            }
+          }
+          if (end <= cursor) end = Math.min(cursor + pageHPx, canvas.height);
+          ranges.push({ from: cursor, to: end });
+          cursor = end;
+        }
+
+        // Render each range onto its own PDF page via an offscreen
+        // canvas slice. Sized exactly to the slice height so the
+        // image lands at native resolution at the top of the page.
+        const slice = doc.createElement("canvas");
+        slice.width = canvas.width;
+        const sliceCtx = slice.getContext("2d");
+        if (!sliceCtx) throw new Error("Could not allocate slice canvas");
+        for (let i = 0; i < ranges.length; i++) {
+          const r = ranges[i]!;
+          const sliceH = Math.max(1, Math.round(r.to - r.from));
+          slice.height = sliceH;
+          sliceCtx.fillStyle = "#ffffff";
+          sliceCtx.fillRect(0, 0, slice.width, sliceH);
+          sliceCtx.drawImage(canvas, 0, -r.from);
+          const sliceUrl = slice.toDataURL("image/jpeg", 0.92);
+          // Clamp to pageH to avoid sub-mm overflow caused by EPS /
+          // rounding at boundary slices, which would otherwise spill
+          // a hairline of the next section onto the following page.
+          const sliceMmH = Math.min(pageH, (sliceH * pageW) / canvas.width);
+          if (i > 0) pdf.addPage();
+          pdf.addImage(sliceUrl, "JPEG", 0, 0, pageW, sliceMmH);
+        }
+
         const safe =
           (filename || "Export.pdf").replace(/[\\/:*?"<>|]+/g, "-").trim() ||
           "Export.pdf";

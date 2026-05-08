@@ -3969,6 +3969,17 @@ function App() {
       logoDataUrl = null;
     }
 
+    // Pull the currently-active floor plan from the in-memory library
+    // so the simulation PDF ends with the venue drawing the producer
+    // is looking at on the Rigg Plan tab. `imageDataUrl` is always a
+    // raster (images stay as-is, PDFs are pre-rasterised), so it
+    // embeds cleanly in the simulation HTML.
+    const activeFloorPlan: FloorPlan | null = floorPlanLibrary.activeId
+      ? (floorPlanLibrary.plans.find(
+          (p) => p.id === floorPlanLibrary.activeId,
+        ) ?? null)
+      : null;
+
     const input: ShowSimulationInput = {
       project: {
         eventName: venue,
@@ -3989,6 +4000,8 @@ function App() {
       ledScreens: allLedScreens,
       ledSettings,
       ledPanels,
+      floorPlanDataUrl: activeFloorPlan?.imageDataUrl ?? null,
+      floorPlanFileName: activeFloorPlan?.fileName ?? null,
       logoDataUrl,
       targetWin,
     };

@@ -4936,8 +4936,16 @@ function App() {
         onClick: exportClientPackPdf,
         title: tr("shell.action.clientPackTitle"),
       },
+      {
+        id: "simulate",
+        label: tr("shell.action.simulate"),
+        icon: ShellPlayCircle,
+        variant: "secondary",
+        onClick: simulateShow,
+        title: tr("shell.action.simulateTitle"),
+      },
     ],
-    [exportClientPackPdf, tr],
+    [exportClientPackPdf, simulateShow, tr],
   );
 
   const shellOverflowActions: ShellAction[] = useMemo(
@@ -4976,13 +4984,6 @@ function App() {
         label: tr("shell.action.downloadCsv"),
         icon: ShellDownload,
         onClick: downloadCsv,
-      },
-      {
-        id: "simulate",
-        label: tr("shell.action.simulate"),
-        icon: ShellPlayCircle,
-        onClick: simulateShow,
-        title: tr("shell.action.simulateTitle"),
       },
       {
         id: "reset",

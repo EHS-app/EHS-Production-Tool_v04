@@ -57,7 +57,11 @@ import { FolderOpen as ShellFolderOpen, Copy as ShellCopy } from "lucide-react";
 import { useI18n } from "./lib/i18n/I18nContext";
 import { buildBrief, type BuildBriefInput } from "./lib/projectBrief";
 import type { CrewRequestStatus } from "./lib/crew";
-import { exportScreenAsPng, getLogoDataUrl } from "./lib/ledExport";
+import {
+  exportScreenAsPng,
+  getLogoDataUrl,
+  renderScreenPngBlob,
+} from "./lib/ledExport";
 import { LedScreenReportView } from "./components/LedScreenReportView";
 import {
   computeStage,
@@ -3826,6 +3830,34 @@ function App() {
       logoDataUrl = null;
     }
 
+    // Render each LED screen's pixel map to a PNG data URL so the Client
+    // Pack can embed the same diagram the producer sees on screen. Done
+    // in parallel; failures per-screen are tolerated (we just skip that
+    // figure rather than blocking the whole export).
+    const blobToDataUrl = (blob: Blob) =>
+      new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = () => reject(r.error ?? new Error("FileReader failed"));
+        r.readAsDataURL(blob);
+      });
+    const ledPixelMaps: Record<string, string> = {};
+    await Promise.all(
+      allLedScreens.map(async (screen) => {
+        try {
+          const { blob } = await renderScreenPngBlob({
+            screen,
+            panels: ledPanels,
+            settings: ledSettings,
+            logoDataUrl,
+          });
+          ledPixelMaps[screen.id] = await blobToDataUrl(blob);
+        } catch (err) {
+          console.warn(`Skipped pixel map for ${screen.name}:`, err);
+        }
+      }),
+    );
+
     const result = exportClientPack({
       project: {
         eventName: venue,
@@ -3846,6 +3878,7 @@ function App() {
       ledScreens: allLedScreens,
       ledSettings,
       ledPanels,
+      ledPixelMaps,
       logoDataUrl,
       targetWin,
     });

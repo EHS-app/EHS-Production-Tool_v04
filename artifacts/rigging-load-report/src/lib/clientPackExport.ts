@@ -79,6 +79,11 @@ export type ClientPackInput = {
   ledScreens: LedScreen[];
   ledSettings: LedSettings;
   ledPanels: LedPanel[];
+  /** Optional pre-rendered pixel-map PNGs (data URLs) keyed by screen
+   *  id. When present the LED section embeds each diagram below the
+   *  summary table so the printed pack matches the on-screen Pixel Map
+   *  view. Screens without an entry simply skip the figure. */
+  ledPixelMaps?: Record<string, string>;
   /** Pre-loaded EHS logo (data URL). Same lookup the Stage Build Sheet
    *  + Power Plan exports use, so the cover page matches branding. */
   logoDataUrl: string | null;
@@ -684,6 +689,19 @@ function renderLed(input: ClientPackInput): string {
         )
       : "";
 
+  const pixelMaps = input.ledPixelMaps ?? {};
+  const figures = input.ledScreens
+    .map((s) => {
+      const dataUrl = pixelMaps[s.id];
+      if (!dataUrl) return "";
+      return `<figure class="led-figure">
+        <img src="${dataUrl}" alt="${escapeHtml(s.name || "LED screen")} pixel map" />
+        <figcaption>${escapeHtml(s.name || "LED screen")} — pixel map</figcaption>
+      </figure>`;
+    })
+    .filter(Boolean)
+    .join("");
+
   return `
 <section class="section">
   <h2>9 · LED Screen</h2>
@@ -703,6 +721,7 @@ function renderLed(input: ClientPackInput): string {
     </thead>
     <tbody>${rows}</tbody>
   </table>
+  ${figures}
 </section>`;
 }
 
@@ -873,6 +892,22 @@ function renderHtml(input: ClientPackInput): string {
   .ov-value { font-size: 18px; font-weight: 700; color: #0f172a; }
   .ov-unit { font-size: 12px; font-weight: 500; color: #64748b; margin-left: 2px; }
   .lighting-summary { grid-template-columns: repeat(4, 1fr); }
+
+  /* LED pixel-map figures */
+  .led-figure {
+    margin: 14px 0 0; padding: 8px;
+    border: 1px solid #e2e8f0; border-radius: 6px;
+    background: #fff; break-inside: avoid; page-break-inside: avoid;
+    text-align: center;
+  }
+  .led-figure img {
+    display: block; max-width: 100%; height: auto;
+    margin: 0 auto; border-radius: 4px;
+  }
+  .led-figure figcaption {
+    margin-top: 6px; font-size: 11px; color: #64748b;
+    letter-spacing: 0.02em;
+  }
 
   /* Risk pill */
   .risk-pill {

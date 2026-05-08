@@ -1471,6 +1471,34 @@ function App() {
       // Allow the layout to settle before measuring.
       await new Promise<void>((r) => popupWin.requestAnimationFrame(() => r()));
 
+      // Wait for every <img> in the popup to be fully decoded before
+      // snapshotting. html2canvas reads pixels synchronously and will
+      // render still-decoding images (large data-URL backdrops like
+      // the Show Simulation floor plan or Client Pack pixel maps) as
+      // blank gaps — even though the markup looks fine in the popup
+      // itself. `img.decode()` is the supported way to await ready-
+      // for-paint state; we fall back to the `complete` flag for any
+      // browser that rejects the promise (Safari occasionally does).
+      const imgs = Array.from(doc.querySelectorAll("img"));
+      await Promise.all(
+        imgs.map(async (img) => {
+          if (img.complete && img.naturalWidth > 0) return;
+          try {
+            await img.decode();
+          } catch {
+            await new Promise<void>((r) => {
+              if (img.complete) {
+                r();
+                return;
+              }
+              const done = () => r();
+              img.addEventListener("load", done, { once: true });
+              img.addEventListener("error", done, { once: true });
+            });
+          }
+        }),
+      );
+
       try {
         const canvas = await html2canvas(body, {
           scale: 2,

@@ -1163,9 +1163,14 @@ function renderHtml(input: ShowSimulationInput): string {
     font-size: 11px; color: #64748b; font-style: italic;
     word-break: break-word; max-width: 60%; text-align: right;
   }
+  /* Pure pixel sizing — html2canvas (used by the parent-window PDF
+     capture) handles width/height predictably but mis-measures
+     mm units and object-fit on replaced elements, which made the
+     floor plan render as a blank gap. Letting the browser compute
+     height from the intrinsic aspect ratio keeps the drawing
+     crisp and lets the page-slicer wrap it cleanly. */
   .floor-plan-img {
     display: block; width: 100%; height: auto;
-    max-height: 240mm; object-fit: contain;
     border-radius: 4px; background: #f8fafc;
   }
   body.pdf-export .floor-plan {

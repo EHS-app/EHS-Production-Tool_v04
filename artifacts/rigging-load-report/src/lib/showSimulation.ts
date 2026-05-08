@@ -889,6 +889,7 @@ function renderHtml(input: ShowSimulationInput): string {
 <head>
 <meta charset="utf-8" />
 <title>Show Simulation — ${escapeHtml(projTitle)}</title>
+<meta name="ehs-pdf-name" content="${escapeHtml(projTitle)} — Show Simulation.pdf" />
 <style>
   *, *::before, *::after { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
@@ -1080,9 +1081,37 @@ function renderHtml(input: ShowSimulationInput): string {
 </head>
 <body>
 <div class="print-bar no-print">
-  <button onclick="window.print()" class="primary">Print / Save as PDF</button>
+  <button id="ehs-download-pdf" class="primary">Download PDF</button>
+  <button onclick="window.print()">Print</button>
   <button onclick="window.close()">Close</button>
 </div>
+<script>
+(function () {
+  var btn = document.getElementById('ehs-download-pdf');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    var opener = window.opener;
+    var fn = opener && opener.__ehsDownloadPopupPdf;
+    if (typeof fn !== 'function') {
+      window.print();
+      return;
+    }
+    var meta = document.querySelector('meta[name="ehs-pdf-name"]');
+    var filename = (meta && meta.getAttribute('content')) || (document.title + '.pdf');
+    var orig = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Generating PDF…';
+    Promise.resolve(fn(window, filename)).catch(function (err) {
+      console.error(err);
+      alert('Could not generate the PDF. Falling back to the browser print dialog.');
+      window.print();
+    }).then(function () {
+      btn.disabled = false;
+      btn.textContent = orig;
+    });
+  });
+})();
+</script>
 
 ${cover}
 ${phasesHtml}

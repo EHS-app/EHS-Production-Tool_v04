@@ -801,6 +801,7 @@ function renderHtml(input: ClientPackInput): string {
 <head>
 <meta charset="utf-8" />
 <title>Client Pack — ${escapeHtml(projTitle)}</title>
+<meta name="ehs-pdf-name" content="${escapeHtml(projTitle)} — Client Pack.pdf" />
 <style>
   *, *::before, *::after { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
@@ -927,15 +928,17 @@ function renderHtml(input: ClientPackInput): string {
   if (!btn) return;
   btn.addEventListener('click', function () {
     var opener = window.opener;
-    var fn = opener && opener.__ehsDownloadClientPackPdf;
+    var fn = opener && opener.__ehsDownloadPopupPdf;
     if (typeof fn !== 'function') {
       window.print();
       return;
     }
+    var meta = document.querySelector('meta[name="ehs-pdf-name"]');
+    var filename = (meta && meta.getAttribute('content')) || (document.title + '.pdf');
     var orig = btn.textContent;
     btn.disabled = true;
     btn.textContent = 'Generating PDF…';
-    Promise.resolve(fn(window)).catch(function (err) {
+    Promise.resolve(fn(window, filename)).catch(function (err) {
       console.error(err);
       alert('Could not generate the PDF. Falling back to the browser print dialog.');
       window.print();

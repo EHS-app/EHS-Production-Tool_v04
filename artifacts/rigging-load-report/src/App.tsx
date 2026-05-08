@@ -1422,6 +1422,68 @@ function App() {
 
   const cloudSaveRef = useRef(cloudSave);
   useEffect(() => { cloudSaveRef.current = cloudSave; }, [cloudSave]);
+
+  // Expose a generic parent-window handler that the Client Pack and
+  // Show Simulation popups can invoke for "Download PDF". We render the
+  // popup body to a tall canvas with html2canvas, slice it into A4 pages
+  // with jsPDF, and trigger a direct file download — bypassing the
+  // browser print dialog, which doesn't always offer "Save as PDF".
+  useEffect(() => {
+    type Win = Window & { __ehsDownloadPopupPdf?: unknown };
+    const w = window as unknown as Win;
+    w.__ehsDownloadPopupPdf = async (popupWin: Window, filename: string) => {
+      const [{ default: jsPDF }, html2canvasMod] = await Promise.all([
+        import("jspdf"),
+        import("html2canvas"),
+      ]);
+      const html2canvas =
+        (html2canvasMod as { default?: typeof import("html2canvas").default })
+          .default ?? (html2canvasMod as unknown as typeof import("html2canvas").default);
+      const doc = popupWin.document;
+      const body = doc.body;
+      const printBar = doc.querySelector<HTMLElement>(".print-bar");
+      const prevDisplay = printBar?.style.display ?? "";
+      if (printBar) printBar.style.display = "none";
+      try {
+        const canvas = await html2canvas(body, {
+          scale: 2,
+          backgroundColor: "#ffffff",
+          useCORS: true,
+          windowWidth: body.scrollWidth,
+          windowHeight: body.scrollHeight,
+        });
+        const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const imgW = pageW;
+        const imgH = (canvas.height * imgW) / canvas.width;
+        let heightLeft = imgH;
+        let position = 0;
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+        pdf.addImage(dataUrl, "JPEG", 0, position, imgW, imgH);
+        heightLeft -= pageH;
+        while (heightLeft > 0) {
+          position -= pageH;
+          pdf.addPage();
+          pdf.addImage(dataUrl, "JPEG", 0, position, imgW, imgH);
+          heightLeft -= pageH;
+        }
+        const safe =
+          (filename || "Export.pdf").replace(/[\\/:*?"<>|]+/g, "-").trim() ||
+          "Export.pdf";
+        pdf.save(safe.endsWith(".pdf") ? safe : `${safe}.pdf`);
+      } finally {
+        if (printBar) printBar.style.display = prevDisplay;
+      }
+    };
+    return () => {
+      try {
+        delete (window as unknown as Win).__ehsDownloadPopupPdf;
+      } catch {
+        (window as unknown as Win).__ehsDownloadPopupPdf = undefined;
+      }
+    };
+  }, []);
   // Transient toast text for the Power Plan "Export to crew" action.
   // Cleared by the PowerPlanView after its auto-fade timer fires, or
   // when the user clicks the close (×) on the toast itself.
@@ -3718,58 +3780,6 @@ function App() {
    *  shape; per-system rigging metrics are computed via the existing
    *  `computeMetrics` helper so SWL/peak math stays in one place. */
   const exportClientPackPdf = async () => {
-    // Expose a parent-window handler that the popup's "Download PDF"
-    // button can invoke. We render the popup body to a tall canvas with
-    // html2canvas, then slice it into A4 pages with jsPDF and trigger a
-    // direct file download — bypassing the browser print dialog (which
-    // doesn't always offer a "Save as PDF" destination).
-    (window as unknown as Record<string, unknown>).__ehsDownloadClientPackPdf =
-      async (popupWin: Window) => {
-        const [{ default: jsPDF }, html2canvasMod] = await Promise.all([
-          import("jspdf"),
-          import("html2canvas"),
-        ]);
-        const html2canvas =
-          (html2canvasMod as { default?: typeof import("html2canvas").default })
-            .default ?? (html2canvasMod as unknown as typeof import("html2canvas").default);
-        const doc = popupWin.document;
-        const body = doc.body;
-        const printBar = doc.querySelector<HTMLElement>(".print-bar");
-        const prevDisplay = printBar?.style.display ?? "";
-        if (printBar) printBar.style.display = "none";
-        try {
-          const canvas = await html2canvas(body, {
-            scale: 2,
-            backgroundColor: "#ffffff",
-            useCORS: true,
-            windowWidth: body.scrollWidth,
-            windowHeight: body.scrollHeight,
-          });
-          const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-          const pageW = pdf.internal.pageSize.getWidth();
-          const pageH = pdf.internal.pageSize.getHeight();
-          const imgW = pageW;
-          const imgH = (canvas.height * imgW) / canvas.width;
-          let heightLeft = imgH;
-          let position = 0;
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-          pdf.addImage(dataUrl, "JPEG", 0, position, imgW, imgH);
-          heightLeft -= pageH;
-          while (heightLeft > 0) {
-            position -= pageH;
-            pdf.addPage();
-            pdf.addImage(dataUrl, "JPEG", 0, position, imgW, imgH);
-            heightLeft -= pageH;
-          }
-          const safeName = (venue || "Client Pack")
-            .replace(/[\\/:*?"<>|]+/g, "-")
-            .trim();
-          pdf.save(`${safeName} — Client Pack.pdf`);
-        } finally {
-          if (printBar) printBar.style.display = prevDisplay;
-        }
-      };
-
     const targetWin = window.open("", "_blank");
     if (targetWin) {
       targetWin.document.write(

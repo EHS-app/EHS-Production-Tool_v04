@@ -190,7 +190,7 @@ export function InspectionView({ data, onChange }: Props) {
               fontSize: 12,
               padding: "2px 8px",
               borderRadius: 10,
-              background: "rgba(123,91,255,0.12)",
+              background: "rgba(248,128,0,0.12)",
               color: "var(--primary)",
               fontWeight: 500,
             }}
@@ -263,7 +263,7 @@ export function InspectionView({ data, onChange }: Props) {
                   border: "none",
                   background:
                     extracting || !data.notes.trim()
-                      ? "rgba(123,91,255,0.3)"
+                      ? "rgba(248,128,0,0.3)"
                       : "var(--primary)",
                   color: "#fff",
                   fontSize: 12,
@@ -272,7 +272,7 @@ export function InspectionView({ data, onChange }: Props) {
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
-                  boxShadow: extracting || !data.notes.trim() ? "none" : "0 0 12px rgba(123,91,255,0.25)",
+                  boxShadow: extracting || !data.notes.trim() ? "none" : "0 0 12px rgba(248,128,0,0.25)",
                 }}
               >
                 <Sparkles size={14} />

@@ -4662,7 +4662,7 @@ function App() {
         caption: totalCrew > 0 ? `· ${tr("overview.kpi.confirmedOf", { confirmed: String(confirmed) })}` : "",
         progressValue: confirmed,
         progressMax: Math.max(1, totalCrew),
-        progressColor: "#7B5BFF",
+        progressColor: "#F88000",
         trend:
           totalCrew > 0
             ? {
@@ -4678,7 +4678,7 @@ function App() {
         progressValue: peakTon,
         progressMax: Math.max(0.001, totalSwlTon),
         progressColor:
-          projectTotals.overloadedPoints > 0 ? "#f43f5e" : "#7B5BFF",
+          projectTotals.overloadedPoints > 0 ? "#f43f5e" : "#F88000",
         trend:
           projectTotals.overloadedPoints > 0
             ? { label: tr("overview.kpi.overloadCount", { n: String(projectTotals.overloadedPoints) }), tone: "down" }
@@ -4697,7 +4697,7 @@ function App() {
             : "",
         progressValue: ledPanels,
         progressMax: ledMax,
-        progressColor: "#7B5BFF",
+        progressColor: "#F88000",
         trend:
           ledPanels > 0
             ? { label: `${ledTotals.areaM2.toFixed(1)} m²`, tone: "neutral" }
@@ -4709,7 +4709,7 @@ function App() {
         caption: "kW",
         progressValue: totalKw,
         progressMax: Math.max(0.001, totalKw * 1.25),
-        progressColor: "#7B5BFF",
+        progressColor: "#F88000",
         trend:
           projectTotals.totalPoints > 0
             ? {

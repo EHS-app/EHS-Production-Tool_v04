@@ -38,7 +38,7 @@ import { CommandPalette } from "./CommandPalette";
  *
  * Visual fidelity:
  *  - Sidebar background `#1C1C24`, surfaces `#25252F`, borders white/8
- *  - Active nav row: bg `rgba(123,91,255,0.12)`, text `#7B5BFF`
+ *  - Active nav row: bg `rgba(248,128,0,0.12)`, text `#F88000`
  *  - Topbar: 64px, sticky, breadcrumb + status pill + actions
  *
  * The component intentionally uses inline styles to match the rest of
@@ -170,7 +170,7 @@ function actionVariantStyle(variant: ShellAction["variant"]): React.CSSPropertie
         background: "var(--primary)",
         color: "#fff",
         border: "1px solid var(--primary)",
-        boxShadow: "0 0 14px rgba(123,91,255,0.28)",
+        boxShadow: "0 0 14px rgba(248,128,0,0.28)",
       };
     case "secondary":
       return {

@@ -74,11 +74,11 @@ function saveThemePreference(pref: ThemePreference) {
   } catch {}
 }
 
-// Linear v2 brand accent — was EHS-orange (#f88000), now electric purple
+// EHS brand accent — orange (#F88000)
 // to match the Tactical Command Center redesign that ships across the app.
 // Constant name kept as `EHS_ORANGE` to avoid a sweeping rename across
 // dozens of inline-styled call sites; treat it as "EHS brand accent".
-const EHS_ORANGE = "#7B5BFF";
+const EHS_ORANGE = "#F88000";
 
 const PALETTE = {
   light: {

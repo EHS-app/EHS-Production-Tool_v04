@@ -1,11 +1,17 @@
+html {
+  /* 6% bump from browser default 16px → 17px. Scales every rem-based
+     text size up one notch without touching px-based UI furniture
+     (button heights, paddings, icons), so layouts don't shift. */
+  font-size: 17px;
+}
+
 :root {
-  /* Linear v2 — Tactical Command Center
-     Primary brand accent is now electric purple (#7B5BFF) instead of
-     EHS-orange. Status colors (success/warning/danger) keep their
-     semantic meaning so existing UI affordances still read correctly. */
-  --primary: #7B5BFF;
-  --primary-hover: #8B6BFF;
-  --primary-soft: rgba(123, 91, 255, 0.12);
+  /* EHS brand orange (#F88000) is the primary accent. Status colors
+     (success/warning/danger) keep their semantic meaning so existing
+     UI affordances still read correctly. */
+  --primary: #F88000;
+  --primary-hover: #FFA040;
+  --primary-soft: rgba(248, 128, 0, 0.12);
   --secondary: #f97316;
   --static-bar: #64748b;
   --danger: #f43f5e;
@@ -31,9 +37,9 @@
   --border-color: rgba(255, 255, 255, 0.08);
   --input-bg: #1C1C24;
   --track-bg: rgba(255, 255, 255, 0.06);
-  --primary: #7B5BFF;
-  --primary-hover: #8B6BFF;
-  --primary-soft: rgba(123, 91, 255, 0.16);
+  --primary: #F88000;
+  --primary-hover: #FFA040;
+  --primary-soft: rgba(248, 128, 0, 0.16);
   --danger: #f43f5e;
   --warning: #f59e0b;
   --success: #10b981;
@@ -52,7 +58,7 @@
   --text-soft: #9999A6;
   --muted: #9999A6;
   --text: #E5E5EC;
-  --accent: #7B5BFF;
+  --accent: #F88000;
   --ink: #E5E5EC;
   --ink-soft: #9999A6;
 }
@@ -120,7 +126,7 @@ body {
   font-weight: 800;
   letter-spacing: 2.5px;
   text-transform: uppercase;
-  color: #7B5BFF;
+  color: #F88000;
   line-height: 1;
 }
 .header-left h1 {
@@ -134,7 +140,7 @@ body {
 }
 .header-title-accent {
   font-weight: 900;
-  color: #7B5BFF;
+  color: #F88000;
 }
 .header-actions {
   display: flex;
@@ -187,11 +193,11 @@ body {
   color: #ffffff;
 }
 .header-account .theme-seg-btn.is-selected {
-  background: var(--primary, #7B5BFF);
-  color: #ffffff;
+  background: var(--primary, #F88000);
+  color: #0b0b0b;
 }
 .header-account .theme-seg-btn.is-selected:hover {
-  background: #8B6BFF;
+  background: #FFA040;
 }
 
 /* Plain-text email — no border, just muted white. */
@@ -230,7 +236,7 @@ body {
   color: #ffffff;
 }
 .header-icon-btn:focus-visible {
-  outline: 2px solid var(--primary, #7B5BFF);
+  outline: 2px solid var(--primary, #F88000);
   outline-offset: 2px;
 }
 
@@ -272,7 +278,7 @@ body {
 }
 .header-doc-actions .btn-pill:focus-visible,
 .header-account .btn-pill:focus-visible {
-  outline: 2px solid var(--primary, #7B5BFF);
+  outline: 2px solid var(--primary, #F88000);
   outline-offset: 2px;
 }
 .header-doc-actions .btn-pill .btn-pill-icon,
@@ -289,13 +295,13 @@ body {
 }
 /* Primary action — filled EHS orange. */
 .header-doc-actions .btn-pill.btn-pill-primary {
-  background: var(--primary, #7B5BFF);
-  border-color: var(--primary, #7B5BFF);
+  background: var(--primary, #F88000);
+  border-color: var(--primary, #F88000);
   color: #ffffff;
 }
 .header-doc-actions .btn-pill.btn-pill-primary:hover {
-  background: #8B6BFF;
-  border-color: #8B6BFF;
+  background: #FFA040;
+  border-color: #FFA040;
   color: #ffffff;
 }
 .header-doc-actions .btn-pill.btn-pill-primary .btn-pill-icon {
@@ -335,7 +341,7 @@ body {
 }
 .theme-seg-btn.is-selected {
   background: var(--primary);
-  color: #ffffff;
+  color: #0b0b0b;
 }
 .theme-seg-btn.is-selected:hover {
   color: #ffffff;
@@ -739,7 +745,7 @@ body {
   font-weight: 500;
 }
 .meta-field input:focus {
-  border-color: var(--primary, #7B5BFF);
+  border-color: var(--primary, #F88000);
   box-shadow: 0 0 0 2px rgba(248, 128, 0, 0.25);
 }
 
@@ -956,7 +962,7 @@ body {
 }
 .btn-tab-add {
   background: var(--primary);
-  color: white;
+  color: #0b0b0b;
   border-color: var(--primary);
 }
 .btn-tab-add:hover {
@@ -1487,7 +1493,7 @@ input:focus {
 }
 .btn-add {
   background: var(--primary);
-  color: white;
+  color: #0b0b0b;
   width: 100%;
   justify-content: center;
   margin-top: 10px;
@@ -1513,7 +1519,7 @@ input:focus {
 }
 .btn-export {
   background: var(--primary);
-  color: white;
+  color: #0b0b0b;
   padding: 11px 22px;
 }
 .btn-csv {
@@ -1982,8 +1988,8 @@ input:focus {
 }
 .view-tab.is-active {
   /* Selected report tab uses the EHS orange (matches the logo). */
-  background: var(--primary, #7B5BFF);
-  color: white;
+  background: var(--primary, #F88000);
+  color: #0b0b0b;
   box-shadow: 0 4px 14px rgba(248, 128, 0, 0.32);
 }
 .view-tab-badge {
@@ -6239,7 +6245,7 @@ input:focus {
   color: #16a34a;
 }
 .crew-stat-value-warn {
-  color: var(--primary, #7B5BFF);
+  color: var(--primary, #F88000);
 }
 
 /* Compact head for MasterCrewSheet when the parent renders its own
@@ -6275,7 +6281,7 @@ input:focus {
 }
 .crew-toggle-pill input[type="checkbox"] {
   margin: 0;
-  accent-color: var(--primary, #7B5BFF);
+  accent-color: var(--primary, #F88000);
   cursor: pointer;
   flex: 0 0 auto;
 }
@@ -6324,9 +6330,9 @@ input:focus {
   height: 36px;
   padding: 0 14px;
   border-radius: 8px;
-  background: var(--primary, #7B5BFF);
-  color: #ffffff;
-  border: 1px solid var(--primary, #7B5BFF);
+  background: var(--primary, #F88000);
+  color: #0b0b0b;
+  border: 1px solid var(--primary, #F88000);
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
@@ -6430,7 +6436,7 @@ input:focus {
   background: transparent;
   border: none;
   padding: 2px 4px;
-  color: var(--primary, #7B5BFF);
+  color: var(--primary, #F88000);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -6797,7 +6803,7 @@ input:focus {
   position: relative;
 }
 .acs-card.is-selected {
-  border-color: var(--accent, #7B5BFF);
+  border-color: var(--accent, #F88000);
   box-shadow: 0 0 0 2px rgba(248, 128, 0, 0.18);
 }
 .acs-card.is-disabled {
@@ -6984,7 +6990,7 @@ input:focus {
   border-color: rgba(248, 128, 0, 0.45);
 }
 .roster-day-quickpick-btn-active {
-  background: #7B5BFF;
+  background: #F88000;
   color: #0b0b0b;
   border-color: #c2410c;
 }
@@ -7226,7 +7232,7 @@ html[data-shell="linear"] .container {
   width: 26px;
   height: 26px;
   border-radius: 6px;
-  background: linear-gradient(135deg, #7B5BFF, #4C3B99);
+  background: linear-gradient(135deg, #F88000, #7A4400);
   color: #fff;
   font-weight: 800;
   font-size: 12px;
@@ -7365,7 +7371,7 @@ html[data-shell="linear"] .container {
   justify-content: center;
 }
 .ehs-shell-nav-item.is-active .ehs-shell-nav-badge {
-  background: rgba(123, 91, 255, 0.18);
+  background: rgba(248, 128, 0, 0.18);
   color: var(--primary);
 }
 
@@ -7506,7 +7512,7 @@ html[data-shell="linear"] .container {
   pointer-events: none;
   background: radial-gradient(
     circle at 50% -10%,
-    rgba(123, 91, 255, 0.10) 0%,
+    rgba(248, 128, 0, 0.10) 0%,
     transparent 55%
   );
   z-index: 0;
@@ -7514,7 +7520,7 @@ html[data-shell="linear"] .container {
 [data-theme="light"] .ehs-shell-glow {
   background: radial-gradient(
     circle at 50% -10%,
-    rgba(123, 91, 255, 0.05) 0%,
+    rgba(248, 128, 0, 0.05) 0%,
     transparent 55%
   );
 }
@@ -8072,7 +8078,7 @@ html[data-shell="linear"] .container {
 .ehs-overview-meta-slot .meta-field input:focus {
   outline: none;
   border-color: var(--primary);
-  background: rgba(123, 91, 255, 0.06);
+  background: rgba(248, 128, 0, 0.06);
 }
 [data-theme="light"] .ehs-overview-meta-slot .meta-field input {
   background: #f7f7fb;
@@ -8178,7 +8184,7 @@ html[data-shell="linear"] .container {
   font-size: 15px;
   font-family: inherit;
   color: var(--text-main, #e4e4e7);
-  caret-color: var(--primary, #7b5bff);
+  caret-color: var(--primary, #f88000);
 }
 .cmd-input::placeholder {
   color: var(--text-muted, #8c8c9a);
@@ -8243,8 +8249,8 @@ html[data-shell="linear"] .container {
 }
 .cmd-item:hover,
 .cmd-item.is-selected {
-  background: rgba(123, 91, 255, 0.10);
-  color: var(--primary, #7b5bff);
+  background: rgba(248, 128, 0, 0.10);
+  color: var(--primary, #f88000);
 }
 .cmd-item svg {
   flex-shrink: 0;
@@ -8275,7 +8281,7 @@ html[data-shell="linear"] .container {
 }
 [data-theme="light"] .cmd-item:hover,
 [data-theme="light"] .cmd-item.is-selected {
-  background: rgba(123, 91, 255, 0.08);
+  background: rgba(248, 128, 0, 0.08);
 }
 
 /* ── Project List Modal ───────────────────────────────────── */
@@ -8308,7 +8314,7 @@ html[data-shell="linear"] .container {
   padding: 6px 12px;
   font-size: 12px;
   font-weight: 500;
-  background: var(--accent, #7b5bff);
+  background: var(--accent, #f88000);
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -8330,10 +8336,10 @@ html[data-shell="linear"] .container {
   transition: background .12s;
 }
 .proj-row:hover {
-  background: rgba(123, 91, 255, 0.06);
+  background: rgba(248, 128, 0, 0.06);
 }
 .proj-row.is-current {
-  background: rgba(123, 91, 255, 0.10);
+  background: rgba(248, 128, 0, 0.10);
 }
 .proj-row-main {
   flex: 1;
@@ -8408,10 +8414,10 @@ html[data-shell="linear"] .container {
 }
 
 [data-theme="light"] .proj-row:hover {
-  background: rgba(123, 91, 255, 0.05);
+  background: rgba(248, 128, 0, 0.05);
 }
 [data-theme="light"] .proj-row.is-current {
-  background: rgba(123, 91, 255, 0.08);
+  background: rgba(248, 128, 0, 0.08);
 }
 
 /* ──────────────────────────────────────────────────────────────────

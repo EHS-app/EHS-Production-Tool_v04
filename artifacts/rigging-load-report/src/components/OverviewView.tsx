@@ -98,9 +98,9 @@ function statusBlockStyle(
   switch (status) {
     case "confirmed":
       return {
-        background: "rgba(123,91,255,0.18)",
-        border: "1px solid rgba(123,91,255,0.32)",
-        color: "#a78bff",
+        background: "rgba(248,128,0,0.18)",
+        border: "1px solid rgba(248,128,0,0.32)",
+        color: "#FFA040",
       };
     case "pending":
       return {
@@ -127,7 +127,7 @@ function statusBlockStyle(
 function statusDotColor(s: OverviewCrewRow["status"]) {
   switch (s) {
     case "confirmed":
-      return "#7B5BFF";
+      return "#F88000";
     case "pending":
       return "#f59e0b";
     case "declined":
@@ -145,7 +145,7 @@ function activityToneStyle(tone: OverviewActivityItem["tone"]): React.CSSPropert
     case "warning":
       return { color: "#f59e0b", background: "rgba(245,158,11,0.10)" };
     case "info":
-      return { color: "#7B5BFF", background: "rgba(123,91,255,0.10)" };
+      return { color: "#F88000", background: "rgba(248,128,0,0.10)" };
     default:
       return { color: "var(--text-muted)", background: "rgba(255,255,255,0.04)" };
   }
@@ -312,7 +312,7 @@ export function OverviewView({
               )}
               <div className="ehs-overview-crew-foot">
                 <div className="ehs-overview-crew-legend">
-                  <span><span className="ehs-overview-crew-dot" style={{ background: "#7B5BFF" }} /> {t("overview.legend.confirmed")}</span>
+                  <span><span className="ehs-overview-crew-dot" style={{ background: "#F88000" }} /> {t("overview.legend.confirmed")}</span>
                   <span><span className="ehs-overview-crew-dot" style={{ background: "#f59e0b" }} /> {t("overview.legend.pending")}</span>
                   <span><span className="ehs-overview-crew-dot" style={{ background: "#f43f5e" }} /> {t("overview.legend.cancelled")}</span>
                 </div>

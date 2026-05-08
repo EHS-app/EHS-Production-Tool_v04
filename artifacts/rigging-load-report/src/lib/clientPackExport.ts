@@ -977,6 +977,37 @@ function renderHtml(input: ClientPackInput): string {
     h2 { page-break-after: avoid; }
   }
   @page { size: A4 portrait; margin: 12mm; }
+
+  /* "Download PDF" mode — applied by App.tsx while html2canvas
+     rasterises the popup at true A4 width (794px). Tightens cover
+     and section spacing so each PDF page is properly filled. */
+  body.pdf-export {
+    padding: 14px 18px 24px;
+    font-size: 11px; line-height: 1.4;
+  }
+  body.pdf-export h1 { font-size: 22px; }
+  body.pdf-export h2 { font-size: 14px; }
+  body.pdf-export .cover {
+    min-height: 0; padding: 28px 20px 32px;
+    margin-bottom: 18px; page-break-after: always;
+  }
+  body.pdf-export .cover-logo { max-height: 56px; margin-bottom: 14px; }
+  body.pdf-export .cover-title { font-size: 26px; margin-bottom: 14px; }
+  body.pdf-export .section {
+    margin-bottom: 14px; padding: 12px 14px;
+    page-break-inside: auto; break-inside: auto;
+  }
+  body.pdf-export table { font-size: 10.5px; margin: 6px 0; }
+  body.pdf-export th, body.pdf-export td { padding: 4px 6px; }
+  body.pdf-export th { font-size: 9px; }
+  body.pdf-export .ov-card { padding: 8px 10px; }
+  body.pdf-export .ov-value { font-size: 16px; }
+  body.pdf-export .ov-label { font-size: 9px; }
+  body.pdf-export .led-figure {
+    margin-top: 10px; padding: 6px;
+    page-break-inside: avoid; break-inside: avoid;
+  }
+  body.pdf-export .led-figure figcaption { font-size: 10px; }
 </style>
 </head>
 <body>

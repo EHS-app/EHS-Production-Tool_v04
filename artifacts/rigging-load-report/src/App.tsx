@@ -1445,15 +1445,38 @@ function App() {
           .default ?? (html2canvasMod as unknown as typeof import("html2canvas").default);
       const doc = popupWin.document;
       const body = doc.body;
+      const html = doc.documentElement;
       const printBar = doc.querySelector<HTMLElement>(".print-bar");
       const prevDisplay = printBar?.style.display ?? "";
       if (printBar) printBar.style.display = "none";
+
+      // Force the popup into "PDF mode" while we capture: pin the body
+      // to true A4 width (794px @ 96dpi) so html2canvas rasterises the
+      // same proportions the PDF page will end up with — no awkward
+      // shrink-to-fit, no oversized cover. The .pdf-export class lets
+      // each popup's stylesheet (showSimulation, clientPackExport)
+      // tighten spacing for the export specifically. */
+      const A4_WIDTH_PX = 794;
+      const prevBody = {
+        width: body.style.width,
+        maxWidth: body.style.maxWidth,
+        margin: body.style.margin,
+      };
+      const prevHtmlOverflow = html.style.overflow;
+      body.classList.add("pdf-export");
+      body.style.width = `${A4_WIDTH_PX}px`;
+      body.style.maxWidth = `${A4_WIDTH_PX}px`;
+      body.style.margin = "0";
+      html.style.overflow = "visible";
+      // Allow the layout to settle before measuring.
+      await new Promise<void>((r) => popupWin.requestAnimationFrame(() => r()));
+
       try {
         const canvas = await html2canvas(body, {
           scale: 2,
           backgroundColor: "#ffffff",
           useCORS: true,
-          windowWidth: body.scrollWidth,
+          windowWidth: A4_WIDTH_PX,
           windowHeight: body.scrollHeight,
         });
         const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
@@ -1478,6 +1501,11 @@ function App() {
         pdf.save(safe.endsWith(".pdf") ? safe : `${safe}.pdf`);
       } finally {
         if (printBar) printBar.style.display = prevDisplay;
+        body.classList.remove("pdf-export");
+        body.style.width = prevBody.width;
+        body.style.maxWidth = prevBody.maxWidth;
+        body.style.margin = prevBody.margin;
+        html.style.overflow = prevHtmlOverflow;
       }
     };
     return () => {

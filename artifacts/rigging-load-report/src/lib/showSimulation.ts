@@ -1077,6 +1077,65 @@ function renderHtml(input: ShowSimulationInput): string {
     .verdict { break-inside: avoid; }
   }
   @page { size: A4 portrait; margin: 12mm; }
+
+  /* "Download PDF" mode — applied by App.tsx while html2canvas
+     rasterises the popup. Body is pinned to A4 width (794px) so we
+     compact spacing here to match a real A4 page. */
+  body.pdf-export {
+    padding: 14px 18px 24px;
+    font-size: 11px; line-height: 1.4;
+  }
+  body.pdf-export h1 { font-size: 22px; }
+  body.pdf-export .cover {
+    min-height: 0; padding: 28px 20px 32px;
+    margin-bottom: 18px;
+    page-break-after: always;
+  }
+  body.pdf-export .cover-logo { max-height: 56px; margin-bottom: 14px; }
+  body.pdf-export .cover-title { font-size: 26px; margin-bottom: 16px; }
+  body.pdf-export .cover-verdict {
+    padding: 14px 28px; margin-bottom: 22px; min-width: 220px;
+  }
+  body.pdf-export .cover-verdict-score { font-size: 40px; }
+  body.pdf-export .cover-verdict-pct { font-size: 18px; }
+  body.pdf-export .cover-verdict-label { font-size: 13px; margin-top: 4px; }
+  body.pdf-export .cover-meta {
+    grid-template-columns: repeat(2, minmax(180px, 240px));
+    gap: 10px 24px; margin-bottom: 18px;
+  }
+  body.pdf-export .cover-meta-value { font-size: 13px; }
+  body.pdf-export .phase {
+    margin-bottom: 12px; padding: 12px 14px;
+    page-break-inside: avoid; break-inside: avoid;
+  }
+  body.pdf-export .phase-head {
+    padding-bottom: 6px; margin-bottom: 8px;
+  }
+  body.pdf-export .phase-head h2 { font-size: 17px; gap: 8px; }
+  body.pdf-export .phase-num { font-size: 10px; }
+  body.pdf-export .phase-blurb { font-size: 11px; margin-top: 4px; }
+  body.pdf-export .disc-block { margin-top: 10px; }
+  body.pdf-export .disc-head { font-size: 10px; }
+  body.pdf-export table { font-size: 10.5px; margin: 6px 0; }
+  body.pdf-export th, body.pdf-export td { padding: 4px 6px; }
+  body.pdf-export th { font-size: 9px; }
+  body.pdf-export .crew-grid { gap: 12px; }
+  body.pdf-export .crew-list { font-size: 10.5px; padding-left: 16px; }
+  body.pdf-export .phase-risks { margin-top: 10px; padding-top: 8px; }
+  body.pdf-export .risk-list li { padding: 3px 0; font-size: 10.5px; }
+  body.pdf-export .verdict {
+    margin-top: 18px; padding: 16px 18px;
+    page-break-inside: avoid; break-inside: avoid;
+  }
+  body.pdf-export .verdict-row {
+    grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 12px;
+  }
+  body.pdf-export .verdict-score-value { font-size: 36px; }
+  body.pdf-export .verdict-score-pct { font-size: 18px; }
+  body.pdf-export .verdict-tally { gap: 16px; }
+  body.pdf-export .tally-num { font-size: 24px; }
+  body.pdf-export .verdict-final-value { font-size: 22px; }
+  body.pdf-export .verdict-biggest { font-size: 11px; padding-top: 8px; }
 </style>
 </head>
 <body>

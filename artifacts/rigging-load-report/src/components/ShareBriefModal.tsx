@@ -10,8 +10,12 @@ import { encodeBrief, buildShareUrl } from "../lib/briefShare";
 import { crewHours, formatCrewDayRate } from "../lib/crew";
 import { loadActiveFloorPlan, type FloorPlan } from "../lib/floorPlan";
 import { uploadBriefAttachment } from "../lib/briefAttachmentUpload";
-import { renderScreenPngBlob } from "../lib/ledExport";
+import { renderScreenPngBlob, getLogoDataUrl } from "../lib/ledExport";
 import { computeScreenMetrics } from "../lib/led";
+import { computeStage } from "../lib/stage";
+import { buildStageReportHtml } from "../lib/stageExport";
+import { htmlToPdfBlob, pdfFilename } from "../lib/htmlToPdf";
+import ehsLogo from "../assets/ehs-logo.png";
 
 /** "Share with Crew" modal — generates one personalised brief link per
  *  crew member (and one generic link). The producer copies a link and
@@ -145,6 +149,77 @@ export function ShareBriefModal({ onClose, state }: ShareBriefModalProps) {
                   e instanceof Error
                     ? `Could not attach LED diagram for "${screen.name || "Screen"}": ${e.message}`
                     : `Could not attach LED diagram for "${screen.name || "Screen"}".`;
+                setError((prev) => (prev ? `${prev}\n${msg}` : msg));
+              }
+            }
+          }
+        }
+
+        // Step 3 — render one PDF per stage (using the same Stage Build
+        // Sheet the producer can download from the Stage tab) and
+        // upload each as a brief attachment. This way every freelancer
+        // who opens the brief gets the full stage build sheet without
+        // the producer having to download + re-attach it manually.
+        // Failures are non-fatal — we keep going so the textual brief
+        // and other attachments still ship.
+        const stages = state.stages.filter(
+          (s) => s && (s.width > 0 || s.depth > 0 || s.editMode === "manual"),
+        );
+        if (stages.length > 0) {
+          // Logo is optional — load once and reuse across stages. If the
+          // asset can't be fetched (offline, CSP, etc.) we just produce
+          // logo-less PDFs.
+          let stageLogo: string | null = null;
+          try {
+            stageLogo = await getLogoDataUrl(ehsLogo);
+          } catch {
+            stageLogo = null;
+          }
+          for (let i = 0; i < stages.length; i++) {
+            const stage = stages[i];
+            if (cancelled) return;
+            const stageName = stage.name.trim() || `Stage ${i + 1}`;
+            setUploadStatus(
+              `Uploading stage build sheet ${i + 1} / ${stages.length} (${stageName})…`,
+            );
+            try {
+              const calc = computeStage(stage);
+              const html = buildStageReportHtml({
+                stage,
+                calc,
+                project: {
+                  venue: state.venue,
+                  date: state.reportDate,
+                  endDate: state.reportEndDate || undefined,
+                  preparedBy: state.engineer,
+                },
+                logoDataUrl: stageLogo,
+              });
+              const blob = await htmlToPdfBlob(html);
+              if (cancelled) return;
+              const fileName = pdfFilename([
+                "Stage Build Sheet",
+                stageName,
+                state.venue,
+                state.reportDate,
+              ]);
+              const att = await uploadBriefAttachment(
+                {
+                  name: fileName,
+                  contentType: "application/pdf",
+                  sizeBytes: blob.size,
+                  blob,
+                },
+                getToken,
+              );
+              if (cancelled) return;
+              attachments.push(att);
+            } catch (e) {
+              if (!cancelled) {
+                const msg =
+                  e instanceof Error
+                    ? `Could not attach stage build sheet for "${stageName}": ${e.message}`
+                    : `Could not attach stage build sheet for "${stageName}".`;
                 setError((prev) => (prev ? `${prev}\n${msg}` : msg));
               }
             }

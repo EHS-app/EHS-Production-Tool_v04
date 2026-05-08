@@ -21,11 +21,32 @@ const A4_PORTRAIT_PX = 794; // ≈ 210 mm at 96 dpi
 
 export type Orientation = "portrait" | "landscape";
 
+/** Render an HTML document string to a multi-page A4 PDF and return it
+ *  as a Blob. Use this when you want to attach the PDF to something
+ *  (upload it, embed it, etc.) instead of triggering a browser download.
+ *  See `downloadHtmlAsPdf` for the download variant. */
+export async function htmlToPdfBlob(
+  html: string,
+  options: { orientation?: Orientation } = {},
+): Promise<Blob> {
+  const pdf = await renderHtmlToJsPdf(html, options);
+  // jsPDF's `output("blob")` returns a Blob synchronously.
+  return pdf.output("blob");
+}
+
 export async function downloadHtmlAsPdf(
   html: string,
   filename: string,
   options: { orientation?: Orientation } = {},
 ): Promise<void> {
+  const pdf = await renderHtmlToJsPdf(html, options);
+  pdf.save(filename);
+}
+
+async function renderHtmlToJsPdf(
+  html: string,
+  options: { orientation?: Orientation },
+): Promise<jsPDF> {
   const orientation = options.orientation ?? "portrait";
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
@@ -113,7 +134,7 @@ export async function downloadHtmlAsPdf(
       remaining -= pageH;
     }
 
-    pdf.save(filename);
+    return pdf;
   } finally {
     iframe.remove();
   }

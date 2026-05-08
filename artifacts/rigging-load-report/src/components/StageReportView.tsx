@@ -1517,6 +1517,15 @@ function StageSvg({
             mode (auto-mode preview, exports, etc.) they're purely
             informational. */}
         {calc.decks.flatMap((p, i) => {
+          // Per Nivtec, only the *starting* deck dictates the
+          // tongue/groove orientation of the whole stage — every
+          // following deck is forced into position by hooking into the
+          // previous one. So the orange male-edge marker only matters
+          // on the deck(s) the crew lands fresh with 4 legs (in shared
+          // mode that's the single 4-leg starter; in per-deck-leg mode
+          // every deck stands alone with 4 legs).
+          const legsAdded = calc.assembly[i]?.legsAdded ?? 0;
+          if (legsAdded !== 4) return [];
           const primary = effectiveConnectorSide(stage, p);
           // Per Nivtec: tongues face "rear AND right" — i.e. the male
           // edges are on TWO adjacent sides 90° apart, clockwise from

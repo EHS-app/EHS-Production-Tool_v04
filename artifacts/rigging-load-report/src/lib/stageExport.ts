@@ -170,7 +170,14 @@ function buildStageSvg(stage: Stage, calc: StageCalc): string {
   // Male-connector edge stripes — one thin orange band along the side
   // of each deck where the male pins face. Matches the on-screen view.
   const STRIPE_PX = 5;
-  for (const p of calc.decks) {
+  for (let i = 0; i < calc.decks.length; i++) {
+    const p = calc.decks[i];
+    // Only the deck(s) landed with 4 fresh legs need an orange marker
+    // — every other deck is force-oriented by hooking into a
+    // previously placed deck. See StageReportView for the full
+    // rationale.
+    const legsAdded = calc.assembly[i]?.legsAdded ?? 0;
+    if (legsAdded !== 4) continue;
     const primary = effectiveConnectorSide(stage, p);
     // Per Nivtec's "tongue rear AND right" rule each deck has TWO male
     // edges 90° apart, clockwise from the primary.

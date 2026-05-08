@@ -917,9 +917,35 @@ function renderHtml(input: ClientPackInput): string {
 </head>
 <body>
 <div class="print-bar no-print">
-  <button onclick="window.print()" class="primary">Print / Save as PDF</button>
+  <button id="ehs-download-pdf" class="primary">Download PDF</button>
+  <button onclick="window.print()">Print</button>
   <button onclick="window.close()">Close</button>
 </div>
+<script>
+(function () {
+  var btn = document.getElementById('ehs-download-pdf');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    var opener = window.opener;
+    var fn = opener && opener.__ehsDownloadClientPackPdf;
+    if (typeof fn !== 'function') {
+      window.print();
+      return;
+    }
+    var orig = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Generating PDF…';
+    Promise.resolve(fn(window)).catch(function (err) {
+      console.error(err);
+      alert('Could not generate the PDF. Falling back to the browser print dialog.');
+      window.print();
+    }).then(function () {
+      btn.disabled = false;
+      btn.textContent = orig;
+    });
+  });
+})();
+</script>
 
 ${cover}
 ${overview}

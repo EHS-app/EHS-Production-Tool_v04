@@ -312,9 +312,9 @@ function StageCard({
             onClick={() => {
               void onExport();
             }}
-            title="Open a printable build sheet for this stage (PDF or print)"
+            title="Download this stage's build sheet as a PDF"
           >
-            Export
+            Download PDF
           </button>
           <button className="btn btn-tab-action" onClick={onDuplicate}>
             Copy

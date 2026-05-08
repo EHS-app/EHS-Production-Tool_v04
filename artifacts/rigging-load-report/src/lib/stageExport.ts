@@ -233,27 +233,21 @@ export type StageExportProject = {
   preparedBy: string;
 };
 
-/** Open a printable Stage Build Sheet in a new browser window. The user
- *  can save it as PDF (Print → Save as PDF) or send it straight to a
- *  printer. Includes everything the build crew needs: project meta,
- *  top-down stage visual, deck list, leg list, rails, load capacity,
- *  bracing requirements, and notes.
+/** Build the standalone HTML document for a Stage Build Sheet. Returned
+ *  as a string so callers can either (a) render it into a popup window
+ *  for printing, or (b) hand it to `downloadHtmlAsPdf` for a direct
+ *  PDF download with no print dialog.
  *
- *  Caller must open the target window SYNCHRONOUSLY inside the user's
- *  click handler and pass it in as `targetWin` — otherwise pop-up
- *  blockers will silently swallow the new tab. The caller can preload
- *  the window with a "Generating…" message while async work (e.g.
- *  fetching the logo) finishes; this function then writes the final
- *  HTML into the same window. */
-export function exportStageReport(input: {
+ *  Includes everything the build crew needs: project meta, top-down
+ *  stage visual, deck list, leg list, rails, load capacity, bracing
+ *  requirements, and notes. */
+export function buildStageReportHtml(input: {
   stage: Stage;
   calc: StageCalc;
   project: StageExportProject;
   logoDataUrl: string | null;
-  /** Pre-opened popup window from the click handler. */
-  targetWin: Window | null;
-}): void {
-  const { stage, calc, project, logoDataUrl, targetWin } = input;
+}): string {
+  const { stage, calc, project, logoDataUrl } = input;
   const usedDecks = STAGE_DECKS.filter((d) => calc.deckCounts[d.key] > 0);
   const legSpec = STAGE_LEGS.find((l) => l.heightCm === stage.legHeightCm);
   const bracing = nivtecBracingNote(stage.legHeightCm);
@@ -577,6 +571,29 @@ ${
 </div>
 </body>
 </html>`;
+
+  return html;
+}
+
+/** Open a printable Stage Build Sheet in a new browser window. The user
+ *  can save it as PDF (Print → Save as PDF) or send it straight to a
+ *  printer. Kept for the legacy popup-print flow — most callers should
+ *  prefer `buildStageReportHtml` + `downloadHtmlAsPdf` for a direct
+ *  download with no print dialog.
+ *
+ *  Caller must open the target window SYNCHRONOUSLY inside the user's
+ *  click handler and pass it in as `targetWin` — otherwise pop-up
+ *  blockers will silently swallow the new tab. */
+export function exportStageReport(input: {
+  stage: Stage;
+  calc: StageCalc;
+  project: StageExportProject;
+  logoDataUrl: string | null;
+  /** Pre-opened popup window from the click handler. */
+  targetWin: Window | null;
+}): void {
+  const { targetWin } = input;
+  const html = buildStageReportHtml(input);
 
   if (!targetWin) {
     // Caller's synchronous window.open() was blocked. Try a last-ditch

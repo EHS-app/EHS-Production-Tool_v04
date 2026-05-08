@@ -66,7 +66,8 @@ import {
   makeDefaultStage,
   normalizeStage,
 } from "./lib/stage";
-import { exportStageReport } from "./lib/stageExport";
+import { buildStageReportHtml } from "./lib/stageExport";
+import { downloadHtmlAsPdf, pdfFilename } from "./lib/htmlToPdf";
 import { exportPowerPlanToCrew } from "./lib/powerPlanExport";
 import {
   exportClientPack,
@@ -3610,22 +3611,17 @@ function App() {
     });
   };
 
-  /** Open a printable Stage Build Sheet for a single stage. Loads the
-   *  EHS logo so the printout is fully branded; falls back to a logo-
-   *  less header if the asset can't be fetched. The popup window is
-   *  opened SYNCHRONOUSLY (before any await) so browsers don't classify
-   *  it as a programmatic pop-up and block it. */
+  /** Download a Stage Build Sheet as a real PDF file — no popup window,
+   *  no browser print dialog, no "select Save as PDF in the destination
+   *  dropdown" friction. The HTML is rendered into a hidden iframe,
+   *  rasterised with html2canvas, and assembled into a multi-page A4
+   *  PDF by jsPDF, which then triggers the browser's native download.
+   *
+   *  Loads the EHS logo for branding; falls back to a logo-less header
+   *  if the asset can't be fetched. */
   const exportStage = async (id: string) => {
     const stage = stages.find((s) => s.id === id);
     if (!stage) return;
-    // Open the popup immediately, in the user-gesture click context.
-    const targetWin = window.open("", "_blank");
-    if (targetWin) {
-      // Show a brief placeholder while the logo loads.
-      targetWin.document.write(
-        `<!doctype html><meta charset="utf-8"><title>Generating Stage Build Sheet…</title><body style="font:14px system-ui;padding:24px;color:#64748b">Generating Stage Build Sheet…</body>`,
-      );
-    }
     const calc = computeStage(stage);
     let logoDataUrl: string | null = null;
     try {
@@ -3633,7 +3629,7 @@ function App() {
     } catch {
       logoDataUrl = null;
     }
-    exportStageReport({
+    const html = buildStageReportHtml({
       stage,
       calc,
       project: {
@@ -3643,8 +3639,26 @@ function App() {
         preparedBy: engineer,
       },
       logoDataUrl,
-      targetWin,
     });
+    const filename = pdfFilename([
+      "Stage Build Sheet",
+      stage.name.trim() || "Untitled stage",
+      venue,
+      reportDate,
+    ]);
+    try {
+      await downloadHtmlAsPdf(html, filename);
+    } catch (err) {
+      console.error("[stage export] PDF download failed:", err);
+      // We intentionally don't fall back to `window.open` here — the
+      // user gesture token has expired during the `await` above, so any
+      // popup open would be blocked by the browser. A clear alert lets
+      // the user retry (which gives us a fresh activation token) or
+      // report the issue.
+      alert(
+        "Could not generate the PDF. Please try again, or contact support if the problem continues.",
+      );
+    }
   };
 
   /** Open a printable Power Plan crew manifest in a new window. The

@@ -18,7 +18,7 @@ const Badge = ({ children, className, variant = "default" }: { children: React.R
     outline: "bg-transparent text-gray-400 border border-white/10"
   };
   return (
-    <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", variants[variant], className)}>
+    <span className={cn("px-2 py-0.5 rounded-full text-sm font-medium", variants[variant], className)}>
       {children}
     </span>
   );
@@ -38,7 +38,7 @@ const Button = ({ children, className, variant = "primary", size = "default" }: 
   };
   const sizes = {
     default: "h-9 px-4 py-2",
-    sm: "h-7 px-3 py-1 text-xs",
+    sm: "h-7 px-3 py-1 text-sm",
     icon: "h-8 w-8 p-0 flex items-center justify-center"
   };
   return (
@@ -58,7 +58,7 @@ const ProgressBar = ({ value, max, colorClass }: { value: number, max: number, c
 };
 
 const Kbd = ({ children }: { children: React.ReactNode }) => (
-  <kbd className="inline-flex items-center justify-center rounded bg-white/10 border border-white/10 px-1.5 text-[10px] font-mono text-gray-400 font-medium">
+  <kbd className="inline-flex items-center justify-center rounded bg-white/10 border border-white/10 px-1.5 text-xs font-mono text-gray-400 font-medium">
     {children}
   </kbd>
 );
@@ -90,23 +90,23 @@ export function LinearEHS() {
       <aside className="w-full md:w-64 border-r border-white/5 bg-[#1C1C24] flex flex-col shrink-0 relative z-20">
         {/* Workspace Switcher */}
         <div className="h-14 flex items-center px-4 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors group">
-          <div className="h-6 w-6 rounded bg-gradient-to-br from-[#F88000] to-[#7A4400] flex items-center justify-center text-white font-bold text-xs shadow-inner">
+          <div className="h-6 w-6 rounded bg-gradient-to-br from-[#F88000] to-[#7A4400] flex items-center justify-center text-white font-bold text-sm shadow-inner">
             E
           </div>
-          <span className="ml-3 font-medium text-sm text-gray-200">EHS Production</span>
+          <span className="ml-3 font-medium text-base text-gray-200">EHS Production</span>
           <ChevronDown className="w-4 h-4 ml-auto text-gray-500 group-hover:text-gray-300" />
         </div>
 
         {/* Sidebar Actions */}
         <div className="p-3">
-          <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 transition-colors text-sm group">
+          <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 transition-colors text-base group">
             <Search className="w-4 h-4" />
             <span>Search</span>
             <div className="ml-auto flex items-center gap-1 opacity-60">
               <Kbd><Command className="w-3 h-3" /></Kbd><Kbd>K</Kbd>
             </div>
           </button>
-          <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 transition-colors text-sm mt-1">
+          <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 transition-colors text-base mt-1">
             <Plus className="w-4 h-4" />
             <span>New Issue</span>
             <div className="ml-auto flex items-center gap-1 opacity-60">
@@ -118,34 +118,34 @@ export function LinearEHS() {
         {/* Primary Nav */}
         <div className="flex-1 overflow-y-auto linear-scrollbar py-2 px-3">
           <div className="space-y-0.5">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-2 mt-2">Prosjekt</div>
-            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-[#F88000]/10 text-[#F88000] text-sm font-medium">
+            <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2 px-2 mt-2">Prosjekt</div>
+            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-[#F88000]/10 text-[#F88000] text-base font-medium">
               <Activity className="w-4 h-4" /> Oversikt
             </a>
-            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 text-sm font-medium transition-colors">
+            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 text-base font-medium transition-colors">
               <Briefcase className="w-4 h-4" /> Rigg
             </a>
-            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 text-sm font-medium transition-colors">
+            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 text-base font-medium transition-colors">
               <Zap className="w-4 h-4" /> Lys
             </a>
-            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 text-sm font-medium transition-colors">
+            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 text-base font-medium transition-colors">
               <MonitorPlay className="w-4 h-4" /> LED
             </a>
-            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 text-sm font-medium transition-colors">
+            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 text-base font-medium transition-colors">
               <Speaker className="w-4 h-4" /> Lyd
             </a>
-            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 text-sm font-medium transition-colors">
+            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 text-base font-medium transition-colors">
               <AlignLeft className="w-4 h-4" /> Scene
             </a>
             
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-2 mt-6">Logistikk</div>
-            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 text-sm font-medium transition-colors">
+            <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2 px-2 mt-6">Logistikk</div>
+            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 text-base font-medium transition-colors">
               <Users className="w-4 h-4" /> Crew
             </a>
-            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 text-sm font-medium transition-colors">
+            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 text-base font-medium transition-colors">
               <Bed className="w-4 h-4" /> Hotell
             </a>
-            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 text-sm font-medium transition-colors">
+            <a href="#" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-gray-400 hover:text-gray-200 text-base font-medium transition-colors">
               <Coffee className="w-4 h-4" /> Catering
             </a>
           </div>
@@ -154,12 +154,12 @@ export function LinearEHS() {
         {/* User */}
         <div className="p-4 border-t border-white/5">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-gray-700 to-gray-600 border border-white/10 flex items-center justify-center text-xs font-bold text-white shadow-sm">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-gray-700 to-gray-600 border border-white/10 flex items-center justify-center text-sm font-bold text-white shadow-sm">
               M
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-gray-200 truncate">Marius Jensen</div>
-              <div className="text-xs text-gray-500 truncate">Produsent</div>
+              <div className="text-base font-medium text-gray-200 truncate">Marius Jensen</div>
+              <div className="text-sm text-gray-500 truncate">Produsent</div>
             </div>
             <button className="text-gray-500 hover:text-gray-300">
               <Settings className="w-4 h-4" />
@@ -175,7 +175,7 @@ export function LinearEHS() {
         {/* Header */}
         <header className="h-16 border-b border-white/5 px-6 flex items-center justify-between shrink-0 sticky top-0 bg-[#1C1C24]/80 backdrop-blur-md z-10">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 text-sm text-gray-400">
+            <div className="flex items-center gap-1.5 text-base text-gray-400">
               <span>Prosjekter</span>
               <span>/</span>
               <span className="text-gray-200 font-medium">Vårfest 2026</span>
@@ -209,10 +209,10 @@ export function LinearEHS() {
           
           {/* Title Area */}
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-white mb-3">
+            <h1 className="text-4xl font-semibold tracking-tight text-white mb-3">
               Stavanger Konserthus — Vårfest 2026
             </h1>
-            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
+            <div className="flex flex-wrap items-center gap-4 text-base text-gray-400">
               <div className="flex items-center gap-1.5">
                 <Calendar className="w-4 h-4" />
                 <span>12.–14. mai 2026</span>
@@ -227,37 +227,37 @@ export function LinearEHS() {
           {/* KPI Strip */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card className="p-4 bg-gradient-to-b from-[#25252F] to-[#1F1F28] hover:border-white/10 transition-colors">
-              <div className="text-xs font-medium text-gray-400 mb-1 flex items-center justify-between">
+              <div className="text-sm font-medium text-gray-400 mb-1 flex items-center justify-between">
                 Crew booket
                 <Users className="w-3.5 h-3.5 text-gray-500" />
               </div>
               <div className="flex items-baseline gap-2 mb-2">
-                <span className="text-2xl font-semibold text-white">18</span>
-                <span className="text-sm text-gray-500">/ 22</span>
+                <span className="text-3xl font-semibold text-white">18</span>
+                <span className="text-base text-gray-500">/ 22</span>
               </div>
               <ProgressBar value={18} max={22} colorClass="bg-[#F88000]" />
             </Card>
             
             <Card className="p-4 bg-gradient-to-b from-[#25252F] to-[#1F1F28] hover:border-white/10 transition-colors">
-              <div className="text-xs font-medium text-gray-400 mb-1 flex items-center justify-between">
+              <div className="text-sm font-medium text-gray-400 mb-1 flex items-center justify-between">
                 Rigg-belastning
                 <Briefcase className="w-3.5 h-3.5 text-gray-500" />
               </div>
               <div className="flex items-baseline gap-2 mb-2">
-                <span className="text-2xl font-semibold text-white">4.2<span className="text-lg">t</span></span>
-                <span className="text-sm text-gray-500">/ 6.0t maks</span>
+                <span className="text-3xl font-semibold text-white">4.2<span className="text-xl">t</span></span>
+                <span className="text-base text-gray-500">/ 6.0t maks</span>
               </div>
               <ProgressBar value={4.2} max={6.0} colorClass="bg-emerald-500" />
             </Card>
 
             <Card className="p-4 bg-gradient-to-b from-[#25252F] to-[#1F1F28] hover:border-white/10 transition-colors">
-              <div className="text-xs font-medium text-gray-400 mb-1 flex items-center justify-between">
+              <div className="text-sm font-medium text-gray-400 mb-1 flex items-center justify-between">
                 LED-paneler
                 <MonitorPlay className="w-3.5 h-3.5 text-gray-500" />
               </div>
               <div className="flex items-baseline gap-2 mb-2">
-                <span className="text-2xl font-semibold text-white">96</span>
-                <span className="text-sm text-gray-500">stk</span>
+                <span className="text-3xl font-semibold text-white">96</span>
+                <span className="text-base text-gray-500">stk</span>
               </div>
               <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden mt-2 flex">
                 <div className="h-full bg-blue-500 w-[60%]" />
@@ -266,13 +266,13 @@ export function LinearEHS() {
             </Card>
 
             <Card className="p-4 bg-gradient-to-b from-[#25252F] to-[#1F1F28] hover:border-white/10 transition-colors">
-              <div className="text-xs font-medium text-gray-400 mb-1 flex items-center justify-between">
+              <div className="text-sm font-medium text-gray-400 mb-1 flex items-center justify-between">
                 Estimert kostnad
                 <Activity className="w-3.5 h-3.5 text-gray-500" />
               </div>
               <div className="flex items-baseline gap-2 mb-2">
-                <span className="text-2xl font-semibold text-white">487k</span>
-                <span className="text-sm text-gray-500">NOK</span>
+                <span className="text-3xl font-semibold text-white">487k</span>
+                <span className="text-base text-gray-500">NOK</span>
               </div>
               <ProgressBar value={80} max={100} colorClass="bg-amber-500" />
             </Card>
@@ -286,7 +286,7 @@ export function LinearEHS() {
               {/* Crew Timeline Matrix */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-medium text-gray-100 flex items-center gap-2">
+                  <h2 className="text-xl font-medium text-gray-100 flex items-center gap-2">
                     <Users className="w-4 h-4 text-[#F88000]" /> Crew Schedule
                   </h2>
                   <Button variant="secondary" size="sm">Se full tidsplan</Button>
@@ -294,13 +294,13 @@ export function LinearEHS() {
                 
                 <Card className="overflow-hidden">
                   <div className="overflow-x-auto linear-scrollbar">
-                    <table className="w-full text-sm text-left">
-                      <thead className="bg-[#1C1C24]/50 border-b border-white/5 text-xs text-gray-400 uppercase tracking-wider">
+                    <table className="w-full text-base text-left">
+                      <thead className="bg-[#1C1C24]/50 border-b border-white/5 text-sm text-gray-400 uppercase tracking-wider">
                         <tr>
                           <th className="px-4 py-3 font-medium w-[30%]">Navn & Rolle</th>
-                          <th className="px-4 py-3 font-medium text-center border-l border-white/5">12. mai<br/><span className="text-[10px] font-normal text-gray-500">Opprigg</span></th>
-                          <th className="px-4 py-3 font-medium text-center border-l border-white/5">13. mai<br/><span className="text-[10px] font-normal text-gray-500">Show</span></th>
-                          <th className="px-4 py-3 font-medium text-center border-l border-white/5">14. mai<br/><span className="text-[10px] font-normal text-gray-500">Nedrigg</span></th>
+                          <th className="px-4 py-3 font-medium text-center border-l border-white/5">12. mai<br/><span className="text-xs font-normal text-gray-500">Opprigg</span></th>
+                          <th className="px-4 py-3 font-medium text-center border-l border-white/5">13. mai<br/><span className="text-xs font-normal text-gray-500">Show</span></th>
+                          <th className="px-4 py-3 font-medium text-center border-l border-white/5">14. mai<br/><span className="text-xs font-normal text-gray-500">Nedrigg</span></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/5 text-gray-300">
@@ -309,19 +309,19 @@ export function LinearEHS() {
                             <div className="flex items-center justify-between">
                               <div>
                                 <div className="font-medium text-gray-200">Sara H.</div>
-                                <div className="text-xs text-gray-500">Rigger</div>
+                                <div className="text-sm text-gray-500">Rigger</div>
                               </div>
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                             </div>
                           </td>
                           <td className="p-1 border-l border-white/5">
-                            <div className="bg-[#F88000]/20 border border-[#F88000]/30 text-[#F88000] text-xs py-1.5 px-2 rounded flex flex-col items-center justify-center h-full">
+                            <div className="bg-[#F88000]/20 border border-[#F88000]/30 text-[#F88000] text-sm py-1.5 px-2 rounded flex flex-col items-center justify-center h-full">
                               <span className="font-semibold">08:00 - 18:00</span>
                             </div>
                           </td>
                           <td className="p-1 border-l border-white/5"></td>
                           <td className="p-1 border-l border-white/5">
-                            <div className="bg-[#F88000]/20 border border-[#F88000]/30 text-[#F88000] text-xs py-1.5 px-2 rounded flex flex-col items-center justify-center h-full">
+                            <div className="bg-[#F88000]/20 border border-[#F88000]/30 text-[#F88000] text-sm py-1.5 px-2 rounded flex flex-col items-center justify-center h-full">
                               <span className="font-semibold">22:00 - 02:00</span>
                             </div>
                           </td>
@@ -331,23 +331,23 @@ export function LinearEHS() {
                             <div className="flex items-center justify-between">
                               <div>
                                 <div className="font-medium text-gray-200">Henrik L.</div>
-                                <div className="text-xs text-gray-500">Lystekniker</div>
+                                <div className="text-sm text-gray-500">Lystekniker</div>
                               </div>
                               <Clock className="w-3.5 h-3.5 text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                             </div>
                           </td>
                           <td className="p-1 border-l border-white/5">
-                            <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs py-1.5 px-2 rounded flex flex-col items-center justify-center h-full border-dashed">
+                            <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm py-1.5 px-2 rounded flex flex-col items-center justify-center h-full border-dashed">
                               <span className="font-semibold">10:00 - 20:00</span>
                             </div>
                           </td>
                           <td className="p-1 border-l border-white/5">
-                            <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs py-1.5 px-2 rounded flex flex-col items-center justify-center h-full border-dashed">
+                            <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm py-1.5 px-2 rounded flex flex-col items-center justify-center h-full border-dashed">
                               <span className="font-semibold">16:00 - 24:00</span>
                             </div>
                           </td>
                           <td className="p-1 border-l border-white/5">
-                            <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs py-1.5 px-2 rounded flex flex-col items-center justify-center h-full border-dashed">
+                            <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm py-1.5 px-2 rounded flex flex-col items-center justify-center h-full border-dashed">
                               <span className="font-semibold">22:00 - 04:00</span>
                             </div>
                           </td>
@@ -357,23 +357,23 @@ export function LinearEHS() {
                             <div className="flex items-center justify-between">
                               <div>
                                 <div className="font-medium text-gray-200">Ingrid B.</div>
-                                <div className="text-xs text-gray-500">LED-tekniker</div>
+                                <div className="text-sm text-gray-500">LED-tekniker</div>
                               </div>
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                             </div>
                           </td>
                           <td className="p-1 border-l border-white/5">
-                            <div className="bg-[#F88000]/20 border border-[#F88000]/30 text-[#F88000] text-xs py-1.5 px-2 rounded flex flex-col items-center justify-center h-full">
+                            <div className="bg-[#F88000]/20 border border-[#F88000]/30 text-[#F88000] text-sm py-1.5 px-2 rounded flex flex-col items-center justify-center h-full">
                               <span className="font-semibold">12:00 - 22:00</span>
                             </div>
                           </td>
                           <td className="p-1 border-l border-white/5">
-                            <div className="bg-[#F88000]/20 border border-[#F88000]/30 text-[#F88000] text-xs py-1.5 px-2 rounded flex flex-col items-center justify-center h-full">
+                            <div className="bg-[#F88000]/20 border border-[#F88000]/30 text-[#F88000] text-sm py-1.5 px-2 rounded flex flex-col items-center justify-center h-full">
                               <span className="font-semibold">18:00 - 24:00</span>
                             </div>
                           </td>
                           <td className="p-1 border-l border-white/5">
-                            <div className="bg-[#F88000]/20 border border-[#F88000]/30 text-[#F88000] text-xs py-1.5 px-2 rounded flex flex-col items-center justify-center h-full">
+                            <div className="bg-[#F88000]/20 border border-[#F88000]/30 text-[#F88000] text-sm py-1.5 px-2 rounded flex flex-col items-center justify-center h-full">
                               <span className="font-semibold">22:00 - 04:00</span>
                             </div>
                           </td>
@@ -383,12 +383,12 @@ export function LinearEHS() {
                             <div className="flex items-center justify-between">
                               <div>
                                 <div className="font-medium text-gray-200">Andreas K.</div>
-                                <div className="text-xs text-gray-500">Lydtekniker</div>
+                                <div className="text-sm text-gray-500">Lydtekniker</div>
                               </div>
                               <XCircle className="w-3.5 h-3.5 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                             </div>
                           </td>
-                          <td colSpan={3} className="p-2 border-l border-white/5 text-center text-rose-400 text-xs font-medium">
+                          <td colSpan={3} className="p-2 border-l border-white/5 text-center text-rose-400 text-sm font-medium">
                             Avlyst
                           </td>
                         </tr>
@@ -397,19 +397,19 @@ export function LinearEHS() {
                             <div className="flex items-center justify-between">
                               <div>
                                 <div className="font-medium text-gray-200">Kari M.</div>
-                                <div className="text-xs text-gray-500">Stagehand</div>
+                                <div className="text-sm text-gray-500">Stagehand</div>
                               </div>
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                             </div>
                           </td>
                           <td className="p-1 border-l border-white/5">
-                            <div className="bg-white/5 border border-white/10 text-gray-300 text-xs py-1.5 px-2 rounded flex flex-col items-center justify-center h-full">
+                            <div className="bg-white/5 border border-white/10 text-gray-300 text-sm py-1.5 px-2 rounded flex flex-col items-center justify-center h-full">
                               <span className="font-semibold">14:00 - 20:00</span>
                             </div>
                           </td>
                           <td className="p-1 border-l border-white/5"></td>
                           <td className="p-1 border-l border-white/5">
-                            <div className="bg-white/5 border border-white/10 text-gray-300 text-xs py-1.5 px-2 rounded flex flex-col items-center justify-center h-full">
+                            <div className="bg-white/5 border border-white/10 text-gray-300 text-sm py-1.5 px-2 rounded flex flex-col items-center justify-center h-full">
                               <span className="font-semibold">22:00 - 04:00</span>
                             </div>
                           </td>
@@ -417,7 +417,7 @@ export function LinearEHS() {
                       </tbody>
                     </table>
                   </div>
-                  <div className="bg-[#1C1C24]/80 p-2.5 border-t border-white/5 text-xs flex justify-between text-gray-500 items-center">
+                  <div className="bg-[#1C1C24]/80 p-2.5 border-t border-white/5 text-sm flex justify-between text-gray-500 items-center">
                     <div className="flex gap-4">
                       <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#F88000]"></div> Bekreftet</span>
                       <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-500"></div> Venter svar</span>
@@ -430,7 +430,7 @@ export function LinearEHS() {
 
               {/* Technical Systems */}
               <div className="space-y-3 pt-4">
-                <h2 className="text-lg font-medium text-gray-100 flex items-center gap-2">
+                <h2 className="text-xl font-medium text-gray-100 flex items-center gap-2">
                   <MonitorPlay className="w-4 h-4 text-blue-400" /> Technical Systems
                 </h2>
                 
@@ -441,11 +441,11 @@ export function LinearEHS() {
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <h3 className="font-medium text-gray-200">Lys Hovedrigg</h3>
-                        <p className="text-xs text-gray-500">Robe MegaPointe, GrandMA3</p>
+                        <p className="text-sm text-gray-500">Robe MegaPointe, GrandMA3</p>
                       </div>
                       <Badge variant="outline"><Zap className="w-3 h-3 text-yellow-400" /></Badge>
                     </div>
-                    <div className="space-y-2 mt-4 text-sm">
+                    <div className="space-y-2 mt-4 text-base">
                       <div className="flex justify-between text-gray-400">
                         <span>Punkter</span>
                         <span className="text-gray-200">12 stk</span>
@@ -467,11 +467,11 @@ export function LinearEHS() {
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <h3 className="font-medium text-gray-200">LED Bakvegg</h3>
-                        <p className="text-xs text-gray-500">ROE Carbon CB5, 12x4m</p>
+                        <p className="text-sm text-gray-500">ROE Carbon CB5, 12x4m</p>
                       </div>
                       <Badge variant="outline"><MonitorPlay className="w-3 h-3 text-blue-400" /></Badge>
                     </div>
-                    <div className="space-y-2 mt-4 text-sm">
+                    <div className="space-y-2 mt-4 text-base">
                       <div className="flex justify-between text-gray-400">
                         <span>Paneler</span>
                         <span className="text-gray-200">96 stk</span>
@@ -493,11 +493,11 @@ export function LinearEHS() {
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <h3 className="font-medium text-gray-200">PA L/R Hang</h3>
-                        <p className="text-xs text-gray-500">d&b KSL, J-SUBs</p>
+                        <p className="text-sm text-gray-500">d&b KSL, J-SUBs</p>
                       </div>
                       <Badge variant="outline"><Speaker className="w-3 h-3 text-rose-400" /></Badge>
                     </div>
-                    <div className="space-y-2 mt-4 text-sm">
+                    <div className="space-y-2 mt-4 text-base">
                       <div className="flex justify-between text-gray-400">
                         <span>Høyttalere</span>
                         <span className="text-gray-200">24 stk</span>
@@ -522,7 +522,7 @@ export function LinearEHS() {
               
               {/* Logistics Row */}
               <div className="space-y-3">
-                <h2 className="text-lg font-medium text-gray-100 flex items-center gap-2">
+                <h2 className="text-xl font-medium text-gray-100 flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-emerald-400" /> Logistics
                 </h2>
                 
@@ -532,11 +532,11 @@ export function LinearEHS() {
                       <Bed className="w-5 h-5" />
                     </div>
                     <div className="flex-1">
-                      <h4 className="text-sm font-medium text-gray-200">Clarion Energy</h4>
-                      <div className="text-xs text-gray-500 mt-0.5">8 rom reservert</div>
+                      <h4 className="text-base font-medium text-gray-200">Clarion Energy</h4>
+                      <div className="text-sm text-gray-500 mt-0.5">8 rom reservert</div>
                       <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
-                        <span className="text-xs text-gray-400">Innsjekk 12.05</span>
-                        <a href="#" className="text-xs text-[#F88000] hover:underline flex items-center">Detaljer <ArrowUpRight className="w-3 h-3 ml-0.5"/></a>
+                        <span className="text-sm text-gray-400">Innsjekk 12.05</span>
+                        <a href="#" className="text-sm text-[#F88000] hover:underline flex items-center">Detaljer <ArrowUpRight className="w-3 h-3 ml-0.5"/></a>
                       </div>
                     </div>
                   </Card>
@@ -546,11 +546,11 @@ export function LinearEHS() {
                       <Coffee className="w-5 h-5" />
                     </div>
                     <div className="flex-1">
-                      <h4 className="text-sm font-medium text-gray-200">Catering</h4>
-                      <div className="text-xs text-gray-500 mt-0.5">3 måltider/dag</div>
+                      <h4 className="text-base font-medium text-gray-200">Catering</h4>
+                      <div className="text-sm text-gray-500 mt-0.5">3 måltider/dag</div>
                       <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
-                        <span className="text-xs text-gray-400">22 personer</span>
-                        <a href="#" className="text-xs text-[#F88000] hover:underline flex items-center">Meny <ArrowUpRight className="w-3 h-3 ml-0.5"/></a>
+                        <span className="text-sm text-gray-400">22 personer</span>
+                        <a href="#" className="text-sm text-[#F88000] hover:underline flex items-center">Meny <ArrowUpRight className="w-3 h-3 ml-0.5"/></a>
                       </div>
                     </div>
                   </Card>
@@ -560,7 +560,7 @@ export function LinearEHS() {
               {/* Activity Feed */}
               <div className="space-y-3 pt-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-medium text-gray-100 flex items-center gap-2">
+                  <h2 className="text-xl font-medium text-gray-100 flex items-center gap-2">
                     <Activity className="w-4 h-4 text-gray-400" /> Activity
                   </h2>
                 </div>
@@ -574,9 +574,9 @@ export function LinearEHS() {
                       <div className="w-6 h-6 rounded-full bg-[#1C1C24] border border-white/10 flex items-center justify-center shrink-0 mt-0.5">
                         <Check className="w-3 h-3 text-emerald-400" />
                       </div>
-                      <div className="flex-1 text-sm">
+                      <div className="flex-1 text-base">
                         <p className="text-gray-300"><span className="font-medium text-gray-200">Marius J.</span> bekreftet 12.–14. mai</p>
-                        <p className="text-xs text-gray-500 mt-0.5">2 timer siden</p>
+                        <p className="text-sm text-gray-500 mt-0.5">2 timer siden</p>
                       </div>
                     </div>
                     
@@ -586,9 +586,9 @@ export function LinearEHS() {
                       <div className="w-6 h-6 rounded-full bg-[#1C1C24] border border-white/10 flex items-center justify-center shrink-0 mt-0.5">
                         <Share className="w-3 h-3 text-[#F88000]" />
                       </div>
-                      <div className="flex-1 text-sm">
+                      <div className="flex-1 text-base">
                         <p className="text-gray-300">Brief delt med <span className="font-medium text-gray-200">6 freelancere</span></p>
-                        <p className="text-xs text-gray-500 mt-0.5">5 timer siden</p>
+                        <p className="text-sm text-gray-500 mt-0.5">5 timer siden</p>
                       </div>
                     </div>
 
@@ -598,9 +598,9 @@ export function LinearEHS() {
                       <div className="w-6 h-6 rounded-full bg-[#1C1C24] border border-white/10 flex items-center justify-center shrink-0 mt-0.5">
                         <Download className="w-3 h-3 text-blue-400" />
                       </div>
-                      <div className="flex-1 text-sm">
+                      <div className="flex-1 text-base">
                         <p className="text-gray-300"><span className="font-medium text-gray-200">Sara H.</span> lastet opp førerkort</p>
-                        <p className="text-xs text-gray-500 mt-0.5">I går, 14:30</p>
+                        <p className="text-sm text-gray-500 mt-0.5">I går, 14:30</p>
                       </div>
                     </div>
 
@@ -610,9 +610,9 @@ export function LinearEHS() {
                       <div className="w-6 h-6 rounded-full bg-[#1C1C24] border border-[#F88000]/30 flex items-center justify-center shrink-0 mt-0.5 shadow-[0_0_8px_rgba(248,128,0,0.4)]">
                         <Plus className="w-3 h-3 text-[#F88000]" />
                       </div>
-                      <div className="flex-1 text-sm">
+                      <div className="flex-1 text-base">
                         <p className="text-gray-300">Prosjekt opprettet</p>
-                        <p className="text-xs text-gray-500 mt-0.5">2 dager siden</p>
+                        <p className="text-sm text-gray-500 mt-0.5">2 dager siden</p>
                       </div>
                     </div>
 

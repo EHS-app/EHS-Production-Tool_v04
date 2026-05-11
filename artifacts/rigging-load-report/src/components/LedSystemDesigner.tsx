@@ -322,44 +322,124 @@ function DesignerInner({ system, onChange, screens, screenPixelsById }: Props) {
 
   // ── Persisted-shape ↔ React-Flow translation ───────────────────────
   //
-  // Each render we project the LedSystem nodes / edges into React
-  // Flow's shape, attaching live data (pixel counts, warning flags)
-  // so the custom node component can render without reaching into
-  // the metrics hook.
+  // React Flow needs to OWN the live `nodes` / `edges` arrays it
+  // renders so it can stamp internal fields onto them — most
+  // importantly `measured: {width, height}`, which gets written after
+  // the first layout pass and is what tells RF the node is "ready to
+  // drag". If we recomputed the arrays from props each render via
+  // `useMemo`, those internal fields got thrown away on every re-
+  // render and the second drag attempt threw "node is not initialized"
+  // → uncaught runtime error in production. So we keep a local state
+  // mirror, apply ALL React Flow changes to it (positions + dimensions
+  // + selection), and reconcile from the persisted system in an effect
+  // that preserves any RF-stamped fields on nodes whose id we've seen
+  // before. Position commits flow back to the persisted system on
+  // drag-stop only — not on every drag tick — so autosave and undo
+  // stay sane.
 
-  const rfNodes: Node<NodeData>[] = useMemo(
-    () =>
-      system.nodes.map((n) => ({
-        id: n.id,
-        type: "system",
-        position: { x: n.x, y: n.y },
-        data: {
-          node: n,
-          pixels:
-            n.kind === "screen"
-              ? n.screenRefId
-                ? (screenPixelsById.get(n.screenRefId) ?? 0)
-                : (n.pixelsW ?? 0) * (n.pixelsH ?? 0)
-              : 0,
-          selected: n.id === selectedNodeId,
-          hasWarning: warningNodeIds.has(n.id),
-        },
-      })),
-    [system.nodes, screenPixelsById, selectedNodeId, warningNodeIds],
+  const buildNodeData = useCallback(
+    (n: LedSystemNode): NodeData => ({
+      node: n,
+      pixels:
+        n.kind === "screen"
+          ? n.screenRefId
+            ? (screenPixelsById.get(n.screenRefId) ?? 0)
+            : (n.pixelsW ?? 0) * (n.pixelsH ?? 0)
+          : 0,
+      selected: n.id === selectedNodeId,
+      hasWarning: warningNodeIds.has(n.id),
+    }),
+    [screenPixelsById, selectedNodeId, warningNodeIds],
   );
 
-  const rfEdges: Edge[] = useMemo(
-    () =>
-      system.edges.map((e) => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        type: "system",
-        selected: e.id === selectedEdgeId,
-        data: { edge: e, hasWarning: warningEdgeIds.has(e.id) },
-      })),
-    [system.edges, selectedEdgeId, warningEdgeIds],
+  const [rfNodes, setRfNodes] = useState<Node<NodeData>[]>(() =>
+    system.nodes.map((n) => ({
+      id: n.id,
+      type: "system",
+      position: { x: n.x, y: n.y },
+      data: buildNodeData(n),
+    })),
   );
+  const [rfEdges, setRfEdges] = useState<Edge[]>(() =>
+    system.edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      type: "system",
+      selected: e.id === selectedEdgeId,
+      data: { edge: e, hasWarning: warningEdgeIds.has(e.id) },
+    })),
+  );
+
+  // ── Reconciliation: split into two effects on purpose ──────────────
+  //
+  // Effect A (structural) runs only when persisted node identity or
+  // coordinates change. It adds new ids, drops missing ids, and pulls
+  // in fresh persisted positions — but it skips position writes for
+  // any node RF currently flags as `dragging`, so a mid-drag
+  // unrelated re-render (selection, screen-pixel recompute, autosave
+  // round-trip) cannot snap a node back to its old persisted position
+  // before the user has dropped it. Existing RF internals
+  // (`measured`, `width`, `height`) are preserved by spreading the
+  // previous node first.
+  //
+  // Effect B (data-only) runs on selection / warning / pixel changes
+  // and refreshes only `data`. It never touches `position`,
+  // `measured`, or `dragging`, so it cannot race with an in-progress
+  // drag. This separation is what fixes the snap-back race a code
+  // review caught after the first drag-bug repair.
+  useEffect(() => {
+    setRfNodes((prev) => {
+      const prevById = new Map(prev.map((n) => [n.id, n]));
+      return system.nodes.map((n) => {
+        const existing = prevById.get(n.id);
+        if (existing) {
+          return {
+            ...existing,
+            position: existing.dragging
+              ? existing.position
+              : { x: n.x, y: n.y },
+          };
+        }
+        return {
+          id: n.id,
+          type: "system",
+          position: { x: n.x, y: n.y },
+          data: buildNodeData(n),
+        } satisfies Node<NodeData>;
+      });
+    });
+    // Intentionally only depends on `system.nodes` — `buildNodeData`
+    // is read for first-mount node creation, but pulling it into the
+    // dep array would re-run this effect (and overwrite drag
+    // positions) on every selection change. New-node hydration of
+    // `data` is best-effort here; effect B will refresh it on the
+    // very next pass.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [system.nodes]);
+
+  useEffect(() => {
+    setRfNodes((prev) =>
+      prev.map((n) => ({ ...n, data: buildNodeData(n.data.node) })),
+    );
+  }, [buildNodeData]);
+
+  useEffect(() => {
+    setRfEdges((prev) => {
+      const prevById = new Map(prev.map((e) => [e.id, e]));
+      return system.edges.map((e) => {
+        const existing = prevById.get(e.id);
+        const base: Edge = existing
+          ? { ...existing, source: e.source, target: e.target }
+          : { id: e.id, source: e.source, target: e.target, type: "system" };
+        return {
+          ...base,
+          selected: e.id === selectedEdgeId,
+          data: { edge: e, hasWarning: warningEdgeIds.has(e.id) },
+        };
+      });
+    });
+  }, [system.edges, selectedEdgeId, warningEdgeIds]);
 
   // ── Mutations ──────────────────────────────────────────────────────
 
@@ -377,53 +457,51 @@ function DesignerInner({ system, onChange, screens, screenPixelsById }: Props) {
   );
 
   const onNodesChange = useCallback(
-    (changes: NodeChange[]) => {
-      // We only care about position changes (drag). Other changes
-      // (selection, dimensions) are owned by the inspector / our
-      // selection state, so we drop them here.
-      const next = applyNodeChanges(
-        changes as NodeChange<Node<NodeData>>[],
-        rfNodes,
+    (changes: NodeChange<Node<NodeData>>[]) => {
+      // Apply EVERY change to the local mirror so RF's internal
+      // bookkeeping (dimensions, selection) survives across renders.
+      setRfNodes((prev) => applyNodeChanges(changes, prev));
+      // Commit position to the persisted system only when a drag has
+      // ended (`dragging: false`). Mid-drag updates would thrash
+      // autosave and the project-list cache for no benefit.
+      const drops = changes.filter(
+        (c): c is Extract<NodeChange<Node<NodeData>>, { type: "position" }> =>
+          c.type === "position" &&
+          c.dragging === false &&
+          c.position !== undefined,
       );
-      const positionByid = new Map(
-        next.map((n) => [n.id, { x: n.position.x, y: n.position.y }]),
-      );
+      if (drops.length === 0) return;
+      const dropsById = new Map(drops.map((d) => [d.id, d.position!]));
       let dirty = false;
-      const updated = system.nodes.map((n) => {
-        const p = positionByid.get(n.id);
+      const nextNodes = system.nodes.map((n) => {
+        const p = dropsById.get(n.id);
         if (!p) return n;
-        if (p.x !== n.x || p.y !== n.y) {
-          dirty = true;
-          return { ...n, x: p.x, y: p.y };
-        }
-        return n;
+        if (p.x === n.x && p.y === n.y) return n;
+        dirty = true;
+        return { ...n, x: p.x, y: p.y };
       });
-      if (dirty) updateNodes(() => updated);
+      if (dirty) onChange({ ...system, nodes: nextNodes });
     },
-    [rfNodes, system.nodes, updateNodes],
+    [system, onChange],
   );
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      // Only honour `remove` changes from React Flow (e.g. backspace);
-      // selection is tracked separately.
+      // Apply locally first so RF's internal selection / animation
+      // state stays consistent.
+      setRfEdges((prev) => applyEdgeChanges(changes, prev));
       const removeIds = new Set(
         changes
           .filter((c): c is { id: string; type: "remove" } => c.type === "remove")
           .map((c) => c.id),
       );
-      if (removeIds.size === 0) {
-        // Still let RF compute what it wants for selection state, then
-        // discard — keeps internals happy.
-        applyEdgeChanges(changes, rfEdges);
-        return;
-      }
+      if (removeIds.size === 0) return;
       updateEdges((edges) => edges.filter((e) => !removeIds.has(e.id)));
       if (selectedEdgeId && removeIds.has(selectedEdgeId)) {
         setSelectedEdgeId(null);
       }
     },
-    [rfEdges, updateEdges, selectedEdgeId],
+    [updateEdges, selectedEdgeId],
   );
 
   const onConnect = useCallback(
@@ -438,11 +516,16 @@ function DesignerInner({ system, onChange, screens, screenPixelsById }: Props) {
       };
       updateEdges((edges) => [...edges, newEdge]);
       setSelectedEdgeId(newEdge.id);
-      // addEdge keeps RF happy if anything reads the array between
-      // renders; we re-derive from system on the next pass.
-      addEdge(conn, rfEdges);
+      // Mirror into local RF state so the new edge appears immediately
+      // even before the reconcile effect fires on the next render.
+      setRfEdges((prev) =>
+        addEdge(
+          { ...conn, id: newEdge.id, type: "system" } as Connection,
+          prev,
+        ),
+      );
     },
-    [pendingEdgeKind, rfEdges, updateEdges],
+    [pendingEdgeKind, updateEdges],
   );
 
   const onReconnect = useCallback(
@@ -455,9 +538,9 @@ function DesignerInner({ system, onChange, screens, screenPixelsById }: Props) {
             : e,
         ),
       );
-      reconnectEdge(oldEdge, conn, rfEdges);
+      setRfEdges((prev) => reconnectEdge(oldEdge, conn, prev));
     },
-    [rfEdges, updateEdges],
+    [updateEdges],
   );
 
   const onMoveEnd = useCallback(

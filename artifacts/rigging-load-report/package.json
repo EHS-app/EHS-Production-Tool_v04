@@ -80,6 +80,7 @@
   "dependencies": {
     "@clerk/react": "^6.4.5",
     "@clerk/themes": "^2.4.57",
-    "@workspace/skills": "workspace:*"
+    "@workspace/skills": "workspace:*",
+    "@xyflow/react": "^12.10.2"
   }
 }

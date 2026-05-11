@@ -64,6 +64,11 @@ import {
 } from "./lib/ledExport";
 import { LedScreenReportView } from "./components/LedScreenReportView";
 import {
+  EMPTY_LED_SYSTEM,
+  normalizeLedSystem,
+  type LedSystem,
+} from "./lib/ledSystem";
+import {
   computeStage,
   computeStageTotals,
   type Stage,
@@ -861,6 +866,10 @@ type PersistedV2 = {
   ledLinkedMeta?: Record<string, LedLinkedMeta>;
   /** LED Screen Report settings (port limit, label visibility). */
   ledSettings?: LedSettings;
+  /** LED System Designer — node-based system architecture (screens,
+   *  processors, fiber boxes, PSUs, cables). v1 is purely producer-
+   *  authored (no auto-population from ledScreens). */
+  ledSystem?: LedSystem;
   /** Stage Report — list of stages (Nivtec deck calculator). */
   stages?: Stage[];
   /** Crew Report — call-sheet of crew members. */
@@ -1287,6 +1296,11 @@ function App() {
   const [ledSettings, setLedSettings] = useState<LedSettings>(
     normalizeLedSettings(persisted?.ledSettings),
   );
+  const [ledSystemState, setLedSystemState] = useState<LedSystem>(() =>
+    persisted?.ledSystem
+      ? normalizeLedSystem(persisted.ledSystem)
+      : { ...EMPTY_LED_SYSTEM },
+  );
   const [crew, setCrew] = useState<CrewMember[]>(
     () => (persisted?.crew ?? []).map(normalizeCrewMember),
   );
@@ -1645,6 +1659,7 @@ function App() {
     ledScreens,
     ledLinkedMeta,
     ledSettings,
+    ledSystem: ledSystemState,
     stages,
     crew,
     soundItems,
@@ -1655,7 +1670,7 @@ function App() {
   }), [
     themePref, venue, client, reportDate, reportEndDate, extraSchedule,
     engineer, systems, activeSystemId, showFixtures, mainView, linkedMeta,
-    ledScreens, ledLinkedMeta, ledSettings, stages, crew, soundItems,
+    ledScreens, ledLinkedMeta, ledSettings, ledSystemState, stages, crew, soundItems,
     power, activeBriefId, riggPlan, inspection,
   ]);
 
@@ -4474,6 +4489,9 @@ function App() {
       return out;
     });
     setLedSettings(normalizeLedSettings(d.ledSettings));
+    setLedSystemState(
+      d.ledSystem ? normalizeLedSystem(d.ledSystem) : { ...EMPTY_LED_SYSTEM },
+    );
     setStages((d.stages ?? []).map(normalizeStage));
     setCrew((d.crew ?? []).map(normalizeCrewMember));
     setSoundItems((d.soundItems ?? []).map(normalizeSoundItem));
@@ -6457,6 +6475,8 @@ function App() {
             );
           }}
           onJumpToRigging={() => setMainView("rigging")}
+          ledSystem={ledSystemState}
+          onLedSystemChange={setLedSystemState}
         />
       )}
 

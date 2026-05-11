@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NumberField } from "./NumberField";
+import { LedSystemDesigner } from "./LedSystemDesigner";
+import type { LedSystem } from "../lib/ledSystem";
 import {
   CUSTOM_PANEL_KEY,
   LED_PANEL_COLOR_PRESETS,
@@ -81,6 +83,11 @@ type Props = {
    *  default left-to-right auto-flow layout. */
   onResetScreenPositions: () => void;
   onJumpToRigging: () => void;
+  /** LED System Designer — node-based architecture editor rendered
+   *  below the existing LED report sections. Lifted into App.tsx so
+   *  it persists alongside the rest of PersistedV2. */
+  ledSystem: LedSystem;
+  onLedSystemChange: (next: LedSystem) => void;
 };
 
 const PIXEL_FMT = new Intl.NumberFormat("en-US");
@@ -126,7 +133,22 @@ export function LedScreenReportView(props: Props) {
     onExportScreen,
     onResetScreenPositions,
     onJumpToRigging,
+    ledSystem,
+    onLedSystemChange,
   } = props;
+
+  /** Pixel-resolved lookup so the System Designer can show real pixel
+   *  totals for screen-kind nodes that link to a `LedScreen` by id.
+   *  Recomputed when screens or panels change so adjusting a panel
+   *  count flows through to the system metrics live. */
+  const screenPixelsById = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of screens) {
+      const metrics = computeScreenMetrics(s, panels);
+      m.set(s.id, metrics.pixels);
+    }
+    return m;
+  }, [screens, panels]);
 
   /** Whether any standalone screen has been manually positioned — drives
    *  the "Reset positions" button's enabled state above the canvas. */
@@ -501,6 +523,25 @@ export function LedScreenReportView(props: Props) {
       {screens.length > 0 && (
         <CableBracketBomCard screens={screens} panels={panels} />
       )}
+
+      <section className="led-card">
+        <div className="led-card-head">
+          <h3>System</h3>
+          <span className="led-hint">
+            Drag screens, processors, CVT10 Pro-S fiber boxes and power
+            supplies onto the canvas, then connect them with cables.
+            Switch the cable type with the toolbar buttons before drawing
+            a connection. Distances drive the over-limit warnings
+            (CAT-6 90 m, fiber 300 m).
+          </span>
+        </div>
+        <LedSystemDesigner
+          system={ledSystem}
+          onChange={onLedSystemChange}
+          screens={screens}
+          screenPixelsById={screenPixelsById}
+        />
+      </section>
     </div>
   );
 }

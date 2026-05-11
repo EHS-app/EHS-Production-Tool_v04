@@ -1,0 +1,76 @@
+Build a new section under the LED module called “System”, placed directly after the “Screen” section.
+
+The purpose of this System section is to let users visually design and configure the complete LED system architecture, including processors, cabling, fiber converters, backup systems, and screen connections.
+
+The System section should function like an interactive drag-and-drop system designer/canvas where users can freely place, connect, and move components around.
+
+Core functionality:
+
+Add draggable components:
+LED screens
+Processors
+CVT10 Pro-S fiber boxes
+Power supplies
+Signal cables
+Fiber cables
+Backup processors
+Other resources/equipment
+Users must be able to:
+Connect screens to processors visually
+Connect multiple screens to the same processor
+Add backup/redundancy systems
+Define whether installation is indoor or outdoor
+Decide if a CVT10 Pro-S fiber box is required between processor and screen
+Set distances between devices
+Define cable routes
+Move all objects freely around the canvas
+Zoom and pan the workspace
+
+System intelligence/calculations:
+
+The system should automatically calculate and generate:
+
+Total number of required cables
+Cable lengths
+Cable types
+Fiber requirements
+Power requirements
+Power cabling between panels
+Signal cabling between LED panels
+Processor resource usage
+Processor capacity remaining
+Resource usage with and without backup enabled
+Number of ports used
+Required equipment list
+Full connection map/diagram
+Warnings if cable distance exceeds limits
+Recommendations for when fiber/CVT10 Pro-S is needed
+
+Visual requirements:
+
+Modern node-based UI
+Drag-and-drop interface
+Visual connection lines between components
+Color-coded cable types
+Auto-routing connection lines
+Grid snapping
+Clean professional dark UI
+Responsive layout
+
+Technical requirements:
+
+Save/load system layouts
+Export system diagrams as PDF/image
+Export bill of materials/equipment list
+Real-time calculation updates
+Scalable architecture for future hardware types
+
+The final result should give users a complete overview of:
+
+System architecture
+Signal flow
+Power distribution
+Cabling plan
+Equipment requirements
+Backup/redundancy setup
+How everything is connected together visually and technically

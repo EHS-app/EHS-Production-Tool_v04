@@ -31,6 +31,19 @@ const HEADER_ACTIONS: Item[] = [
   { label: "shell.action.resetProject", body: "help.headerActions.reset" },
 ];
 
+/** Step-by-step walk-through specifically for the LED tab. Rendered as
+ *  its own section between "Top bar actions" and "Good to know" so it
+ *  shows up where producers actually look for it. Each step has both a
+ *  bold title and a body sentence — kept as a structured pair so the
+ *  i18n catalog can localise both halves cleanly. */
+const LED_HOWTO_STEPS: Item[] = [
+  { label: "help.ledHowto.step1.title", body: "help.ledHowto.step1.body" },
+  { label: "help.ledHowto.step2.title", body: "help.ledHowto.step2.body" },
+  { label: "help.ledHowto.step3.title", body: "help.ledHowto.step3.body" },
+  { label: "help.ledHowto.step4.title", body: "help.ledHowto.step4.body" },
+  { label: "help.ledHowto.step5.title", body: "help.ledHowto.step5.body" },
+];
+
 const TIPS: TranslationKey[] = [
   "help.tips.autosave",
   "help.tips.language",
@@ -169,6 +182,19 @@ export function HelpModal({ open, onClose }: Props) {
             <h4>{t("help.section.headerActions")}</h4>
             <ul className="help-list">
               {HEADER_ACTIONS.map((item) => (
+                <li key={item.body}>
+                  <strong>{t(item.label)}</strong>
+                  <span>{t(item.body)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="help-section">
+            <h4>{t("help.section.ledHowto")}</h4>
+            <p>{t("help.ledHowto.intro")}</p>
+            <ul className="help-list">
+              {LED_HOWTO_STEPS.map((item) => (
                 <li key={item.body}>
                   <strong>{t(item.label)}</strong>
                   <span>{t(item.body)}</span>

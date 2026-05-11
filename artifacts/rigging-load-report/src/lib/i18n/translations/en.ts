@@ -61,7 +61,7 @@ export const en = {
   "help.sidebar.lighting":
     "Track fixtures per system: type, count, wattage, DMX channels. Total power feeds back into the rigging summary automatically.",
   "help.sidebar.led":
-    "Configure LED screens — panel type, processor capacity, pixel pitch, rigging method. Power and weight roll up into the project totals.",
+    "Configure LED screens — panel type, processor outputs, pixel pitch, rigging method — plus a cable & bracket BOM and the new System designer for drawing the full signal/fiber/power topology with live warnings. Power and weight roll up into the project totals.",
   "help.sidebar.sound":
     "Log your PA, monitors, and mic setup. Weight per unit feeds into the rigging calculations.",
   "help.sidebar.stage":
@@ -88,6 +88,25 @@ export const en = {
     "Sends the rigging report to your printer or Save-as-PDF dialog. The print layout is optimized for A4 landscape.",
   "help.headerActions.simulateShow":
     "Runs a 10-phase dry-run from load-in through show day to load-out. Each phase reports per-discipline status, risks, and a readiness verdict — so you can spot gaps before they become problems.",
+
+  "help.section.ledHowto": "How to use the LED tab",
+  "help.ledHowto.intro":
+    "The LED tab combines four tools that build on each other. Work top-down — every section reads from the screens you set up at the top.",
+  "help.ledHowto.step1.title": "1. Add screens",
+  "help.ledHowto.step1.body":
+    "Click \"+ Add Screen\" or add an LED row on the Rigging Report — linked screens show up here automatically. Pick a panel from the catalog (or define a custom panel), set the panels-wide × panels-tall grid, and assign a processor output. The Pixel Map and BOM update live as you edit.",
+  "help.ledHowto.step2.title": "2. Shape the Pixel Map",
+  "help.ledHowto.step2.body":
+    "Drag screens around the canvas to lay out the wall. Use the per-screen \"Shape\" mode to disable individual cabinets for L-shapes, ribbons, columns, or any custom geometry. Drop power and signal markers on specific cabinets to document where each cable lands.",
+  "help.ledHowto.step3.title": "3. Read the Cable & Bracket BOM",
+  "help.ledHowto.step3.body":
+    "The BOM card lists power and signal cables per screen plus bracket counts, factoring in the cabinet rigging method. Use it as a packing list when you load the truck.",
+  "help.ledHowto.step4.title": "4. Draw the System",
+  "help.ledHowto.step4.body":
+    "In the System section, click the toolbar buttons to add Screens, Processors, CVT10 Pro-S fiber boxes, and Power Supplies. Pick a cable type (Signal / Fiber / Power) before dragging from one node's edge to another to draw a cable. Click any node or cable to edit it in the right-hand inspector — set the Novastar model on a processor, link a screen node to a real LED screen for live pixel counts, or enter the cable distance in metres.",
+  "help.ledHowto.step5.title": "5. Watch the warnings",
+  "help.ledHowto.step5.body":
+    "The right panel rolls up equipment counts, cable totals per kind, per-processor port and pixel capacity bars, and a warnings list. CAT-6 over 90 m, fiber over 300 m, processors over capacity, CVT10 fan-out over 10 ports, and orphaned screens all light up red so you catch problems before load-in.",
 
   "help.section.tips": "Good to know",
   "help.tips.autosave":

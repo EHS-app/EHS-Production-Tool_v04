@@ -69,7 +69,7 @@ export const no: Translations = {
   "help.sidebar.lighting":
     "Hold styr på armaturer per system: type, antall, watt, DMX-kanaler. Total effekt mates automatisk tilbake til riggsammendraget.",
   "help.sidebar.led":
-    "Konfigurer LED-skjermer — paneltype, prosessorkapasitet, pikseltetthet, riggemetode. Effekt og vekt rulles opp i prosjektets totaler.",
+    "Konfigurer LED-skjermer — paneltype, prosessor-utganger, pikseltetthet, riggemetode — pluss kabel- og brakettliste og den nye Systemdesigneren for å tegne hele signal/fiber/strøm-topologien med live varsler. Effekt og vekt rulles opp i prosjektets totaler.",
   "help.sidebar.sound":
     "Logg PA, monitorer og mik-oppsett. Vekt per enhet mates inn i riggberegningene.",
   "help.sidebar.stage":
@@ -96,6 +96,25 @@ export const no: Translations = {
     "Sender riggrapporten til skriveren eller Lagre-som-PDF-dialogen. Utskriftsmalen er optimalisert for A4 liggende.",
   "help.headerActions.simulateShow":
     "Kjører en 10-fases gjennomgang fra inn-rigg til utlast. Hver fase rapporterer status per fagområde, risiko og en klar-vurdering — så du fanger opp hull før de blir problemer.",
+
+  "help.section.ledHowto": "Slik bruker du LED-fanen",
+  "help.ledHowto.intro":
+    "LED-fanen kombinerer fire verktøy som bygger på hverandre. Jobb ovenfra og ned — hver seksjon leser fra skjermene du setter opp øverst.",
+  "help.ledHowto.step1.title": "1. Legg til skjermer",
+  "help.ledHowto.step1.body":
+    "Klikk «+ Add Screen» eller legg til en LED-rad i Riggrapporten — koblede skjermer dukker opp her automatisk. Velg et panel fra katalogen (eller definer et tilpasset panel), sett rutenettet paneler-bredt × paneler-høyt, og tilordne en prosessor-utgang. Pikselkartet og BOM oppdateres live mens du redigerer.",
+  "help.ledHowto.step2.title": "2. Form pikselkartet",
+  "help.ledHowto.step2.body":
+    "Dra skjermene rundt på lerretet for å bygge veggen. Bruk «Shape»-modus per skjerm for å deaktivere enkelte kabinetter for L-former, bånd, søyler eller annen geometri. Slipp strøm- og signalmarkører på bestemte kabinetter for å dokumentere hvor hver kabel skal lande.",
+  "help.ledHowto.step3.title": "3. Les kabel- og brakettlisten",
+  "help.ledHowto.step3.body":
+    "BOM-kortet lister strøm- og signalkabler per skjerm pluss brakett-antall, basert på kabinettets riggemetode. Bruk det som pakkeliste når du laster bilen.",
+  "help.ledHowto.step4.title": "4. Tegn systemet",
+  "help.ledHowto.step4.body":
+    "I System-seksjonen klikker du verktøylinjeknappene for å legge til Skjermer, Prosessorer, CVT10 Pro-S fiberbokser og Strømforsyninger. Velg en kabeltype (Signal / Fiber / Strøm) før du drar fra én node-kant til en annen for å tegne en kabel. Klikk en node eller kabel for å redigere den i inspektøren til høyre — sett Novastar-modell på en prosessor, koble en skjerm-node til en ekte LED-skjerm for live pikseltelling, eller angi kabellengden i meter.",
+  "help.ledHowto.step5.title": "5. Følg med på varslene",
+  "help.ledHowto.step5.body":
+    "Høyre-panelet ruller opp utstyrsantall, kabelsum per type, kapasitetsstolper for porter og piksler per prosessor, og en varselliste. CAT-6 over 90 m, fiber over 300 m, prosessorer over kapasitet, CVT10-fanout over 10 porter og foreldreløse skjermer lyser alle rødt så du fanger opp problemer før innrigg.",
 
   "help.section.tips": "Verdt å vite",
   "help.tips.autosave":

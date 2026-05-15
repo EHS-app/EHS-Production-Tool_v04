@@ -1,0 +1,576 @@
+You are working inside an EXISTING production-management platform called:
+
+EHS Rigging Load Report
+
+This is NOT a greenfield app.
+This is NOT a generic LED calculator.
+This is NOT a dashboard redesign.
+
+You are extending an already working touring-grade AV production system.
+
+Your job is to EVOLVE the existing LED Tab into a true LED engineering and deployment platform used by:
+
+* touring LED engineers
+* broadcast engineers
+* festival TDs
+* arena productions
+* IMAG workflows
+* technical directors
+* corporate AV teams
+
+==================================================
+NON-NEGOTIABLE RULES
+====================
+
+DO NOT:
+
+* redesign the app
+* replace existing workflows
+* remove existing features
+* replace persistence architecture
+* duplicate business logic
+* create giant monolithic components
+* move calculations into React render paths
+* break backward compatibility
+* invent a new state-management system
+
+PRESERVE:
+
+* existing React architecture
+* existing persistence model
+* existing screen cards
+* existing SVG pixel-map system
+* existing React Flow v12 topology designer
+* existing Rigging Report integration
+* existing Client Pack integration
+* existing auto-save behaviour
+* existing i18n system
+* existing project schema
+
+Everything must remain migration-safe.
+
+==================================================
+PRODUCT PHILOSOPHY
+==================
+
+This software should feel closer to:
+
+* Novastar deployment tools
+* Brompton workflows
+* touring signal planning
+* engineering software
+* deployment CAD utilities
+
+NOT:
+
+* a generic event dashboard
+* a simplified LED calculator
+* a UI-first toy app
+
+The PRIMARY VALUE of the system is:
+
+* engineering calculations
+* validation
+* topology intelligence
+* deployment planning
+* signal routing
+* rigging coordination
+* power distribution
+
+NOT visual polish alone.
+
+==================================================
+CORE ARCHITECTURE RULES
+=======================
+
+There must be ONE source of truth for:
+
+* processor calculations
+* signal calculations
+* power calculations
+* topology validation
+* rigging calculations
+* cable calculations
+
+NO calculations may live inside React UI components.
+
+ALL calculations must live in:
+
+* calculation engines
+* utility services
+* selectors
+* topology engines
+* validation systems
+
+React components must remain presentation-focused.
+
+Avoid:
+
+* duplicated logic
+* hidden calculations
+* implicit state mutation
+* calculation logic inside JSX
+
+==================================================
+REQUIRED SYSTEM STRUCTURE
+=========================
+
+Prefer architecture similar to:
+
+/models
+/engines
+/power
+/signal
+/topology
+/validation
+/rigging
+/selectors
+/hooks
+/exporters
+/components
+/svg
+/reactflow
+
+==================================================
+PERFORMANCE REQUIREMENTS
+========================
+
+The system must remain responsive at:
+
+* 10,000+ cabinets
+* 50+ screens
+* 100+ topology nodes
+
+Avoid:
+
+* per-cabinet React state
+* expensive rerenders
+* deep prop chains
+* unnecessary SVG node creation
+
+Prefer:
+
+* memoized selectors
+* batched SVG rendering
+* derived state
+* virtualization where appropriate
+
+==================================================
+REAL INVENTORY DATA
+===================
+
+LED PANELS:
+
+1. Uniview URPro-B 500×1000
+
+* size: 0.5m × 1m
+* weight: 12.3kg
+
+2. Uniview URPro-B 500×1000 + cable
+
+* size: 0.5m × 1m
+* weight: 12.575kg
+
+3. Uniview URPro-B 500×500 90°
+
+* size: 0.5m × 0.5m
+* weight: 8.8kg
+
+4. Uniview URPro-B 500×500 90° + cable
+
+* size: 0.5m × 0.5m
+* weight: 9.075kg
+
+RIGGING ACCESSORIES:
+
+5. 1m hanging/stacking beam
+
+* weight: 10kg
+
+6. 0.5m beam
+
+* weight: 6kg
+
+7. 0.5m 90° beam
+
+* weight: 4.5kg
+
+Rigging accessories MUST remain separate from LED panel inventory.
+
+==================================================
+REAL MANUFACTURER SPECS
+=======================
+
+Manufacturer specs include:
+
+* brightness: 3000–5000 nits
+* refresh rate: ≥15360Hz
+* power: 750W/m² peak
+* power: 248W/m² average
+
+The system must support REAL engineering calculations.
+
+==================================================
+REAL PROCESSOR INVENTORY
+========================
+
+Current processors:
+
+* Novastar MX30
+* Novastar MX40
+
+Future-ready for:
+
+* VX1000
+* VX600
+* H-Series
+* Brompton
+* Colorlight
+* Barco E2
+
+Use REAL Novastar terminology:
+
+* Ethernet Port
+* Receiving Card Chain
+* Redundant Loop
+* Processor Mapping
+* Cabinet Addressing
+
+NOT generic naming.
+
+==================================================
+REQUIRED CORE MODELS
+====================
+
+Create strongly typed models for:
+
+* LedScreen
+* LedCabinet
+* LedProcessor
+* ProcessorPort
+* ReceivingCardChain
+* PowerChain
+* RiggingAccessory
+* ValidationIssue
+* TopologyNode
+* TopologyEdge
+
+All models must:
+
+* support migration-safe defaults
+* remain backward compatible
+* support persistence versioning
+
+==================================================
+SCREEN WORKFLOW
+===============
+
+Screens may be:
+
+* manual
+* linked from Rigging Report LED rows
+
+Each screen supports:
+
+* panels wide/tall
+* disabled cabinets
+* shape templates
+* cabinet rotation
+* brightness
+* refresh rate
+* HDR
+* gamma
+* service access
+* wind bracing
+* signal redundancy
+* power-chain settings
+
+All advanced fields are optional.
+
+==================================================
+PIXEL MAP REQUIREMENTS
+======================
+
+Keep the existing SVG pixel-map architecture.
+
+Extend it with:
+
+* cabinet IDs
+* processor-port overlays
+* chain routing
+* signal direction
+* redundancy visualization
+* dead-cabinet simulation
+* ghost cabinets
+* cabinet rotation previews
+* curve previews
+
+Cabinets must visually tint by:
+
+* processor port
+* signal chain
+* redundancy state
+
+Signal arrows render live.
+
+==================================================
+MOST IMPORTANT FEATURE:
+PROCESSOR PORT MAPPING
+======================
+
+Implement REAL processor deployment logic.
+
+Every processor exposes:
+
+* Ethernet ports
+* per-port pixel limits
+* receiving-card chain limits
+* redundancy support
+* HDR support
+* canvas limits
+
+Every cabinet may belong to:
+
+* processor port
+* receiving-card chain
+* redundant loop
+
+Support:
+
+* row splitting
+* column splitting
+* auto-balanced routing
+* manual routing
+* custom chain routing
+
+Validate:
+
+* overloaded ports
+* chain length
+* receiving-card count
+* signal imbalance
+* missing redundancy
+
+This is the highest-priority feature.
+
+==================================================
+POWER ENGINE
+============
+
+Replace simplistic:
+panelCount × wattage
+
+with:
+screenArea × wattsPerSqm
+× brightnessFactor
+× redundancyOverhead
+× safetyHeadroom
+
+Use:
+
+* 750W/m² peak
+* 248W/m² average
+
+Implement:
+
+* amperage calculations
+* power-chain calculations
+* breaker calculations
+* phase balancing
+* regional voltage handling
+
+Warnings:
+
+* overloaded chains
+* amperage exceeded
+* unsafe distro
+* invalid breaker sizing
+
+==================================================
+VALIDATION ENGINE
+=================
+
+Validation must be modular.
+
+Separate validation into:
+
+STRUCTURAL:
+
+* orphan nodes
+* missing ports
+* disconnected screens
+
+SIGNAL:
+
+* CAT distance
+* fiber distance
+* overloaded ports
+* invalid chains
+
+POWER:
+
+* breaker overload
+* chain overload
+* phase imbalance
+
+RIGGING:
+
+* beam overload
+* unsafe hanging height
+* unsupported curve config
+
+BROADCAST:
+
+* refresh mismatch
+* HDR incompatibility
+* genlock mismatch
+
+Validation issues must:
+
+* be clickable
+* focus the offending object
+* explain WHY the issue exists
+* explain HOW to fix it
+
+==================================================
+SYSTEM DESIGNER
+===============
+
+Keep the existing React Flow v12 designer.
+
+Extend it with:
+
+* Backup Processor
+* Media Server
+* Network Switch
+* UPS
+* Power Distro
+* Genlock Generator
+
+Edge types:
+
+* Signal
+* Fiber
+* Power
+
+Edges support:
+
+* cable type
+* bandwidth
+* redundancy role
+* latency
+* distance
+
+Live calculations:
+
+* processor utilization
+* redundancy validation
+* orphan detection
+* loop detection
+* latency estimation
+* fan-out validation
+
+==================================================
+FAILURE SIMULATION
+==================
+
+Add engineering simulation support.
+
+Simulate:
+
+* failed processor port
+* broken CAT cable
+* dead cabinet
+* PSU failure
+* broken redundant loop
+
+Visualize:
+
+* affected cabinets
+* failed chains
+* redundancy failover
+* orphaned sections
+
+==================================================
+TOURING DEPLOYMENT MODES
+========================
+
+Add deployment profiles:
+
+* Festival
+* Touring
+* Corporate
+* Broadcast
+* Permanent Install
+
+Profiles affect:
+
+* validation strictness
+* redundancy requirements
+* safety margins
+* brightness assumptions
+* power overhead
+
+==================================================
+EXPORTS
+=======
+
+CSV exports:
+
+* patch sheets
+* cabinet IDs
+* processor mappings
+* signal chains
+* cable runs
+* power distro sheets
+
+PDF exports:
+
+* topology diagrams
+* processor summaries
+* cabinet overlays
+* signal flow
+* cable routing
+* engineering warnings
+
+==================================================
+PERSISTENCE REQUIREMENTS
+========================
+
+Persist:
+
+* screens
+* cabinets
+* disabled cells
+* markers
+* processor mappings
+* topology graph
+* node positions
+* validation states
+* deployment modes
+
+Persistence must remain:
+
+* migration-safe
+* debounced
+* deterministic
+* offline-safe
+
+==================================================
+OUTPUT REQUIRED
+===============
+
+Based on the EXISTING TOOL:
+
+1. Updated TypeScript interfaces
+2. Migration-safe schema plan
+3. Calculation-engine architecture
+4. Validation-engine architecture
+5. Processor-topology architecture
+6. SVG rendering strategy
+7. React Flow extensions
+8. Export architecture
+9. Performance optimization strategy
+10. Suggested phased implementation roadmap
+
+Everything must integrate into the EXISTING TOOL rather than replacing it.

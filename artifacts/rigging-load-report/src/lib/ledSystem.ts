@@ -48,7 +48,17 @@ export type LedSystemNodeKind =
   | "screen"
   | "processor"
   | "fiberbox"
-  | "psu";
+  | "psu"
+  // ── Phase 4 — touring topology nodes ─────────────────────────
+  // Each new kind is independently optional in persistence; the
+  // sanitizer adds them to NODE_KINDS so legacy v1 blobs continue
+  // to load without these. Renderers default to the existing card
+  // chrome when no kind-specific UI ships yet.
+  | "media-server"
+  | "network-switch"
+  | "ups"
+  | "powerdistro"
+  | "genlock";
 
 /** Base shape every node carries. Each `kind` extends this with its
  *  own optional fields — kept on a single shape (not a discriminated
@@ -105,6 +115,13 @@ export type LedSystemEdge = {
   distanceM: number;
   /** Optional human label (e.g. "PSU-A → Pole 4"). */
   label?: string;
+  // ── Phase 3-4 — edge metadata. All optional + back-compat. ────
+  /** Mark this cable as redundant backup (A/B feed). Drives a
+   *  dashed/secondary render in the canvas overlay. */
+  isBackup?: boolean;
+  /** Optional bandwidth label (e.g. "10G", "25G") surfaced in
+   *  tooltips on fiber edges. */
+  bandwidth?: string;
 };
 
 export type LedSystem = {
@@ -133,6 +150,11 @@ const NODE_KINDS: ReadonlySet<LedSystemNodeKind> = new Set([
   "processor",
   "fiberbox",
   "psu",
+  "media-server",
+  "network-switch",
+  "ups",
+  "powerdistro",
+  "genlock",
 ]);
 const EDGE_KINDS: ReadonlySet<LedSystemEdgeKind> = new Set([
   "signal",
@@ -200,6 +222,9 @@ function sanitizeEdge(
   };
   const label = optStr(o.label);
   if (label) edge.label = label;
+  if (typeof o.isBackup === "boolean") edge.isBackup = o.isBackup;
+  const bandwidth = optStr(o.bandwidth);
+  if (bandwidth) edge.bandwidth = bandwidth;
   return edge;
 }
 

@@ -118,7 +118,160 @@ export type LedScreen = {
    *  swap the bracket for a one-off screen without touching the panel
    *  inventory. Empty / undefined means "use the panel's bracket". */
   bracketOverride?: string;
+
+  // ── Touring-grade engineering fields (Phase 1+) ────────────────
+  // All optional + back-compat. Legacy persisted blobs that don't
+  // carry these load identically to today; readers fall back to the
+  // show-wide defaults on `LedSettings` (or the proposal-defined
+  // nominal values) when a field is absent.
+
+  /** Peak brightness target in nits. Feeds the power engine + brief. */
+  brightnessNits?: number;
+  /** Refresh rate (Hz). 3840 / 7680 etc. — drives camera-safe checks. */
+  refreshRateHz?: number;
+  /** Display bit depth: 8 / 10 / 12. */
+  bitDepth?: 8 | 10 | 12;
+  /** HDR profile enabled. Surfaced in the brief + Client Pack. */
+  hdrEnabled?: boolean;
+
+  /** Curvature mode of the wall — "flat" (default) or a curve type. */
+  curveType?: LedCurveType;
+  /** Degrees of bend per seam when curveType ≠ "flat". */
+  curveAnglePerSeam?: number;
+  /** Cabinet rotation in degrees (0 / 90 / 180 / 270) — used for
+   *  upside-down hanging or sideways stacked walls. */
+  cabinetRotation?: 0 | 90 | 180 | 270;
+  /** "opaque" (default) | "mesh" | "transparent" for see-through walls. */
+  transparencyMode?: LedTransparencyMode;
+
+  /** Cabinet-to-processor-port assignments. Owned by the routing
+   *  solver (`lib/led/engine/routing.ts`); also editable manually. */
+  processorPortAssignments?: LedPortAssignment[];
+  /** Hard cap from the cabinet receiving-card spec (e.g. 16 for UR Pro). */
+  maxCabinetsPerDataChain?: number;
+  /** Producer enables a redundant CAT-B chain. */
+  backupSignalEnabled?: boolean;
+  /** Producer enables signal loop-out daisy chains. */
+  signalLoopEnabled?: boolean;
+
+  /** Mains voltage region for this screen. Overrides settings default. */
+  voltageRegion?: LedVoltageRegion;
+  /** Cabinets per power chain (e.g. 6 on a 16 A EU circuit). */
+  maxCabinetsPerPowerChain?: number;
+  /** PSU overhead %, default 25 — applied on top of catalog wattage. */
+  powerOverheadPct?: number;
+  /** Override of the show-wide power factor (default 0.95). */
+  powerFactor?: number;
+
+  /** Broadcast / camera-safe operation toggle. */
+  cameraSafeMode?: boolean;
+  /** Scan-rate profile for broadcast. */
+  scanRateProfile?: LedScanRateProfile;
+  /** Genlock reference required. */
+  genlockEnabled?: boolean;
+
+  /** Per-screen rigging accessories (beams, fly bars, ground support).
+   *  Each entry references an inventory item by name from the
+   *  "LED Screen" category. Weight rolls into screen total when
+   *  rendered via the Rig Accessories panel. */
+  rigAccessories?: LedRigAccessory[];
 };
+
+// ────────────────────────────────────────────────────────────────────
+//  Touring-grade engineering — supporting types
+// ────────────────────────────────────────────────────────────────────
+
+export type LedCurveType = "flat" | "concave" | "convex" | "polyline";
+export type LedTransparencyMode = "opaque" | "mesh" | "transparent";
+export type LedVoltageRegion = "EU-230" | "US-120" | "US-208" | "JP-100";
+export type LedScanRateProfile =
+  | "studio-50"
+  | "studio-60"
+  | "live-60"
+  | "custom";
+
+export const LED_VOLTAGE_REGION_OPTIONS: Array<{
+  value: LedVoltageRegion;
+  label: string;
+}> = [
+  { value: "EU-230", label: "EU · 230 V" },
+  { value: "US-120", label: "US · 120 V" },
+  { value: "US-208", label: "US · 208 V (3-phase)" },
+  { value: "JP-100", label: "JP · 100 V" },
+];
+
+export const LED_CURVE_TYPE_OPTIONS: Array<{
+  value: LedCurveType;
+  label: string;
+}> = [
+  { value: "flat", label: "Flat" },
+  { value: "concave", label: "Concave" },
+  { value: "convex", label: "Convex" },
+  { value: "polyline", label: "Polyline (multi-angle)" },
+];
+
+export const LED_TRANSPARENCY_OPTIONS: Array<{
+  value: LedTransparencyMode;
+  label: string;
+}> = [
+  { value: "opaque", label: "Opaque" },
+  { value: "mesh", label: "Mesh" },
+  { value: "transparent", label: "Transparent" },
+];
+
+export const LED_SCAN_RATE_OPTIONS: Array<{
+  value: LedScanRateProfile;
+  label: string;
+}> = [
+  { value: "studio-50", label: "Studio · 50 Hz" },
+  { value: "studio-60", label: "Studio · 60 Hz" },
+  { value: "live-60", label: "Live · 60 Hz" },
+  { value: "custom", label: "Custom" },
+];
+
+export type LedChainPattern =
+  | "row"
+  | "column"
+  | "serpentine-row"
+  | "serpentine-col"
+  | "custom";
+
+export type LedPortAssignment = {
+  /** FK to a `LedScreenProcessor.id` on the same screen, OR the
+   *  ad-hoc string id of an external processor in the System Designer
+   *  graph. The router uses string equality only. */
+  processorId: string;
+  /** 1-indexed port number on that processor. */
+  portIndex: number;
+  /** Enabled cells owned by this port, in chain order. */
+  cells: number[];
+  /** First cell in the daisy-chain (always === cells[0] unless the
+   *  producer reordered the chain). */
+  chainStart: number;
+  /** Walk pattern used to produce `cells`. Producer can override per
+   *  port — e.g. one port row-walked and a sibling column-walked. */
+  chainPattern: LedChainPattern;
+  /** Optional backup port for redundancy. Same processor or a hot
+   *  spare. */
+  backupPortIndex?: number;
+};
+
+export type LedRigAccessory = {
+  id: string;
+  /** Inventory name from the "LED Screen" category. Must round-trip
+   *  through the rigging report's inventory by exact name. */
+  inventoryName: string;
+  qty: number;
+  /** Free-form note (e.g. "downstage left fly bar"). */
+  note?: string;
+};
+
+export function newRigAccessoryId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `rig-${crypto.randomUUID()}`;
+  }
+  return `rig-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 /** A marker pinned to a specific cabinet on a screen. Differs from
  *  `LedScreenMarker` (free x/y) in that toggling cells off, resizing
@@ -246,6 +399,33 @@ export type LedLinkedMeta = {
   processors?: LedScreenProcessor[];
   /** Same semantics as `LedScreen.bracketOverride`. */
   bracketOverride?: string;
+  // ── Touring-grade (Phase 1-3) — all optional + back-compat ───
+  // Without these branches, edits made through the Advanced
+  // inspector / RigAccessoriesPanel / PortMappingPanel on a
+  // **linked** screen would round-trip to nothing — the meta
+  // would be regenerated from the rigging row defaults on the
+  // next render. Mirror every persisted advanced field here so
+  // linked and standalone screens behave identically.
+  brightnessNits?: number;
+  refreshRateHz?: number;
+  bitDepth?: 8 | 10 | 12;
+  hdrEnabled?: boolean;
+  curveType?: LedCurveType;
+  cabinetRotation?: 0 | 90 | 180 | 270;
+  transparencyMode?: LedTransparencyMode;
+  processorPortAssignments?: LedPortAssignment[];
+  maxCabinetsPerDataChain?: number;
+  maxCabinetsPerPowerChain?: number;
+  voltageRegion?: LedVoltageRegion;
+  powerOverheadPct?: number;
+  powerFactor?: number;
+  cameraSafeMode?: boolean;
+  scanRateProfile?: LedScanRateProfile;
+  genlockEnabled?: boolean;
+  backupSignalEnabled?: boolean;
+  signalLoopEnabled?: boolean;
+  curveAnglePerSeam?: number;
+  rigAccessories?: LedRigAccessory[];
 };
 
 /** Lower / upper bounds for the name-pill multiplier. Values outside this
@@ -389,6 +569,30 @@ export type LedSettings = {
    *  pixel / output / canvas-size limits. `null` means "no processor
    *  picked" — capacity validation is hidden. */
   processorId: string | null;
+
+  // ── Touring-grade defaults (Phase 1+) ───────────────────────────
+  // All optional + back-compat. Persisted blobs that pre-date these
+  // load fine; the normalizer below defaults each one.
+  /** UI complexity mode — "basic" preserves today's screen card; the
+   *  advanced inspector tabs, port-mapping panel, and validation
+   *  drawer are gated behind "advanced". */
+  uiMode?: "basic" | "advanced";
+  /** Show-wide default voltage region — applied when a screen has no
+   *  per-screen `voltageRegion` set. */
+  defaultVoltageRegion?: LedVoltageRegion;
+  /** Show-wide power factor default (e.g. 0.95). */
+  defaultPowerFactor?: number;
+  /** Show-wide PSU overhead percentage default (e.g. 25). */
+  defaultPsuOverheadPct?: number;
+  /** Nominal brightness in nits used when a screen has no per-screen
+   *  brightness target (defaults to 5000). */
+  defaultBrightnessNits?: number;
+  /** When true, adding a screen offers to auto-build a Processor →
+   *  Fiberbox → Screen → PSU topology in the System Designer. */
+  autoTopologyOnAdd?: boolean;
+  /** Redundancy preset: "none" / "backup" / "main-backup". Drives
+   *  default `backupSignalEnabled` on newly-created screens. */
+  redundancyMode?: "none" | "backup" | "main-backup";
 };
 
 export const DEFAULT_LED_SETTINGS: LedSettings = {
@@ -405,6 +609,13 @@ export const DEFAULT_LED_SETTINGS: LedSettings = {
   panelColorLight: "#5a8edc",
   panelPattern: "checker",
   processorId: null,
+  uiMode: "basic",
+  defaultVoltageRegion: "EU-230",
+  defaultPowerFactor: 0.95,
+  defaultPsuOverheadPct: 25,
+  defaultBrightnessNits: 5000,
+  autoTopologyOnAdd: false,
+  redundancyMode: "none",
 };
 
 /** Curated dual-color presets for the panel grid (dark, light). */
@@ -609,6 +820,35 @@ export function normalizeLedSettings(s: unknown): LedSettings {
     ),
     panelPattern,
     processorId,
+    uiMode: obj.uiMode === "advanced" ? "advanced" : "basic",
+    defaultVoltageRegion:
+      obj.defaultVoltageRegion === "US-120" ||
+      obj.defaultVoltageRegion === "US-208" ||
+      obj.defaultVoltageRegion === "JP-100"
+        ? obj.defaultVoltageRegion
+        : "EU-230",
+    defaultPowerFactor:
+      typeof obj.defaultPowerFactor === "number" &&
+      obj.defaultPowerFactor > 0 &&
+      obj.defaultPowerFactor <= 1
+        ? obj.defaultPowerFactor
+        : 0.95,
+    defaultPsuOverheadPct:
+      typeof obj.defaultPsuOverheadPct === "number" &&
+      obj.defaultPsuOverheadPct >= 0 &&
+      obj.defaultPsuOverheadPct <= 100
+        ? obj.defaultPsuOverheadPct
+        : 25,
+    defaultBrightnessNits:
+      typeof obj.defaultBrightnessNits === "number" &&
+      obj.defaultBrightnessNits > 0
+        ? obj.defaultBrightnessNits
+        : 5000,
+    autoTopologyOnAdd: obj.autoTopologyOnAdd === true,
+    redundancyMode:
+      obj.redundancyMode === "backup" || obj.redundancyMode === "main-backup"
+        ? obj.redundancyMode
+        : "none",
   };
 }
 

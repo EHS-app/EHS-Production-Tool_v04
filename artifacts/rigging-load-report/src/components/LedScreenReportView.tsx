@@ -58,6 +58,21 @@ import {
   validateAgainstProcessor,
   type ProcessorCheckResult,
 } from "../lib/ledProcessors";
+import { runValidation } from "../lib/led/validation/runValidation";
+import type { PowerEstimate } from "../lib/led/engine/power";
+import {
+  buildPatchSheetCsv,
+  buildCabinetIdCsv,
+  downloadCsv,
+} from "../lib/led/export/patchSheet";
+import { LedModeToggle } from "./led/ModeToggle";
+import {
+  RigAccessoriesPanel,
+  type LedRigAccessoryCatalogItem,
+} from "./led/RigAccessoriesPanel";
+import { AdvancedScreenInspector } from "./led/AdvancedScreenInspector";
+import { ValidationDrawer } from "./led/ValidationDrawer";
+import { PortMappingPanel } from "./led/PortMappingPanel";
 
 type Props = {
   screens: LedScreen[];
@@ -88,6 +103,11 @@ type Props = {
    *  it persists alongside the rest of PersistedV2. */
   ledSystem: LedSystem;
   onLedSystemChange: (next: LedSystem) => void;
+  /** Inventory items in the "LED Screen" category that have NO pixel
+   *  metadata — i.e. rigging beams. Passed in from App.tsx so this
+   *  view stays decoupled from the inventory shape. Empty / undefined
+   *  hides the Rig Accessories panel even in advanced mode. */
+  beamsCatalog?: LedRigAccessoryCatalogItem[];
 };
 
 const PIXEL_FMT = new Intl.NumberFormat("en-US");
@@ -135,7 +155,27 @@ export function LedScreenReportView(props: Props) {
     onJumpToRigging,
     ledSystem,
     onLedSystemChange,
+    beamsCatalog = [],
   } = props;
+
+  // ── Touring-grade validation (Phase 0-3) ─────────────────────────
+  // Runs every render. The engine is pure + memoised internally over
+  // its inputs; the cost is O(screens + cables) so we recompute
+  // unconditionally rather than cache here.
+  const validation = useMemo(
+    () => runValidation(screens, panels, settings),
+    [screens, panels, settings],
+  );
+  const advancedMode = settings.uiMode === "advanced";
+  const [validationOpen, setValidationOpen] = useState(false);
+  const exportPatchSheet = useCallback(() => {
+    if (screens.length === 0) return;
+    downloadCsv("led-patch-sheet.csv", buildPatchSheetCsv(screens));
+  }, [screens]);
+  const exportCabinetIds = useCallback(() => {
+    if (screens.length === 0) return;
+    downloadCsv("led-cabinet-ids.csv", buildCabinetIdCsv(screens));
+  }, [screens]);
 
   /** Pixel-resolved lookup so the System Designer can show real pixel
    *  totals for screen-kind nodes that link to a `LedScreen` by id.
@@ -397,6 +437,70 @@ export function LedScreenReportView(props: Props) {
 
       <LedDashboard totals={totals} settings={settings} />
 
+      {/* Touring-grade controls strip — Basic/Advanced toggle plus
+          a validation button that surfaces the count of open issues
+          across every screen + the System Designer. */}
+      <div className="led-touring-strip">
+        <div className="led-touring-strip-left">
+          <span className="led-touring-strip-label">Mode</span>
+          <LedModeToggle
+            mode={settings.uiMode}
+            onChange={(next) => onUpdateSettings({ uiMode: next })}
+          />
+        </div>
+        <div className="led-touring-strip-right">
+          <button
+            type="button"
+            className={`btn btn-sm ${
+              validation.errors > 0
+                ? "btn-danger"
+                : validation.warnings > 0
+                  ? "btn-soft"
+                  : "btn-soft"
+            }`}
+            onClick={() => setValidationOpen((v) => !v)}
+            title="Open validation drawer"
+          >
+            ⚠ Validation
+            {validation.errors > 0 && (
+              <span className="led-touring-pill led-touring-pill-error">
+                {validation.errors}
+              </span>
+            )}
+            {validation.warnings > 0 && (
+              <span className="led-touring-pill led-touring-pill-warn">
+                {validation.warnings}
+              </span>
+            )}
+            {validation.errors === 0 && validation.warnings === 0 && (
+              <span className="led-touring-pill led-touring-pill-ok">OK</span>
+            )}
+          </button>
+          {advancedMode && (
+            <>
+              <button
+                type="button"
+                className="btn btn-soft btn-sm"
+                onClick={exportPatchSheet}
+                disabled={screens.length === 0}
+                title="Download per-port patch sheet (CSV)"
+              >
+                ↓ Patch sheet
+              </button>
+              <button
+                type="button"
+                className="btn btn-soft btn-sm"
+                onClick={exportCabinetIds}
+                disabled={screens.length === 0}
+                title="Download per-cabinet ID report (CSV)"
+              >
+                ↓ Cabinet IDs
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
       <ProcessorBanner
         totals={totals}
         settings={settings}
@@ -467,6 +571,9 @@ export function LedScreenReportView(props: Props) {
                     }
                     onAddProcessor={(model) => addProcessor(s.id, model)}
                     onRemoveProcessor={(pid) => removeProcessor(s.id, pid)}
+                    advancedMode={advancedMode}
+                    beamsCatalog={beamsCatalog}
+                    power={validation.powerByScreen.get(s.id)}
                   />
                 ))}
               </tbody>
@@ -542,6 +649,26 @@ export function LedScreenReportView(props: Props) {
           screenPixelsById={screenPixelsById}
         />
       </section>
+
+      <ValidationDrawer
+        open={validationOpen}
+        onClose={() => setValidationOpen(false)}
+        violations={validation.violations}
+        onJumpToScreen={(id) => {
+          onSelectScreen(id);
+          setValidationOpen(false);
+          // Scroll the table row into view if present.
+          const el = document.querySelector(
+            `[data-led-screen-row="${id}"]`,
+          );
+          if (el && "scrollIntoView" in el) {
+            (el as HTMLElement).scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+            });
+          }
+        }}
+      />
     </div>
   );
 }
@@ -731,6 +858,9 @@ function ScreenRow({
   onApplyBuildBySize,
   onAddProcessor,
   onRemoveProcessor,
+  advancedMode,
+  beamsCatalog,
+  power,
 }: {
   screen: LedScreen;
   panels: LedPanel[];
@@ -752,6 +882,9 @@ function ScreenRow({
   ) => void;
   onAddProcessor: (model: NovastarProcessorModel) => void;
   onRemoveProcessor: (processorId: string) => void;
+  advancedMode: boolean;
+  beamsCatalog: LedRigAccessoryCatalogItem[];
+  power: PowerEstimate | undefined;
 }) {
   const panel = resolveScreenPanel(screen, panels);
   const m = computeScreenMetrics(screen, panels);
@@ -820,6 +953,7 @@ function ScreenRow({
     <>
       <tr
         className={rowClass}
+        data-led-screen-row={screen.id}
         onClick={onSelect}
         title={
           isSelected
@@ -1194,6 +1328,39 @@ function ScreenRow({
           />
         </td>
       </tr>
+      {advancedMode && (
+        <tr className="led-row-advanced">
+          <td colSpan={12}>
+            <AdvancedScreenInspector
+              screen={screen}
+              power={power}
+              onUpdate={onUpdate}
+            />
+          </td>
+        </tr>
+      )}
+      {advancedMode && beamsCatalog.length > 0 && (
+        <tr className="led-row-rig">
+          <td colSpan={12}>
+            <RigAccessoriesPanel
+              screen={screen}
+              catalog={beamsCatalog}
+              onChange={(rigAccessories) => onUpdate({ rigAccessories })}
+            />
+          </td>
+        </tr>
+      )}
+      {advancedMode && (
+        <tr className="led-row-portmap">
+          <td colSpan={12}>
+            <PortMappingPanel
+              screen={screen}
+              panel={panel}
+              onUpdate={onUpdate}
+            />
+          </td>
+        </tr>
+      )}
       {isCustom && (
         <tr className="led-row-custom">
           <td colSpan={12}>

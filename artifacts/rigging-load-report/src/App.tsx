@@ -1914,6 +1914,19 @@ function App() {
     () => buildLedPanels(inventory["LED Screen"]),
     [],
   );
+  /** Beams + non-pixel rigging items from the LED Screen inventory.
+   *  Passed to the Rig Accessories panel inside each screen card so
+   *  the producer can attach rigging beams without leaving the LED
+   *  tab. Filter: anything where pixelWidth/pixelHeight is 0/missing. */
+  const ledBeamsCatalog = useMemo(
+    () =>
+      inventory["LED Screen"]
+        .filter(
+          (it) => !it.pixelWidth || !it.pixelHeight || it.pixelWidth === 0,
+        )
+        .map((it) => ({ name: it.name, weight: it.weight })),
+    [],
+  );
   const defaultLedPanelKey = useMemo(
     () => defaultPanelKeyOf(ledPanels),
     [ledPanels],
@@ -1990,6 +2003,29 @@ function App() {
           panelMarkers: meta.panelMarkers,
           processors: meta.processors,
           bracketOverride: meta.bracketOverride,
+          // Touring-grade (Phase 1-3) — surface advanced engineering
+          // fields so the Inspector / RigAccessories / PortMapping
+          // panels can edit them on linked screens too.
+          brightnessNits: meta.brightnessNits,
+          refreshRateHz: meta.refreshRateHz,
+          bitDepth: meta.bitDepth,
+          hdrEnabled: meta.hdrEnabled,
+          curveType: meta.curveType,
+          cabinetRotation: meta.cabinetRotation,
+          transparencyMode: meta.transparencyMode,
+          processorPortAssignments: meta.processorPortAssignments,
+          maxCabinetsPerDataChain: meta.maxCabinetsPerDataChain,
+          maxCabinetsPerPowerChain: meta.maxCabinetsPerPowerChain,
+          voltageRegion: meta.voltageRegion,
+          powerOverheadPct: meta.powerOverheadPct,
+          powerFactor: meta.powerFactor,
+          cameraSafeMode: meta.cameraSafeMode,
+          scanRateProfile: meta.scanRateProfile,
+          genlockEnabled: meta.genlockEnabled,
+          backupSignalEnabled: meta.backupSignalEnabled,
+          signalLoopEnabled: meta.signalLoopEnabled,
+          curveAnglePerSeam: meta.curveAnglePerSeam,
+          rigAccessories: meta.rigAccessories,
         });
       }
     }
@@ -2228,6 +2264,29 @@ function App() {
             panelMarkers: current.panelMarkers,
             processors: current.processors,
             bracketOverride: current.bracketOverride,
+            // Touring-grade fields — seed every advanced field so the
+            // first edit on a linked screen doesn't blow away an
+            // existing rig accessory / port-mapping / brightness etc.
+            brightnessNits: current.brightnessNits,
+            refreshRateHz: current.refreshRateHz,
+            bitDepth: current.bitDepth,
+            hdrEnabled: current.hdrEnabled,
+            curveType: current.curveType,
+            cabinetRotation: current.cabinetRotation,
+            transparencyMode: current.transparencyMode,
+            processorPortAssignments: current.processorPortAssignments,
+            maxCabinetsPerDataChain: current.maxCabinetsPerDataChain,
+            maxCabinetsPerPowerChain: current.maxCabinetsPerPowerChain,
+            voltageRegion: current.voltageRegion,
+            powerOverheadPct: current.powerOverheadPct,
+            powerFactor: current.powerFactor,
+            cameraSafeMode: current.cameraSafeMode,
+            scanRateProfile: current.scanRateProfile,
+            genlockEnabled: current.genlockEnabled,
+            backupSignalEnabled: current.backupSignalEnabled,
+            signalLoopEnabled: current.signalLoopEnabled,
+            curveAnglePerSeam: current.curveAnglePerSeam,
+            rigAccessories: current.rigAccessories,
           }
         : defaultLinkedLedMeta(1, defaultLedPanelKey);
       setLedLinkedMeta((all) => {
@@ -2289,6 +2348,73 @@ function App() {
             : {}),
           ...("bracketOverride" in patch
             ? { bracketOverride: patch.bracketOverride }
+            : {}),
+          // Touring-grade patch branches — each new advanced field
+          // must round-trip from the Inspector / RigAccessories /
+          // PortMapping editors on linked screens.
+          ...("brightnessNits" in patch
+            ? { brightnessNits: patch.brightnessNits }
+            : {}),
+          ...("refreshRateHz" in patch
+            ? { refreshRateHz: patch.refreshRateHz }
+            : {}),
+          ...("bitDepth" in patch ? { bitDepth: patch.bitDepth } : {}),
+          ...("hdrEnabled" in patch
+            ? { hdrEnabled: patch.hdrEnabled }
+            : {}),
+          ...("curveType" in patch ? { curveType: patch.curveType } : {}),
+          ...("cabinetRotation" in patch
+            ? { cabinetRotation: patch.cabinetRotation }
+            : {}),
+          ...("transparencyMode" in patch
+            ? { transparencyMode: patch.transparencyMode }
+            : {}),
+          ...("processorPortAssignments" in patch
+            ? {
+                processorPortAssignments: patch.processorPortAssignments
+                  ? [...patch.processorPortAssignments]
+                  : undefined,
+              }
+            : {}),
+          ...("maxCabinetsPerDataChain" in patch
+            ? { maxCabinetsPerDataChain: patch.maxCabinetsPerDataChain }
+            : {}),
+          ...("maxCabinetsPerPowerChain" in patch
+            ? { maxCabinetsPerPowerChain: patch.maxCabinetsPerPowerChain }
+            : {}),
+          ...("voltageRegion" in patch
+            ? { voltageRegion: patch.voltageRegion }
+            : {}),
+          ...("powerOverheadPct" in patch
+            ? { powerOverheadPct: patch.powerOverheadPct }
+            : {}),
+          ...("powerFactor" in patch
+            ? { powerFactor: patch.powerFactor }
+            : {}),
+          ...("cameraSafeMode" in patch
+            ? { cameraSafeMode: patch.cameraSafeMode }
+            : {}),
+          ...("scanRateProfile" in patch
+            ? { scanRateProfile: patch.scanRateProfile }
+            : {}),
+          ...("genlockEnabled" in patch
+            ? { genlockEnabled: patch.genlockEnabled }
+            : {}),
+          ...("backupSignalEnabled" in patch
+            ? { backupSignalEnabled: patch.backupSignalEnabled }
+            : {}),
+          ...("signalLoopEnabled" in patch
+            ? { signalLoopEnabled: patch.signalLoopEnabled }
+            : {}),
+          ...("curveAnglePerSeam" in patch
+            ? { curveAnglePerSeam: patch.curveAnglePerSeam }
+            : {}),
+          ...("rigAccessories" in patch
+            ? {
+                rigAccessories: patch.rigAccessories
+                  ? [...patch.rigAccessories]
+                  : undefined,
+              }
             : {}),
         };
         return { ...all, [sourceRowId]: next };
@@ -6509,6 +6635,7 @@ function App() {
           onJumpToRigging={() => setMainView("rigging")}
           ledSystem={ledSystemState}
           onLedSystemChange={setLedSystemState}
+          beamsCatalog={ledBeamsCatalog}
         />
       )}
 

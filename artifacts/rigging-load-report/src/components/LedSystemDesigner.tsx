@@ -63,6 +63,12 @@ const NODE_KIND_THEME: Record<
   processor: { label: "Processor", emoji: "⚙︎", accent: "#F88000" },
   fiberbox: { label: "CVT10 Pro-S", emoji: "✶", accent: "#A855F7" },
   psu: { label: "Power Supply", emoji: "⚡", accent: "#EF4444" },
+  // Phase 4 — touring topology nodes. Same chrome, new accents.
+  "media-server": { label: "Media Server", emoji: "▶", accent: "#10B981" },
+  "network-switch": { label: "Network Switch", emoji: "⇄", accent: "#0EA5E9" },
+  ups: { label: "UPS", emoji: "🔋", accent: "#EAB308" },
+  powerdistro: { label: "Power Distro", emoji: "⌁", accent: "#DC2626" },
+  genlock: { label: "Genlock", emoji: "⊙", accent: "#8B5CF6" },
 };
 
 const EDGE_KIND_THEME: Record<

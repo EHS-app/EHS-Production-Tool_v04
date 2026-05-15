@@ -69,7 +69,7 @@ export const no: Translations = {
   "help.sidebar.lighting":
     "Hold styr på armaturer per system: type, antall, watt, DMX-kanaler. Total effekt mates automatisk tilbake til riggsammendraget.",
   "help.sidebar.led":
-    "Konfigurer LED-skjermer — paneltype, prosessor-utganger, pikseltetthet, riggemetode — pluss kabel- og brakettliste og den nye Systemdesigneren for å tegne hele signal/fiber/strøm-topologien med live varsler. Effekt og vekt rulles opp i prosjektets totaler.",
+    "Konfigurer LED-skjermer fra A til Å — panelkatalog, prosessor-utganger, pikseltetthet, riggemetode, Basic/Advanced-modus med touring-felter (lysstyrke, refresh, bit-dybde, HDR, spenningsregion, scanprofil, genlock, backup-signal), Rigg-tilbehør per skjerm (heisebjelker, hjørnestykker, motorer, sikringsstropper), Port-mapping per kabinett, en live Validerings-skuff som flagger kjedeoverlast, CAT‑6 over 90 m, fiber over 300 m, prosessorer over kapasitet og foreldreløse skjermer, en Systemdesigner med media-servere, nettverksvitsjer, UPS og strømdistribusjon, og ett-klikks Patch-sheet + Kabinett-ID CSV-eksport. Effekt og vekt rulles opp i prosjektets totaler.",
   "help.sidebar.sound":
     "Logg PA, monitorer og mik-oppsett. Vekt per enhet mates inn i riggberegningene.",
   "help.sidebar.stage":
@@ -99,22 +99,31 @@ export const no: Translations = {
 
   "help.section.ledHowto": "Slik bruker du LED-fanen",
   "help.ledHowto.intro":
-    "LED-fanen kombinerer fire verktøy som bygger på hverandre. Jobb ovenfra og ned — hver seksjon leser fra skjermene du setter opp øverst.",
+    "LED-fanen er en arbeidsflyt ovenfra og ned. Start i Basic-modus for raske tilbud; slå på Advanced-modus når du trenger touring-engineering (lysstyrke, refresh, spenning, port-mapping, validering, rigg-tilbehør). Hver seksjon leser fra skjermene du setter opp øverst.",
   "help.ledHowto.step1.title": "1. Legg til skjermer",
   "help.ledHowto.step1.body":
-    "Klikk «+ Add Screen» eller legg til en LED-rad i Riggrapporten — koblede skjermer dukker opp her automatisk. Velg et panel fra katalogen (eller definer et tilpasset panel), sett rutenettet paneler-bredt × paneler-høyt, og tilordne en prosessor-utgang. Pikselkartet og BOM oppdateres live mens du redigerer.",
+    "Klikk «+ Add Screen» eller legg til en LED-rad i Riggrapporten — koblede skjermer dukker opp her automatisk. Velg et panel fra katalogen (f.eks. Uniview URPro-B 0,5×1 m eller 0,5×0,5 m 90° hjørne), sett rutenettet paneler-bredt × paneler-høyt, og tilordne en prosessor-utgang. Pikselkartet og BOM oppdateres live.",
   "help.ledHowto.step2.title": "2. Form pikselkartet",
   "help.ledHowto.step2.body":
     "Dra skjermene rundt på lerretet for å bygge veggen. Bruk «Shape»-modus per skjerm for å deaktivere enkelte kabinetter for L-former, bånd, søyler eller annen geometri. Slipp strøm- og signalmarkører på bestemte kabinetter for å dokumentere hvor hver kabel skal lande.",
-  "help.ledHowto.step3.title": "3. Les kabel- og brakettlisten",
+  "help.ledHowto.step3.title": "3. Slå på Advanced-modus",
   "help.ledHowto.step3.body":
-    "BOM-kortet lister strøm- og signalkabler per skjerm pluss brakett-antall, basert på kabinettets riggemetode. Bruk det som pakkeliste når du laster bilen.",
-  "help.ledHowto.step4.title": "4. Tegn systemet",
+    "Modus-bryteren over skjermtabellen flipper hver rad til Advanced. Hver skjerm får en inspektør for lysstyrke (nits), refresh, bit-dybde (8/10/12+), HDR, gamma-kurve, kabinettrotasjon, transparens, spenningsregion (EU‑230 / US‑208 / US‑120), strøm-overhead %, effektfaktor, scanprofil, kamera-trygg modus, genlock og backup-signal. Alle felt er valgfrie — la dem stå tomme for raske tilbud.",
+  "help.ledHowto.step4.title": "4. Rigg-tilbehør per skjerm",
   "help.ledHowto.step4.body":
-    "I System-seksjonen klikker du verktøylinjeknappene for å legge til Skjermer, Prosessorer, CVT10 Pro-S fiberbokser og Strømforsyninger. Velg en kabeltype (Signal / Fiber / Strøm) før du drar fra én node-kant til en annen for å tegne en kabel. Klikk en node eller kabel for å redigere den i inspektøren til høyre — sett Novastar-modell på en prosessor, koble en skjerm-node til en ekte LED-skjerm for live pikseltelling, eller angi kabellengden i meter.",
-  "help.ledHowto.step5.title": "5. Følg med på varslene",
+    "I Advanced-modus åpner du Rigg-tilbehør på en hvilken som helst skjerm for å legge til heisebjelker (500 mm / 1000 mm), hjørnestykker, hoisting suites, motorer og sikringsstropper med antall per linje. Vekten rulles inn i riggtotalene så billasten og punktlasten stemmer.",
+  "help.ledHowto.step5.title": "5. Port-mapping (per kabinett)",
   "help.ledHowto.step5.body":
-    "Høyre-panelet ruller opp utstyrsantall, kabelsum per type, kapasitetsstolper for porter og piksler per prosessor, og en varselliste. CAT-6 over 90 m, fiber over 300 m, prosessorer over kapasitet, CVT10-fanout over 10 porter og foreldreløse skjermer lyser alle rødt så du fanger opp problemer før innrigg.",
+    "Port-mapping-panelet lar deg tilordne hvert kabinett til en bestemt prosessorport. Cellene farges per port så du ser umiddelbart hvilket kabinett som hører hvor. Valideringsmotoren flagger porter som overskrider prosessorens maks antall kabinett per datakjede.",
+  "help.ledHowto.step6.title": "6. Kjør Validering",
+  "help.ledHowto.step6.body":
+    "Klikk Validering-knappen i touring-stripen for å åpne den utglidende skuffen. Den lister hver feil og advarsel — strøm-kjede-overlast (basert på skjermens spenningsregion), data-kjede-overlast, CAT‑6 over 90 m, fiber over 300 m, prosessor over piksel-/portkapasitet, foreldreløse skjermer og manglende portilordninger. Klikk en sak for å hoppe rett til den skjermen.",
+  "help.ledHowto.step7.title": "7. Tegn systemet",
+  "help.ledHowto.step7.body":
+    "I Systemdesigneren dekker paletten Skjermer, Prosessorer, CVT10 Pro-S fiberbokser, Strømforsyninger og touring-tilleggene: Media-servere, Nettverksvitsjer, UPS, Strømdistribusjon og Genlock-generatorer. Velg en kabeltype (Signal / Fiber / Strøm) og dra fra én node-kant til en annen. Klikk en kabel for å markere den som Backup eller sett båndbredde. Klikk en node for å redigere den — sett Novastar-modell på en prosessor, koble en skjerm-node til en ekte LED-skjerm for live pikseltelling, eller angi kabellengden i meter.",
+  "help.ledHowto.step8.title": "8. Eksporter patch-arket",
+  "help.ledHowto.step8.body":
+    "CSV-menyen i touring-stripen eksporterer et Patch-ark (én rad per kabinett — skjerm, port, kjede, rad, kolonne, piksel-offset) og en Kabinett-ID-liste. Send patch-arket til video-teknikeren før innrigg så prosessorene er ferdig mappet før kabinettene engang er pakket ut.",
 
   "help.section.tips": "Verdt å vite",
   "help.tips.autosave":

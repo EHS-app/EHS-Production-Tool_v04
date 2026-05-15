@@ -61,7 +61,7 @@ export const en = {
   "help.sidebar.lighting":
     "Track fixtures per system: type, count, wattage, DMX channels. Total power feeds back into the rigging summary automatically.",
   "help.sidebar.led":
-    "Configure LED screens — panel type, processor outputs, pixel pitch, rigging method — plus a cable & bracket BOM and the new System designer for drawing the full signal/fiber/power topology with live warnings. Power and weight roll up into the project totals.",
+    "Configure LED screens end-to-end — panel catalog, processor outputs, pixel pitch, rigging method, Basic / Advanced mode with touring-grade engineering fields (brightness, refresh, bit depth, HDR, voltage region, scan profile, genlock, backup signal), per-screen Rig Accessories (hanging beams, corner pieces, motors, safety bonds), cell-level Port Mapping, a live Validation drawer that flags chain overloads / runs over CAT‑6 90 m / fiber 300 m / processor capacity / orphaned screens, a System Designer with media servers, network switches, UPS and power-distro nodes, and one-click Patch-sheet + Cabinet-ID CSV exports. Power and weight roll up into the project totals.",
   "help.sidebar.sound":
     "Log your PA, monitors, and mic setup. Weight per unit feeds into the rigging calculations.",
   "help.sidebar.stage":
@@ -91,22 +91,31 @@ export const en = {
 
   "help.section.ledHowto": "How to use the LED tab",
   "help.ledHowto.intro":
-    "The LED tab combines four tools that build on each other. Work top-down — every section reads from the screens you set up at the top.",
+    "The LED tab is a top-down workflow. Start in Basic mode for fast quoting; flip on Advanced mode when you need touring-grade engineering (brightness, refresh, voltage, port mapping, validation, rig accessories). Every section reads from the screens you set up at the top.",
   "help.ledHowto.step1.title": "1. Add screens",
   "help.ledHowto.step1.body":
-    "Click \"+ Add Screen\" or add an LED row on the Rigging Report — linked screens show up here automatically. Pick a panel from the catalog (or define a custom panel), set the panels-wide × panels-tall grid, and assign a processor output. The Pixel Map and BOM update live as you edit.",
+    "Click \"+ Add Screen\" or add an LED row on the Rigging Report — linked screens appear here automatically. Pick a panel from the catalog (e.g. Uniview URPro-B 0.5×1 m or 0.5×0.5 m 90° corner), set the panels-wide × panels-tall grid, and assign a processor output. The Pixel Map and BOM update live.",
   "help.ledHowto.step2.title": "2. Shape the Pixel Map",
   "help.ledHowto.step2.body":
-    "Drag screens around the canvas to lay out the wall. Use the per-screen \"Shape\" mode to disable individual cabinets for L-shapes, ribbons, columns, or any custom geometry. Drop power and signal markers on specific cabinets to document where each cable lands.",
-  "help.ledHowto.step3.title": "3. Read the Cable & Bracket BOM",
+    "Drag screens around the canvas to lay out the wall. Use per-screen \"Shape\" mode to disable individual cabinets for L-shapes, ribbons, columns, or any custom geometry. Drop power and signal markers on specific cabinets to document where each cable lands.",
+  "help.ledHowto.step3.title": "3. Switch to Advanced mode",
   "help.ledHowto.step3.body":
-    "The BOM card lists power and signal cables per screen plus bracket counts, factoring in the cabinet rigging method. Use it as a packing list when you load the truck.",
-  "help.ledHowto.step4.title": "4. Draw the System",
+    "The Mode toggle above the screen table flips every row into Advanced. Each screen gets an inspector for brightness (nits), refresh rate, bit depth (8/10/12+), HDR, gamma curve, cabinet rotation, transparency, voltage region (EU‑230 / US‑208 / US‑120), power overhead %, power factor, scan profile, camera-safe mode, genlock and backup signal. All fields are optional — leave them blank for quick quotes.",
+  "help.ledHowto.step4.title": "4. Rig Accessories per screen",
   "help.ledHowto.step4.body":
-    "In the System section, click the toolbar buttons to add Screens, Processors, CVT10 Pro-S fiber boxes, and Power Supplies. Pick a cable type (Signal / Fiber / Power) before dragging from one node's edge to another to draw a cable. Click any node or cable to edit it in the right-hand inspector — set the Novastar model on a processor, link a screen node to a real LED screen for live pixel counts, or enter the cable distance in metres.",
-  "help.ledHowto.step5.title": "5. Watch the warnings",
+    "In Advanced mode, open Rig Accessories on any screen to add hanging beams (500 mm / 1000 mm), corner pieces, hoisting suites, motors, and safety bonds with per-line quantities. Weights roll into the rigging totals so the truck list and point loads stay correct.",
+  "help.ledHowto.step5.title": "5. Port Mapping (cell-level)",
   "help.ledHowto.step5.body":
-    "The right panel rolls up equipment counts, cable totals per kind, per-processor port and pixel capacity bars, and a warnings list. CAT-6 over 90 m, fiber over 300 m, processors over capacity, CVT10 fan-out over 10 ports, and orphaned screens all light up red so you catch problems before load-in.",
+    "The Port Mapping panel lets you assign each cabinet to a specific processor port. Cells tint by port colour so you can see at a glance which cabinet goes where. The validation engine flags any port that exceeds the processor's max cabinets per data chain.",
+  "help.ledHowto.step6.title": "6. Run Validation",
+  "help.ledHowto.step6.body":
+    "Click the Validation button in the touring strip to open the slide-out drawer. It lists every error and warning — power-chain overloads (per the screen's voltage region), data-chain overloads, CAT‑6 over 90 m, fiber over 300 m, processor over pixel/port capacity, orphaned screens, missing port assignments. Click any issue to jump straight to that screen.",
+  "help.ledHowto.step7.title": "7. Draw the System",
+  "help.ledHowto.step7.body":
+    "In the System Designer, the palette covers Screens, Processors, CVT10 Pro-S fiber boxes, Power Supplies, and the touring add-ons: Media Servers, Network Switches, UPS, Power Distros, and Genlock generators. Pick a cable type (Signal / Fiber / Power) and drag from one node's edge to another. Click any cable to mark it as Backup or set its bandwidth. Click any node to edit it in the inspector — set the Novastar model on a processor, link a screen node to a real LED screen for live pixel counts, or enter the cable distance in metres.",
+  "help.ledHowto.step8.title": "8. Export the patch sheet",
+  "help.ledHowto.step8.body":
+    "The CSV menu in the touring strip exports a Patch sheet (one row per cabinet — screen, port, chain, row, column, pixel offset) and a Cabinet-ID list. Send the patch sheet to your video tech ahead of load-in so the processors are pre-mapped before cabinets are even unflightcased.",
 
   "help.section.tips": "Good to know",
   "help.tips.autosave":

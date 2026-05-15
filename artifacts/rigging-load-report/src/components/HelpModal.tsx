@@ -42,6 +42,9 @@ const LED_HOWTO_STEPS: Item[] = [
   { label: "help.ledHowto.step3.title", body: "help.ledHowto.step3.body" },
   { label: "help.ledHowto.step4.title", body: "help.ledHowto.step4.body" },
   { label: "help.ledHowto.step5.title", body: "help.ledHowto.step5.body" },
+  { label: "help.ledHowto.step6.title", body: "help.ledHowto.step6.body" },
+  { label: "help.ledHowto.step7.title", body: "help.ledHowto.step7.body" },
+  { label: "help.ledHowto.step8.title", body: "help.ledHowto.step8.body" },
 ];
 
 const TIPS: TranslationKey[] = [

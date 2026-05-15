@@ -1,0 +1,434 @@
+You are working inside MY existing production-management platform.
+
+This is NOT a greenfield app.
+This is NOT a generic LED configurator.
+
+You must preserve my current architecture, workflows, naming conventions, persistence model, and existing UX patterns.
+
+Your task is to EXTEND and PROFESSIONALIZE the current LED Tab without breaking compatibility with:
+
+* Rigging Report
+* Client Pack PDF
+* Show Simulation
+* Brief Bridge
+* Project persistence
+* Existing saved projects
+* Existing translations
+* Existing React Flow designer
+* Existing SVG pixel-map system
+
+==================================================
+CURRENT TOOL CONTEXT
+====================
+
+The LED Tab already exists and already supports:
+
+* LED screen cards
+* linked rigging screens
+* manual screens
+* processor capacity calculations
+* SVG pixel-map rendering
+* screen shape templates
+* disabled cabinets
+* signal + power markers
+* cable BOM
+* processor assignment
+* React Flow v12 LED System Designer
+* localStorage + Postgres persistence
+* i18n
+* Client Pack exports
+* cloud auto-save
+* drag-positioned screens
+* panel inventory integration
+
+The current architecture is already functional.
+
+DO NOT redesign the product from scratch.
+DO NOT replace the workflow philosophy.
+DO NOT remove advanced features.
+DO NOT simplify professional workflows.
+
+Your job is to evolve the existing tool into a true touring-grade LED deployment system.
+
+==================================================
+IMPORTANT PRODUCT PHILOSOPHY
+============================
+
+This tool is intended for:
+
+* touring LED engineers
+* production managers
+* festival TDs
+* broadcast engineers
+* AV companies
+* arena shows
+* corporate productions
+* IMAG systems
+
+The software must think like:
+
+* Novastar workflows
+* Brompton workflows
+* touring signal deployment
+* real-world rigging coordination
+
+NOT like a generic web dashboard.
+
+==================================================
+KEEP THESE EXISTING SYSTEMS
+===========================
+
+Preserve and extend:
+
+1. Linked LED screens from Rigging Report
+2. Shape-template workflow
+3. SVG cabinet rendering
+4. Flow arrows
+5. Cable BOM logic
+6. React Flow System Designer
+7. Marker system (+P / +S)
+8. Existing project persistence
+9. Existing translation keys
+10. Existing Client Pack PDF integration
+11. Existing migration system
+12. Existing screen-card structure
+13. Existing inventory integration
+14. Existing auto-save behaviour
+
+Everything must remain backward-compatible.
+
+==================================================
+EXTEND THE EXISTING SCREEN MODEL
+================================
+
+Add professional LED-engineering fields to the CURRENT LedScreen model.
+
+New display fields:
+
+* brightnessNits
+* refreshRate
+* bitDepth
+* hdrEnabled
+
+New physical fields:
+
+* curveType
+* curveAnglePerSeam
+* cabinetRotation
+* transparencyMode
+
+New signal fields:
+
+* processorPortAssignments
+* maxCabinetsPerDataChain
+* backupSignalEnabled
+* signalLoopEnabled
+
+New power fields:
+
+* voltageRegion
+* maxCabinetsPerPowerChain
+* amperageEstimate
+* powerFactor
+
+New broadcast fields:
+
+* cameraSafeMode
+* scanRateProfile
+* genlockEnabled
+
+Do NOT break old saved projects.
+All new fields must have migration-safe defaults.
+
+==================================================
+MOST IMPORTANT MISSING FEATURE:
+PROCESSOR PORT MAPPING
+======================
+
+The current system only validates:
+
+* total pixels
+* total outputs
+* canvas size
+
+This is insufficient for real LED deployments.
+
+Implement real processor-port workflows.
+
+Every processor must expose:
+
+* Port 1
+* Port 2
+* Port 3
+  etc.
+
+Every screen must support:
+
+* assigning cabinet regions to ports
+* visualizing chain routing
+* visualizing signal direction
+* visualizing backup chains
+* visualizing overloaded ports
+
+Add support for:
+
+* row splitting
+* column splitting
+* custom routing
+* auto-balanced routing
+* manual override
+
+The SVG pixel-map must visually render:
+
+* port ownership
+* chain direction
+* chain start/end
+* broken chains
+* overloaded chains
+
+The System Designer must understand:
+
+* processor ports
+* receiving-card chains
+* redundancy paths
+* fiber distribution
+
+This is the highest-priority feature.
+
+==================================================
+UPGRADE POWER + DATA CALCULATIONS
+=================================
+
+Current calculations are too simplified.
+
+Implement realistic touring calculations.
+
+POWER:
+
+* brightness-aware power draw
+* amperage estimation
+* chain limits
+* regional voltage handling
+* PSU overhead
+* redundancy overhead
+
+Warnings:
+
+* overloaded power chain
+* amperage exceeded
+* too many cabinets per run
+
+DATA:
+
+* max cabinets per CAT chain
+* max receiving cards per port
+* signal loop validation
+* fiber distance validation
+* chain splitting
+* orphan detection
+
+Warnings:
+
+* chain too long
+* invalid routing
+* overloaded processor port
+* missing redundancy
+
+==================================================
+UPGRADE THE SVG PIXEL MAP
+=========================
+
+Keep the existing SVG architecture.
+
+Extend it with:
+
+* cabinet IDs
+* processor-port overlays
+* signal tracing
+* redundancy visualization
+* curved-wall preview
+* ghost cabinets
+* dead cabinet simulation
+* cabinet rotation preview
+
+Rendering must remain performant.
+
+Avoid unnecessary React re-renders.
+
+==================================================
+EXPAND THE EXISTING SYSTEM DESIGNER
+===================================
+
+The React Flow v12 System Designer is now a core product feature.
+
+Do NOT replace it.
+
+Extend it with new node types:
+
+* backup processor
+* media server
+* network switch
+* genlock
+* UPS
+* power distro
+
+Extend edge metadata:
+
+* cable type
+* protocol
+* redundancy role
+* bandwidth
+* latency
+* direction
+
+Add live calculations:
+
+* processor utilization
+* redundant path validation
+* latency estimation
+* orphan detection
+* loop detection
+* fiber fan-out validation
+
+==================================================
+AUTO-TOPOLOGY MODE
+==================
+
+Add OPTIONAL topology suggestions.
+
+When a screen is created:
+optionally auto-build:
+Processor
+→ Fiberbox
+→ Screen
+→ PSU
+
+The topology engine should:
+
+* balance processor ports
+* reduce cable runs
+* create redundancy when enabled
+* distribute screens intelligently
+
+The producer must still be able to override manually.
+
+==================================================
+RIGGING INTEGRATION
+===================
+
+Add a new section to each screen:
+
+“Rigging Accessories”
+
+Examples:
+
+* fly bars
+* ground support
+* corner blocks
+* outriggers
+
+Keep these separate from cabinet counts.
+
+Validate:
+
+* beam width vs wall width
+* flown weight
+* trim compatibility
+* motor loading
+
+==================================================
+BASIC MODE VS ADVANCED MODE
+===========================
+
+Keep the existing workflow approachable.
+
+Add:
+
+* Basic Mode
+* Advanced Engineering Mode
+
+Basic Mode:
+
+* fast producer workflow
+* minimal controls
+
+Advanced Mode:
+
+* processor ports
+* chain routing
+* redundancy
+* broadcast tools
+* advanced power calculations
+
+==================================================
+EXPORTS
+=======
+
+Extend the existing export system.
+
+Add:
+
+* processor patch sheets
+* cabinet ID reports
+* cable run sheets
+* power distro sheets
+* signal-routing reports
+* CSV exports
+* Novastar-style mapping exports
+
+Client Pack PDF should include:
+
+* topology diagrams
+* processor utilization
+* chain maps
+* cabinet IDs
+* signal flow
+
+==================================================
+IMPLEMENTATION REQUIREMENTS
+===========================
+
+Maintain:
+
+* TypeScript strict typing
+* modular architecture
+* debounced persistence
+* backward compatibility
+* migration safety
+* deterministic calculations
+* scalable rendering
+
+Avoid:
+
+* duplicated topology logic
+* monolithic components
+* unnecessary global state
+* expensive SVG re-renders
+
+Prefer:
+
+* utility calculation layers
+* validation engine
+* topology solver
+* reusable hooks
+* typed schemas
+* derived selectors
+
+==================================================
+OUTPUT REQUIRED
+===============
+
+Based on MY CURRENT TOOL:
+
+1. Propose updated TypeScript interfaces
+2. Propose migration-safe schema changes
+3. Propose calculation-engine architecture
+4. Propose validation rules
+5. Propose React component changes
+6. Propose React Flow node/edge extensions
+7. Propose SVG renderer upgrades
+8. Propose export architecture
+9. Propose performance optimizations
+10. Propose phased implementation roadmap
+
+Everything must integrate into the EXISTING TOOL rather than replacing it.

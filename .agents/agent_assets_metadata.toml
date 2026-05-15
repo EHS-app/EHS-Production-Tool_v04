@@ -102,3 +102,9 @@ id = "eytPemPwGH5DUzSaQVL1O"
 uri = "file://artifacts/rigging-load-report/LED_TAB_SPEC.md"
 type = "text"
 title = "LED Tab — Build Specification"
+
+[[outputs]]
+id = "s77cw5G6DzpKnY_445dYs"
+uri = "file://artifacts/rigging-load-report/LED_TAB_EVOLUTION_PROPOSAL.md"
+type = "text"
+title = "LED Tab — Evolution Proposal & Roadmap"

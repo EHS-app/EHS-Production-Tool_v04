@@ -435,11 +435,10 @@ const inventory: Record<Category, InventoryItem[]> = {
   ],
   "LED Screen": [
     {
-      // Uniview UR Pro 3.9 — 500 × 1000 mm cabinet, mounted in PORTRAIT
-      // (0.5 m wide × 1.0 m tall). Manufacturer cabinet weight 10.8 kg,
-      // max draw 350 W per cabinet.
-      name: "Uniview UR Pro 0.5x1m (10.8kg)",
-      weight: 10.8,
+      // Uniview UR Pro — 500 × 1000 mm cabinet mounted in PORTRAIT
+      // (0.5 m wide × 1.0 m tall). Cabinet-only weight per EHS spec.
+      name: "Uniview UR Pro 0.5x1m (12.3kg)",
+      weight: 12.3,
       wattage: 350,
       area: 0.5,
       pixelWidth: 128,
@@ -448,9 +447,23 @@ const inventory: Record<Category, InventoryItem[]> = {
       physicalHeight: 1.0,
     },
     {
-      // Uniview UR Pro 3.9 — square 500 × 500 mm cabinet, 7.2 kg, 175 W max.
-      name: "Uniview UR Pro 0.5x0.5m (7.2kg)",
-      weight: 7.2,
+      // Same 500 × 1000 mm cabinet plus its captive signal/power cable
+      // loom (+0.275 kg). Use this row when totalling truck weight so
+      // the cable contribution isn't lost in the BOM.
+      name: "Uniview UR Pro 0.5x1m + cable (12.575kg)",
+      weight: 12.575,
+      wattage: 350,
+      area: 0.5,
+      pixelWidth: 128,
+      pixelHeight: 256,
+      physicalWidth: 0.5,
+      physicalHeight: 1.0,
+    },
+    {
+      // 500 × 500 mm 90° corner cabinet — used to wrap a wall round a
+      // pillar. Cabinet-only weight per EHS spec.
+      name: "Uniview UR Pro 0.5x0.5m 90° (8.8kg)",
+      weight: 8.8,
       wattage: 175,
       area: 0.25,
       pixelWidth: 128,
@@ -458,6 +471,25 @@ const inventory: Record<Category, InventoryItem[]> = {
       physicalWidth: 0.5,
       physicalHeight: 0.5,
     },
+    {
+      // Same 90° cabinet plus captive cable (+0.275 kg).
+      name: "Uniview UR Pro 0.5x0.5m 90° + cable (9.075kg)",
+      weight: 9.075,
+      wattage: 175,
+      area: 0.25,
+      pixelWidth: 128,
+      pixelHeight: 128,
+      physicalWidth: 0.5,
+      physicalHeight: 0.5,
+    },
+    // ── LED rigging beams ──────────────────────────────────────────
+    // Beams are deliberately left without pixel / physical metadata so
+    // `buildLedPanels` skips them in the panel picker (they're not
+    // pixel-carrying cabinets). They still flow through the rigging
+    // weight / BOM the same way the Molton fabric rows do.
+    { name: "Beam 1m hang/stack (10kg)", weight: 10, wattage: 0, area: 0 },
+    { name: "Beam 0.5m (6kg)", weight: 6, wattage: 0, area: 0 },
+    { name: "Beam 0.5m 90° (4.5kg)", weight: 4.5, wattage: 0, area: 0 },
     { name: "Molton 6x4m (7.2kg)", weight: 7.2, wattage: 0, area: 0 },
     { name: "Molton 9x6m (16.2kg)", weight: 16.2, wattage: 0, area: 0 },
     { name: "Molton 9x9m (24.3kg)", weight: 24.3, wattage: 0, area: 0 },

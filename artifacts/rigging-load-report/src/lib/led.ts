@@ -492,9 +492,22 @@ export function buildLedPanels(items: LedPanelSource[]): LedPanel[] {
   return panels;
 }
 
-/** Default panel key for a freshly-added screen — first inventory panel,
- *  falling back to Custom if inventory has no LED-capable items. */
+/** Default panel key for a freshly-added screen.
+ *
+ *  Preference order (most-realistic-truck-weight first):
+ *   1. The "0.5x1m + cable" Uniview cabinet — the standard EHS portrait
+ *      cabinet *with* its captive cable loom, so totals reflect what
+ *      actually ships out of the warehouse.
+ *   2. Any "+ cable" cabinet (future-proof if we add more cable
+ *      variants).
+ *   3. The first inventory panel.
+ *   4. The synthetic Custom panel (inventory had no LED-capable items).
+ */
 export function defaultPanelKeyOf(panels: LedPanel[]): LedPanelKey {
+  const primary = panels.find((p) => /0\.5x1m \+ cable/i.test(p.name));
+  if (primary) return primary.key;
+  const anyCable = panels.find((p) => /\+ cable/i.test(p.name));
+  if (anyCable) return anyCable.key;
   return panels[0]?.key ?? CUSTOM_PANEL_KEY;
 }
 
@@ -516,20 +529,33 @@ export function findPanelKeyForInventoryName(
   return found ? found.key : null;
 }
 
-/** Migrate panel keys from older builds (which used pitch-suffixed slugs)
- *  to the new inventory-name-based keys. Unknown keys are returned as-is so
- *  getLedPanel's fallback can take over. */
+/** Migrate panel keys from older builds to the current inventory-name-based
+ *  keys. The catalog was reweighted (10.8→12.3kg, 7.2→8.8kg) and the 0.5×0.5m
+ *  cabinet was relabelled as 90°, which means every prior key — pitch-suffixed
+ *  slugs, the old landscape orientation, AND the previous-weight name — no
+ *  longer resolves on its own. Forward them all so getLedPanel doesn't silently
+ *  drop saved screens to Custom (which would corrupt pixel / weight totals).
+ *  Unknown keys are still returned as-is so the existing fallback can run. */
 export function migrateLedPanelKey(key: string): LedPanelKey {
   switch (key) {
+    // 500 × 500 cabinet — old pitch slugs + previous-weight name forward to
+    // the current 90° variant. The flat (non-90°) cabinet is no longer in
+    // inventory; the 90° row is its closest physical equivalent (same pixel
+    // grid + face dimensions) so totals stay sensible.
     case "uniview-ur-pro-05-3.9":
     case "uniview-ur-pro-05-2.9":
-      return "Uniview UR Pro 0.5x0.5m (7.2kg)";
+    case "Uniview UR Pro 0.5x0.5m (7.2kg)":
+      return "Uniview UR Pro 0.5x0.5m 90° (8.8kg)";
+
+    // 500 × 1000 cabinet — old pitch slugs, the legacy landscape-orientation
+    // name, and the previous-weight portrait name all forward to the current
+    // 12.3 kg entry.
     case "uniview-ur-pro-10-3.9":
     case "uniview-ur-pro-10-2.9":
-    // The 500 × 1000 cabinet is now stored mounted in PORTRAIT
-    // (0.5 m wide × 1.0 m tall), so the old landscape key forwards here.
     case "Uniview UR Pro 1x0.5m (10.8kg)":
-      return "Uniview UR Pro 0.5x1m (10.8kg)";
+    case "Uniview UR Pro 0.5x1m (10.8kg)":
+      return "Uniview UR Pro 0.5x1m (12.3kg)";
+
     default:
       return key;
   }

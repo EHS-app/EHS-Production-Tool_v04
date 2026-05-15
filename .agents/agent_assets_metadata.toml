@@ -96,3 +96,9 @@ id = "mbVihRtTmU2OsxDcsjfdB"
 uri = "file://attached_assets/screenshots/9cd161cd-b092-4cb9-849f-98a2f7f2a312-00-qywaehzrdctw_riker_replit_dev_mockup_preview_ehs-redesign_Linear.png"
 type = "image"
 title = "Variant 3 — Linear-style"
+
+[[outputs]]
+id = "eytPemPwGH5DUzSaQVL1O"
+uri = "file://artifacts/rigging-load-report/LED_TAB_SPEC.md"
+type = "text"
+title = "LED Tab — Build Specification"

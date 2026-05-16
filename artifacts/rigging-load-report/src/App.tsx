@@ -181,6 +181,10 @@ type InventoryItem = {
   pixelHeight?: number;
   physicalWidth?: number;
   physicalHeight?: number;
+  /** Manufacturer bracket / hang-bar name for an LED cabinet. When
+   *  set, the Cable & bracket BOM shows this name × cabinet count
+   *  instead of the placeholder. */
+  bracketName?: string;
 };
 
 type Category = "Truss" | "Fixtures" | "LED Screen";
@@ -445,6 +449,7 @@ const inventory: Record<Category, InventoryItem[]> = {
       pixelHeight: 256,
       physicalWidth: 0.5,
       physicalHeight: 1.0,
+      bracketName: "Uniview UR Pro hanging bar",
     },
     {
       // Same 500 × 1000 mm cabinet plus its captive signal/power cable
@@ -458,6 +463,7 @@ const inventory: Record<Category, InventoryItem[]> = {
       pixelHeight: 256,
       physicalWidth: 0.5,
       physicalHeight: 1.0,
+      bracketName: "Uniview UR Pro hanging bar",
     },
     {
       // 500 × 500 mm 90° corner cabinet — used to wrap a wall round a
@@ -470,6 +476,7 @@ const inventory: Record<Category, InventoryItem[]> = {
       pixelHeight: 128,
       physicalWidth: 0.5,
       physicalHeight: 0.5,
+      bracketName: "Uniview UR Pro corner bracket",
     },
     {
       // Same 90° cabinet plus captive cable (+0.275 kg).
@@ -481,6 +488,7 @@ const inventory: Record<Category, InventoryItem[]> = {
       pixelHeight: 128,
       physicalWidth: 0.5,
       physicalHeight: 0.5,
+      bracketName: "Uniview UR Pro corner bracket",
     },
     // ── LED rigging beams ──────────────────────────────────────────
     // Beams are deliberately left without pixel / physical metadata so
@@ -1401,6 +1409,10 @@ function App() {
   const [custWeight, setCustWeight] = useState("");
   const [custWatt, setCustWatt] = useState("");
   const [custArea, setCustArea] = useState("");
+  /** Optional bracket / hang-bar name for a custom LED panel — drives
+   *  the bracket-BOM display so producers see the real part name
+   *  instead of the "(set bracket on inventory)" placeholder. */
+  const [custBracket, setCustBracket] = useState("");
 
   const [savedAt, setSavedAt] = useState<string>("");
   const [cloudSavedAt, setCloudSavedAt] = useState<string>("");
@@ -1811,6 +1823,7 @@ function App() {
     setCustWeight("");
     setCustWatt("");
     setCustArea("");
+    setCustBracket("");
   };
   const closeModal = () => setModalTarget(null);
 
@@ -4370,6 +4383,9 @@ function App() {
       weight: parseFloat(custWeight) || 0,
       wattage: parseFloat(custWatt) || 0,
       area: parseFloat(custArea) || 0,
+      ...(modalTarget === "LED Screen" && custBracket.trim()
+        ? { bracketName: custBracket.trim() }
+        : {}),
     };
     const key =
       modalTarget === "Fixtures"
@@ -4618,6 +4634,7 @@ function App() {
     setCustWeight("");
     setCustWatt("");
     setCustArea("");
+    setCustBracket("");
     setShareOpen(false);
     setCurrentProjectId(null);
     setCloudSavedAt("");
@@ -4728,6 +4745,7 @@ function App() {
     setCustWeight("");
     setCustWatt("");
     setCustArea("");
+    setCustBracket("");
     setShareOpen(false);
     setCurrentProjectId(null);
     setCloudSavedAt("");
@@ -6748,6 +6766,14 @@ function App() {
               value={custArea}
               onChange={(e) => setCustArea(e.target.value)}
             />
+            {modalTarget === "LED Screen" && (
+              <input
+                type="text"
+                placeholder="Bracket / hang-bar name (optional)"
+                value={custBracket}
+                onChange={(e) => setCustBracket(e.target.value)}
+              />
+            )}
             <div className="modal-actions">
               <button className="btn btn-export" onClick={submitCustom}>
                 Add

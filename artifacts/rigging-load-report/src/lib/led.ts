@@ -778,6 +778,10 @@ export type LedPanelSource = {
   pixelHeight?: number;
   physicalWidth?: number;
   physicalHeight?: number;
+  /** Official manufacturer bracket/hang-bar name for this cabinet.
+   *  When set, the Cable & bracket BOM prints the real bracket name
+   *  instead of the "(set bracket on inventory)" placeholder. */
+  bracketName?: string;
 };
 
 /** Build the LED panel library directly from the rigging inventory. Items
@@ -805,6 +809,7 @@ export function buildLedPanels(items: LedPanelSource[]): LedPanel[] {
         physicalHeight: it.physicalHeight,
         weight: it.weight,
         power: it.wattage,
+        bracketName: it.bracketName,
       });
     }
   }

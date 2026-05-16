@@ -2026,6 +2026,7 @@ function App() {
           signalLoopEnabled: meta.signalLoopEnabled,
           curveAnglePerSeam: meta.curveAnglePerSeam,
           rigAccessories: meta.rigAccessories,
+          autoFitBeams: meta.autoFitBeams,
         });
       }
     }
@@ -2038,8 +2039,8 @@ function App() {
   );
 
   const ledTotals = useMemo(
-    () => computeLedTotals(allLedScreens, ledSettings, ledPanels),
-    [allLedScreens, ledSettings, ledPanels],
+    () => computeLedTotals(allLedScreens, ledSettings, ledPanels, ledBeamsCatalog),
+    [allLedScreens, ledSettings, ledPanels, ledBeamsCatalog],
   );
 
   /** Project state assembled into the shape the brief encoder needs.
@@ -2415,6 +2416,9 @@ function App() {
                   ? [...patch.rigAccessories]
                   : undefined,
               }
+            : {}),
+          ...("autoFitBeams" in patch
+            ? { autoFitBeams: patch.autoFitBeams }
             : {}),
         };
         return { ...all, [sourceRowId]: next };

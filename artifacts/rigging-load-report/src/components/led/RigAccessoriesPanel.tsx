@@ -1,15 +1,20 @@
 /** Per-screen rigging accessory list — beams, fly bars, ground
  *  support items pulled from the "LED Screen" inventory category.
  *
- *  Items are referenced by inventory name (string FK). The weight
- *  total displayed here is informational; the rigging report still
- *  computes the project-level total from its own inventory pass.
- *  Persistence: `LedScreen.rigAccessories`.
+ *  Two modes:
+ *   • Auto-fit (default): beams are derived from the screen's physical
+ *     width via `suggestAutoBeams`. Producer can still add manual
+ *     extras (corner pieces, fly bars) underneath the auto block.
+ *   • Manual: only the producer's manual `rigAccessories` are used.
+ *
+ *  Weight (auto + manual) is included in the project-level LED weight
+ *  total — see `computeScreenMetrics`/`computeLedTotals` which now
+ *  accept the same beam catalog passed in here.
  */
 
 import { useMemo, useState } from "react";
-import type { LedRigAccessory, LedScreen } from "../../lib/led";
-import { newRigAccessoryId } from "../../lib/led";
+import type { LedPanel, LedRigAccessory, LedScreen } from "../../lib/led";
+import { newRigAccessoryId, suggestAutoBeams } from "../../lib/led";
 
 export type LedRigAccessoryCatalogItem = {
   name: string;
@@ -18,27 +23,46 @@ export type LedRigAccessoryCatalogItem = {
 
 export function RigAccessoriesPanel({
   screen,
+  panels,
   catalog,
   onChange,
+  onToggleAutoFit,
 }: {
   screen: LedScreen;
+  /** Panel library — needed to compute the screen's physical width
+   *  for the auto-fit suggestion. */
+  panels: LedPanel[];
   /** Inventory items (name + weight) — the parent passes the "LED
    *  Screen" rows that have no pixel metadata (i.e. the beams). */
   catalog: LedRigAccessoryCatalogItem[];
   onChange: (next: LedRigAccessory[]) => void;
+  onToggleAutoFit: (autoFit: boolean) => void;
 }) {
   const items = screen.rigAccessories ?? [];
+  const autoFit = !!screen.autoFitBeams;
   const [picker, setPicker] = useState<string>(catalog[0]?.name ?? "");
   const [qty, setQty] = useState<number>(1);
 
+  /** Width-based auto suggestion (only used when autoFit is on). */
+  const auto = useMemo<LedRigAccessory[]>(
+    () => (autoFit ? suggestAutoBeams(screen, panels, catalog) : []),
+    [autoFit, screen, panels, catalog],
+  );
+
+  /** All accessories whose weight contributes to the screen total. */
+  const effective = useMemo<LedRigAccessory[]>(
+    () => [...auto, ...items],
+    [auto, items],
+  );
+
   const totalWeight = useMemo(() => {
     let w = 0;
-    for (const a of items) {
+    for (const a of effective) {
       const cat = catalog.find((c) => c.name === a.inventoryName);
       if (cat) w += cat.weight * a.qty;
     }
     return w;
-  }, [items, catalog]);
+  }, [effective, catalog]);
 
   function add() {
     if (!picker || qty <= 0) return;
@@ -74,12 +98,83 @@ export function RigAccessoriesPanel({
     <div className="led-rig-accessories">
       <div className="led-rig-accessories-head">
         <strong>Rigging accessories</strong>
+        <label
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            marginLeft: 12,
+            fontSize: 12,
+            opacity: 0.9,
+            cursor: "pointer",
+          }}
+          title="Auto-fit beams to the screen width, longest pieces first"
+        >
+          <input
+            type="checkbox"
+            checked={autoFit}
+            onChange={(e) => onToggleAutoFit(e.target.checked)}
+          />
+          Auto-fit beams to width
+        </label>
         <span className="led-rig-accessories-total">
-          {items.length} item{items.length === 1 ? "" : "s"} ·{" "}
+          {effective.length} item{effective.length === 1 ? "" : "s"} ·{" "}
           {totalWeight.toFixed(1)} kg
         </span>
       </div>
 
+      {/* Auto-fitted block — read-only summary */}
+      {autoFit && auto.length > 0 && (
+        <ul className="led-rig-accessories-list">
+          {auto.map((a) => {
+            const cat = catalog.find((c) => c.name === a.inventoryName);
+            const w = cat ? cat.weight * a.qty : 0;
+            return (
+              <li
+                key={a.id}
+                className="led-rig-accessories-row"
+                style={{ opacity: 0.85 }}
+              >
+                <span
+                  className="led-input"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    padding: "0 8px",
+                    background: "transparent",
+                    border: "1px dashed var(--border)",
+                  }}
+                >
+                  {a.inventoryName}
+                </span>
+                <span className="led-rig-accessories-qty">× {a.qty}</span>
+                <span className="led-rig-accessories-weight">
+                  {w.toFixed(1)} kg
+                </span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    opacity: 0.7,
+                    fontStyle: "italic",
+                  }}
+                >
+                  auto-fit
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {autoFit && auto.length === 0 && (
+        <div
+          className="led-rig-accessories-empty"
+          style={{ fontSize: 12, opacity: 0.7, padding: "4px 0" }}
+        >
+          No straight beams in the catalog matched the screen width.
+        </div>
+      )}
+
+      {/* Manual extras — always available */}
       {items.length > 0 && (
         <ul className="led-rig-accessories-list">
           {items.map((a) => {
@@ -166,9 +261,13 @@ export function RigAccessoriesPanel({
           type="button"
           className="btn btn-soft btn-sm"
           onClick={add}
-          title="Add accessory to this screen"
+          title={
+            autoFit
+              ? "Add manual extra on top of the auto-fitted beams"
+              : "Add accessory to this screen"
+          }
         >
-          + Add
+          + Add{autoFit ? " manual extra" : ""}
         </button>
       </div>
     </div>

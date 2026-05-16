@@ -902,7 +902,10 @@ function ScreenRow({
   power: PowerEstimate | undefined;
 }) {
   const panel = resolveScreenPanel(screen, panels);
-  const m = computeScreenMetrics(screen, panels);
+  // Pass the beam catalog so the weight readout in the screen card
+  // reflects auto-fitted + manual rig accessories — matching the
+  // project-level ledTotals roll-up in App.tsx.
+  const m = computeScreenMetrics(screen, panels, beamsCatalog);
   const isCustom = screen.panelKey === CUSTOM_PANEL_KEY;
   const nameScale = clampNameScale(screen.nameScale);
   const markers = screen.markers ?? [];
@@ -1359,8 +1362,10 @@ function ScreenRow({
           <td colSpan={12}>
             <RigAccessoriesPanel
               screen={screen}
+              panels={panels}
               catalog={beamsCatalog}
               onChange={(rigAccessories) => onUpdate({ rigAccessories })}
+              onToggleAutoFit={(autoFitBeams) => onUpdate({ autoFitBeams })}
             />
           </td>
         </tr>

@@ -175,6 +175,9 @@ export type LedScreen = {
    *  "LED Screen" category. Weight rolls into screen total when
    *  rendered via the Rig Accessories panel. */
   rigAccessories?: LedRigAccessory[];
+  /** When true, beams are auto-suggested from screen width. See the
+   *  same field on `LedLinkedMeta` — the two stay in sync. */
+  autoFitBeams?: boolean;
 };
 
 // ────────────────────────────────────────────────────────────────────
@@ -264,7 +267,109 @@ export type LedRigAccessory = {
   qty: number;
   /** Free-form note (e.g. "downstage left fly bar"). */
   note?: string;
+  /** Auto-suggested by the screen's width-based auto-fit. Stored only
+   *  on virtual entries returned by `effectiveRigAccessories` — never
+   *  persisted into `LedScreen.rigAccessories` (which always holds the
+   *  producer's manual additions). */
+  auto?: boolean;
 };
+
+/** Catalog row passed in from App.tsx — inventory name + per-unit weight. */
+export type LedBeamCatalogItem = { name: string; weight: number };
+
+/** Parse a beam length in metres from its inventory name.
+ *  Matches "1m", "0.5 m", "2.0m". Returns null if no length token. */
+export function parseBeamLengthM(name: string): number | null {
+  const m = name.match(/(\d+(?:\.\d+)?)\s*m\b/i);
+  if (!m) return null;
+  const v = Number(m[1]);
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
+/** Is this a STRAIGHT hang/stack beam (eligible for width auto-fit)?
+ *  Requires the inventory row to look like a beam (name contains
+ *  "beam", "hang", or "stack") so unrelated rows that happen to
+ *  carry a length token (e.g. "Molton 6x4m") are not pulled into
+ *  auto-fit. Excludes corner / angled pieces (90°, "corner",
+ *  "angle") which are special-case fittings the producer adds
+ *  manually. */
+export function isStraightBeam(name: string): boolean {
+  if (parseBeamLengthM(name) == null) return false;
+  if (!/\bbeam\b|\bhang\b|\bstack\b/i.test(name)) return false;
+  if (/90°|90 deg|corner|angle/i.test(name)) return false;
+  return true;
+}
+
+/** Pick beams from the catalog whose lengths sum to the screen's
+ *  physical width, preferring the longest pieces first (greedy).
+ *  Returns one accessory entry per length used, with `auto: true`.
+ *  Returns [] when the catalog has no straight beams or the width
+ *  is zero / not divisible by the smallest beam length. */
+export function suggestAutoBeams(
+  screen: LedScreen,
+  panels: LedPanel[],
+  catalog: LedBeamCatalogItem[],
+): LedRigAccessory[] {
+  const panel = resolveScreenPanel(screen, panels);
+  const widthM = screen.panelsWide * panel.physicalWidth;
+  if (widthM <= 0) return [];
+
+  // Catalog of straight beams sorted longest → shortest.
+  const beams = catalog
+    .filter((c) => isStraightBeam(c.name))
+    .map((c) => ({ name: c.name, length: parseBeamLengthM(c.name)! }))
+    .sort((a, b) => b.length - a.length);
+  if (beams.length === 0) return [];
+
+  // Quantize to mm to avoid FP drift, then greedy-pack.
+  const EPS = 1e-6;
+  let remaining = Math.round(widthM * 1000);
+  const out: LedRigAccessory[] = [];
+  for (const beam of beams) {
+    const beamMm = Math.round(beam.length * 1000);
+    if (beamMm <= 0) continue;
+    const qty = Math.floor((remaining + EPS) / beamMm);
+    if (qty > 0) {
+      out.push({
+        id: `auto-${screen.id}-${beam.name.replace(/\W+/g, "_")}`,
+        inventoryName: beam.name,
+        qty,
+        auto: true,
+      });
+      remaining -= qty * beamMm;
+    }
+    if (remaining <= 0) break;
+  }
+  // Width not perfectly tileable (e.g. screen has odd half-panel) —
+  // we still return what we found; the producer can switch to manual.
+  return out;
+}
+
+/** Resolve the accessories actually deployed on a screen: the
+ *  producer's manual entries plus, when `autoFitBeams` is on, the
+ *  width-based suggestion. Used for weight rollup and display. */
+export function effectiveRigAccessories(
+  screen: LedScreen,
+  panels: LedPanel[],
+  catalog: LedBeamCatalogItem[],
+): LedRigAccessory[] {
+  const manual = screen.rigAccessories ?? [];
+  if (!screen.autoFitBeams) return manual;
+  return [...suggestAutoBeams(screen, panels, catalog), ...manual];
+}
+
+/** Sum the weight of a list of accessories against a catalog. */
+export function accessoriesWeightKg(
+  accessories: LedRigAccessory[],
+  catalog: LedBeamCatalogItem[],
+): number {
+  let w = 0;
+  for (const a of accessories) {
+    const c = catalog.find((x) => x.name === a.inventoryName);
+    if (c) w += c.weight * a.qty;
+  }
+  return w;
+}
 
 export function newRigAccessoryId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -426,6 +531,10 @@ export type LedLinkedMeta = {
   signalLoopEnabled?: boolean;
   curveAnglePerSeam?: number;
   rigAccessories?: LedRigAccessory[];
+  /** When true, beams are auto-suggested from the screen's physical
+   *  width on top of any manual `rigAccessories`. Default for newly
+   *  added screens; legacy screens without this flag stay manual-only. */
+  autoFitBeams?: boolean;
 };
 
 /** Lower / upper bounds for the name-pill multiplier. Values outside this
@@ -985,12 +1094,22 @@ export type LedScreenMetrics = {
 export function computeScreenMetrics(
   screen: LedScreen,
   panels: LedPanel[],
+  /** Optional beam catalog. When provided, rig-accessory weight
+   *  (manual + auto-fit) is added to `weightKg`. Omit to get the
+   *  bare cabinet weight only. */
+  beamCatalog?: LedBeamCatalogItem[],
 ): LedScreenMetrics {
   const panel = resolveScreenPanel(screen, panels);
   const enabled = enabledPanelCount(screen);
   const pixelsX = screen.panelsWide * panel.pixelWidth;
   const pixelsY = screen.panelsTall * panel.pixelHeight;
   const onePanelPixels = panel.pixelWidth * panel.pixelHeight;
+  const accessoryKg = beamCatalog
+    ? accessoriesWeightKg(
+        effectiveRigAccessories(screen, panels, beamCatalog),
+        beamCatalog,
+      )
+    : 0;
   return {
     panels: enabled,
     pixelsX,
@@ -999,7 +1118,7 @@ export function computeScreenMetrics(
     widthM: screen.panelsWide * panel.physicalWidth,
     heightM: screen.panelsTall * panel.physicalHeight,
     areaM2: enabled * (panel.physicalWidth * panel.physicalHeight),
-    weightKg: enabled * panel.weight,
+    weightKg: enabled * panel.weight + accessoryKg,
     powerW: enabled * panel.power,
   };
 }
@@ -1267,6 +1386,9 @@ export function computeLedTotals(
   screens: LedScreen[],
   settings: LedSettings,
   panels: LedPanel[],
+  /** Optional beam catalog — forwarded to `computeScreenMetrics` so
+   *  rig-accessory weight is included in the project-wide `weightKg`. */
+  beamCatalog?: LedBeamCatalogItem[],
 ): LedTotals {
   const t: LedTotals = {
     screens: screens.length,
@@ -1281,7 +1403,7 @@ export function computeLedTotals(
     largestScreenPixels: 0,
   };
   for (const s of screens) {
-    const m = computeScreenMetrics(s, panels);
+    const m = computeScreenMetrics(s, panels, beamCatalog);
     t.panels += m.panels;
     t.pixels += m.pixels;
     t.areaM2 += m.areaM2;
@@ -1343,6 +1465,11 @@ export function newLedScreen(
     panelMarkers: seed?.panelMarkers ? [...seed.panelMarkers] : undefined,
     processors: seed?.processors ? [...seed.processors] : undefined,
     bracketOverride: seed?.bracketOverride,
+    // New screens default to auto-fit beams ON so the rigging weight
+    // matches the screen geometry without producer effort. Legacy
+    // screens loaded from persistence keep their existing flag
+    // (undefined → manual-only).
+    autoFitBeams: seed?.autoFitBeams ?? true,
   };
 }
 

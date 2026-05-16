@@ -111,6 +111,21 @@ type Props = {
 };
 
 const PIXEL_FMT = new Intl.NumberFormat("en-US");
+
+/** Reduce a pixel WxH to a human-readable aspect ratio.
+ *  - Exact small ratios (16:9, 4:3, 21:9, 1:1, 9:16…) come out as "16:9".
+ *  - Anything that doesn't reduce to single/double digits falls back to
+ *    decimal form ("1.78:1") so producers still see a sensible number
+ *    on irregular L-shapes / ribbons. */
+function formatAspectRatio(w: number, h: number): string {
+  if (!w || !h || w <= 0 || h <= 0) return "—";
+  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+  const g = gcd(w, h);
+  const rw = w / g;
+  const rh = h / g;
+  if (rw <= 99 && rh <= 99) return `${rw}:${rh}`;
+  return `${(w / h).toFixed(2)}:1`;
+}
 const fmt = (n: number, d = 1) =>
   n.toLocaleString("en-US", { maximumFractionDigits: d });
 
@@ -2185,12 +2200,14 @@ function ScreenSvg({
           fill="currentColor"
           opacity={0.7}
         >
-          {screen.panelsWide}×{screen.panelsTall} · {m.pixelsX}×{m.pixelsY}px
+          {screen.panelsWide}×{screen.panelsTall} · {m.pixelsX}×{m.pixelsY}px ·{" "}
+          {formatAspectRatio(m.pixelsX, m.pixelsY)}
         </text>
       )}
       {screen.outputIndex == null && (
         <text x={x} y={y - 4} fontSize={11} fill="currentColor" opacity={0.7}>
-          {screen.panelsWide}×{screen.panelsTall} · {m.pixelsX}×{m.pixelsY}px
+          {screen.panelsWide}×{screen.panelsTall} · {m.pixelsX}×{m.pixelsY}px ·{" "}
+          {formatAspectRatio(m.pixelsX, m.pixelsY)}
         </text>
       )}
       {/* Panel cells */}

@@ -2012,13 +2012,54 @@ function ScreenSvg({
   // ints) and reuse for the cell, label, arrow, and panel-marker
   // passes so they all agree on which cabinets are actually present.
   const offCells = disabledCellSet(screen);
-  // Running counter for the sequential cabinet ID badge — increments
-  // once per ENABLED cabinet in row-major order. Disabled cells are
-  // skipped so the IDs match the commissioning sequence.
-  let cabinetIdCounter = 0;
-  // Centres of enabled cabinets in row-major order — drives the
-  // data-flow polyline overlay (renders below).
-  const enabledCenters: { x: number; y: number }[] = [];
+
+  // Walk all enabled cabinets in the same order the data flows
+  // through the screen — i.e. in `settings.wirePath` order. This
+  // single ordered sequence drives both:
+  //   1) the sequential cabinet-ID badge numbering (so the IDs match
+  //      the commissioning chain, not just left-to-right reading), and
+  //   2) the data-flow polyline overlay (so it visibly snakes through
+  //      the screen in the same direction the cells' arrows already
+  //      indicate, like the Pixel Perfect Pro reference).
+  const wireOrder: { col: number; row: number }[] = [];
+  if (settings.wirePath === "column-serpentine") {
+    for (let col = 0; col < screen.panelsWide; col++) {
+      const reversed = col % 2 === 1;
+      for (let i = 0; i < screen.panelsTall; i++) {
+        const row = reversed ? screen.panelsTall - 1 - i : i;
+        if (!isCellDisabled(offCells, col, row, screen.panelsWide)) {
+          wireOrder.push({ col, row });
+        }
+      }
+    }
+  } else if (settings.wirePath === "serpentine") {
+    for (let row = 0; row < screen.panelsTall; row++) {
+      const reversed = row % 2 === 1;
+      for (let i = 0; i < screen.panelsWide; i++) {
+        const col = reversed ? screen.panelsWide - 1 - i : i;
+        if (!isCellDisabled(offCells, col, row, screen.panelsWide)) {
+          wireOrder.push({ col, row });
+        }
+      }
+    }
+  } else {
+    // linear — every row left-to-right; jumps diagonally at row wraps
+    // (handled by the polyline orthogonal-routing pass below).
+    for (let row = 0; row < screen.panelsTall; row++) {
+      for (let col = 0; col < screen.panelsWide; col++) {
+        if (!isCellDisabled(offCells, col, row, screen.panelsWide)) {
+          wireOrder.push({ col, row });
+        }
+      }
+    }
+  }
+  // Map each cell's flat index → its 1-based cabinet ID. Lookup in
+  // the cell render loop below is O(1), and disabled cells are simply
+  // absent from the map so they never get a badge.
+  const cabinetIdByCell = new Map<number, number>();
+  wireOrder.forEach(({ col, row }, i) => {
+    cabinetIdByCell.set(row * screen.panelsWide + col, i + 1);
+  });
   for (let row = 0; row < screen.panelsTall; row++) {
     for (let col = 0; col < screen.panelsWide; col++) {
       const cx = x + col * cellW;
@@ -2098,9 +2139,7 @@ function ScreenSvg({
           }
         }
       }
-      cabinetIdCounter += 1;
-      const cabinetId = cabinetIdCounter;
-      enabledCenters.push({ x: cx + cellW / 2, y: cy + cellH / 2 });
+      const cabinetId = cabinetIdByCell.get(row * screen.panelsWide + col) ?? 0;
       cells.push(
         <g key={`${col}-${row}`}>
           <rect
@@ -2174,23 +2213,59 @@ function ScreenSvg({
     }
   }
 
-  // Data-flow polyline overlay — connects every enabled cabinet centre
-  // in row-major order. Sits under the markers / selection halo but
-  // over the cells so the chain is readable at a glance. Skipped when
-  // there are fewer than two cabinets (nothing to chain).
-  const dataFlowPath: React.ReactNode =
-    settings.showDataFlowPath && enabledCenters.length >= 2 ? (
+  // Data-flow polyline overlay — connects every enabled cabinet
+  // centre IN WIRE-PATH ORDER, with right-angle (Manhattan) routing
+  // at non-orthogonal transitions. This matches the look of the
+  // Pixel Perfect Pro reference: serpentine modes naturally produce
+  // h/v steps between neighbours, while `linear` wraps from end-of-
+  // row to start-of-next-row are routed through the inter-row gap
+  // (down → across → up) instead of a long diagonal jumping across
+  // the whole screen. Skipped when there are fewer than two
+  // cabinets — nothing to chain.
+  const dataFlowPath: React.ReactNode = (() => {
+    if (!settings.showDataFlowPath || wireOrder.length < 2) return null;
+    const centerOf = (c: { col: number; row: number }) => ({
+      x: x + c.col * cellW + cellW / 2,
+      y: y + c.row * cellH + cellH / 2,
+    });
+    const points: { x: number; y: number }[] = [];
+    points.push(centerOf(wireOrder[0]));
+    for (let i = 1; i < wireOrder.length; i++) {
+      const a = wireOrder[i - 1];
+      const b = wireOrder[i];
+      const pa = centerOf(a);
+      const pb = centerOf(b);
+      // Neighbour step (same row or same col) — already orthogonal.
+      if (a.row === b.row || a.col === b.col) {
+        points.push(pb);
+        continue;
+      }
+      // Diagonal jump (typically `linear` end-of-row → start-of-next-
+      // row). Route via the midline of the inter-cell gap so the path
+      // stays inside the screen and never cuts diagonally across
+      // multiple cells. midY = boundary between row `a.row` and the
+      // next row in the direction of travel.
+      const midY =
+        a.row < b.row
+          ? y + (a.row + 1) * cellH
+          : y + a.row * cellH;
+      points.push({ x: pa.x, y: midY });
+      points.push({ x: pb.x, y: midY });
+      points.push(pb);
+    }
+    return (
       <polyline
-        points={enabledCenters.map((p) => `${p.x},${p.y}`).join(" ")}
+        points={points.map((p) => `${p.x},${p.y}`).join(" ")}
         fill="none"
         stroke="#f88000"
         strokeWidth={Math.max(1.5, minDim * 0.08)}
-        strokeOpacity={0.85}
+        strokeOpacity={0.9}
         strokeLinejoin="round"
         strokeLinecap="round"
         pointerEvents="none"
       />
-    ) : null;
+    );
+  })();
 
   // Numbered output badges centered above each pair of columns — only
   // shown in column-serpentine mode (which is the typical way large

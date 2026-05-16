@@ -1301,8 +1301,24 @@ export function computeScreenCableBOM(
     (screen.bracketOverride && screen.bracketOverride.trim()) ||
     panel.bracketName ||
     "";
-  const brackets = enabled > 0
-    ? [{ name: bracketName || "(set bracket on inventory)", count: enabled }]
+  // Bracket count = top-row enabled cabinets. Brackets clamp each
+  // cabinet COLUMN to the beam(s) running across the screen width;
+  // cabinets below the top row hang off the cabinet above them via
+  // captive interlocks and don't need their own bracket. This keeps
+  // the count consistent with the auto-fit beams sized to width
+  // (one bracket per cabinet column the beams span).
+  const topRowEnabled = (() => {
+    if (screen.panelsWide <= 0 || screen.panelsTall <= 0) return 0;
+    const disabled = disabledCellSet(screen);
+    let count = 0;
+    for (let col = 0; col < screen.panelsWide; col++) {
+      // Row 0 cell index = 0*panelsWide + col = col.
+      if (!disabled.has(col)) count++;
+    }
+    return count;
+  })();
+  const brackets = topRowEnabled > 0
+    ? [{ name: bracketName || "(set bracket on inventory)", count: topRowEnabled }]
     : [];
   return {
     signalCables: jumpers,
@@ -1310,7 +1326,7 @@ export function computeScreenCableBOM(
     powerCables: jumpers,
     powerLengthM: jumpers * POWER_TRUE1_CABLE_LENGTH_M,
     brackets,
-    bracketsUnset: enabled > 0 && !bracketName,
+    bracketsUnset: topRowEnabled > 0 && !bracketName,
   };
 }
 

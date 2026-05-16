@@ -2016,6 +2016,10 @@ function App() {
           panelMarkers: meta.panelMarkers,
           processors: meta.processors,
           bracketOverride: meta.bracketOverride,
+          // Display-only rotation (degrees clockwise) — mirrors the
+          // linked meta so the rotation survives unlink / relink and
+          // is visible on the pixel-map canvas + PNG export.
+          rotationDeg: meta.rotationDeg,
           // Touring-grade (Phase 1-3) — surface advanced engineering
           // fields so the Inspector / RigAccessories / PortMapping
           // panels can edit them on linked screens too.
@@ -2278,6 +2282,7 @@ function App() {
             panelMarkers: current.panelMarkers,
             processors: current.processors,
             bracketOverride: current.bracketOverride,
+            rotationDeg: current.rotationDeg,
             // Touring-grade fields — seed every advanced field so the
             // first edit on a linked screen doesn't blow away an
             // existing rig accessory / port-mapping / brightness etc.
@@ -2362,6 +2367,12 @@ function App() {
             : {}),
           ...("bracketOverride" in patch
             ? { bracketOverride: patch.bracketOverride }
+            : {}),
+          // Round-trip rotation patches on linked screens. Without
+          // this branch a producer's rotation tweak would be dropped
+          // on the next re-projection from the rigging row.
+          ...("rotationDeg" in patch
+            ? { rotationDeg: patch.rotationDeg }
             : {}),
           // Touring-grade patch branches — each new advanced field
           // must round-trip from the Inspector / RigAccessories /

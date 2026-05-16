@@ -118,6 +118,12 @@ export type LedScreen = {
    *  swap the bracket for a one-off screen without touching the panel
    *  inventory. Empty / undefined means "use the panel's bracket". */
   bracketOverride?: string;
+  /** Visual rotation of the screen on the pixel-map canvas, in degrees
+   *  clockwise. 0 / undefined = no rotation (back-compat). Applied as
+   *  an SVG transform around the screen's centre — affects display
+   *  only, not pixel/cabinet counts or wiring math. Typical values:
+   *  -45 … +45 for a tilted IMAG wall. */
+  rotationDeg?: number;
 
   // ── Touring-grade engineering fields (Phase 1+) ────────────────
   // All optional + back-compat. Legacy persisted blobs that don't
@@ -504,6 +510,11 @@ export type LedLinkedMeta = {
   processors?: LedScreenProcessor[];
   /** Same semantics as `LedScreen.bracketOverride`. */
   bracketOverride?: string;
+  /** Same semantics as `LedScreen.rotationDeg`. Mirrored on the
+   *  linked meta so a rotation set on a linked screen survives the
+   *  round-trip through `updateLedScreen` and isn't blown away the
+   *  next time the rigging row re-projects defaults. */
+  rotationDeg?: number;
   // ── Touring-grade (Phase 1-3) — all optional + back-compat ───
   // Without these branches, edits made through the Advanced
   // inspector / RigAccessoriesPanel / PortMappingPanel on a
@@ -652,6 +663,17 @@ export type LedSettings = {
   showLabels: boolean;
   /** Show right-pointing data-flow arrows between cells in the PNG export. */
   showArrows: boolean;
+  /** Show sequential cabinet ID badges (1, 2, 3…) in each cabinet —
+   *  numbered in wire-path order so the crew can label cabinets to
+   *  match the signal chain during commissioning. */
+  showCabinetIds: boolean;
+  /** Draw a single polyline through every enabled cabinet in
+   *  wire-path order, on top of the cell arrows. Makes the signal
+   *  chain immediately readable at a glance. */
+  showDataFlowPath: boolean;
+  /** Mains line-to-neutral voltage (V) used by the per-screen 3-phase
+   *  amp balancer. Typical: 230 (EU), 110 / 120 (US), 100 (JP). */
+  mainsVoltage: number;
   /** Overlay alignment circle + dashed corner X on the PNG export. */
   showTestPattern: boolean;
   /** Render the screen name as a centered white pill on the PNG export. */
@@ -708,6 +730,9 @@ export const DEFAULT_LED_SETTINGS: LedSettings = {
   portLimit: 650000,
   showLabels: true,
   showArrows: true,
+  showCabinetIds: false,
+  showDataFlowPath: false,
+  mainsVoltage: 230,
   showTestPattern: true,
   showScreenName: true,
   showInfoBar: true,
@@ -918,6 +943,14 @@ export function normalizeLedSettings(s: unknown): LedSettings {
     portLimit,
     showLabels: obj.showLabels !== false,
     showArrows: obj.showArrows !== false,
+    showCabinetIds: obj.showCabinetIds === true,
+    showDataFlowPath: obj.showDataFlowPath === true,
+    mainsVoltage: (() => {
+      const v = Number(obj.mainsVoltage);
+      return Number.isFinite(v) && v >= 50 && v <= 500
+        ? v
+        : DEFAULT_LED_SETTINGS.mainsVoltage;
+    })(),
     showTestPattern: obj.showTestPattern !== false,
     showScreenName: obj.showScreenName !== false,
     showInfoBar: obj.showInfoBar !== false,

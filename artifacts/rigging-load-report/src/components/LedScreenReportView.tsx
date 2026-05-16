@@ -646,6 +646,15 @@ export function LedScreenReportView(props: Props) {
         <CableBracketBomCard screens={screens} panels={panels} />
       )}
 
+      {screens.length > 0 && (
+        <PowerBalancerCard
+          screens={screens}
+          panels={panels}
+          mainsVoltage={settings.mainsVoltage}
+          onMainsVoltageChange={(v) => onUpdateSettings({ mainsVoltage: v })}
+        />
+      )}
+
       <section className="led-card">
         <div className="led-card-head">
           <h3>System</h3>
@@ -1242,6 +1251,38 @@ function ScreenRow({
             onChange={(e) => onUpdate({ notes: e.target.value })}
             placeholder="Position, notes…"
           />
+          {/* Rotation input — degrees clockwise. Empty / 0 = no
+              rotation (legacy default). Compact so it fits the row
+              without pushing the notes column. */}
+          <div className="led-rotation-row" style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
+            <label className="led-sub" style={{ whiteSpace: "nowrap" }}>
+              Rotate
+            </label>
+            <input
+              className="led-input led-input-num"
+              type="number"
+              step={1}
+              value={screen.rotationDeg ?? ""}
+              placeholder="0°"
+              style={{ width: 64 }}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "") {
+                  onUpdate({ rotationDeg: undefined });
+                  return;
+                }
+                const n = Number(v);
+                if (Number.isFinite(n)) {
+                  // Clamp to [-180, 180] so the input can't produce
+                  // visually meaningless extreme values, but allow
+                  // negative for counter-clockwise tilt.
+                  onUpdate({ rotationDeg: Math.max(-180, Math.min(180, n)) });
+                }
+              }}
+              title="Rotate this screen on the pixel-map canvas (degrees clockwise). Display only — does not affect pixel/cabinet counts."
+            />
+            <span className="led-sub">°</span>
+          </div>
         </td>
         <td className="led-actions">
           {/* Cable-marker toolbar — visible per row so the producer can
@@ -1801,11 +1842,36 @@ function ScreenSvg({
 
   /** Convert a pointer event into normalised coords inside the screen
    *  rect. Returns null if the overlay isn't mounted yet (e.g. during
-   *  the initial render between effects). */
+   *  the initial render between effects).
+   *
+   *  Uses `getScreenCTM()` (not `getBoundingClientRect`) so the mapping
+   *  is correct even when the parent `<g>` carries an SVG rotation
+   *  transform — `getBoundingClientRect` returns the rotated AABB,
+   *  which would misplace clicks on tilted screens. The CTM inverse
+   *  maps client coords into the rect's LOCAL coordinate system, so
+   *  we can then normalise against the rect's local `x/y/width/height`
+   *  attrs. Falls back to the legacy `getBoundingClientRect` path when
+   *  CTM isn't available (e.g. detached DOM during HMR). */
   const eventToNorm = useCallback(
     (e: { clientX: number; clientY: number }): { x: number; y: number } | null => {
-      const rect = overlayRectRef.current?.getBoundingClientRect();
-      if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+      const el = overlayRectRef.current;
+      if (!el) return null;
+      const svg = el.ownerSVGElement;
+      const ctm = el.getScreenCTM();
+      if (svg && ctm) {
+        const pt = svg.createSVGPoint();
+        pt.x = e.clientX;
+        pt.y = e.clientY;
+        const local = pt.matrixTransform(ctm.inverse());
+        const bx = el.x.baseVal.value;
+        const by = el.y.baseVal.value;
+        const bw = el.width.baseVal.value;
+        const bh = el.height.baseVal.value;
+        if (bw <= 0 || bh <= 0) return null;
+        return { x: (local.x - bx) / bw, y: (local.y - by) / bh };
+      }
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return null;
       return {
         x: (e.clientX - rect.left) / rect.width,
         y: (e.clientY - rect.top) / rect.height,
@@ -1934,11 +2000,25 @@ function ScreenSvg({
   const showArrowsHere = settings.showArrows && minDim >= 12;
   const arrowSize = Math.max(6, minDim * 0.32);
   const arrowStroke = Math.max(1.2, arrowSize * 0.16);
+  // Cabinet-ID badge font matches the label font so the two pieces of
+  // text read at the same size at the same zoom. Suppressed on tiny
+  // cells like the panel labels — the badge sits in the bottom-right
+  // corner so it never collides with the A1/B1 label (top-left) or
+  // the centred data-flow arrow.
+  const showCabinetIdsHere = settings.showCabinetIds && minDim >= 16;
+  const idFont = Math.max(7, Math.min(14, minDim * 0.30));
 
   // Build the disabled-cells lookup ONCE per render (cheap — Set of
   // ints) and reuse for the cell, label, arrow, and panel-marker
   // passes so they all agree on which cabinets are actually present.
   const offCells = disabledCellSet(screen);
+  // Running counter for the sequential cabinet ID badge — increments
+  // once per ENABLED cabinet in row-major order. Disabled cells are
+  // skipped so the IDs match the commissioning sequence.
+  let cabinetIdCounter = 0;
+  // Centres of enabled cabinets in row-major order — drives the
+  // data-flow polyline overlay (renders below).
+  const enabledCenters: { x: number; y: number }[] = [];
   for (let row = 0; row < screen.panelsTall; row++) {
     for (let col = 0; col < screen.panelsWide; col++) {
       const cx = x + col * cellW;
@@ -2018,6 +2098,9 @@ function ScreenSvg({
           }
         }
       }
+      cabinetIdCounter += 1;
+      const cabinetId = cabinetIdCounter;
+      enabledCenters.push({ x: cx + cellW / 2, y: cy + cellH / 2 });
       cells.push(
         <g key={`${col}-${row}`}>
           <rect
@@ -2045,6 +2128,38 @@ function ScreenSvg({
               {row + 1}
             </text>
           )}
+          {showCabinetIdsHere && (
+            // Bottom-right cabinet-ID badge. White pill so the number
+            // stays legible against any panel-pattern colour, with a
+            // dark numeric so it prints clearly.
+            <g>
+              <rect
+                x={cx + cellW - idFont * 1.7 - 2}
+                y={cy + cellH - idFont * 1.3 - 2}
+                width={idFont * 1.7}
+                height={idFont * 1.3}
+                rx={Math.max(2, idFont * 0.25)}
+                ry={Math.max(2, idFont * 0.25)}
+                fill="#ffffff"
+                fillOpacity={0.88}
+                stroke="#0f172a"
+                strokeOpacity={0.3}
+                strokeWidth={0.75}
+              />
+              <text
+                x={cx + cellW - idFont * 0.85 - 2}
+                y={cy + cellH - idFont * 0.5 - 2}
+                fontSize={idFont}
+                fill="#0f172a"
+                fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+                fontWeight={700}
+                textAnchor="middle"
+                dominantBaseline="central"
+              >
+                {cabinetId}
+              </text>
+            </g>
+          )}
           {arrowDir && (
             <CellArrow
               cx={cx + cellW / 2}
@@ -2058,6 +2173,24 @@ function ScreenSvg({
       );
     }
   }
+
+  // Data-flow polyline overlay — connects every enabled cabinet centre
+  // in row-major order. Sits under the markers / selection halo but
+  // over the cells so the chain is readable at a glance. Skipped when
+  // there are fewer than two cabinets (nothing to chain).
+  const dataFlowPath: React.ReactNode =
+    settings.showDataFlowPath && enabledCenters.length >= 2 ? (
+      <polyline
+        points={enabledCenters.map((p) => `${p.x},${p.y}`).join(" ")}
+        fill="none"
+        stroke="#f88000"
+        strokeWidth={Math.max(1.5, minDim * 0.08)}
+        strokeOpacity={0.85}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        pointerEvents="none"
+      />
+    ) : null;
 
   // Numbered output badges centered above each pair of columns — only
   // shown in column-serpentine mode (which is the typical way large
@@ -2103,8 +2236,23 @@ function ScreenSvg({
   const titleY = y - 36;
   const subY = y - 18;
 
+  // Optional rotation transform — rotates the whole screen group
+  // (cells, outline, badges, markers, selection halo) around its
+  // centre. 0 / undefined = no transform so the SVG is byte-identical
+  // to the pre-rotation output for legacy screens.
+  const rotationDeg =
+    typeof screen.rotationDeg === "number" && Number.isFinite(screen.rotationDeg)
+      ? screen.rotationDeg
+      : 0;
+  const screenCenterX = x + width / 2;
+  const screenCenterY = y + height / 2;
+  const rotationTransform =
+    rotationDeg !== 0
+      ? `rotate(${rotationDeg} ${screenCenterX} ${screenCenterY})`
+      : undefined;
+
   return (
-    <g>
+    <g transform={rotationTransform}>
       {/* Per-column-pair output badges (column-serpentine wiring only) */}
       {colPairBadges}
       {/* Single per-screen output badge — hidden when the column-pair
@@ -2217,6 +2365,11 @@ function ScreenSvg({
       )}
       {/* Panel cells */}
       {cells}
+      {/* Data-flow polyline overlay — drawn after the cells so it
+          sits on top of the cell fills + labels, but before the
+          outline / markers / selection halo below so it never hides
+          interactive UI. */}
+      {dataFlowPath}
       {/* Outline — also acts as the click-to-select target. We let the
           click bubble to the SVG only when we explicitly stop it from
           here on a real selection click; the empty-canvas SVG handler
@@ -2835,6 +2988,140 @@ function CableBracketBomCard({
   );
 }
 
+/** Inline 3-phase power balancer.
+ *
+ *  Splits each screen's total wattage evenly across L1 / L2 / L3 and
+ *  shows the resulting amps per phase at the user-configured mains
+ *  voltage. It's a planning-grade tool — it doesn't model per-cabinet
+ *  power-feed wiring (which is captured by the cabinet "P" markers
+ *  already), but it does give the producer a quick "do I need a 32 A
+ *  3-phase or a 16 A 3-phase feed?" answer per screen.
+ *
+ *  Aggregated totals (sum across all screens, balanced split) sit in
+ *  the footer so a multi-screen build still answers the same question
+ *  at the rig level.
+ *
+ *  Empty / no-cabinet screens are skipped to keep the table readable.
+ */
+function PowerBalancerCard({
+  screens,
+  panels,
+  mainsVoltage,
+  onMainsVoltageChange,
+}: {
+  screens: LedScreen[];
+  panels: LedPanel[];
+  mainsVoltage: number;
+  onMainsVoltageChange: (v: number) => void;
+}) {
+  // Defensive — settings can be momentarily 0 if a user is mid-edit.
+  // Falling back to 230 keeps the table sane until they finish typing.
+  const voltage = mainsVoltage > 0 ? mainsVoltage : 230;
+  const rows = screens.map((screen) => {
+    const m = computeScreenMetrics(screen, panels);
+    const perPhaseW = m.powerW / 3;
+    const perPhaseA = perPhaseW / voltage;
+    return {
+      id: screen.id,
+      name: screen.name || "—",
+      powerW: m.powerW,
+      perPhaseW,
+      perPhaseA,
+    };
+  });
+  const totalW = rows.reduce((acc, r) => acc + r.powerW, 0);
+  const totalPerPhaseW = totalW / 3;
+  const totalPerPhaseA = totalPerPhaseW / voltage;
+  return (
+    <section className="led-card">
+      <div className="led-card-head">
+        <h3>3-phase power balancer</h3>
+        <span className="led-hint">
+          Splits each screen's wattage evenly across L1 / L2 / L3 at the
+          configured mains voltage. Use to size the feed (16 A, 32 A, 63 A…).
+        </span>
+      </div>
+      <div className="led-card-body">
+        <div
+          className="led-rotation-row"
+          style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}
+        >
+          <label className="led-sub" style={{ whiteSpace: "nowrap" }}>
+            Mains voltage (L–N)
+          </label>
+          <input
+            className="led-input led-input-num"
+            type="number"
+            min={50}
+            max={500}
+            step={1}
+            style={{ width: 80 }}
+            value={mainsVoltage}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              if (Number.isFinite(n) && n >= 50 && n <= 500) {
+                onMainsVoltageChange(n);
+              }
+            }}
+            title="Line-to-neutral voltage (V). Typical: 230 EU, 120 US, 100 JP."
+          />
+          <span className="led-sub">V</span>
+        </div>
+        <table className="led-table led-table-compact">
+          <thead>
+            <tr>
+              <th>Screen</th>
+              <th className="led-num">Total power</th>
+              <th className="led-num">L1</th>
+              <th className="led-num">L2</th>
+              <th className="led-num">L3</th>
+              <th className="led-num">A / phase</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="led-sub">
+                  No screens yet — add one to see the per-phase split.
+                </td>
+              </tr>
+            ) : (
+              rows.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.name}</td>
+                  <td className="led-num">{fmt(r.powerW, 0)} W</td>
+                  <td className="led-num">{fmt(r.perPhaseW, 0)} W</td>
+                  <td className="led-num">{fmt(r.perPhaseW, 0)} W</td>
+                  <td className="led-num">{fmt(r.perPhaseW, 0)} W</td>
+                  <td className="led-num">
+                    <strong>{fmt(r.perPhaseA, 1)} A</strong>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>
+                <strong>Totals</strong>
+              </td>
+              <td className="led-num">
+                <strong>{fmt(totalW, 0)} W</strong>
+              </td>
+              <td className="led-num">{fmt(totalPerPhaseW, 0)} W</td>
+              <td className="led-num">{fmt(totalPerPhaseW, 0)} W</td>
+              <td className="led-num">{fmt(totalPerPhaseW, 0)} W</td>
+              <td className="led-num">
+                <strong>{fmt(totalPerPhaseA, 1)} A</strong>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 /** Single arrow centered at (cx, cy), drawn as a stroke + filled arrowhead.
  *  Direction-agnostic so the same component handles up / down / left /
  *  right for the per-cell data-flow indicators. */
@@ -3052,6 +3339,8 @@ function ExportOptions({
                 [
                   ["showLabels", "Panel labels (A1, B1…)"],
                   ["showArrows", "Data-flow arrows"],
+                  ["showCabinetIds", "Cabinet ID badges (1, 2, 3…)"],
+                  ["showDataFlowPath", "Data-flow path overlay"],
                   ["showTestPattern", "Alignment circle + corner X"],
                   ["showScreenName", "Screen name pill"],
                   ["showInfoBar", "Bottom info bar"],

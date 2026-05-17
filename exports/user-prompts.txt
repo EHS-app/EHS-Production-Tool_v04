@@ -1,0 +1,105 @@
+User prompts in this conversation
+==================================
+
+Note: Only the prompts visible in the current session are included here.
+Any messages from before the session was summarized/compressed are not
+accessible and could not be exported.
+
+----------------------------------------------------------------------
+Prompt 1
+----------------------------------------------------------------------
+Session Plan:
+# Objective
+
+Three new features on the LED Screen Report tab:
+
+1. Manual name-pill size — let the producer scale the centred screen-name pill on the visual (and the exported PNG) without editing settings globally.
+2. Power & signal markers — let the producer drop labelled P1/P2/S1/S2 markers on each screen visual to show the crew where to land power and signal cables. Drag to move, alt-click / right-click to delete, "Clear" to reset.
+3. Auto-attach LED diagrams — when the producer hits "Share with Crew", generate one PNG per LED screen (with markers + scaled pill) and attach them to every brief link alongside the floor plan, so the crew can download them from the portal.
+
+# Tasks
+
+### T001: Data model
+- Blocked By: []
+- Details:
+  - lib/led.ts: add LedScreenMarker = { id, kind: "power" | "signal", index, x, y } (x,y normalized 0–1).
+  - Add optional nameScale: number (default 1) and markers: LedScreenMarker[] (default []) to LedScreen and LedLinkedMeta.
+  - Update newLedScreen and defaultLinkedLedMeta to seed defaults.
+  - Add helpers clampNameScale, nextMarkerIndex(markers, kind).
+  - Acceptance: typecheck passes; existing persisted LedScreen blobs still load (defaults applied).
+
+### T002: Live preview interactions
+- Blocked By: [T001]
+- Details:
+  - LedScreenReportView.tsx:
+    - Lift state placeMode: { screenId, kind } | null + handlers in the parent.
+    - In ScreenSvg, render every marker as a coloured circle + label (red for power, blue for signal). Apply screen.nameScale ?? 1 to the pill font.
+    - Click on the screen rect while in placeMode for THIS screen -> emit an add-marker call with normalised coords; mode clears.
+    - Pointer-down on a marker -> start drag; pointer-move updates coords via getScreenCTM().inverse(); pointer-up persists. Use setPointerCapture so the drag survives leaving the SVG element.
+    - Alt-click or contextmenu on a marker -> delete.
+  - Acceptance: producer can click "+P" in a row, click on the screen visual, and a P1 dot appears that can be dragged.
+
+### T003: ScreenRow controls
+- Blocked By: [T001]
+- Details:
+  - Below the name input in ScreenRow, add a compact "Pill size" range slider (0.4–2.4, step 0.1) bound to nameScale.
+  - In the actions cell, add small +P, +S, Clear buttons (next to PNG/Copy/Delete). +P/+S toggle place mode. Clear confirms and empties markers.
+  - Acceptance: controls visible per row; place-mode indicator (cursor changes / visible toolbar hint) clear.
+
+### T004: PNG export parity
+- Blocked By: [T001]
+- Details:
+  - lib/ledExport.ts:
+    - Multiply screenNameFont by screen.nameScale ?? 1 (clamped 0.3–4 to keep the pill readable).
+    - After overlays, draw markers: filled coloured circle + white-bordered label "P1", "S1"…
+    - Add renderScreenPngBlob(input): Promise<{ blob; fileName; sizeBytes }> that builds the SVG, rasterises, and returns the blob without triggering a download.
+    - Keep exportScreenAsPng as a thin wrapper.
+  - Acceptance: PNG download shows the same markers/pill scaling as the on-screen preview.
+
+### T005: Auto-attach LED diagrams to brief
+- Blocked By: [T001, T004]
+- Details:
+  - lib/projectBrief.ts: add optional ledDiagrams?: { screens: LedScreen[]; panels: LedPanel[]; settings: LedSettings } to BuildBriefInput (pass-through; not embedded in the output brief beyond attachments[]).
+  - App.tsx: include the producer's full LED state in briefInput.
+  - ShareBriefModal.tsx: after the floor-plan upload, iterate ledDiagrams.screens (skip 0-panel ones), render PNG via renderScreenPngBlob, upload via uploadBriefAttachment({ blob }), push the resulting BriefAttachment into the shared list. Show progress like "Uploading LED diagram 2 / 4 (Main)…".
+  - Reuse the existing portal BriefDetail "Drawings & attachments" section — no portal changes needed.
+  - Acceptance: opening the share modal with two LED screens shows three uploads (floor plan + 2 PNGs) and every link contains all three attachments.
+
+### T006: Verify
+- Blocked By: [T002, T003, T004, T005]
+- Details:
+  - Typecheck @workspace/rigging-load-report and @workspace/api-server.
+  - Restart the rigging workflow.
+  - End-to-end smoke test via the testing skill.
+  - Update replit.md with a section per feature.
+  - Architect review.
+
+----------------------------------------------------------------------
+Prompt 2
+----------------------------------------------------------------------
+on the rigg plan tab delete the floor plan you are drwing and just use my uploadet insted dont add ay visual to that.
+
+----------------------------------------------------------------------
+Prompt 3
+----------------------------------------------------------------------
+the floor plan is still there
+
+----------------------------------------------------------------------
+Prompt 4
+----------------------------------------------------------------------
+delete also the trusses
+
+----------------------------------------------------------------------
+Prompt 5
+----------------------------------------------------------------------
+delete also this from the floor plan
+
+----------------------------------------------------------------------
+Prompt 6
+----------------------------------------------------------------------
+(Click a truss to select; drag it to move. Position rounds to 0.5 m.)
+
+----------------------------------------------------------------------
+Prompt 7
+----------------------------------------------------------------------
+can you axport as textt file all my promt messages i had with you from the start?

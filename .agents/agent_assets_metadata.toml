@@ -108,3 +108,9 @@ id = "s77cw5G6DzpKnY_445dYs"
 uri = "file://artifacts/rigging-load-report/LED_TAB_EVOLUTION_PROPOSAL.md"
 type = "text"
 title = "LED Tab — Evolution Proposal & Roadmap"
+
+[[outputs]]
+id = "Veg63i9miFk_02cm_RZmK"
+uri = "file://backups/IT-email-custom-domain.txt"
+type = "text"
+title = "Email to IT — Custom domain setup"

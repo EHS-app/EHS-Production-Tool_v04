@@ -6145,25 +6145,18 @@ input:focus {
    * needed here. */
 }
 
-/* Sign-in screen — floating theme picker positioning.
- * Top-right by default (sits to the LEFT of the language FAB so the
- * two read as a pair). On phones we drop the picker below the FAB
- * since the segmented control is too wide to share the top edge
- * with the 40px lang pill on a 390px viewport. */
+/* Sign-in screen — floating theme picker positioning. Now an icon-
+ * only 40×32 pill (see ThemeFab in main.tsx) so it can sit next to
+ * the language FAB without competing for horizontal space. The lang
+ * FAB lives at top:12 / right:14 (40×32). We place this one
+ * immediately to its left: right = 14 + 40 + 6 (gap) = 60. Both
+ * pills now align at the same y, giving the sign-in screen a clean
+ * paired-toolbar look in the top-right corner. */
 .signin-theme-fab {
-  position: absolute;
-  top: 16px;
-  /* Lang FAB occupies right: 14px + 40px width + a small gap → 62px. */
-  right: 62px;
-  z-index: 5;
-}
-@media (max-width: 640px) {
-  .signin-theme-fab {
-    /* Drop below the language pill (top: 12, height ~32) with a 12px
-     * gap so the two stack cleanly on a phone. */
-    top: 56px;
-    right: 14px;
-  }
+  position: fixed;
+  top: 12px;
+  right: 60px;
+  z-index: 70;
 }
 
 /* Base styles for the portal mobile bottom-nav. Without these, the

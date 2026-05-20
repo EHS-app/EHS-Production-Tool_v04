@@ -392,6 +392,160 @@ function InlineThemeSegmentedControl({
   );
 }
 
+/**
+ * Compact icon-only theme picker. Shows just the current preference's
+ * glyph (☀ / ☾ / ⌬) in a 40×32 pill that matches the LanguageSelector
+ * trigger. Tapping opens a popover with the three labelled options;
+ * picking one applies it immediately and dismisses the menu. Click-
+ * outside and Escape both close. Used on the sign-in screen where
+ * vertical space is tight on phones.
+ */
+function ThemeFab({
+  pref,
+  onChange,
+  theme,
+}: {
+  pref: ThemePreference;
+  onChange: (next: ThemePreference) => void;
+  theme: ThemeMode;
+}) {
+  const c = PALETTE[theme];
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+  const options: ReadonlyArray<{
+    value: ThemePreference;
+    labelKey: "theme.light" | "theme.dark" | "theme.system";
+    ariaKey: "theme.lightAria" | "theme.darkAria" | "theme.systemAria";
+    icon: string;
+  }> = [
+    { value: "light", labelKey: "theme.light", ariaKey: "theme.lightAria", icon: "☀" },
+    { value: "dark", labelKey: "theme.dark", ariaKey: "theme.darkAria", icon: "☾" },
+    { value: "system", labelKey: "theme.system", ariaKey: "theme.systemAria", icon: "⌬" },
+  ];
+  const current = options.find((o) => o.value === pref) ?? options[2];
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (!wrapRef.current) return;
+      if (!wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative", display: "inline-block" }}>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={t("theme.label")}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={t("theme.title")}
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: 40,
+          height: 32,
+          padding: 0,
+          fontSize: 16,
+          lineHeight: 1,
+          borderRadius: 8,
+          border: `1px solid ${c.border}`,
+          background: c.cardBg,
+          color: c.text,
+          cursor: "pointer",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+        }}
+      >
+        <span aria-hidden>{current.icon}</span>
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          aria-label={t("theme.label")}
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            right: 0,
+            minWidth: 160,
+            margin: 0,
+            padding: 4,
+            listStyle: "none",
+            background: c.cardBg,
+            border: `1px solid ${c.border}`,
+            borderRadius: 10,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+            zIndex: 80,
+            fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+          }}
+        >
+          {options.map((o) => {
+            const selected = o.value === pref;
+            return (
+              <li key={o.value} role="presentation">
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  aria-label={t(o.ariaKey)}
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                    requestAnimationFrame(() => triggerRef.current?.focus());
+                  }}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "8px 10px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    background: selected ? EHS_ORANGE : "transparent",
+                    color: selected ? "#0b0b0b" : c.text,
+                    border: "none",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <span aria-hidden style={{ fontSize: 15, width: 18, textAlign: "center" }}>
+                    {o.icon}
+                  </span>
+                  <span style={{ flex: 1 }}>{t(o.labelKey)}</span>
+                  {selected && (
+                    <span aria-hidden style={{ fontSize: 12 }}>
+                      ✓
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function SignInScreen({
   theme,
   pref,
@@ -464,19 +618,13 @@ function SignInScreen({
         position: "relative",
       }}
     >
-      {/* Three-way theme picker (Light / Dark / System). System is the
-          install default and follows OS prefers-color-scheme; users can
-          still pin a concrete preference. The `signin-theme-fab` class
-          carries the responsive positioning — on desktop it sits top-
-          right next to the floating language pill, on mobile it drops
-          below the pill so the two don't overlap on iPhone. */}
+      {/* Three-way theme picker (Light / Dark / System). Rendered as
+          a compact icon trigger that opens a popover with the three
+          options — mirrors the language pill's footprint so the two
+          sit side-by-side as a paired top-right toolbar. The wider
+          segmented control is still used elsewhere (Portal header). */}
       <div className="signin-theme-fab">
-        <InlineThemeSegmentedControl
-          pref={pref}
-          onChange={setPref}
-          theme={theme}
-          size="sm"
-        />
+        <ThemeFab pref={pref} onChange={setPref} theme={theme} />
       </div>
 
       <div

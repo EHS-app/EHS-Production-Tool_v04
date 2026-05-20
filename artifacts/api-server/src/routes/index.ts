@@ -7,6 +7,7 @@ import storageRouter from "./storage";
 import portalProfileRouter from "./portalProfile";
 import portalBriefsRouter from "./portalBriefs";
 import portalGigsRouter from "./portalGigs";
+import portalTimeEntriesRouter from "./portalTimeEntries";
 import projectsRouter from "./projects";
 import inspectionExtractRouter from "./inspectionExtract";
 
@@ -20,6 +21,7 @@ router.use(storageRouter);
 router.use(portalProfileRouter);
 router.use(portalBriefsRouter);
 router.use(portalGigsRouter);
+router.use(portalTimeEntriesRouter);
 router.use(projectsRouter);
 router.use(inspectionExtractRouter);
 

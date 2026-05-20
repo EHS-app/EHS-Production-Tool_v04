@@ -1,0 +1,648 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAuth } from "@clerk/react";
+import { PALETTE, type ThemeMode } from "../lib/portalTheme";
+import type { Gig, PortalData } from "../lib/portalStorage";
+
+type TimeEntryStatus =
+  | "draft"
+  | "submitted"
+  | "approved"
+  | "rejected"
+  | "locked";
+
+type TimeEntryRow = {
+  id: string;
+  gigId: string;
+  workDate: string;
+  startMinute: number | null;
+  endMinute: number | null;
+  breakMinutes: number;
+  status: TimeEntryStatus;
+  notes: string;
+  rejectionReason: string | null;
+  submittedAt: string | null;
+  decidedAt: string | null;
+  lockedAt: string | null;
+};
+
+type Draft = {
+  start: string; // "HH:MM" or ""
+  end: string;
+  breakMinutes: string; // numeric string
+  notes: string;
+};
+
+const BASE_URL =
+  (typeof import.meta !== "undefined" &&
+    (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+  "/";
+
+function minToHHMM(m: number | null): string {
+  if (m == null || !Number.isFinite(m)) return "";
+  const mm = Math.max(0, Math.min(24 * 60 - 1, m));
+  const h = Math.floor(mm / 60);
+  const min = mm % 60;
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
+
+function hhmmToMin(s: string): number | null {
+  const m = s.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(min)) return null;
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return h * 60 + min;
+}
+
+function computeHours(d: Draft): number {
+  const s = hhmmToMin(d.start);
+  const e = hhmmToMin(d.end);
+  if (s == null || e == null) return 0;
+  // Allow end < start to mean midnight crossover.
+  const span = e >= s ? e - s : 24 * 60 - s + e;
+  const br = Math.max(0, Math.min(span, Number(d.breakMinutes) || 0));
+  const net = Math.max(0, span - br);
+  return Math.round((net / 60) * 100) / 100;
+}
+
+function fmtDate(iso: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+  });
+}
+
+function statusPill(
+  status: TimeEntryStatus,
+  c: (typeof PALETTE)[ThemeMode],
+): { bg: string; fg: string; label: string } {
+  switch (status) {
+    case "submitted":
+      return { bg: "rgba(34,108,255,0.18)", fg: "#3a86ff", label: "Submitted" };
+    case "approved":
+      return { bg: "rgba(46,160,67,0.18)", fg: "#2ea043", label: "Approved" };
+    case "rejected":
+      return { bg: "rgba(239,68,68,0.18)", fg: "#ef4444", label: "Rejected" };
+    case "locked":
+      return { bg: "rgba(120,120,120,0.22)", fg: c.muted, label: "Locked" };
+    default:
+      return { bg: c.cardBgSubtle, fg: c.muted, label: "Draft" };
+  }
+}
+
+export function Hours({
+  theme,
+  data,
+}: {
+  theme: ThemeMode;
+  data: PortalData;
+}) {
+  const c = PALETTE[theme];
+  const { getToken } = useAuth();
+
+  // Only working gigs surface here. Invoiced/paid history isn't editable.
+  const eligibleGigs = useMemo(
+    () =>
+      data.gigs
+        .filter(
+          (g) =>
+            (g.status === "confirmed" || g.status === "done") &&
+            g.assignedDates.length > 0,
+        )
+        .sort((a, b) => a.startDate.localeCompare(b.startDate)),
+    [data.gigs],
+  );
+
+  // entries[gigId][workDate] = row
+  const [entriesByGig, setEntriesByGig] = useState<
+    Record<string, Record<string, TimeEntryRow>>
+  >({});
+  // drafts[gigId][workDate] = local edit state
+  const [drafts, setDrafts] = useState<
+    Record<string, Record<string, Draft>>
+  >({});
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const fetchEntries = useCallback(
+    async (gigId: string) => {
+      try {
+        const token = await getToken();
+        const res = await fetch(
+          `${BASE_URL}api/portal/gigs/${encodeURIComponent(gigId)}/time-entries`,
+          {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          },
+        );
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          ok?: boolean;
+          entries?: TimeEntryRow[];
+        };
+        if (!json.ok || !Array.isArray(json.entries)) return;
+        const byDate: Record<string, TimeEntryRow> = {};
+        for (const e of json.entries) byDate[e.workDate] = e;
+        setEntriesByGig((prev) => ({ ...prev, [gigId]: byDate }));
+      } catch {
+        /* keep silent — retry on next mount */
+      }
+    },
+    [getToken],
+  );
+
+  useEffect(() => {
+    for (const g of eligibleGigs) void fetchEntries(g.id);
+  }, [eligibleGigs, fetchEntries]);
+
+  function draftFor(gigId: string, workDate: string): Draft {
+    const local = drafts[gigId]?.[workDate];
+    if (local) return local;
+    const row = entriesByGig[gigId]?.[workDate];
+    return {
+      start: minToHHMM(row?.startMinute ?? null),
+      end: minToHHMM(row?.endMinute ?? null),
+      breakMinutes: row ? String(row.breakMinutes ?? 0) : "30",
+      notes: row?.notes ?? "",
+    };
+  }
+
+  function patchDraft(gigId: string, workDate: string, patch: Partial<Draft>) {
+    setDrafts((prev) => {
+      const gigDrafts = { ...(prev[gigId] ?? {}) };
+      gigDrafts[workDate] = { ...draftFor(gigId, workDate), ...patch };
+      return { ...prev, [gigId]: gigDrafts };
+    });
+  }
+
+  async function saveDraft(gigId: string, workDate: string): Promise<boolean> {
+    const d = draftFor(gigId, workDate);
+    const key = `${gigId}|${workDate}|save`;
+    setSavingKey(key);
+    setErrorMsg(null);
+    try {
+      const token = await getToken();
+      const res = await fetch(
+        `${BASE_URL}api/portal/gigs/${encodeURIComponent(gigId)}/time-entries/${workDate}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            startMinute: hhmmToMin(d.start),
+            endMinute: hhmmToMin(d.end),
+            breakMinutes: Number(d.breakMinutes) || 0,
+            notes: d.notes,
+          }),
+        },
+      );
+      const json = (await res.json()) as {
+        ok?: boolean;
+        entry?: TimeEntryRow;
+        error?: string;
+      };
+      if (!res.ok || !json.ok || !json.entry) {
+        setErrorMsg(json.error ?? "Save failed");
+        return false;
+      }
+      setEntriesByGig((prev) => ({
+        ...prev,
+        [gigId]: { ...(prev[gigId] ?? {}), [workDate]: json.entry! },
+      }));
+      // Clear local override so the row reflects the saved server copy.
+      setDrafts((prev) => {
+        const gigDrafts = { ...(prev[gigId] ?? {}) };
+        delete gigDrafts[workDate];
+        return { ...prev, [gigId]: gigDrafts };
+      });
+      return true;
+    } catch {
+      setErrorMsg("Network error while saving");
+      return false;
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  async function submitDay(gigId: string, workDate: string) {
+    // Persist current draft first; bail out if it failed so we don't
+    // mask the save error by also firing /submit on a stale row.
+    const saved = await saveDraft(gigId, workDate);
+    if (!saved) return;
+    const key = `${gigId}|${workDate}|submit`;
+    setSavingKey(key);
+    setErrorMsg(null);
+    try {
+      const token = await getToken();
+      const res = await fetch(
+        `${BASE_URL}api/portal/gigs/${encodeURIComponent(gigId)}/time-entries/${workDate}/submit`,
+        {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        },
+      );
+      const json = (await res.json()) as {
+        ok?: boolean;
+        entry?: TimeEntryRow;
+        error?: string;
+      };
+      if (!res.ok || !json.ok || !json.entry) {
+        setErrorMsg(json.error ?? "Submit failed");
+        return;
+      }
+      setEntriesByGig((prev) => ({
+        ...prev,
+        [gigId]: { ...(prev[gigId] ?? {}), [workDate]: json.entry! },
+      }));
+    } catch {
+      setErrorMsg("Network error while submitting");
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      <header
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, flex: 1 }}>
+          Hours
+        </h1>
+        <span style={{ color: c.muted, fontSize: 13 }}>
+          Log start, end and break for each working day, then submit for the
+          producer to approve.
+        </span>
+      </header>
+
+      {errorMsg ? (
+        <div
+          style={{
+            background: "rgba(239,68,68,0.10)",
+            border: "1px solid rgba(239,68,68,0.40)",
+            color: "#ef4444",
+            padding: "8px 12px",
+            borderRadius: 8,
+            fontSize: 13,
+          }}
+        >
+          {errorMsg}
+        </div>
+      ) : null}
+
+      {eligibleGigs.length === 0 ? (
+        <div
+          style={{
+            padding: "16px",
+            color: c.muted,
+            fontSize: 14,
+            background: c.cardBg,
+            border: `1px solid ${c.border}`,
+            borderRadius: 12,
+          }}
+        >
+          No active gigs with working days yet. Accept a brief and the days you
+          worked will appear here.
+        </div>
+      ) : (
+        eligibleGigs.map((g) => (
+          <GigBlock
+            key={g.id}
+            theme={theme}
+            gig={g}
+            entries={entriesByGig[g.id] ?? {}}
+            draftFor={(date) => draftFor(g.id, date)}
+            patchDraft={(date, patch) => patchDraft(g.id, date, patch)}
+            saveDraft={(date) => saveDraft(g.id, date)}
+            submitDay={(date) => submitDay(g.id, date)}
+            savingKey={savingKey}
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
+function GigBlock({
+  theme,
+  gig,
+  entries,
+  draftFor,
+  patchDraft,
+  saveDraft,
+  submitDay,
+  savingKey,
+}: {
+  theme: ThemeMode;
+  gig: Gig;
+  entries: Record<string, TimeEntryRow>;
+  draftFor: (workDate: string) => Draft;
+  patchDraft: (workDate: string, patch: Partial<Draft>) => void;
+  saveDraft: (workDate: string) => Promise<boolean>;
+  submitDay: (workDate: string) => void;
+  savingKey: string | null;
+}) {
+  const c = PALETTE[theme];
+
+  const totalSubmitted = useMemo(() => {
+    let sum = 0;
+    for (const date of gig.assignedDates) {
+      const row = entries[date];
+      if (
+        !row ||
+        row.startMinute == null ||
+        row.endMinute == null ||
+        row.status === "rejected"
+      )
+        continue;
+      const s = row.startMinute;
+      const e = row.endMinute;
+      const span = e >= s ? e - s : 24 * 60 - s + e;
+      const net = Math.max(0, span - (row.breakMinutes ?? 0));
+      sum += net / 60;
+    }
+    return Math.round(sum * 100) / 100;
+  }, [entries, gig.assignedDates]);
+
+  return (
+    <section
+      style={{
+        background: c.cardBg,
+        border: `1px solid ${c.border}`,
+        borderRadius: 14,
+        padding: 14,
+        boxShadow: c.shadowSoft,
+      }}
+    >
+      <header
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: 10,
+          flexWrap: "wrap",
+          marginBottom: 10,
+        }}
+      >
+        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, flex: 1 }}>
+          {gig.projectName || "Untitled project"}
+        </h2>
+        <span style={{ fontSize: 12, color: c.muted }}>
+          {gig.role}
+          {gig.venue ? ` · ${gig.venue}` : ""}
+        </span>
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: c.text,
+            background: c.cardBgSubtle,
+            border: `1px solid ${c.border}`,
+            padding: "3px 8px",
+            borderRadius: 999,
+          }}
+        >
+          {totalSubmitted}h logged
+        </span>
+      </header>
+
+      <div style={{ display: "grid", gap: 8 }}>
+        {gig.assignedDates.map((date) => {
+          const row = entries[date];
+          const status: TimeEntryStatus = row?.status ?? "draft";
+          const editable = status === "draft" || status === "rejected";
+          const pill = statusPill(status, c);
+          const d = draftFor(date);
+          const computedH = computeHours(d);
+          const isSaving = savingKey?.startsWith(`${gig.id}|${date}|`);
+          return (
+            <div
+              key={date}
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "minmax(120px, 1fr) auto auto auto auto auto auto",
+                gap: 8,
+                alignItems: "center",
+                padding: "8px 10px",
+                background: c.cardBgSubtle,
+                border: `1px solid ${c.border}`,
+                borderRadius: 10,
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ minWidth: 110 }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>
+                  {fmtDate(date)}
+                </div>
+                <div style={{ fontSize: 11, color: c.muted, marginTop: 1 }}>
+                  {date}
+                </div>
+              </div>
+              <TimeField
+                theme={theme}
+                value={d.start}
+                disabled={!editable}
+                onChange={(v) => patchDraft(date, { start: v })}
+                placeholder="Start"
+              />
+              <TimeField
+                theme={theme}
+                value={d.end}
+                disabled={!editable}
+                onChange={(v) => patchDraft(date, { end: v })}
+                placeholder="End"
+              />
+              <NumField
+                theme={theme}
+                value={d.breakMinutes}
+                disabled={!editable}
+                onChange={(v) => patchDraft(date, { breakMinutes: v })}
+                label="min break"
+              />
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  minWidth: 56,
+                  textAlign: "right",
+                }}
+              >
+                {computedH}h
+              </span>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: "3px 8px",
+                  borderRadius: 999,
+                  background: pill.bg,
+                  color: pill.fg,
+                  minWidth: 70,
+                  textAlign: "center",
+                }}
+              >
+                {pill.label}
+              </span>
+              {editable ? (
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => saveDraft(date)}
+                    disabled={isSaving}
+                    style={{
+                      padding: "6px 10px",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      background: c.cardBg,
+                      color: c.text,
+                      border: `1px solid ${c.border}`,
+                      borderRadius: 8,
+                      cursor: isSaving ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => submitDay(date)}
+                    disabled={
+                      isSaving ||
+                      hhmmToMin(d.start) == null ||
+                      hhmmToMin(d.end) == null
+                    }
+                    style={{
+                      padding: "6px 10px",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      background: c.accent,
+                      color: "#0b0b0b",
+                      border: "none",
+                      borderRadius: 8,
+                      cursor:
+                        isSaving ||
+                        hhmmToMin(d.start) == null ||
+                        hhmmToMin(d.end) == null
+                          ? "not-allowed"
+                          : "pointer",
+                      opacity:
+                        isSaving ||
+                        hhmmToMin(d.start) == null ||
+                        hhmmToMin(d.end) == null
+                          ? 0.5
+                          : 1,
+                    }}
+                  >
+                    Submit
+                  </button>
+                </div>
+              ) : (
+                <span style={{ fontSize: 11, color: c.muted, minWidth: 110 }}>
+                  {status === "approved"
+                    ? "Approved by producer"
+                    : status === "locked"
+                      ? "Locked for payroll"
+                      : "Awaiting decision"}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function TimeField({
+  theme,
+  value,
+  disabled,
+  onChange,
+  placeholder,
+}: {
+  theme: ThemeMode;
+  value: string;
+  disabled: boolean;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  const c = PALETTE[theme];
+  return (
+    <input
+      type="time"
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      style={{
+        width: 96,
+        padding: "5px 8px",
+        background: c.cardBg,
+        color: c.text,
+        border: `1px solid ${c.border}`,
+        borderRadius: 8,
+        fontSize: 13,
+        fontFamily: "inherit",
+        opacity: disabled ? 0.6 : 1,
+      }}
+    />
+  );
+}
+
+function NumField({
+  theme,
+  value,
+  disabled,
+  onChange,
+  label,
+}: {
+  theme: ThemeMode;
+  value: string;
+  disabled: boolean;
+  onChange: (v: string) => void;
+  label: string;
+}) {
+  const c = PALETTE[theme];
+  return (
+    <label
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        fontSize: 12,
+        color: c.muted,
+      }}
+    >
+      <input
+        type="number"
+        min={0}
+        max={480}
+        step={5}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          width: 64,
+          padding: "5px 8px",
+          background: c.cardBg,
+          color: c.text,
+          border: `1px solid ${c.border}`,
+          borderRadius: 8,
+          fontSize: 13,
+          fontFamily: "inherit",
+          opacity: disabled ? 0.6 : 1,
+        }}
+      />
+      {label}
+    </label>
+  );
+}

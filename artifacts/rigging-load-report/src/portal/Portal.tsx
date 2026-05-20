@@ -6,6 +6,7 @@ import { Hub } from "./screens/Hub";
 import { Gigs } from "./screens/Gigs";
 import { Availability } from "./screens/Availability";
 import { Earnings } from "./screens/Earnings";
+import { Hours } from "./screens/Hours";
 import { Profile } from "./screens/Profile";
 import { Briefs } from "./screens/Briefs";
 import { BriefDetail } from "./screens/BriefDetail";
@@ -148,6 +149,7 @@ export function Portal({ theme, pref, setPref }: PortalProps) {
     const path = location.replace(/\/+$/, "");
     if (path.endsWith("/gigs")) return "gigs";
     if (path.endsWith("/availability")) return "availability";
+    if (path.endsWith("/hours")) return "hours";
     if (path.endsWith("/earnings")) return "earnings";
     if (path.endsWith("/profile")) return "profile";
     if (path.endsWith("/help")) return "help";
@@ -194,6 +196,9 @@ export function Portal({ theme, pref, setPref }: PortalProps) {
         </Route>
         <Route path="/portal/availability">
           <Availability theme={theme} data={data} setData={setData} />
+        </Route>
+        <Route path="/portal/hours">
+          <Hours theme={theme} data={data} />
         </Route>
         <Route path="/portal/earnings">
           <Earnings theme={theme} data={data} />

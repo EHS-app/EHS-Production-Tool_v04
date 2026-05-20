@@ -27,6 +27,7 @@ export type PortalNavKey =
   | "briefs"
   | "gigs"
   | "availability"
+  | "hours"
   | "earnings"
   | "profile"
   | "help";
@@ -51,6 +52,12 @@ const NAV_WORK: NavItem[] = [
     labelKey: "portal.nav.availability",
     href: "/portal/availability",
     icon: Clock,
+  },
+  {
+    key: "hours",
+    labelKey: "portal.nav.hours",
+    href: "/portal/hours",
+    icon: TrendingUp,
   },
 ];
 

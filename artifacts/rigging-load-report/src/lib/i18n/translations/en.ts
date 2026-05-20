@@ -157,6 +157,7 @@ export const en = {
   "portal.nav.briefs": "Briefs",
   "portal.nav.gigs": "Gigs",
   "portal.nav.availability": "Availability",
+  "portal.nav.hours": "Hours",
   "portal.nav.earnings": "Earnings",
   "portal.nav.profile": "Profile",
   "portal.nav.help": "Help",

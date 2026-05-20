@@ -48,7 +48,7 @@ router.get("/projects/:id", requireSignedIn, async (req, res) => {
     const [row] = await db
       .select()
       .from(projectsTable)
-      .where(and(eq(projectsTable.id, id), eq(projectsTable.userId, userId)))
+      .where(and(eq(projectsTable.id, String(id)), eq(projectsTable.userId, userId)))
       .limit(1);
     if (!row) {
       res.status(404).json({ ok: false, error: "Project not found." });
@@ -107,7 +107,7 @@ router.patch("/projects/:id", requireSignedIn, async (req, res) => {
     const [row] = await db
       .update(projectsTable)
       .set(updates)
-      .where(and(eq(projectsTable.id, id), eq(projectsTable.userId, userId)))
+      .where(and(eq(projectsTable.id, String(id)), eq(projectsTable.userId, userId)))
       .returning({
         id: projectsTable.id,
         name: projectsTable.name,
@@ -132,7 +132,7 @@ router.delete("/projects/:id", requireSignedIn, async (req, res) => {
   try {
     const result = await db
       .delete(projectsTable)
-      .where(and(eq(projectsTable.id, id), eq(projectsTable.userId, userId)));
+      .where(and(eq(projectsTable.id, String(id)), eq(projectsTable.userId, userId)));
     if (result.rowCount === 0) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;

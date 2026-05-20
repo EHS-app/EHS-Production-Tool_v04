@@ -20485,27 +20485,27 @@ var require_router = __commonJS({
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module.exports = Router12;
+    module.exports = Router13;
     module.exports.Route = Route;
-    function Router12(options) {
-      if (!(this instanceof Router12)) {
-        return new Router12(options);
+    function Router13(options) {
+      if (!(this instanceof Router13)) {
+        return new Router13(options);
       }
       const opts = options || {};
-      function router12(req, res, next) {
-        router12.handle(req, res, next);
+      function router13(req, res, next) {
+        router13.handle(req, res, next);
       }
-      Object.setPrototypeOf(router12, this);
-      router12.caseSensitive = opts.caseSensitive;
-      router12.mergeParams = opts.mergeParams;
-      router12.params = {};
-      router12.strict = opts.strict;
-      router12.stack = [];
-      return router12;
+      Object.setPrototypeOf(router13, this);
+      router13.caseSensitive = opts.caseSensitive;
+      router13.mergeParams = opts.mergeParams;
+      router13.params = {};
+      router13.strict = opts.strict;
+      router13.stack = [];
+      return router13;
     }
-    Router12.prototype = function() {
+    Router13.prototype = function() {
     };
-    Router12.prototype.param = function param(name, fn) {
+    Router13.prototype.param = function param(name, fn) {
       if (!name) {
         throw new TypeError("argument name is required");
       }
@@ -20525,7 +20525,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router12.prototype.handle = function handle(req, res, callback) {
+    Router13.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -20652,7 +20652,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router12.prototype.use = function use(handler) {
+    Router13.prototype.use = function use(handler) {
       let offset = 0;
       let path2 = "/";
       if (typeof handler !== "function") {
@@ -20685,7 +20685,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router12.prototype.route = function route(path2) {
+    Router13.prototype.route = function route(path2) {
       const route2 = new Route(path2);
       const layer = new Layer(path2, {
         sensitive: this.caseSensitive,
@@ -20700,7 +20700,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router12.prototype[method] = function(path2) {
+      Router13.prototype[method] = function(path2) {
         const route = this.route(path2);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
@@ -20883,13 +20883,13 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = __require("node:path").resolve;
     var once = require_once();
-    var Router12 = require_router();
+    var Router13 = require_router();
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app2 = exports = module.exports = {};
     var trustProxyDefaultSymbol = "@@symbol:trust_proxy_default";
     app2.init = function init() {
-      var router12 = null;
+      var router13 = null;
       this.cache = /* @__PURE__ */ Object.create(null);
       this.engines = /* @__PURE__ */ Object.create(null);
       this.settings = /* @__PURE__ */ Object.create(null);
@@ -20898,13 +20898,13 @@ var require_application = __commonJS({
         configurable: true,
         enumerable: true,
         get: function getrouter() {
-          if (router12 === null) {
-            router12 = new Router12({
+          if (router13 === null) {
+            router13 = new Router13({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
           }
-          return router12;
+          return router13;
         }
       });
     };
@@ -20975,15 +20975,15 @@ var require_application = __commonJS({
       if (fns.length === 0) {
         throw new TypeError("app.use() requires a middleware function");
       }
-      var router12 = this.router;
+      var router13 = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router12.use(path2, fn2);
+          return router13.use(path2, fn2);
         }
         debug(".use app under %s", path2);
         fn2.mountpath = path2;
         fn2.parent = this;
-        router12.use(path2, function mounted_app(req, res, next) {
+        router13.use(path2, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -22211,7 +22211,7 @@ var require_cookie = __commonJS({
   "../../node_modules/.pnpm/cookie@0.7.2/node_modules/cookie/index.js"(exports) {
     "use strict";
     exports.parse = parse4;
-    exports.serialize = serialize;
+    exports.serialize = serialize2;
     var __toString = Object.prototype.toString;
     var __hasOwnProperty = Object.prototype.hasOwnProperty;
     var cookieNameRegExp = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
@@ -22270,7 +22270,7 @@ var require_cookie = __commonJS({
       }
       return min;
     }
-    function serialize(name, val, opt) {
+    function serialize2(name, val, opt) {
       var enc = opt && opt.encode || encodeURIComponent;
       if (typeof enc !== "function") {
         throw new TypeError("option encode is invalid");
@@ -23510,7 +23510,7 @@ var require_express = __commonJS({
     var EventEmitter = __require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router12 = require_router();
+    var Router13 = require_router();
     var req = require_request();
     var res = require_response();
     exports = module.exports = createApplication;
@@ -23532,8 +23532,8 @@ var require_express = __commonJS({
     exports.application = proto;
     exports.request = req;
     exports.response = res;
-    exports.Route = Router12.Route;
-    exports.Router = Router12;
+    exports.Route = Router13.Route;
+    exports.Router = Router13;
     exports.json = bodyParser.json;
     exports.raw = bodyParser.raw;
     exports.static = require_serve_static();
@@ -24623,7 +24623,7 @@ var require_redact = __commonJS({
       const {
         paths = [],
         censor = "[REDACTED]",
-        serialize = JSON.stringify,
+        serialize: serialize2 = JSON.stringify,
         strict = true,
         remove = false
       } = options;
@@ -24632,10 +24632,10 @@ var require_redact = __commonJS({
       return function redact(obj) {
         if (strict && (obj === null || typeof obj !== "object")) {
           if (obj === null || obj === void 0) {
-            return serialize ? serialize(obj) : obj;
+            return serialize2 ? serialize2(obj) : obj;
           }
           if (typeof obj !== "object") {
-            return serialize ? serialize(obj) : obj;
+            return serialize2 ? serialize2(obj) : obj;
           }
         }
         const cloned = selectiveClone(obj, pathStructure);
@@ -24645,14 +24645,14 @@ var require_redact = __commonJS({
           actualCensor = censor;
         }
         redactPaths(cloned, paths, actualCensor, remove);
-        if (serialize === false) {
+        if (serialize2 === false) {
           cloned.restore = function() {
             return deepClone(original);
           };
           return cloned;
         }
-        if (typeof serialize === "function") {
-          return serialize(cloned);
+        if (typeof serialize2 === "function") {
+          return serialize2(cloned);
         }
         return JSON.stringify(cloned);
       };
@@ -24741,7 +24741,7 @@ var require_redaction = __commonJS({
     var rx = /[^.[\]]+|\[([^[\]]*?)\]/g;
     var CENSOR = "[Redacted]";
     var strict = false;
-    function redaction(opts, serialize) {
+    function redaction(opts, serialize2) {
       const { paths, censor, remove } = handle(opts);
       const shape = paths.reduce((o, str) => {
         rx.lastIndex = 0;
@@ -24775,10 +24775,10 @@ var require_redaction = __commonJS({
         return o;
       }, {});
       const result = {
-        [redactFmtSym]: Redact({ paths, censor, serialize, strict, remove })
+        [redactFmtSym]: Redact({ paths, censor, serialize: serialize2, strict, remove })
       };
       const topCensor = (...args) => {
-        return typeof censor === "function" ? serialize(censor(...args)) : serialize(censor);
+        return typeof censor === "function" ? serialize2(censor(...args)) : serialize2(censor);
       };
       return [...Object.keys(shape), ...Object.getOwnPropertySymbols(shape)].reduce((o, k) => {
         if (shape[k] === null) {
@@ -24790,7 +24790,7 @@ var require_redaction = __commonJS({
           o[k] = Redact({
             paths: shape[k],
             censor: wrappedCensor,
-            serialize,
+            serialize: serialize2,
             strict,
             remove
           });
@@ -33120,11 +33120,11 @@ var require_router2 = __commonJS({
     var debug = debug_1.Debug.extend("router");
     async function getTarget(req, config2) {
       let newTarget;
-      const router12 = config2.router;
-      if ((0, is_plain_object_1.isPlainObject)(router12)) {
-        newTarget = getTargetFromProxyTable(req, router12);
-      } else if (typeof router12 === "function") {
-        newTarget = await router12(req);
+      const router13 = config2.router;
+      if ((0, is_plain_object_1.isPlainObject)(router13)) {
+        newTarget = getTargetFromProxyTable(req, router13);
+      } else if (typeof router13 === "function") {
+        newTarget = await router13(req);
       }
       return newTarget;
     }
@@ -33167,7 +33167,7 @@ var require_http_proxy_middleware = __commonJS({
     var get_plugins_1 = require_get_plugins();
     var path_filter_1 = require_path_filter();
     var PathRewriter = require_path_rewriter();
-    var Router12 = require_router2();
+    var Router13 = require_router2();
     var debug_1 = require_debug2();
     var function_1 = require_function();
     var logger_1 = require_logger2();
@@ -33238,7 +33238,7 @@ var require_http_proxy_middleware = __commonJS({
         this.applyRouter = async (req, options2) => {
           let newTarget;
           if (options2.router) {
-            newTarget = await Router12.getTarget(req, options2);
+            newTarget = await Router13.getTarget(req, options2);
             if (newTarget) {
               (0, debug_1.Debug)('router new target: "%s"', newTarget);
               options2.target = newTarget;
@@ -36264,7 +36264,7 @@ var require_serializer = __commonJS({
       99
       /* code.copyDone */
     );
-    var serialize = {
+    var serialize2 = {
       startup,
       password,
       requestSsl,
@@ -36284,7 +36284,7 @@ var require_serializer = __commonJS({
       copyFail,
       cancel
     };
-    exports.serialize = serialize;
+    exports.serialize = serialize2;
   }
 });
 
@@ -36758,11 +36758,11 @@ var require_connection = __commonJS({
   "../../node_modules/.pnpm/pg@8.20.0/node_modules/pg/lib/connection.js"(exports, module) {
     "use strict";
     var EventEmitter = __require("events").EventEmitter;
-    var { parse: parse4, serialize } = require_dist4();
+    var { parse: parse4, serialize: serialize2 } = require_dist4();
     var { getStream, getSecureStream } = require_stream();
-    var flushBuffer = serialize.flush();
-    var syncBuffer = serialize.sync();
-    var endBuffer = serialize.end();
+    var flushBuffer = serialize2.flush();
+    var syncBuffer = serialize2.sync();
+    var endBuffer = serialize2.end();
     var Connection2 = class extends EventEmitter {
       constructor(config2) {
         super();
@@ -36853,22 +36853,22 @@ var require_connection = __commonJS({
         });
       }
       requestSsl() {
-        this.stream.write(serialize.requestSsl());
+        this.stream.write(serialize2.requestSsl());
       }
       startup(config2) {
-        this.stream.write(serialize.startup(config2));
+        this.stream.write(serialize2.startup(config2));
       }
       cancel(processID, secretKey) {
-        this._send(serialize.cancel(processID, secretKey));
+        this._send(serialize2.cancel(processID, secretKey));
       }
       password(password) {
-        this._send(serialize.password(password));
+        this._send(serialize2.password(password));
       }
       sendSASLInitialResponseMessage(mechanism, initialResponse) {
-        this._send(serialize.sendSASLInitialResponseMessage(mechanism, initialResponse));
+        this._send(serialize2.sendSASLInitialResponseMessage(mechanism, initialResponse));
       }
       sendSCRAMClientFinalMessage(additionalData) {
-        this._send(serialize.sendSCRAMClientFinalMessage(additionalData));
+        this._send(serialize2.sendSCRAMClientFinalMessage(additionalData));
       }
       _send(buffer) {
         if (!this.stream.writable) {
@@ -36877,19 +36877,19 @@ var require_connection = __commonJS({
         return this.stream.write(buffer);
       }
       query(text2) {
-        this._send(serialize.query(text2));
+        this._send(serialize2.query(text2));
       }
       // send parse message
       parse(query) {
-        this._send(serialize.parse(query));
+        this._send(serialize2.parse(query));
       }
       // send bind message
       bind(config2) {
-        this._send(serialize.bind(config2));
+        this._send(serialize2.bind(config2));
       }
       // send execute message
       execute(config2) {
-        this._send(serialize.execute(config2));
+        this._send(serialize2.execute(config2));
       }
       flush() {
         if (this.stream.writable) {
@@ -36917,19 +36917,19 @@ var require_connection = __commonJS({
         });
       }
       close(msg) {
-        this._send(serialize.close(msg));
+        this._send(serialize2.close(msg));
       }
       describe(msg) {
-        this._send(serialize.describe(msg));
+        this._send(serialize2.describe(msg));
       }
       sendCopyFromChunk(chunk) {
-        this._send(serialize.copyData(chunk));
+        this._send(serialize2.copyData(chunk));
       }
       endCopyFrom() {
-        this._send(serialize.copyDone());
+        this._send(serialize2.copyDone());
       }
       sendCopyFail(msg) {
-        this._send(serialize.copyFail(msg));
+        this._send(serialize2.copyFail(msg));
       }
     };
     module.exports = Connection2;
@@ -39014,7 +39014,7 @@ var require_connectors_sdk = __commonJS({
 });
 
 // src/app.ts
-var import_express13 = __toESM(require_express2(), 1);
+var import_express14 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 
@@ -40490,7 +40490,7 @@ var require_dist2 = __commonJS2({
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.parse = parse22;
-    exports.serialize = serialize;
+    exports.serialize = serialize2;
     var cookieNameRegExp = /^[\u0021-\u003A\u003C\u003E-\u007E]+$/;
     var cookieValueRegExp = /^[\u0021-\u003A\u003C-\u007E]*$/;
     var domainValueRegExp = /^([.]?[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)([.][a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;
@@ -40548,7 +40548,7 @@ var require_dist2 = __commonJS2({
       }
       return min;
     }
-    function serialize(name, val, options) {
+    function serialize2(name, val, options) {
       const enc = options?.encode || encodeURIComponent;
       if (!cookieNameRegExp.test(name)) {
         throw new TypeError(`argument name is invalid: ${name}`);
@@ -47188,7 +47188,7 @@ function clerkProxyMiddleware() {
 }
 
 // src/routes/index.ts
-var import_express12 = __toESM(require_express2(), 1);
+var import_express13 = __toESM(require_express2(), 1);
 
 // src/routes/health.ts
 var import_express = __toESM(require_express2(), 1);
@@ -62732,6 +62732,7 @@ function drizzle(...params) {
 // ../../lib/db/src/schema/index.ts
 var schema_exports = {};
 __export(schema_exports, {
+  TIME_ENTRY_STATUSES: () => TIME_ENTRY_STATUSES,
   briefAssignmentsTable: () => briefAssignmentsTable,
   briefRoomAssignmentsTable: () => briefRoomAssignmentsTable,
   freelancerProfilesTable: () => freelancerProfilesTable,
@@ -62742,9 +62743,11 @@ __export(schema_exports, {
   insertGigSchema: () => insertGigSchema,
   insertProjectBriefSchema: () => insertProjectBriefSchema,
   insertProjectSchema: () => insertProjectSchema,
+  insertTimeEntrySchema: () => insertTimeEntrySchema,
   insertVenueMemorySchema: () => insertVenueMemorySchema,
   projectBriefsTable: () => projectBriefsTable,
   projectsTable: () => projectsTable,
+  timeEntriesTable: () => timeEntriesTable,
   venueMemoryTable: () => venueMemoryTable
 });
 
@@ -74425,6 +74428,65 @@ var insertProjectSchema = createInsertSchema(projectsTable).omit({
   updatedAt: true
 });
 
+// ../../lib/db/src/schema/timeEntries.ts
+var timeEntriesTable = pgTable(
+  "time_entries",
+  {
+    id: text("id").primaryKey(),
+    /** The gig this entry belongs to. */
+    gigId: text("gig_id").notNull().references(() => gigsTable.id, { onDelete: "cascade" }),
+    /** Mirror of `gigs.briefId` at the time of creation. Lets producers
+     *  query "all entries for my project" without joining through gigs
+     *  every time. NULL for entries on a manually-created gig (no brief). */
+    briefId: text("brief_id").references(() => projectBriefsTable.id, {
+      onDelete: "set null"
+    }),
+    /** Clerk user id of the freelancer (mirror of gigs.freelancerUserId
+     *  for the same reason — cheap producer-side filtering). */
+    freelancerUserId: text("freelancer_user_id").notNull(),
+    /** The calendar day this entry covers. */
+    workDate: date("work_date").notNull(),
+    /** Minutes since midnight, 0–1439. NULL while still a draft skeleton. */
+    startMinute: integer("start_minute"),
+    /** Minutes since midnight, 0–1439. Overnight if < startMinute. */
+    endMinute: integer("end_minute"),
+    /** Unpaid break in minutes. */
+    breakMinutes: integer("break_minutes").notNull().default(0),
+    /** Free-form notes the freelancer can leave for the producer. */
+    notes: text("notes").notNull().default(""),
+    /** "draft" | "submitted" | "approved" | "rejected" | "locked". */
+    status: text("status").notNull().default("draft"),
+    /** Clerk user id of the producer who approved / rejected. */
+    decidedByUserId: text("decided_by_user_id"),
+    /** When the decision happened (approved or rejected). */
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    /** Producer's note when rejecting (defaults to empty string). */
+    rejectionReason: text("rejection_reason").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => [
+    index("time_entries_freelancer_idx").on(t.freelancerUserId),
+    index("time_entries_gig_idx").on(t.gigId),
+    index("time_entries_brief_idx").on(t.briefId),
+    /** One canonical entry per gig per day. If a correction is needed
+     *  after lock, producers will roll an "adjustment" record into a
+     *  separate corrections table (v2). For v1 each day has one row. */
+    uniqueIndex("time_entries_gig_date_unique").on(t.gigId, t.workDate)
+  ]
+);
+var insertTimeEntrySchema = createInsertSchema(timeEntriesTable).omit({
+  createdAt: true,
+  updatedAt: true
+});
+var TIME_ENTRY_STATUSES = [
+  "draft",
+  "submitted",
+  "approved",
+  "rejected",
+  "locked"
+];
+
 // ../../lib/db/src/index.ts
 var { Pool: Pool3 } = esm_default;
 if (!process.env.DATABASE_URL) {
@@ -78612,8 +78674,9 @@ router8.delete("/portal/gigs/:id", requireSignedIn6, async (req, res) => {
 });
 var portalGigs_default = router8;
 
-// src/routes/projects.ts
+// src/routes/portalTimeEntries.ts
 var import_express10 = __toESM(require_express2(), 1);
+import { randomUUID as randomUUID4 } from "node:crypto";
 var router9 = (0, import_express10.Router)();
 var requireSignedIn7 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
@@ -78624,8 +78687,380 @@ var requireSignedIn7 = (req, res, next) => {
   req._userId = auth.userId;
   next();
 };
+var MAX_NOTES2 = 4e3;
+var MAX_REASON = 1e3;
+var STATUS_SET = new Set(TIME_ENTRY_STATUSES);
+var SUBMITTABLE = /* @__PURE__ */ new Set(["draft", "rejected"]);
+function clampStr3(raw, cap = 280) {
+  if (typeof raw !== "string") return "";
+  return raw.trim().slice(0, cap);
+}
+function pickDate4(raw) {
+  if (typeof raw !== "string") return null;
+  const m = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : null;
+}
+function pickMinute(raw) {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(n)) return null;
+  const i = Math.round(n);
+  if (i < 0 || i > 1439) return null;
+  return i;
+}
+function pickBreak(raw) {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(Math.round(n), 24 * 60);
+}
+function workedMinutes(row) {
+  if (row.startMinute == null || row.endMinute == null) return 0;
+  let span = row.endMinute - row.startMinute;
+  if (span < 0) span += 24 * 60;
+  const net = span - (row.breakMinutes ?? 0);
+  return net > 0 ? net : 0;
+}
+function serialize(row) {
+  return {
+    id: row.id,
+    gigId: row.gigId,
+    briefId: row.briefId,
+    freelancerUserId: row.freelancerUserId,
+    workDate: row.workDate,
+    startMinute: row.startMinute,
+    endMinute: row.endMinute,
+    breakMinutes: row.breakMinutes,
+    workedMinutes: workedMinutes(row),
+    notes: row.notes,
+    status: row.status,
+    decidedByUserId: row.decidedByUserId,
+    decidedAt: row.decidedAt,
+    rejectionReason: row.rejectionReason,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  };
+}
+async function loadOwnGig(gigId, userId) {
+  const rows = await db.select().from(gigsTable).where(and(eq(gigsTable.id, gigId), eq(gigsTable.freelancerUserId, userId))).limit(1);
+  return rows[0] ?? null;
+}
+async function loadGigForProducer(gigId, userId) {
+  const rows = await db.select({
+    gig: gigsTable,
+    brief: projectBriefsTable
+  }).from(gigsTable).leftJoin(projectBriefsTable, eq(gigsTable.briefId, projectBriefsTable.id)).where(eq(gigsTable.id, gigId)).limit(1);
+  const row = rows[0];
+  if (!row || !row.brief || row.brief.ownerUserId !== userId) return null;
+  return row;
+}
+router9.get(
+  "/portal/gigs/:gigId/time-entries",
+  requireSignedIn7,
+  async (req, res) => {
+    const userId = req._userId;
+    const gigId = String(req.params.gigId ?? "");
+    if (!gigId) {
+      res.status(400).json({ ok: false, error: "gigId required" });
+      return;
+    }
+    const gigRows = await db.select().from(gigsTable).leftJoin(projectBriefsTable, eq(gigsTable.briefId, projectBriefsTable.id)).where(eq(gigsTable.id, gigId)).limit(1);
+    const row = gigRows[0];
+    if (!row) {
+      res.status(404).json({ ok: false, error: "Gig not found" });
+      return;
+    }
+    const isFreelancer = row.gigs.freelancerUserId === userId;
+    const isProducer = row.project_briefs?.ownerUserId === userId;
+    if (!isFreelancer && !isProducer) {
+      res.status(403).json({ ok: false, error: "Forbidden" });
+      return;
+    }
+    const entries = await db.select().from(timeEntriesTable).where(eq(timeEntriesTable.gigId, gigId)).orderBy(asc(timeEntriesTable.workDate));
+    res.json({ ok: true, entries: entries.map(serialize) });
+  }
+);
+router9.put(
+  "/portal/gigs/:gigId/time-entries/:workDate",
+  requireSignedIn7,
+  async (req, res) => {
+    const userId = req._userId;
+    const gigId = String(req.params.gigId ?? "");
+    const workDate = pickDate4(req.params.workDate);
+    if (!gigId || !workDate) {
+      res.status(400).json({ ok: false, error: "gigId and workDate required" });
+      return;
+    }
+    const gig = await loadOwnGig(gigId, userId);
+    if (!gig) {
+      res.status(403).json({ ok: false, error: "Forbidden" });
+      return;
+    }
+    const body = req.body ?? {};
+    const startMinute = pickMinute(body.startMinute);
+    const endMinute = pickMinute(body.endMinute);
+    const breakMinutes = pickBreak(body.breakMinutes);
+    const notes = clampStr3(body.notes, MAX_NOTES2);
+    const existing = await db.select().from(timeEntriesTable).where(
+      and(
+        eq(timeEntriesTable.gigId, gigId),
+        eq(timeEntriesTable.workDate, workDate)
+      )
+    ).limit(1);
+    const prior = existing[0];
+    if (prior?.status === "locked") {
+      res.status(409).json({
+        ok: false,
+        error: "This entry has been locked for payroll and cannot be edited."
+      });
+      return;
+    }
+    if (!prior) {
+      const id = randomUUID4();
+      const inserted = await db.insert(timeEntriesTable).values({
+        id,
+        gigId,
+        briefId: gig.briefId,
+        freelancerUserId: userId,
+        workDate,
+        startMinute,
+        endMinute,
+        breakMinutes,
+        notes,
+        status: "draft"
+      }).returning();
+      res.json({ ok: true, entry: serialize(inserted[0]) });
+      return;
+    }
+    const updated = await db.update(timeEntriesTable).set({
+      startMinute,
+      endMinute,
+      breakMinutes,
+      notes,
+      status: "draft",
+      decidedByUserId: null,
+      decidedAt: null,
+      rejectionReason: "",
+      updatedAt: sql`now()`
+    }).where(
+      and(
+        eq(timeEntriesTable.id, prior.id),
+        inArray(timeEntriesTable.status, ["draft", "rejected"])
+      )
+    ).returning();
+    if (updated.length === 0) {
+      res.status(409).json({
+        ok: false,
+        error: "This entry is no longer editable. Reload to see the latest status."
+      });
+      return;
+    }
+    res.json({ ok: true, entry: serialize(updated[0]) });
+  }
+);
+router9.post(
+  "/portal/gigs/:gigId/time-entries/:workDate/submit",
+  requireSignedIn7,
+  async (req, res) => {
+    const userId = req._userId;
+    const gigId = String(req.params.gigId ?? "");
+    const workDate = pickDate4(req.params.workDate);
+    if (!gigId || !workDate) {
+      res.status(400).json({ ok: false, error: "gigId and workDate required" });
+      return;
+    }
+    const gig = await loadOwnGig(gigId, userId);
+    if (!gig) {
+      res.status(403).json({ ok: false, error: "Forbidden" });
+      return;
+    }
+    const existing = await db.select().from(timeEntriesTable).where(
+      and(
+        eq(timeEntriesTable.gigId, gigId),
+        eq(timeEntriesTable.workDate, workDate)
+      )
+    ).limit(1);
+    const prior = existing[0];
+    if (!prior) {
+      res.status(404).json({ ok: false, error: "Entry not found" });
+      return;
+    }
+    if (!SUBMITTABLE.has(prior.status)) {
+      res.status(409).json({
+        ok: false,
+        error: `Cannot submit an entry that is "${prior.status}".`
+      });
+      return;
+    }
+    if (prior.startMinute == null || prior.endMinute == null) {
+      res.status(400).json({
+        ok: false,
+        error: "Start and end times are required before submitting."
+      });
+      return;
+    }
+    const updated = await db.update(timeEntriesTable).set({
+      status: "submitted",
+      rejectionReason: "",
+      decidedByUserId: null,
+      decidedAt: null,
+      updatedAt: sql`now()`
+    }).where(
+      and(
+        eq(timeEntriesTable.id, prior.id),
+        inArray(timeEntriesTable.status, ["draft", "rejected"])
+      )
+    ).returning();
+    if (updated.length === 0) {
+      res.status(409).json({
+        ok: false,
+        error: "Entry status changed before submit completed. Reload and try again."
+      });
+      return;
+    }
+    res.json({ ok: true, entry: serialize(updated[0]) });
+  }
+);
+router9.get(
+  "/portal/briefs/:briefId/time-entries",
+  requireSignedIn7,
+  async (req, res) => {
+    const userId = req._userId;
+    const briefId = String(req.params.briefId ?? "");
+    if (!briefId) {
+      res.status(400).json({ ok: false, error: "briefId required" });
+      return;
+    }
+    const briefs = await db.select().from(projectBriefsTable).where(eq(projectBriefsTable.id, briefId)).limit(1);
+    if (!briefs[0] || briefs[0].ownerUserId !== userId) {
+      res.status(403).json({ ok: false, error: "Forbidden" });
+      return;
+    }
+    const entries = await db.select().from(timeEntriesTable).where(eq(timeEntriesTable.briefId, briefId)).orderBy(
+      asc(timeEntriesTable.workDate),
+      asc(timeEntriesTable.freelancerUserId)
+    );
+    res.json({ ok: true, entries: entries.map(serialize) });
+  }
+);
+router9.post(
+  "/portal/time-entries/:id/decide",
+  requireSignedIn7,
+  async (req, res) => {
+    const userId = req._userId;
+    const id = String(req.params.id ?? "");
+    if (!id) {
+      res.status(400).json({ ok: false, error: "id required" });
+      return;
+    }
+    const rows = await db.select().from(timeEntriesTable).where(eq(timeEntriesTable.id, id)).limit(1);
+    const entry = rows[0];
+    if (!entry) {
+      res.status(404).json({ ok: false, error: "Entry not found" });
+      return;
+    }
+    const gig = await loadGigForProducer(entry.gigId, userId);
+    if (!gig) {
+      res.status(403).json({ ok: false, error: "Forbidden" });
+      return;
+    }
+    if (entry.status !== "submitted") {
+      res.status(409).json({
+        ok: false,
+        error: `Only submitted entries can be decided (this one is "${entry.status}").`
+      });
+      return;
+    }
+    const body = req.body ?? {};
+    const decision = clampStr3(body.decision);
+    if (decision !== "approve" && decision !== "reject") {
+      res.status(400).json({
+        ok: false,
+        error: 'decision must be "approve" or "reject".'
+      });
+      return;
+    }
+    const updated = await db.update(timeEntriesTable).set({
+      status: decision === "approve" ? "approved" : "rejected",
+      decidedByUserId: userId,
+      decidedAt: sql`now()`,
+      rejectionReason: decision === "reject" ? clampStr3(body.reason, MAX_REASON) : "",
+      updatedAt: sql`now()`
+    }).where(
+      and(
+        eq(timeEntriesTable.id, id),
+        eq(timeEntriesTable.status, "submitted")
+      )
+    ).returning();
+    if (updated.length === 0) {
+      res.status(409).json({
+        ok: false,
+        error: "Entry was modified before the decision landed. Reload."
+      });
+      return;
+    }
+    res.json({ ok: true, entry: serialize(updated[0]) });
+  }
+);
+router9.post(
+  "/portal/time-entries/:id/lock",
+  requireSignedIn7,
+  async (req, res) => {
+    const userId = req._userId;
+    const id = String(req.params.id ?? "");
+    if (!id) {
+      res.status(400).json({ ok: false, error: "id required" });
+      return;
+    }
+    const rows = await db.select().from(timeEntriesTable).where(eq(timeEntriesTable.id, id)).limit(1);
+    const entry = rows[0];
+    if (!entry) {
+      res.status(404).json({ ok: false, error: "Entry not found" });
+      return;
+    }
+    const gig = await loadGigForProducer(entry.gigId, userId);
+    if (!gig) {
+      res.status(403).json({ ok: false, error: "Forbidden" });
+      return;
+    }
+    if (entry.status !== "approved") {
+      res.status(409).json({
+        ok: false,
+        error: "Only approved entries can be locked."
+      });
+      return;
+    }
+    const updated = await db.update(timeEntriesTable).set({ status: "locked", updatedAt: sql`now()` }).where(
+      and(
+        eq(timeEntriesTable.id, id),
+        eq(timeEntriesTable.status, "approved")
+      )
+    ).returning();
+    if (updated.length === 0) {
+      res.status(409).json({
+        ok: false,
+        error: "Entry must be approved before locking. Reload to refresh."
+      });
+      return;
+    }
+    res.json({ ok: true, entry: serialize(updated[0]) });
+  }
+);
+logger.info({ scope: "portalTimeEntries" }, "time-entries router mounted");
+var portalTimeEntries_default = router9;
+
+// src/routes/projects.ts
+var import_express11 = __toESM(require_express2(), 1);
+var router10 = (0, import_express11.Router)();
+var requireSignedIn8 = (req, res, next) => {
+  const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
+  if (!auth || !auth.userId) {
+    res.status(401).json({ ok: false, error: "Sign in required." });
+    return;
+  }
+  req._userId = auth.userId;
+  next();
+};
 var MAX_DATA_BYTES2 = 2 * 1024 * 1024;
-router9.get("/projects", requireSignedIn7, async (req, res) => {
+router10.get("/projects", requireSignedIn8, async (req, res) => {
   const userId = req._userId;
   try {
     const rows = await db.select({
@@ -78642,11 +79077,11 @@ router9.get("/projects", requireSignedIn7, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to list projects." });
   }
 });
-router9.get("/projects/:id", requireSignedIn7, async (req, res) => {
+router10.get("/projects/:id", requireSignedIn8, async (req, res) => {
   const userId = req._userId;
   const { id } = req.params;
   try {
-    const [row] = await db.select().from(projectsTable).where(and(eq(projectsTable.id, id), eq(projectsTable.userId, userId))).limit(1);
+    const [row] = await db.select().from(projectsTable).where(and(eq(projectsTable.id, String(id)), eq(projectsTable.userId, userId))).limit(1);
     if (!row) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -78657,7 +79092,7 @@ router9.get("/projects/:id", requireSignedIn7, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to load project." });
   }
 });
-router9.post("/projects", requireSignedIn7, async (req, res) => {
+router10.post("/projects", requireSignedIn8, async (req, res) => {
   const userId = req._userId;
   const { name, venue, client, data } = req.body ?? {};
   if (data && JSON.stringify(data).length > MAX_DATA_BYTES2) {
@@ -78678,7 +79113,7 @@ router9.post("/projects", requireSignedIn7, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to create project." });
   }
 });
-router9.patch("/projects/:id", requireSignedIn7, async (req, res) => {
+router10.patch("/projects/:id", requireSignedIn8, async (req, res) => {
   const userId = req._userId;
   const { id } = req.params;
   const { name, venue, client, data } = req.body ?? {};
@@ -78694,7 +79129,7 @@ router9.patch("/projects/:id", requireSignedIn7, async (req, res) => {
   if (typeof client === "string") updates.client = client.slice(0, 200);
   if (data !== void 0) updates.data = data;
   try {
-    const [row] = await db.update(projectsTable).set(updates).where(and(eq(projectsTable.id, id), eq(projectsTable.userId, userId))).returning({
+    const [row] = await db.update(projectsTable).set(updates).where(and(eq(projectsTable.id, String(id)), eq(projectsTable.userId, userId))).returning({
       id: projectsTable.id,
       name: projectsTable.name,
       venue: projectsTable.venue,
@@ -78711,11 +79146,11 @@ router9.patch("/projects/:id", requireSignedIn7, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to update project." });
   }
 });
-router9.delete("/projects/:id", requireSignedIn7, async (req, res) => {
+router10.delete("/projects/:id", requireSignedIn8, async (req, res) => {
   const userId = req._userId;
   const { id } = req.params;
   try {
-    const result = await db.delete(projectsTable).where(and(eq(projectsTable.id, id), eq(projectsTable.userId, userId)));
+    const result = await db.delete(projectsTable).where(and(eq(projectsTable.id, String(id)), eq(projectsTable.userId, userId)));
     if (result.rowCount === 0) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -78726,12 +79161,12 @@ router9.delete("/projects/:id", requireSignedIn7, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to delete project." });
   }
 });
-var projects_default = router9;
+var projects_default = router10;
 
 // src/routes/inspectionExtract.ts
-var import_express11 = __toESM(require_express2(), 1);
-var router10 = (0, import_express11.Router)();
-var requireSignedIn8 = (req, res, next) => {
+var import_express12 = __toESM(require_express2(), 1);
+var router11 = (0, import_express12.Router)();
+var requireSignedIn9 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
     res.status(401).json({ ok: false, error: "Sign in required." });
@@ -78848,10 +79283,10 @@ function normalizeResult(raw) {
     general: normalizeItems(obj.general)
   };
 }
-router10.post(
+router11.post(
   "/inspection/extract",
-  (0, import_express11.json)({ limit: "100kb" }),
-  requireSignedIn8,
+  (0, import_express12.json)({ limit: "100kb" }),
+  requireSignedIn9,
   rateLimit2,
   async (req, res) => {
     if (!anthropic2) {
@@ -78899,24 +79334,25 @@ router10.post(
     }
   }
 );
-var inspectionExtract_default = router10;
+var inspectionExtract_default = router11;
 
 // src/routes/index.ts
-var router11 = (0, import_express12.Router)();
-router11.use(health_default);
-router11.use(devAutoSignIn_default);
-router11.use(rigplanAnalyze_default);
-router11.use(venueMemory_default);
-router11.use(storage_default);
-router11.use(portalProfile_default);
-router11.use(portalBriefs_default);
-router11.use(portalGigs_default);
-router11.use(projects_default);
-router11.use(inspectionExtract_default);
-var routes_default = router11;
+var router12 = (0, import_express13.Router)();
+router12.use(health_default);
+router12.use(devAutoSignIn_default);
+router12.use(rigplanAnalyze_default);
+router12.use(venueMemory_default);
+router12.use(storage_default);
+router12.use(portalProfile_default);
+router12.use(portalBriefs_default);
+router12.use(portalGigs_default);
+router12.use(portalTimeEntries_default);
+router12.use(projects_default);
+router12.use(inspectionExtract_default);
+var routes_default = router12;
 
 // src/app.ts
-var app = (0, import_express13.default)();
+var app = (0, import_express14.default)();
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -78941,12 +79377,12 @@ app.use((0, import_cors.default)());
 var PATHS_WITHOUT_GLOBAL_JSON = /* @__PURE__ */ new Set([
   "/api/rigplan/analyze"
 ]);
-var globalJsonParser = import_express13.default.json({ limit: "256kb" });
+var globalJsonParser = import_express14.default.json({ limit: "256kb" });
 app.use((req, res, next) => {
   if (PATHS_WITHOUT_GLOBAL_JSON.has(req.path)) return next();
   return globalJsonParser(req, res, next);
 });
-app.use(import_express13.default.urlencoded({ extended: true }));
+app.use(import_express14.default.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 app.use("/api", routes_default);
 var app_default = app;

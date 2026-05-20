@@ -174,6 +174,7 @@ export const no: Translations = {
   "portal.nav.briefs": "Briefer",
   "portal.nav.gigs": "Oppdrag",
   "portal.nav.availability": "Tilgjengelighet",
+  "portal.nav.hours": "Timer",
   "portal.nav.earnings": "Inntjening",
   "portal.nav.profile": "Profil",
   "portal.nav.help": "Hjelp",

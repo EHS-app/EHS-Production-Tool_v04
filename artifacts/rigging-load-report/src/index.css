@@ -6145,15 +6145,108 @@ input:focus {
    * needed here. */
 }
 
+/* Base styles for the portal mobile bottom-nav. Without these, the
+ * <nav> at the bottom of PortalLayout renders as a stack of raw
+ * underlined anchors in normal flow (each label wrapping to a new
+ * line on phones), which is what producers were seeing on iPhone.
+ * Fixed-to-bottom flex row, equal-width items, icon-over-label,
+ * safe-area-inset padding so the iOS home-indicator doesn't eat
+ * the row. Desktop hides this via the inline media query in
+ * PortalLayout.tsx and the @media (min-width: 901px) block above. */
+.ehs-portal-bottomnav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  gap: 0;
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  background: var(--card-bg, #ffffff);
+  border-top: 1px solid var(--border, #e5e7eb);
+  box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.08);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+[data-theme="dark"] .ehs-portal-bottomnav {
+  background: rgba(28, 28, 36, 0.94);
+  border-top-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.5);
+}
+.ehs-portal-bottomnav-item {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--text-soft, #6b7280);
+  text-decoration: none;
+  border-radius: 8px;
+  -webkit-tap-highlight-color: transparent;
+  text-align: center;
+}
+.ehs-portal-bottomnav-item:hover,
+.ehs-portal-bottomnav-item:focus-visible {
+  color: var(--text-main, #0f172a);
+  text-decoration: none;
+}
+.ehs-portal-bottomnav-item[data-active="true"] {
+  color: var(--primary, #f88000);
+}
+.ehs-portal-bottomnav-item > span:last-child {
+  /* Label — clip with ellipsis instead of wrapping so 8 items still
+   * fit edge-to-edge on a 360px viewport. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+.ehs-portal-bottomnav-badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--primary, #f88000);
+  color: #0b0b0b;
+  font-size: 10px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 /* ── PORTAL — phone-only tweaks (≤ 640px) ──────────────────────────── */
 @media (max-width: 640px) {
-  /* Bottom nav labels can feel crowded on the smallest iPhones —
-   * trim the inter-item padding so 7 nav items still fit edge-to-edge
-   * on a 320px viewport. */
-  .ehs-portal-bottomnav a {
-    padding: 6px 2px !important;
-    min-width: 40px !important;
-    font-size: 10px !important;
+  /* On the smallest iPhones (≤ 360px CSS px), 8 nav items get tight.
+   * Shrink padding + label size so they still fit without wrapping. */
+  .ehs-portal-bottomnav {
+    padding-left: 2px;
+    padding-right: 2px;
+  }
+  .ehs-portal-bottomnav-item {
+    padding: 6px 2px;
+    font-size: 10px;
+    gap: 2px;
+  }
+}
+@media (max-width: 380px) {
+  /* Sub-380 iPhones (SE 1st gen, etc.) — drop labels entirely; the
+   * icons still convey the section. */
+  .ehs-portal-bottomnav-item > span:last-child {
+    display: none;
   }
 }
 

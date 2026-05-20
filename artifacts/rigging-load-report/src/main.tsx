@@ -466,18 +466,16 @@ function SignInScreen({
     >
       {/* Three-way theme picker (Light / Dark / System). System is the
           install default and follows OS prefers-color-scheme; users can
-          still pin a concrete preference. */}
-      <div
-        style={{
-          position: "absolute",
-          top: 20,
-          right: 20,
-        }}
-      >
+          still pin a concrete preference. The `signin-theme-fab` class
+          carries the responsive positioning — on desktop it sits top-
+          right next to the floating language pill, on mobile it drops
+          below the pill so the two don't overlap on iPhone. */}
+      <div className="signin-theme-fab">
         <InlineThemeSegmentedControl
           pref={pref}
           onChange={setPref}
           theme={theme}
+          size="sm"
         />
       </div>
 

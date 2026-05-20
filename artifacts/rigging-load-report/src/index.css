@@ -6145,6 +6145,27 @@ input:focus {
    * needed here. */
 }
 
+/* Sign-in screen — floating theme picker positioning.
+ * Top-right by default (sits to the LEFT of the language FAB so the
+ * two read as a pair). On phones we drop the picker below the FAB
+ * since the segmented control is too wide to share the top edge
+ * with the 40px lang pill on a 390px viewport. */
+.signin-theme-fab {
+  position: absolute;
+  top: 16px;
+  /* Lang FAB occupies right: 14px + 40px width + a small gap → 62px. */
+  right: 62px;
+  z-index: 5;
+}
+@media (max-width: 640px) {
+  .signin-theme-fab {
+    /* Drop below the language pill (top: 12, height ~32) with a 12px
+     * gap so the two stack cleanly on a phone. */
+    top: 56px;
+    right: 14px;
+  }
+}
+
 /* Base styles for the portal mobile bottom-nav. Without these, the
  * <nav> at the bottom of PortalLayout renders as a stack of raw
  * underlined anchors in normal flow (each label wrapping to a new

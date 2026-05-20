@@ -78934,11 +78934,22 @@ router9.get(
       res.status(403).json({ ok: false, error: "Forbidden" });
       return;
     }
-    const entries = await db.select().from(timeEntriesTable).where(eq(timeEntriesTable.briefId, briefId)).orderBy(
+    const rows = await db.select({
+      entry: timeEntriesTable,
+      gigRole: gigsTable.role,
+      gigProjectName: gigsTable.projectName
+    }).from(timeEntriesTable).leftJoin(gigsTable, eq(timeEntriesTable.gigId, gigsTable.id)).where(eq(timeEntriesTable.briefId, briefId)).orderBy(
       asc(timeEntriesTable.workDate),
       asc(timeEntriesTable.freelancerUserId)
     );
-    res.json({ ok: true, entries: entries.map(serialize) });
+    res.json({
+      ok: true,
+      entries: rows.map((r) => ({
+        ...serialize(r.entry),
+        gigRole: r.gigRole ?? "",
+        gigProjectName: r.gigProjectName ?? ""
+      }))
+    });
   }
 );
 router9.post(

@@ -360,15 +360,32 @@ router.get(
       res.status(403).json({ ok: false, error: "Forbidden" });
       return;
     }
-    const entries = await db
-      .select()
+    // Enrich each entry with the gig's role + project name so the
+    // producer can identify whose hours these are without a second
+    // round-trip. The freelancer's display name lives on the brief's
+    // jsonb crew array — surfaced client-side via the existing
+    // MasterCrewSheet roster join.
+    const rows = await db
+      .select({
+        entry: timeEntriesTable,
+        gigRole: gigsTable.role,
+        gigProjectName: gigsTable.projectName,
+      })
       .from(timeEntriesTable)
+      .leftJoin(gigsTable, eq(timeEntriesTable.gigId, gigsTable.id))
       .where(eq(timeEntriesTable.briefId, briefId))
       .orderBy(
         asc(timeEntriesTable.workDate),
         asc(timeEntriesTable.freelancerUserId),
       );
-    res.json({ ok: true, entries: entries.map(serialize) });
+    res.json({
+      ok: true,
+      entries: rows.map((r) => ({
+        ...serialize(r.entry),
+        gigRole: r.gigRole ?? "",
+        gigProjectName: r.gigProjectName ?? "",
+      })),
+    });
   },
 );
 

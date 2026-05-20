@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { MasterCrewSheet } from "./MasterCrewSheet";
 import { AdequacyPanel } from "./AdequacyPanel";
+import { ProducerHoursPanel } from "./ProducerHoursPanel";
 import {
   type CrewMember,
 } from "../lib/crew";
@@ -200,6 +201,14 @@ export function CrewReportView({
               rosterRoles={rosterRoles}
             />
           ) : null}
+          {/* Producer-side hours review: submitted/approved/locked
+              entries across every gig tied to this brief. Hidden when
+              no brief has been pushed yet (no time entries can exist
+              without an owning gig+brief). */}
+          <ProducerHoursPanel
+            briefId={activeBriefId ?? null}
+            getToken={tokenResolver}
+          />
         </div>
         {directorySidebar ? (
           <div className="crew-layout-aside">{directorySidebar}</div>

@@ -587,6 +587,17 @@ export async function renderScreenPngBlob(input: {
   settings: LedSettings;
   logoDataUrl: string | null;
 }): Promise<RenderScreenPng> {
+  // Per-screen colour overrides (set via the row colour-pickers in the
+  // LED tab) take precedence over the global Export-options colours, so
+  // the exported PNG matches what the producer sees on the canvas.
+  const mergedSettings: LedSettings = {
+    ...input.settings,
+    panelColorDark:
+      input.screen.panelColorDark ?? input.settings.panelColorDark,
+    panelColorLight:
+      input.screen.panelColorLight ?? input.settings.panelColorLight,
+  };
+  input = { ...input, settings: mergedSettings };
   const m = computeScreenMetrics(input.screen, input.panels);
   if (
     !Number.isFinite(m.pixelsX) ||

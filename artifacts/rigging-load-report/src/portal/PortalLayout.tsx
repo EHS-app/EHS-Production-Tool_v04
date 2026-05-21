@@ -320,25 +320,6 @@ export function PortalLayout({
           </div>
 
           <div className="ehs-shell-topbar-actions">
-            <Link
-              href="/"
-              title={t("portal.header.toolTitle")}
-              className="ehs-shell-action"
-              style={{
-                background: "rgba(255,255,255,0.04)",
-                color: "var(--text-main)",
-                border: "1px solid var(--border-color)",
-                textDecoration: "none",
-              }}
-            >
-              <TrendingUp size={13} />
-              <span className="ehs-portal-only-desktop">
-                {t("portal.header.productionTool")}
-              </span>
-              <span className="ehs-portal-only-mobile" aria-hidden>
-                {t("portal.header.productionToolShort")}
-              </span>
-            </Link>
             <button
               type="button"
               className="ehs-shell-icon-btn"
@@ -382,7 +363,7 @@ export function PortalLayout({
               data-active={isActive}
             >
               <span style={{ position: "relative", display: "inline-flex" }}>
-                <Icon size={18} strokeWidth={isActive ? 2.25 : 1.75} />
+                <Icon size={22} strokeWidth={isActive ? 2.25 : 1.75} />
                 {showBadge ? (
                   <span className="ehs-portal-bottomnav-badge">
                     {pendingBriefCount}

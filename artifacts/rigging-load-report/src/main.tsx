@@ -747,18 +747,14 @@ function SignInScreen({
             id: AuthMode;
             labelKey: "signin.tab.signIn" | "signin.tab.signUp";
           }> => {
-            // Sign-up tab is freelancer-only. Employees are provisioned
-            // by an admin (invite via Clerk dashboard), so we hide the
-            // "Registrer deg" tab on the Ansatt side of the role toggle.
-            // Existing employee accounts are untouched — Clerk keeps
-            // every registered user; this is purely a UI gate.
+            // Sign-up tab is open on both sides of the role toggle.
             const tabs: Array<{
               id: AuthMode;
               labelKey: "signin.tab.signIn" | "signin.tab.signUp";
-            }> = [{ id: "signIn", labelKey: "signin.tab.signIn" }];
-            if (intent === "freelancer") {
-              tabs.push({ id: "signUp", labelKey: "signin.tab.signUp" });
-            }
+            }> = [
+              { id: "signIn", labelKey: "signin.tab.signIn" },
+              { id: "signUp", labelKey: "signin.tab.signUp" },
+            ];
             return tabs;
           })().map((opt) => {
             const active = mode === opt.id;
@@ -793,23 +789,8 @@ function SignInScreen({
           })}
         </div>
 
-        <div
-          style={{ width: "100%" }}
-          // Wrapper class lets us scope CSS that hides the Clerk-rendered
-          // "Continue with Google" button + the "or" divider for employees
-          // only. Clerk's social-provider markup is owned by the widget,
-          // so we toggle visibility via CSS rather than a Clerk appearance
-          // override (the prop API for socialButtons varies across Clerk
-          // minor versions; class-based hiding is more stable).
-          className={
-            intent === "employee" ? "clerk-no-social" : undefined
-          }
-        >
-          {/* Employees always see the SignIn widget — the SignUp tab is
-              hidden for them, so even if `mode` was persisted as "signUp"
-              from a previous freelancer session, we force SignIn here
-              to avoid rendering the now-hidden sign-up flow. */}
-          {mode === "signIn" || intent === "employee" ? (
+        <div style={{ width: "100%" }}>
+          {mode === "signIn" ? (
             <SignIn routing="hash" />
           ) : (
             <SignUp routing="hash" />

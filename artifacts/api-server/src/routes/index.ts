@@ -10,19 +10,30 @@ import portalGigsRouter from "./portalGigs";
 import portalTimeEntriesRouter from "./portalTimeEntries";
 import projectsRouter from "./projects";
 import inspectionExtractRouter from "./inspectionExtract";
+import { requireEmployee } from "../middleware/userType";
 
 const router: IRouter = Router();
 
+// Public / shared infra (no user type gate).
 router.use(healthRouter);
 router.use(devAutoSignInRouter);
-router.use(rigplanAnalyzeRouter);
-router.use(venueMemoryRouter);
-router.use(storageRouter);
+
+// Production Tool surface — employee-only. Any freelancer-tagged
+// Clerk user calling these endpoints gets a 403 before the route
+// handler ever runs, so even a tampered frontend can't reach them.
+// The middleware also sets `req._userId` for downstream handlers.
+router.use(requireEmployee, rigplanAnalyzeRouter);
+router.use(requireEmployee, venueMemoryRouter);
+router.use(requireEmployee, storageRouter);
+router.use(requireEmployee, projectsRouter);
+router.use(requireEmployee, inspectionExtractRouter);
+
+// Portal surface — open to both freelancers (their own data) and
+// employees (producers reading freelancer data via the Crew Report).
+// Individual handlers still enforce their own per-row ownership.
 router.use(portalProfileRouter);
 router.use(portalBriefsRouter);
 router.use(portalGigsRouter);
 router.use(portalTimeEntriesRouter);
-router.use(projectsRouter);
-router.use(inspectionExtractRouter);
 
 export default router;

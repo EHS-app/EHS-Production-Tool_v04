@@ -7,6 +7,7 @@ import {
   Show,
   useSignIn,
   useAuth,
+  useUser,
 } from "@clerk/react";
 import { dark } from "@clerk/themes";
 import { Redirect, Route, Router, Switch, useLocation } from "wouter";
@@ -843,40 +844,119 @@ export { InlineThemeSegmentedControl };
 export type { ThemePreference };
 
 
+/**
+ * Read the canonical user type off the signed-in Clerk user. This is
+ * the **server-authoritative** classification (stored in Clerk's
+ * `publicMetadata`, not in localStorage), so a freelancer cannot
+ * escape the portal lock by clicking the Employee tab or by editing
+ * their browser storage. Returns `null` while Clerk is still loading
+ * the user object so callers can defer their decision until the
+ * truth is known.
+ */
+function useClerkUserType(): "employee" | "freelancer" | null {
+  const { isLoaded, user } = useUser();
+  if (!isLoaded) return null;
+  const raw = (user?.publicMetadata as Record<string, unknown> | undefined)
+    ?.userType;
+  if (raw === "freelancer") return "freelancer";
+  // Default everyone else to "employee". The server lazily backfills
+  // legacy freelancer accounts on their next API call, so within one
+  // page interaction the metadata catches up — and the Production
+  // Tool API endpoints themselves return 403 to freelancers as a
+  // belt-and-suspenders backstop.
+  return "employee";
+}
+
 function PostLoginRedirect() {
   const [location, setLocation] = useLocation();
+  const serverRole = useClerkUserType();
+  const { getToken } = useAuth();
+  // Capture the sign-in vs sign-up mode synchronously at render time.
+  // The sibling `ClearAuthMode` component also runs in a useEffect on
+  // signed-in mount and removes this key — without capturing it
+  // up-front, the bootstrap-tag call below would race with that
+  // cleanup and miss the signal that the user just *signed up* (as
+  // opposed to merely signed in).
+  const authModeAtMount = useRef<AuthMode>(loadInitialAuthMode());
   useEffect(() => {
     const intent = loadInitialLoginIntent();
-    if (!intent) return;
-    saveUserRole(intent);
+    // Trust Clerk metadata over the user's sign-in tab choice: a
+    // freelancer who picked "Ansatt" on the role toggle is still a
+    // freelancer and must be routed to the portal.
+    const effective: LoginIntent | null =
+      serverRole === "freelancer" ? "freelancer" : (intent ?? null);
+
+    // Bootstrap-tag a brand-new freelancer in Clerk publicMetadata so
+    // the Production Tool refuses to load for them even before they
+    // save their first profile row. We only fire when (a) the user
+    // came from the Frilanser tab AND (b) they actually completed
+    // *sign-up* (not just sign-in), so an existing employee who
+    // accidentally toggled the Frilanser tab to sign in is left
+    // untouched. The server endpoint additionally refuses to
+    // downgrade an already-tagged employee, but this client-side
+    // gate keeps the call from happening in the first place.
+    if (
+      intent === "freelancer" &&
+      authModeAtMount.current === "signUp" &&
+      serverRole !== "freelancer"
+    ) {
+      (async () => {
+        try {
+          const token = await getToken();
+          const baseUrl =
+            (typeof import.meta !== "undefined" &&
+              (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+            "/";
+          await fetch(`${baseUrl}api/portal/me/tag-as-freelancer`, {
+            method: "POST",
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+        } catch {
+          // Best-effort: if the call fails the user is still locked
+          // by localStorage role + the lazy-backfill that fires the
+          // next time they hit any portal endpoint. No need to
+          // surface this to the user.
+        }
+      })();
+    }
+
+    if (!effective) return;
+    saveUserRole(effective);
     const inPortal = location === "/portal" || location.startsWith("/portal/");
-    if (intent === "freelancer" && !inPortal) {
+    if (effective === "freelancer" && !inPortal) {
       setLocation("/portal");
-    } else if (intent === "employee" && inPortal) {
+    } else if (effective === "employee" && inPortal) {
       setLocation("/");
     }
     saveLoginIntent(null);
-    // We only want this to run once after mount (post sign-in landing).
+    // We only want this to run once after mount (post sign-in landing),
+    // re-running if `serverRole` flips from null → resolved.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [serverRole]);
   return null;
 }
 
 /**
  * Continuous guard that locks freelancers to the /portal/* surface.
- * Runs on every location change; if the persisted role is "freelancer"
- * and the user lands outside /portal, they are redirected back to /portal.
+ * Runs on every location change; if **either** the persisted local
+ * role OR the Clerk-authoritative `publicMetadata.userType` says
+ * "freelancer", the user is redirected back to /portal whenever they
+ * navigate outside it. Clerk metadata wins on conflict — a freelancer
+ * who tampered with their localStorage role still gets bounced.
  */
 function FreelancerGuard() {
   const [location, setLocation] = useLocation();
-  const role = loadUserRole();
+  const localRole = loadUserRole();
+  const serverRole = useClerkUserType();
+  const isFreelancer =
+    serverRole === "freelancer" || localRole === "freelancer";
   useEffect(() => {
-    if (role !== "freelancer") return;
+    if (!isFreelancer) return;
     const inPortal = location === "/portal" || location.startsWith("/portal/");
     if (!inPortal) {
       setLocation("/portal");
     }
-  }, [role, location, setLocation]);
+  }, [isFreelancer, location, setLocation]);
   return null;
 }
 
@@ -1052,22 +1132,7 @@ function AuthGate({
               <Portal theme={theme} pref={pref} setPref={setPref} />
             </Route>
             <Route>
-              {loadUserRole() === "freelancer" ||
-              loadInitialLoginIntent() === "freelancer" ? (
-                <Redirect to="/portal" />
-              ) : (
-                <>
-                  <App />
-                  {/* Floating Fart Button — Production Tool only.
-                      Intentionally NOT rendered on the Freelance Portal
-                      so freelancers don't see it. Lives inside the
-                      catchall route so it unmounts on navigation to
-                      /portal. Self-contained: no Production-Tool state,
-                      no autosave coupling, no keyboard-shortcut
-                      interference. */}
-                  <FartButton />
-                </>
-              )}
+              <ProductionToolGate />
             </Route>
           </Switch>
         </Router>
@@ -1095,6 +1160,44 @@ function AuthGate({
           </>
         )}
       </Show>
+    </>
+  );
+}
+
+/**
+ * Catchall-route gate for the Production Tool. Renders <App /> only
+ * for confirmed employees. Freelancers (by Clerk metadata OR by
+ * persisted local role OR by the sign-in tab they just picked) get
+ * redirected to the portal. While Clerk is still loading the user
+ * object we render nothing — better a half-second of blank than
+ * flashing the Production Tool to a freelancer for one frame.
+ */
+function ProductionToolGate() {
+  const serverRole = useClerkUserType();
+  const localRole = loadUserRole();
+  const intent = loadInitialLoginIntent();
+  if (serverRole === null) {
+    // Clerk hasn't resolved yet; defer rendering until we know the
+    // authoritative type.
+    return null;
+  }
+  if (
+    serverRole === "freelancer" ||
+    localRole === "freelancer" ||
+    intent === "freelancer"
+  ) {
+    return <Redirect to="/portal" />;
+  }
+  return (
+    <>
+      <App />
+      {/* Floating Fart Button — Production Tool only. Intentionally
+          NOT rendered on the Freelance Portal so freelancers don't
+          see it. Lives inside the catchall route so it unmounts on
+          navigation to /portal. Self-contained: no Production-Tool
+          state, no autosave coupling, no keyboard-shortcut
+          interference. */}
+      <FartButton />
     </>
   );
 }

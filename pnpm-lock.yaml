@@ -737,6 +737,13 @@ importers:
   lib/skills: {}
 
   scripts:
+    dependencies:
+      '@clerk/express':
+        specifier: ^2.1.9
+        version: 2.1.9(express@5.2.1)
+      '@workspace/db':
+        specifier: workspace:*
+        version: link:../lib/db
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

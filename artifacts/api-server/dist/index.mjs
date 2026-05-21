@@ -21073,7 +21073,7 @@ var require_application = __commonJS({
       return this;
     };
     app2.render = function render(name, options, callback) {
-      var cache2 = this.cache;
+      var cache3 = this.cache;
       var done = callback;
       var engines = this.engines;
       var opts = options;
@@ -21087,7 +21087,7 @@ var require_application = __commonJS({
         renderOptions.cache = this.enabled("view cache");
       }
       if (renderOptions.cache) {
-        view = cache2[name];
+        view = cache3[name];
       }
       if (!view) {
         var View3 = this.get("view");
@@ -21103,7 +21103,7 @@ var require_application = __commonJS({
           return done(err);
         }
         if (renderOptions.cache) {
-          cache2[name] = view;
+          cache3[name] = view;
         }
       }
       tryRender(view, renderOptions, done);
@@ -26773,12 +26773,12 @@ var require_levels = __commonJS({
     function genLsCache(instance) {
       const formatter = instance[formattersSym].level;
       const { labels } = instance.levels;
-      const cache2 = {};
+      const cache3 = {};
       for (const label in labels) {
         const level = formatter(labels[label], Number(label));
-        cache2[label] = JSON.stringify(level).slice(0, -1);
+        cache3[label] = JSON.stringify(level).slice(0, -1);
       }
-      instance[lsCacheSym] = cache2;
+      instance[lsCacheSym] = cache3;
       return instance;
     }
     function isStandardLevel(level, useOnlyCustomLevels) {
@@ -39014,7 +39014,7 @@ var require_connectors_sdk = __commonJS({
 });
 
 // src/app.ts
-var import_express14 = __toESM(require_express2(), 1);
+var import_express15 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 
@@ -46391,8 +46391,8 @@ var DEFAULT_CACHE_TTL_MS = 864e5;
 var TelemetryEventThrottler = class {
   #cache;
   #cacheTtl = DEFAULT_CACHE_TTL_MS;
-  constructor(cache2) {
-    this.#cache = cache2;
+  constructor(cache3) {
+    this.#cache = cache3;
   }
   isEventThrottled(payload) {
     const now = Date.now();
@@ -46431,18 +46431,18 @@ var LocalStorageThrottlerCache = class {
   }
   setItem(key, value) {
     try {
-      const cache2 = this.#getCache();
-      cache2[key] = value;
-      localStorage.setItem(this.#storageKey, JSON.stringify(cache2));
+      const cache3 = this.#getCache();
+      cache3[key] = value;
+      localStorage.setItem(this.#storageKey, JSON.stringify(cache3));
     } catch (err) {
       if (err instanceof DOMException && (err.name === "QuotaExceededError" || err.name === "NS_ERROR_DOM_QUOTA_REACHED") && localStorage.length > 0) localStorage.removeItem(this.#storageKey);
     }
   }
   removeItem(key) {
     try {
-      const cache2 = this.#getCache();
-      delete cache2[key];
-      localStorage.setItem(this.#storageKey, JSON.stringify(cache2));
+      const cache3 = this.#getCache();
+      delete cache3[key];
+      localStorage.setItem(this.#storageKey, JSON.stringify(cache3));
     } catch {
     }
   }
@@ -46476,8 +46476,8 @@ var InMemoryThrottlerCache = class {
     this.#cache.delete(key);
   }
 };
-function isWindowClerkWithMetadata(clerk2) {
-  return typeof clerk2 === "object" && clerk2 !== null && "constructor" in clerk2 && typeof clerk2.constructor === "function";
+function isWindowClerkWithMetadata(clerk3) {
+  return typeof clerk3 === "object" && clerk3 !== null && "constructor" in clerk3 && typeof clerk3.constructor === "function";
 }
 var VALID_LOG_LEVELS = /* @__PURE__ */ new Set([
   "error",
@@ -47188,7 +47188,7 @@ function clerkProxyMiddleware() {
 }
 
 // src/routes/index.ts
-var import_express13 = __toESM(require_express2(), 1);
+var import_express14 = __toESM(require_express2(), 1);
 
 // src/routes/health.ts
 var import_express = __toESM(require_express2(), 1);
@@ -62283,12 +62283,12 @@ async function hashQuery(sql2, params) {
 
 // ../../node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.18.0_pg@8.20.0/node_modules/drizzle-orm/pg-core/session.js
 var PgPreparedQuery = class {
-  constructor(query, cache2, queryMetadata, cacheConfig) {
+  constructor(query, cache3, queryMetadata, cacheConfig) {
     this.query = query;
-    this.cache = cache2;
+    this.cache = cache3;
     this.queryMetadata = queryMetadata;
     this.cacheConfig = cacheConfig;
-    if (cache2 && cache2.strategy() === "all" && cacheConfig === void 0) {
+    if (cache3 && cache3.strategy() === "all" && cacheConfig === void 0) {
       this.cacheConfig = { enable: true, autoInvalidate: true };
     }
     if (!this.cacheConfig?.enable) {
@@ -62444,8 +62444,8 @@ var PgTransaction = class extends PgDatabase {
 // ../../node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.18.0_pg@8.20.0/node_modules/drizzle-orm/node-postgres/session.js
 var { Pool: Pool2, types: types2 } = esm_default;
 var NodePgPreparedQuery = class extends PgPreparedQuery {
-  constructor(client, queryString, params, logger2, cache2, queryMetadata, cacheConfig, fields, name, _isResponseInArrayMode, customResultMapper) {
-    super({ sql: queryString, params }, cache2, queryMetadata, cacheConfig);
+  constructor(client, queryString, params, logger2, cache3, queryMetadata, cacheConfig, fields, name, _isResponseInArrayMode, customResultMapper) {
+    super({ sql: queryString, params }, cache3, queryMetadata, cacheConfig);
     this.client = client;
     this.queryString = queryString;
     this.params = params;
@@ -75812,7 +75812,7 @@ router5.get("/storage/objects/*path", async (req, res) => {
 var storage_default = router5;
 
 // src/routes/portalProfile.ts
-var import_express6 = __toESM(require_express2(), 1);
+var import_express7 = __toESM(require_express2(), 1);
 
 // ../../lib/skills/src/index.ts
 var SKILL_LIBRARY = [
@@ -76050,6 +76050,133 @@ function splitAllergens(raw) {
   return raw.split(/,|;|\/| and | og /i).map((s2) => s2.trim()).filter((s2) => s2.length > 0).map((s2) => s2.slice(0, 80));
 }
 
+// src/middleware/userType.ts
+var clerk = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+if (!clerk) {
+  logger.warn(
+    { scope: "userType" },
+    "CLERK_SECRET_KEY missing \u2014 userType gating is disabled (treating all users as employee)."
+  );
+}
+var TTL_MS = 6e4;
+var cache2 = /* @__PURE__ */ new Map();
+function readCache(userId) {
+  const hit = cache2.get(userId);
+  if (!hit) return null;
+  if (Date.now() - hit.at > TTL_MS) {
+    cache2.delete(userId);
+    return null;
+  }
+  return hit.type;
+}
+function writeCache(userId, type) {
+  cache2.set(userId, { type, at: Date.now() });
+}
+async function tagAsFreelancer(userId) {
+  if (!clerk) return;
+  try {
+    const current = await clerk.users.getUser(userId);
+    const currentType = current.publicMetadata?.userType;
+    if (currentType === "employee") {
+      logger.warn(
+        { scope: "userType", userId },
+        "refusing to tag user as freelancer \u2014 already tagged employee"
+      );
+      writeCache(userId, "employee");
+      return;
+    }
+    if (currentType === "freelancer") {
+      writeCache(userId, "freelancer");
+      return;
+    }
+    await clerk.users.updateUserMetadata(userId, {
+      publicMetadata: { userType: "freelancer" }
+    });
+    writeCache(userId, "freelancer");
+  } catch (err) {
+    logger.warn(
+      {
+        scope: "userType",
+        userId,
+        err: err instanceof Error ? err.message : String(err)
+      },
+      "failed to tag user as freelancer"
+    );
+  }
+}
+async function getUserType(userId) {
+  const cached2 = readCache(userId);
+  if (cached2) return cached2;
+  if (clerk) {
+    try {
+      const user = await clerk.users.getUser(userId);
+      const raw = user.publicMetadata?.userType;
+      if (raw === "freelancer" || raw === "employee") {
+        writeCache(userId, raw);
+        return raw;
+      }
+    } catch (err) {
+      logger.warn(
+        {
+          scope: "userType",
+          userId,
+          err: err instanceof Error ? err.message : String(err)
+        },
+        "Clerk getUser failed \u2014 falling back to DB inference"
+      );
+    }
+  }
+  try {
+    const rows = await db.select({ userId: freelancerProfilesTable.userId }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId)).limit(1);
+    if (rows.length > 0) {
+      void tagAsFreelancer(userId);
+      writeCache(userId, "freelancer");
+      return "freelancer";
+    }
+  } catch (err) {
+    logger.warn(
+      {
+        scope: "userType",
+        userId,
+        err: err instanceof Error ? err.message : String(err)
+      },
+      "DB userType inference failed"
+    );
+  }
+  writeCache(userId, "employee");
+  return "employee";
+}
+var requireEmployee = async (req, res, next) => {
+  const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
+  const userId = auth?.userId ?? null;
+  if (!userId) {
+    res.status(401).json({ ok: false, error: "Sign in required." });
+    return;
+  }
+  try {
+    const type = await getUserType(userId);
+    if (type === "freelancer") {
+      res.status(403).json({
+        ok: false,
+        error: "This area is restricted to EHS employees.",
+        userType: "freelancer"
+      });
+      return;
+    }
+  } catch (err) {
+    logger.error(
+      {
+        scope: "userType",
+        userId,
+        err: err instanceof Error ? err.message : String(err)
+      },
+      "requireEmployee middleware threw \u2014 failing open as employee"
+    );
+  }
+  req._userId = userId;
+  next();
+};
+
 // src/routes/portalProfile.ts
 function pickDate(raw) {
   if (typeof raw !== "string") return null;
@@ -76072,7 +76199,7 @@ function pickSkills(raw) {
   }
   return out;
 }
-var router6 = (0, import_express6.Router)();
+var router6 = (0, import_express7.Router)();
 var requireSignedIn4 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
@@ -76132,6 +76259,22 @@ function normaliseProfile(body) {
 function projectProfile(row) {
   return { ...row, dietaryRequirements: row.dietary };
 }
+router6.post("/portal/me/tag-as-freelancer", requireSignedIn4, async (req, res) => {
+  const userId = req._userId;
+  try {
+    await tagAsFreelancer(userId);
+  } catch (err) {
+    logger.warn(
+      {
+        scope: "userType",
+        userId,
+        err: err instanceof Error ? err.message : String(err)
+      },
+      "tag-as-freelancer endpoint encountered an error"
+    );
+  }
+  res.json({ ok: true });
+});
 router6.get("/portal/profile/me", requireSignedIn4, async (req, res) => {
   const userId = req._userId;
   try {
@@ -76157,6 +76300,7 @@ router6.put("/portal/profile/me", requireSignedIn4, async (req, res) => {
       target: freelancerProfilesTable.userId,
       set: { ...fields, updatedAt: sql`now()` }
     }).returning();
+    void tagAsFreelancer(userId);
     res.json({
       ok: true,
       profile: inserted[0] ? projectProfile(inserted[0]) : null
@@ -76249,7 +76393,7 @@ router6.get("/portal/freelancers", requireSignedIn4, async (req, res) => {
 var portalProfile_default = router6;
 
 // src/routes/portalBriefs.ts
-var import_express8 = __toESM(require_express2(), 1);
+var import_express9 = __toESM(require_express2(), 1);
 import { randomUUID as randomUUID2 } from "node:crypto";
 
 // src/lib/roomPairing.ts
@@ -76442,7 +76586,7 @@ async function sendGmail(args) {
 }
 
 // src/lib/briefEmail.ts
-var clerk = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+var clerk2 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
 function pickPortalBaseUrl() {
   const domains = process.env.REPLIT_DOMAINS;
   if (domains && domains.trim()) {
@@ -76454,9 +76598,9 @@ function pickPortalBaseUrl() {
   return "";
 }
 async function lookupProducerName(userId) {
-  if (!clerk) return "produsent";
+  if (!clerk2) return "produsent";
   try {
-    const user = await clerk.users.getUser(userId);
+    const user = await clerk2.users.getUser(userId);
     const name = [user.firstName ?? "", user.lastName ?? ""].join(" ").trim();
     if (name) return name;
     const primary = user.emailAddresses?.find(
@@ -76796,7 +76940,7 @@ function rollupItinerary(input) {
 }
 
 // src/routes/portalBriefs.ts
-var router7 = (0, import_express8.Router)();
+var router7 = (0, import_express9.Router)();
 var requireSignedIn5 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
@@ -78487,9 +78631,9 @@ router7.get(
 var portalBriefs_default = router7;
 
 // src/routes/portalGigs.ts
-var import_express9 = __toESM(require_express2(), 1);
+var import_express10 = __toESM(require_express2(), 1);
 import { randomUUID as randomUUID3 } from "node:crypto";
-var router8 = (0, import_express9.Router)();
+var router8 = (0, import_express10.Router)();
 var requireSignedIn6 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
@@ -78675,9 +78819,9 @@ router8.delete("/portal/gigs/:id", requireSignedIn6, async (req, res) => {
 var portalGigs_default = router8;
 
 // src/routes/portalTimeEntries.ts
-var import_express10 = __toESM(require_express2(), 1);
+var import_express11 = __toESM(require_express2(), 1);
 import { randomUUID as randomUUID4 } from "node:crypto";
-var router9 = (0, import_express10.Router)();
+var router9 = (0, import_express11.Router)();
 var requireSignedIn7 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
@@ -79059,8 +79203,8 @@ logger.info({ scope: "portalTimeEntries" }, "time-entries router mounted");
 var portalTimeEntries_default = router9;
 
 // src/routes/projects.ts
-var import_express11 = __toESM(require_express2(), 1);
-var router10 = (0, import_express11.Router)();
+var import_express12 = __toESM(require_express2(), 1);
+var router10 = (0, import_express12.Router)();
 var requireSignedIn8 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
@@ -79175,8 +79319,8 @@ router10.delete("/projects/:id", requireSignedIn8, async (req, res) => {
 var projects_default = router10;
 
 // src/routes/inspectionExtract.ts
-var import_express12 = __toESM(require_express2(), 1);
-var router11 = (0, import_express12.Router)();
+var import_express13 = __toESM(require_express2(), 1);
+var router11 = (0, import_express13.Router)();
 var requireSignedIn9 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
@@ -79296,7 +79440,7 @@ function normalizeResult(raw) {
 }
 router11.post(
   "/inspection/extract",
-  (0, import_express12.json)({ limit: "100kb" }),
+  (0, import_express13.json)({ limit: "100kb" }),
   requireSignedIn9,
   rateLimit2,
   async (req, res) => {
@@ -79348,22 +79492,22 @@ router11.post(
 var inspectionExtract_default = router11;
 
 // src/routes/index.ts
-var router12 = (0, import_express13.Router)();
+var router12 = (0, import_express14.Router)();
 router12.use(health_default);
 router12.use(devAutoSignIn_default);
-router12.use(rigplanAnalyze_default);
-router12.use(venueMemory_default);
-router12.use(storage_default);
+router12.use(requireEmployee, rigplanAnalyze_default);
+router12.use(requireEmployee, venueMemory_default);
+router12.use(requireEmployee, storage_default);
+router12.use(requireEmployee, projects_default);
+router12.use(requireEmployee, inspectionExtract_default);
 router12.use(portalProfile_default);
 router12.use(portalBriefs_default);
 router12.use(portalGigs_default);
 router12.use(portalTimeEntries_default);
-router12.use(projects_default);
-router12.use(inspectionExtract_default);
 var routes_default = router12;
 
 // src/app.ts
-var app = (0, import_express14.default)();
+var app = (0, import_express15.default)();
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -79388,12 +79532,12 @@ app.use((0, import_cors.default)());
 var PATHS_WITHOUT_GLOBAL_JSON = /* @__PURE__ */ new Set([
   "/api/rigplan/analyze"
 ]);
-var globalJsonParser = import_express14.default.json({ limit: "256kb" });
+var globalJsonParser = import_express15.default.json({ limit: "256kb" });
 app.use((req, res, next) => {
   if (PATHS_WITHOUT_GLOBAL_JSON.has(req.path)) return next();
   return globalJsonParser(req, res, next);
 });
-app.use(import_express14.default.urlencoded({ extended: true }));
+app.use(import_express15.default.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 app.use("/api", routes_default);
 var app_default = app;

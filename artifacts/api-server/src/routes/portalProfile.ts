@@ -8,6 +8,7 @@ import {
 import { sanitizeSkills, isValidSkill, groupSkills } from "@workspace/skills";
 import { logger } from "../lib/logger";
 import { classifyDietary, splitAllergens } from "../lib/dietaryTags";
+import { tagAsFreelancer } from "../middleware/userType";
 
 /** Pull a YYYY-MM-DD string off a query param, or null. */
 function pickDate(raw: unknown): string | null {
@@ -140,6 +141,34 @@ function projectProfile(
   return { ...row, dietaryRequirements: row.dietary };
 }
 
+/** POST /api/portal/me/tag-as-freelancer
+ *  Bootstrap endpoint called by the frontend immediately after a new
+ *  freelancer completes Clerk sign-up. Tags the signed-in user as
+ *  `userType=freelancer` in Clerk publicMetadata so the Production
+ *  Tool refuses to load for them even before they save their first
+ *  profile row. Idempotent and safe to call repeatedly — the
+ *  underlying `tagAsFreelancer` helper skips users already tagged as
+ *  employee (defence against an admin/employee accidentally hitting
+ *  this endpoint). Returns 200 in all cases (best-effort). */
+router.post("/portal/me/tag-as-freelancer", requireSignedIn, async (req, res) => {
+  const userId = (req as unknown as { _userId: string })._userId;
+  try {
+    await tagAsFreelancer(userId);
+  } catch (err) {
+    // tagAsFreelancer already swallows internally, but belt-and-
+    // braces in case its surface ever changes.
+    logger.warn(
+      {
+        scope: "userType",
+        userId,
+        err: err instanceof Error ? err.message : String(err),
+      },
+      "tag-as-freelancer endpoint encountered an error",
+    );
+  }
+  res.json({ ok: true });
+});
+
 /** GET /api/portal/profile/me
  *  Returns the signed-in user's profile, or `null` if they haven't
  *  saved one yet. */
@@ -179,6 +208,15 @@ router.put("/portal/profile/me", requireSignedIn, async (req, res) => {
         set: { ...fields, updatedAt: sql`now()` },
       })
       .returning();
+    // Anyone who saves a profile via the portal is, by definition, a
+    // freelancer. Tag their Clerk user with `userType=freelancer` so
+    // the Production Tool refuses to load for them no matter which
+    // role tab they pick at sign-in. Fire-and-forget — the metadata
+    // write goes to Clerk's API and we don't want a transient Clerk
+    // hiccup to fail the profile save. The lazy inference in
+    // `getUserType` will catch any user that slipped through this
+    // path on their next request.
+    void tagAsFreelancer(userId);
     res.json({
       ok: true,
       profile: inserted[0] ? projectProfile(inserted[0]) : null,

@@ -6,10 +6,15 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "backup-db": "tsx ./src/backup-db.ts",
+    "tag-existing-freelancers": "tsx ./src/tagExistingFreelancers.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "tsx": "catalog:"
+  },
+  "dependencies": {
+    "@clerk/express": "^2.1.9",
+    "@workspace/db": "workspace:*"
   }
 }

@@ -742,12 +742,24 @@ function SignInScreen({
             borderBottom: `1px solid ${c.border}`,
           }}
         >
-          {(
-            [
-              { id: "signIn", labelKey: "signin.tab.signIn" as const },
-              { id: "signUp", labelKey: "signin.tab.signUp" as const },
-            ] as const
-          ).map((opt) => {
+          {((): ReadonlyArray<{
+            id: AuthMode;
+            labelKey: "signin.tab.signIn" | "signin.tab.signUp";
+          }> => {
+            // Sign-up tab is freelancer-only. Employees are provisioned
+            // by an admin (invite via Clerk dashboard), so we hide the
+            // "Registrer deg" tab on the Ansatt side of the role toggle.
+            // Existing employee accounts are untouched — Clerk keeps
+            // every registered user; this is purely a UI gate.
+            const tabs: Array<{
+              id: AuthMode;
+              labelKey: "signin.tab.signIn" | "signin.tab.signUp";
+            }> = [{ id: "signIn", labelKey: "signin.tab.signIn" }];
+            if (intent === "freelancer") {
+              tabs.push({ id: "signUp", labelKey: "signin.tab.signUp" });
+            }
+            return tabs;
+          })().map((opt) => {
             const active = mode === opt.id;
             return (
               <button
@@ -781,7 +793,11 @@ function SignInScreen({
         </div>
 
         <div style={{ width: "100%" }}>
-          {mode === "signIn" ? (
+          {/* Employees always see the SignIn widget — the SignUp tab is
+              hidden for them, so even if `mode` was persisted as "signUp"
+              from a previous freelancer session, we force SignIn here
+              to avoid rendering the now-hidden sign-up flow. */}
+          {mode === "signIn" || intent === "employee" ? (
             <SignIn routing="hash" />
           ) : (
             <SignUp routing="hash" />

@@ -792,7 +792,18 @@ function SignInScreen({
           })}
         </div>
 
-        <div style={{ width: "100%" }}>
+        <div
+          style={{ width: "100%" }}
+          // Wrapper class lets us scope CSS that hides the Clerk-rendered
+          // "Continue with Google" button + the "or" divider for employees
+          // only. Clerk's social-provider markup is owned by the widget,
+          // so we toggle visibility via CSS rather than a Clerk appearance
+          // override (the prop API for socialButtons varies across Clerk
+          // minor versions; class-based hiding is more stable).
+          className={
+            intent === "employee" ? "clerk-no-social" : undefined
+          }
+        >
           {/* Employees always see the SignIn widget — the SignUp tab is
               hidden for them, so even if `mode` was persisted as "signUp"
               from a previous freelancer session, we force SignIn here

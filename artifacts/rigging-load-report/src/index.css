@@ -6145,6 +6145,24 @@ input:focus {
    * needed here. */
 }
 
+/* Sign-in screen — hide Clerk social providers (Google) + the "or"
+ * divider when the role toggle is on Ansatt (Employee). Freelancers
+ * keep their full sign-in / sign-up experience (Google + email).
+ * The wrapper `.clerk-no-social` is toggled by SignInScreen in
+ * main.tsx based on the selected role. We target Clerk's stable
+ * `.cl-*` class names rather than the `data-*` attributes since
+ * the latter shift between Clerk minor versions. */
+.clerk-no-social .cl-socialButtonsRoot,
+.clerk-no-social .cl-socialButtons,
+.clerk-no-social .cl-socialButtonsBlockButton,
+.clerk-no-social .cl-socialButtonsIconButton,
+.clerk-no-social .cl-socialButtonsProviderIcon,
+.clerk-no-social .cl-dividerRow,
+.clerk-no-social .cl-divider,
+.clerk-no-social .cl-alternativeMethods {
+  display: none !important;
+}
+
 /* Sign-in screen — floating theme picker positioning. Now an icon-
  * only 40×32 pill (see ThemeFab in main.tsx) so it can sit next to
  * the language FAB without competing for horizontal space. The lang

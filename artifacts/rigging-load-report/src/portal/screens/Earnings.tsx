@@ -4,9 +4,11 @@ import {
   gigEarnings,
   statusColor,
   statusLabel,
+  statusLabelT,
   type Gig,
   type PortalData,
 } from "../lib/portalStorage";
+import { useI18n, useT } from "../../lib/i18n/I18nContext";
 
 function formatNok(n: number): string {
   return new Intl.NumberFormat("nb-NO", {
@@ -16,10 +18,10 @@ function formatNok(n: number): string {
   }).format(Math.round(n));
 }
 
-function formatDayShort(iso: string): string {
+function formatDayShort(iso: string, locale?: string): string {
   if (!iso) return "—";
   const d = new Date(iso);
-  return d.toLocaleDateString("en-GB", {
+  return d.toLocaleDateString(locale === "no" ? "nb-NO" : "en-GB", {
     day: "2-digit",
     month: "short",
     year: "2-digit",
@@ -96,6 +98,8 @@ export function Earnings({
   data: PortalData;
 }) {
   const c = PALETTE[theme];
+  const t = useT();
+  const { locale } = useI18n();
 
   const now = new Date();
   const yearStart = `${now.getFullYear()}-01-01`;
@@ -172,7 +176,7 @@ export function Earnings({
         }}
       >
         <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, flex: 1 }}>
-          Earnings
+          {t("portal.earnings.title")}
         </h1>
         <button
           type="button"
@@ -190,7 +194,7 @@ export function Earnings({
             opacity: data.gigs.length === 0 ? 0.5 : 1,
           }}
         >
-          Export {now.getFullYear()} CSV
+          {t("portal.earnings.exportYearCsv").replace("{year}", String(now.getFullYear()))}
         </button>
       </header>
 
@@ -201,16 +205,16 @@ export function Earnings({
           gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
         }}
       >
-        <Stat theme={theme} label="This month" value={formatNok(totals.month)} accent />
-        <Stat theme={theme} label={`${now.getFullYear()} YTD`} value={formatNok(totals.year)} />
-        <Stat theme={theme} label="Ready to invoice" value={formatNok(totals.readyToInvoice)} />
-        <Stat theme={theme} label="Outstanding" value={formatNok(totals.invoicedNotPaid)} />
-        <Stat theme={theme} label="Paid all-time" value={formatNok(totals.paid)} />
+        <Stat theme={theme} label={t("portal.earnings.thisMonth")} value={formatNok(totals.month)} accent />
+        <Stat theme={theme} label={t("portal.earnings.ytd").replace("{year}", String(now.getFullYear()))} value={formatNok(totals.year)} />
+        <Stat theme={theme} label={t("portal.earnings.readyToInvoice")} value={formatNok(totals.readyToInvoice)} />
+        <Stat theme={theme} label={t("portal.earnings.outstanding")} value={formatNok(totals.invoicedNotPaid)} />
+        <Stat theme={theme} label={t("portal.earnings.paidAllTime")} value={formatNok(totals.paid)} />
       </section>
 
       <Section
         theme={theme}
-        title="Ready to invoice"
+        title={t("portal.earnings.readyToInvoice")}
         action={
           readyList.length > 0 ? (
             <button
@@ -227,31 +231,31 @@ export function Earnings({
                 cursor: "pointer",
               }}
             >
-              Export CSV
+              {t("portal.earnings.exportCsv")}
             </button>
           ) : null
         }
       >
         {readyList.length === 0 ? (
-          <Empty theme={theme} text="Mark a gig as Done to queue it here." />
+          <Empty theme={theme} text={t("portal.earnings.emptyReady")} />
         ) : (
-          <GigTable theme={theme} gigs={readyList} />
+          <GigTable theme={theme} gigs={readyList} t={t} />
         )}
       </Section>
 
-      <Section theme={theme} title="Invoiced — awaiting payment">
+      <Section theme={theme} title={t("portal.earnings.invoicedAwaiting")}>
         {invoicedList.length === 0 ? (
-          <Empty theme={theme} text="No invoices outstanding." />
+          <Empty theme={theme} text={t("portal.earnings.emptyInvoiced")} />
         ) : (
-          <GigTable theme={theme} gigs={invoicedList} />
+          <GigTable theme={theme} gigs={invoicedList} t={t} />
         )}
       </Section>
 
-      <Section theme={theme} title="Paid history">
+      <Section theme={theme} title={t("portal.earnings.paidHistory")}>
         {history.length === 0 ? (
-          <Empty theme={theme} text="No paid gigs yet." />
+          <Empty theme={theme} text={t("portal.earnings.emptyPaid")} />
         ) : (
-          <GigTable theme={theme} gigs={history} />
+          <GigTable theme={theme} gigs={history} t={t} />
         )}
       </Section>
     </div>
@@ -361,8 +365,17 @@ function Empty({ theme, text }: { theme: ThemeMode; text: string }) {
   );
 }
 
-function GigTable({ theme, gigs }: { theme: ThemeMode; gigs: Gig[] }) {
+function GigTable({
+  theme,
+  gigs,
+  t,
+}: {
+  theme: ThemeMode;
+  gigs: Gig[];
+  t: ReturnType<typeof useT>;
+}) {
   const c = PALETTE[theme];
+  const { locale } = useI18n();
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {gigs.map((g) => {
@@ -387,9 +400,9 @@ function GigTable({ theme, gigs }: { theme: ThemeMode; gigs: Gig[] }) {
               </div>
               <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
                 {g.client ? `${g.client} · ` : ""}
-                {formatDayShort(g.startDate)}
+                {formatDayShort(g.startDate, locale)}
                 {g.endDate && g.endDate !== g.startDate
-                  ? ` → ${formatDayShort(g.endDate)}`
+                  ? ` → ${formatDayShort(g.endDate, locale)}`
                   : ""}
               </div>
             </div>
@@ -413,7 +426,7 @@ function GigTable({ theme, gigs }: { theme: ThemeMode; gigs: Gig[] }) {
                 color: sc.fg,
               }}
             >
-              {statusLabel(g.status)}
+              {statusLabelT(g.status, t)}
             </span>
           </div>
         );

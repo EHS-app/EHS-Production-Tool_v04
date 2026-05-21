@@ -2,15 +2,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PALETTE, type ThemeMode } from "../lib/portalTheme";
 import { type PortalData, type Profile as ProfileType } from "../lib/portalStorage";
 import { searchSkills } from "../lib/skillLibrary";
+import { useT } from "../../lib/i18n/I18nContext";
 
-const LANGUAGE_PRESETS = [
-  "Norwegian",
-  "English",
-  "Swedish",
-  "Danish",
-  "German",
-  "French",
-  "Spanish",
+const LANGUAGE_PRESETS: Array<{ value: string; key: "portal.profile.lang.no" | "portal.profile.lang.en" | "portal.profile.lang.sv" | "portal.profile.lang.da" | "portal.profile.lang.de" | "portal.profile.lang.fr" | "portal.profile.lang.es" }> = [
+  { value: "Norwegian", key: "portal.profile.lang.no" },
+  { value: "English", key: "portal.profile.lang.en" },
+  { value: "Swedish", key: "portal.profile.lang.sv" },
+  { value: "Danish", key: "portal.profile.lang.da" },
+  { value: "German", key: "portal.profile.lang.de" },
+  { value: "French", key: "portal.profile.lang.fr" },
+  { value: "Spanish", key: "portal.profile.lang.es" },
 ];
 
 export function Profile({
@@ -23,6 +24,7 @@ export function Profile({
   setData: React.Dispatch<React.SetStateAction<PortalData>>;
 }) {
   const c = PALETTE[theme];
+  const t = useT();
   const [draft, setDraft] = useState<ProfileType>(data.profile);
   const [savedFlash, setSavedFlash] = useState(false);
 
@@ -70,7 +72,7 @@ export function Profile({
         }}
       >
         <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, flex: 1 }}>
-          Profile
+          {t("portal.profile.title")}
         </h1>
         {savedFlash ? (
           <span
@@ -84,14 +86,14 @@ export function Profile({
               border: `1px solid ${c.border}`,
             }}
           >
-            ✓ Saved
+            {t("portal.profile.saved")}
           </span>
         ) : null}
       </header>
 
-      <Section theme={theme} title="Personal">
+      <Section theme={theme} title={t("portal.profile.section.personal")}>
         <Grid2>
-          <Field theme={theme} label="Full name">
+          <Field theme={theme} label={t("portal.profile.field.fullName")}>
             <input
               type="text"
               value={draft.fullName}
@@ -100,7 +102,7 @@ export function Profile({
               placeholder="Edvin Hoff Hasle"
             />
           </Field>
-          <Field theme={theme} label="Phone">
+          <Field theme={theme} label={t("portal.profile.field.phone")}>
             <input
               type="tel"
               value={draft.phone}
@@ -109,7 +111,7 @@ export function Profile({
               placeholder="+47 940 84 026"
             />
           </Field>
-          <Field theme={theme} label="Email">
+          <Field theme={theme} label={t("portal.profile.field.email")}>
             <input
               type="email"
               value={draft.email}
@@ -118,7 +120,7 @@ export function Profile({
               placeholder="navn@firma.no"
             />
           </Field>
-          <Field theme={theme} label="Primary role">
+          <Field theme={theme} label={t("portal.profile.field.primaryRole")}>
             <input
               type="text"
               value={draft.primaryRole}
@@ -130,33 +132,33 @@ export function Profile({
         </Grid2>
       </Section>
 
-      <Section theme={theme} title="Catering">
+      <Section theme={theme} title={t("portal.profile.section.catering")}>
         <p style={{ margin: 0, marginBottom: 10, fontSize: 13, color: c.muted, lineHeight: 1.5 }}>
-          Producers see this on the kitchen Order List. Keep dietary needs and allergens separate — allergens flag cross-contamination warnings, dietary needs drive meal counts.
+          {t("portal.profile.cateringHint")}
         </p>
         <Grid2>
-          <Field theme={theme} label="Dietary requirements">
+          <Field theme={theme} label={t("portal.profile.field.dietary")}>
             <input
               type="text"
               value={draft.dietary}
               onChange={(e) => patch("dietary", e.target.value)}
               style={inputStyle(theme)}
-              placeholder="None / Vegetarian / Vegan / Halal / Kosher"
+              placeholder={t("portal.profile.dietPh")}
             />
           </Field>
-          <Field theme={theme} label="Allergies">
+          <Field theme={theme} label={t("portal.profile.field.allergies")}>
             <input
               type="text"
               value={draft.allergies}
               onChange={(e) => patch("allergies", e.target.value)}
               style={inputStyle(theme)}
-              placeholder="Peanuts, shellfish, gluten…"
+              placeholder={t("portal.profile.allergiesPh")}
             />
           </Field>
         </Grid2>
       </Section>
 
-      <Section theme={theme} title="Travel & accommodation">
+      <Section theme={theme} title={t("portal.profile.section.travel")}>
         <p
           style={{
             margin: 0,
@@ -166,67 +168,63 @@ export function Profile({
             lineHeight: 1.5,
           }}
         >
-          Used only by the producer's hotel suggester when a project
-          needs accommodation. Twin = OK to share a twin room with
-          another crew member; Single = needs a private room. Gender is
-          optional and only used to default to same-gender twin pairings
-          (most crew prefer it, hotels expect it). Producers always have
-          the final say.
+          {t("portal.profile.travelHint")}
         </p>
         <Grid2>
-          <Field theme={theme} label="Room sharing">
+          <Field theme={theme} label={t("portal.profile.field.roomShare")}>
             <SegmentedControl
               theme={theme}
               value={draft.roomShare}
               onChange={(v) => patch("roomShare", v)}
               options={[
-                { value: "twin", label: "Twin (will share)" },
-                { value: "single", label: "Single (private)" },
-                { value: "either", label: "Either" },
+                { value: "twin", label: t("portal.profile.room.twin") },
+                { value: "single", label: t("portal.profile.room.single") },
+                { value: "either", label: t("portal.profile.room.either") },
               ]}
             />
           </Field>
-          <Field theme={theme} label="Gender (optional)">
+          <Field theme={theme} label={t("portal.profile.field.gender")}>
             <SegmentedControl
               theme={theme}
               value={draft.gender}
               onChange={(v) => patch("gender", v)}
               options={[
-                { value: "", label: "Prefer not to say" },
-                { value: "female", label: "Female" },
-                { value: "male", label: "Male" },
-                { value: "other", label: "Other" },
+                { value: "", label: t("portal.profile.gender.unset") },
+                { value: "female", label: t("portal.profile.gender.female") },
+                { value: "male", label: t("portal.profile.gender.male") },
+                { value: "other", label: t("portal.profile.gender.other") },
               ]}
             />
           </Field>
         </Grid2>
       </Section>
 
-      <Section theme={theme} title="Skills & equipment">
+      <Section theme={theme} title={t("portal.profile.section.skills")}>
         <p style={{ margin: 0, marginBottom: 10, fontSize: 13, color: c.muted, lineHeight: 1.5 }}>
-          Add the disciplines, consoles and certifications you can cover. Type to search the library or just hit Enter to add anything.
+          {t("portal.profile.skillsHint")}
         </p>
         <TagEditor
           theme={theme}
           tags={draft.skills}
           onChange={(tags) => patch("skills", tags)}
+          placeholder={t("portal.profile.skillsPlaceholder")}
         />
       </Section>
 
-      <Section theme={theme} title="Languages">
+      <Section theme={theme} title={t("portal.profile.section.languages")}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {LANGUAGE_PRESETS.map((l) => {
-            const active = draft.languages.includes(l);
+            const active = draft.languages.includes(l.value);
             return (
               <button
-                key={l}
+                key={l.value}
                 type="button"
                 onClick={() => {
                   patch(
                     "languages",
                     active
-                      ? draft.languages.filter((x) => x !== l)
-                      : [...draft.languages, l],
+                      ? draft.languages.filter((x) => x !== l.value)
+                      : [...draft.languages, l.value],
                   );
                 }}
                 style={{
@@ -240,15 +238,15 @@ export function Profile({
                   border: `1px solid ${active ? c.accent : c.border}`,
                 }}
               >
-                {l}
+                {t(l.key)}
               </button>
             );
           })}
         </div>
       </Section>
 
-      <Section theme={theme} title="Insurance">
-        <Field theme={theme} label="Insurance number / company">
+      <Section theme={theme} title={t("portal.profile.section.insurance")}>
+        <Field theme={theme} label={t("portal.profile.field.insurance")}>
           <textarea
             value={draft.insurance}
             onChange={(e) => patch("insurance", e.target.value)}
@@ -263,9 +261,9 @@ export function Profile({
         </Field>
       </Section>
 
-      <Section theme={theme} title="Invoicing details">
+      <Section theme={theme} title={t("portal.profile.section.invoicing")}>
         <Grid2>
-          <Field theme={theme} label="Bank account / IBAN">
+          <Field theme={theme} label={t("portal.profile.field.bank")}>
             <input
               type="text"
               value={draft.bankAccount}
@@ -274,7 +272,7 @@ export function Profile({
               placeholder="1234.56.78901"
             />
           </Field>
-          <Field theme={theme} label="Org. number">
+          <Field theme={theme} label={t("portal.profile.field.org")}>
             <input
               type="text"
               value={draft.orgNumber}
@@ -311,7 +309,7 @@ export function Profile({
               cursor: "pointer",
             }}
           >
-            Discard
+            {t("portal.profile.discard")}
           </button>
         ) : null}
         <button
@@ -331,7 +329,7 @@ export function Profile({
             boxShadow: dirty ? c.shadowSoft : "none",
           }}
         >
-          Save changes
+          {t("portal.profile.save")}
         </button>
       </div>
     </div>
@@ -342,12 +340,15 @@ function TagEditor({
   theme,
   tags,
   onChange,
+  placeholder,
 }: {
   theme: ThemeMode;
   tags: string[];
   onChange: (tags: string[]) => void;
+  placeholder: string;
 }) {
   const c = PALETTE[theme];
+  const tr = useT();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
 
@@ -394,7 +395,7 @@ function TagEditor({
               <button
                 type="button"
                 onClick={() => remove(t)}
-                aria-label={`Remove ${t}`}
+                aria-label={tr("portal.tag.remove").replace("{tag}", t)}
                 style={{
                   background: "transparent",
                   border: "none",
@@ -434,7 +435,7 @@ function TagEditor({
               remove(tags[tags.length - 1]);
             }
           }}
-          placeholder="Type to search or add a custom tag…"
+          placeholder={placeholder}
           style={inputStyle(theme)}
         />
         {open && suggestions.length > 0 ? (

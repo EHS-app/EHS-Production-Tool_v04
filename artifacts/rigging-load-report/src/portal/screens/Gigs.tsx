@@ -7,13 +7,17 @@ import {
   newGigId,
   statusColor,
   statusLabel,
+  statusLabelT,
   type Gig,
   type GigCheckIn,
   type GigStatus,
   type PortalData,
 } from "../lib/portalStorage";
+import { useI18n, useT } from "../../lib/i18n/I18nContext";
 import { downloadBriefIcs } from "../../lib/icalExport";
 import type { ProjectBrief } from "../../lib/projectBrief";
+
+type T = ReturnType<typeof useT>;
 
 /** Synthesize a tiny ProjectBrief from a manually-logged Gig so the
  *  shared iCal exporter can emit a single all-day VEVENT. Used when
@@ -98,10 +102,10 @@ function emptyGig(): Gig {
   };
 }
 
-function formatDayShort(iso: string): string {
+function formatDayShort(iso: string, locale?: string): string {
   if (!iso) return "—";
   const d = new Date(iso);
-  return d.toLocaleDateString("en-GB", {
+  return d.toLocaleDateString(locale === "no" ? "nb-NO" : "en-GB", {
     weekday: "short",
     day: "2-digit",
     month: "short",
@@ -123,7 +127,7 @@ function addIsoDay(iso: string): string {
  *  Spans crossing months render as "Mar 30 – Apr 2". Years are dropped
  *  inside the run because the gig card already shows the date row;
  *  this string is the *secondary* breakdown next to it. */
-function summariseAssignedDates(dates: string[]): string {
+function summariseAssignedDates(dates: string[], locale?: string): string {
   if (dates.length === 0) return "";
   // Group into contiguous runs.
   type Run = { from: string; to: string };
@@ -140,9 +144,10 @@ function summariseAssignedDates(dates: string[]): string {
   // both months when a run spans two ("Mar 30 – Apr 2"). Single days
   // render as "Mar 10". Within a same-month sequence of runs we drop
   // the leading month after the first ("Mar 10, 12, 14–16").
+  const dateLocale = locale === "no" ? "nb-NO" : "en-GB";
   const monthShort = (iso: string): string => {
     const d = new Date(`${iso}T00:00:00Z`);
-    return d.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" });
+    return d.toLocaleDateString(dateLocale, { month: "short", timeZone: "UTC" });
   };
   const day = (iso: string): string => iso.slice(8, 10).replace(/^0/, "");
   const parts: string[] = [];
@@ -190,6 +195,8 @@ export function Gigs({
   setData: React.Dispatch<React.SetStateAction<PortalData>>;
 }) {
   const c = PALETTE[theme];
+  const t = useT();
+  const { locale } = useI18n();
   const { isSignedIn, getToken } = useAuth();
   const [editing, setEditing] = useState<Gig | null>(null);
   const [filter, setFilter] = useState<GigStatus | "all">("all");
@@ -350,9 +357,7 @@ export function Gigs({
     setSyncError(null);
     const result = await syncSaveGig(stamped);
     if (!result.ok) {
-      setSyncError(
-        "Saved locally, but couldn't reach the server — please try editing again to retry.",
-      );
+      setSyncError(t("portal.gigs.err.save"));
     }
   }
 
@@ -402,7 +407,7 @@ export function Gigs({
         return next;
       });
       setSyncError(
-        "Couldn't delete the gig — please check your connection and try again.",
+        t("portal.gigs.err.delete"),
       );
     }
   }
@@ -438,7 +443,7 @@ export function Gigs({
         };
       });
       setSyncError(
-        "Couldn't update the status — please try again in a moment.",
+        t("portal.gigs.err.status"),
       );
     }
   }
@@ -490,7 +495,7 @@ export function Gigs({
         };
       });
       setSyncError(
-        "Couldn't save the check-in — please try again in a moment.",
+        t("portal.gigs.err.checkin"),
       );
     }
   }
@@ -516,7 +521,7 @@ export function Gigs({
         }}
       >
         <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, flex: 1 }}>
-          Gigs
+          {t("portal.gigs.title")}
         </h1>
         <button
           type="button"
@@ -532,7 +537,7 @@ export function Gigs({
             cursor: "pointer",
           }}
         >
-          + Log a gig
+          {t("portal.gigs.logGig")}
         </button>
       </header>
 
@@ -566,7 +571,7 @@ export function Gigs({
               padding: 0,
               lineHeight: 1,
             }}
-            aria-label="Dismiss"
+            aria-label={t("portal.common.dismiss")}
           >
             ×
           </button>
@@ -596,7 +601,7 @@ export function Gigs({
                 border: `1px solid ${active ? c.accent : c.border}`,
               }}
             >
-              {s === "all" ? "All" : statusLabel(s)} · {count}
+              {s === "all" ? t("portal.status.all") : statusLabelT(s, t)} · {count}
             </button>
           );
         })}
@@ -617,14 +622,14 @@ export function Gigs({
           {data.gigs.length === 0 ? (
             <>
               <div style={{ fontSize: 16, fontWeight: 700, color: c.text, marginBottom: 6 }}>
-                No gigs logged yet
+                {t("portal.gigs.empty.title")}
               </div>
-              Tap <strong>Log a gig</strong> to add your first one.
+              {t("portal.gigs.empty.tapLine")}
               <br />
-              Each gig flows through Invited → Confirmed → Done → Invoiced → Paid.
+              {t("portal.gigs.empty.flowLine")}
             </>
           ) : (
-            "No gigs match this filter."
+            t("portal.gigs.noMatch")
           )}
         </div>
       ) : (
@@ -672,9 +677,9 @@ export function Gigs({
                     <div
                       style={{ fontSize: 13, color: c.muted, marginBottom: 6 }}
                     >
-                      {g.role || "—"} · {formatDayShort(g.startDate)}
+                      {g.role || "—"} · {formatDayShort(g.startDate, locale)}
                       {g.endDate && g.endDate !== g.startDate
-                        ? ` → ${formatDayShort(g.endDate)}`
+                        ? ` → ${formatDayShort(g.endDate, locale)}`
                         : ""}
                       {g.venue ? ` · ${g.venue}` : ""}
                     </div>
@@ -703,17 +708,19 @@ export function Gigs({
                             fontWeight: 600,
                           }}
                         >
-                          {g.assignedDates.length} working day
-                          {g.assignedDates.length === 1 ? "" : "s"}
+                          {g.assignedDates.length}{" "}
+                          {g.assignedDates.length === 1
+                            ? t("portal.gigs.workingDay")
+                            : t("portal.gigs.workingDays")}
                         </span>
-                        <span>{summariseAssignedDates(g.assignedDates)}</span>
+                        <span>{summariseAssignedDates(g.assignedDates, locale)}</span>
                       </div>
                     ) : null}
                     <div style={{ fontSize: 13, color: c.text }}>
                       <strong>{formatNok(gigEarnings(g))}</strong>
                       <span style={{ color: c.muted }}>
                         {g.flatFee > 0
-                          ? " · flat fee"
+                          ? ` · ${t("portal.gigs.flatFee")}`
                           : ` · ${g.hours}h × ${formatNok(g.rate)}`}
                       </span>
                     </div>
@@ -729,7 +736,7 @@ export function Gigs({
                     <button
                       type="button"
                       onClick={() => advanceStatus(g)}
-                      title="Tap to advance status"
+                      title={t("portal.gigs.advanceTitle")}
                       style={{
                         fontSize: 11,
                         fontWeight: 700,
@@ -741,7 +748,7 @@ export function Gigs({
                         cursor: "pointer",
                       }}
                     >
-                      {statusLabel(g.status)} →
+                      {statusLabelT(g.status, t)} →
                     </button>
                     <button
                       type="button"
@@ -757,7 +764,7 @@ export function Gigs({
                         cursor: "pointer",
                       }}
                     >
-                      Edit
+                      {t("portal.gigs.edit")}
                     </button>
                   </div>
                 </div>
@@ -778,13 +785,15 @@ export function Gigs({
                       theme={theme}
                       gig={g}
                       onSet={(field, value) => setCheckIn(g, field, value)}
+                      t={t}
+                      locale={locale}
                     />
                   ) : null}
                   <div style={{ flex: 1 }} />
                   <button
                     type="button"
                     onClick={() => exportGigToCalendar(g)}
-                    title="Download an .ics file you can open in your calendar app"
+                    title={t("portal.gigs.calendarTitle")}
                     style={{
                       fontSize: 12,
                       fontWeight: 700,
@@ -799,7 +808,7 @@ export function Gigs({
                       gap: 6,
                     }}
                   >
-                    <span aria-hidden>📅</span> Add to calendar
+                    <span aria-hidden>📅</span> {t("portal.gigs.addToCalendar")}
                   </button>
                 </div>
               </div>
@@ -816,6 +825,7 @@ export function Gigs({
           onCancel={() => setEditing(null)}
           onDelete={() => deleteGig(editing.id)}
           isNew={!data.gigs.some((g) => g.id === editing.id)}
+          t={t}
         />
       ) : null}
     </div>
@@ -829,6 +839,7 @@ function GigEditor({
   onCancel,
   onDelete,
   isNew,
+  t,
 }: {
   theme: ThemeMode;
   gig: Gig;
@@ -836,6 +847,7 @@ function GigEditor({
   onCancel: () => void;
   onDelete: () => void;
   isNew: boolean;
+  t: T;
 }) {
   const c = PALETTE[theme];
   const [draft, setDraft] = useState<Gig>(gig);
@@ -890,12 +902,12 @@ function GigEditor({
           }}
         >
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, flex: 1 }}>
-            {isNew ? "Log a gig" : "Edit gig"}
+            {isNew ? t("portal.gigs.editor.titleNew") : t("portal.gigs.editor.titleEdit")}
           </h2>
           <button
             type="button"
             onClick={onCancel}
-            aria-label="Close"
+            aria-label={t("portal.gigs.editor.close")}
             style={{
               background: "transparent",
               border: `1px solid ${c.border}`,
@@ -911,7 +923,7 @@ function GigEditor({
         </div>
 
         <div style={{ display: "grid", gap: 12 }}>
-          <Field theme={theme} label="Project name *">
+          <Field theme={theme} label={t("portal.gigs.editor.projectName")}>
             <input
               type="text"
               value={draft.projectName}
@@ -923,7 +935,7 @@ function GigEditor({
           </Field>
 
           <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
-            <Field theme={theme} label="Client">
+            <Field theme={theme} label={t("portal.gigs.editor.client")}>
               <input
                 type="text"
                 value={draft.client}
@@ -932,7 +944,7 @@ function GigEditor({
                 style={inputStyle(theme)}
               />
             </Field>
-            <Field theme={theme} label="Role">
+            <Field theme={theme} label={t("portal.gigs.editor.role")}>
               <input
                 type="text"
                 value={draft.role}
@@ -943,7 +955,7 @@ function GigEditor({
             </Field>
           </div>
 
-          <Field theme={theme} label="Venue">
+          <Field theme={theme} label={t("portal.gigs.editor.venue")}>
             <input
               type="text"
               value={draft.venue}
@@ -954,7 +966,7 @@ function GigEditor({
           </Field>
 
           <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
-            <Field theme={theme} label="Start date *">
+            <Field theme={theme} label={t("portal.gigs.editor.startDate")}>
               <input
                 type="date"
                 value={draft.startDate}
@@ -962,7 +974,7 @@ function GigEditor({
                 style={inputStyle(theme)}
               />
             </Field>
-            <Field theme={theme} label="End date">
+            <Field theme={theme} label={t("portal.gigs.editor.endDate")}>
               <input
                 type="date"
                 value={draft.endDate}
@@ -979,10 +991,11 @@ function GigEditor({
             endDate={draft.endDate}
             assignedDates={draft.assignedDates}
             onChange={(next) => patch("assignedDates", next)}
+            t={t}
           />
 
           <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr 1fr" }}>
-            <Field theme={theme} label="Hours">
+            <Field theme={theme} label={t("portal.gigs.editor.hours")}>
               <input
                 type="number"
                 inputMode="decimal"
@@ -993,7 +1006,7 @@ function GigEditor({
                 style={inputStyle(theme)}
               />
             </Field>
-            <Field theme={theme} label="Rate (kr/h)">
+            <Field theme={theme} label={t("portal.gigs.editor.rate")}>
               <input
                 type="number"
                 inputMode="decimal"
@@ -1004,7 +1017,7 @@ function GigEditor({
                 style={inputStyle(theme)}
               />
             </Field>
-            <Field theme={theme} label="Flat fee (kr)">
+            <Field theme={theme} label={t("portal.gigs.editor.flatFee")}>
               <input
                 type="number"
                 inputMode="decimal"
@@ -1012,13 +1025,13 @@ function GigEditor({
                 min="0"
                 value={draft.flatFee || ""}
                 onChange={(e) => patch("flatFee", num(e.target.value))}
-                placeholder="overrides h×rate"
+                placeholder={t("portal.gigs.editor.flatFeePh")}
                 style={inputStyle(theme)}
               />
             </Field>
           </div>
 
-          <Field theme={theme} label="Status">
+          <Field theme={theme} label={t("portal.gigs.editor.status")}>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {STATUS_ORDER.map((s) => {
                 const sc = statusColor(s);
@@ -1039,19 +1052,19 @@ function GigEditor({
                       border: `1px solid ${active ? sc.fg : c.border}`,
                     }}
                   >
-                    {statusLabel(s)}
+                    {statusLabelT(s, t)}
                   </button>
                 );
               })}
             </div>
           </Field>
 
-          <Field theme={theme} label="Notes">
+          <Field theme={theme} label={t("portal.gigs.editor.notes")}>
             <textarea
               value={draft.notes}
               onChange={(e) => patch("notes", e.target.value)}
               rows={3}
-              placeholder="Anything to remember about this gig…"
+              placeholder={t("portal.gigs.editor.notesPh")}
               style={{
                 ...inputStyle(theme),
                 resize: "vertical",
@@ -1086,7 +1099,7 @@ function GigEditor({
                 opacity: valid ? 1 : 0.7,
               }}
             >
-              Save gig
+              {t("portal.gigs.editor.save")}
             </button>
             {!isNew ? (
               <button
@@ -1103,7 +1116,7 @@ function GigEditor({
                   cursor: "pointer",
                 }}
               >
-                Delete
+                {t("portal.gigs.editor.delete")}
               </button>
             ) : null}
           </div>
@@ -1113,9 +1126,9 @@ function GigEditor({
   );
 }
 
-function formatCheckInTime(ms: number): string {
+function formatCheckInTime(ms: number, locale?: string): string {
   const d = new Date(ms);
-  return d.toLocaleString("en-GB", {
+  return d.toLocaleString(locale === "no" ? "nb-NO" : "en-GB", {
     weekday: "short",
     hour: "2-digit",
     minute: "2-digit",
@@ -1126,6 +1139,8 @@ function CheckInControls({
   theme,
   gig,
   onSet,
+  t,
+  locale,
 }: {
   theme: ThemeMode;
   gig: Gig;
@@ -1133,6 +1148,8 @@ function CheckInControls({
     field: "onTheWayAt" | "arrivedAt",
     value: number | undefined,
   ) => void;
+  t: T;
+  locale: string;
 }) {
   const c = PALETTE[theme];
   const onTheWay = gig.checkIn?.onTheWayAt;
@@ -1150,7 +1167,7 @@ function CheckInControls({
         <button
           type="button"
           onClick={() => onSet("onTheWayAt", undefined)}
-          title={`Tap to clear · ${new Date(onTheWay).toLocaleString()}`}
+          title={`${t("portal.gigs.checkin.clearHint")} · ${new Date(onTheWay).toLocaleString()}`}
           style={{
             ...baseBtn,
             background: "rgba(99,102,241,0.18)",
@@ -1158,7 +1175,7 @@ function CheckInControls({
             border: "1px solid #6366f1",
           }}
         >
-          ✓ On the way · {formatCheckInTime(onTheWay)}
+          ✓ {t("portal.gigs.checkin.onTheWay")} · {formatCheckInTime(onTheWay, locale)}
         </button>
       ) : (
         <button
@@ -1171,14 +1188,14 @@ function CheckInControls({
             border: `1px solid ${c.border}`,
           }}
         >
-          On the way
+          {t("portal.gigs.checkin.onTheWay")}
         </button>
       )}
       {arrived ? (
         <button
           type="button"
           onClick={() => onSet("arrivedAt", undefined)}
-          title={`Tap to clear · ${new Date(arrived).toLocaleString()}`}
+          title={`${t("portal.gigs.checkin.clearHint")} · ${new Date(arrived).toLocaleString()}`}
           style={{
             ...baseBtn,
             background: "rgba(22,163,74,0.18)",
@@ -1186,7 +1203,7 @@ function CheckInControls({
             border: `1px solid ${c.success}`,
           }}
         >
-          ✓ Arrived · {formatCheckInTime(arrived)}
+          ✓ {t("portal.gigs.checkin.arrived")} · {formatCheckInTime(arrived, locale)}
         </button>
       ) : (
         <button
@@ -1199,7 +1216,7 @@ function CheckInControls({
             border: `1px solid ${c.border}`,
           }}
         >
-          Arrived
+          {t("portal.gigs.checkin.arrived")}
         </button>
       )}
     </div>
@@ -1224,13 +1241,16 @@ function WorkingDaysEditor({
   endDate,
   assignedDates,
   onChange,
+  t,
 }: {
   theme: ThemeMode;
   startDate: string;
   endDate: string;
   assignedDates: string[];
   onChange: (next: string[]) => void;
+  t: T;
 }) {
+  const { locale } = useI18n();
   const c = PALETTE[theme];
   const ISO = /^\d{4}-\d{2}-\d{2}$/;
   // Strict ISO check — shape *and* round-trip via the Date parser to
@@ -1337,11 +1357,15 @@ function WorkingDaysEditor({
             letterSpacing: 0.4,
           }}
         >
-          Working days
+          {t("portal.gigs.workingDays.title")}
         </span>
         <span style={{ fontSize: 12, color: c.muted }}>
-          {selectedVisible} of {total} selected
-          {hiddenCount > 0 ? ` · +${hiddenCount} preserved` : ""}
+          {t("portal.gigs.workingDays.summary")
+            .replace("{sel}", String(selectedVisible))
+            .replace("{total}", String(total))}
+          {hiddenCount > 0
+            ? ` · ${t("portal.gigs.workingDays.preserved").replace("{n}", String(hiddenCount))}`
+            : ""}
         </span>
         <button
           type="button"
@@ -1357,7 +1381,7 @@ function WorkingDaysEditor({
             cursor: "pointer",
           }}
         >
-          {allOn ? "Clear all" : "Select all"}
+          {allOn ? t("portal.gigs.workingDays.clearAll") : t("portal.gigs.workingDays.selectAll")}
         </button>
       </div>
       <div
@@ -1374,11 +1398,12 @@ function WorkingDaysEditor({
         {days.map((iso) => {
           const isOn = checked.has(iso);
           const d = new Date(`${iso}T00:00:00Z`);
-          const dow = d.toLocaleDateString("en-GB", {
+          const dateLocale = locale === "no" ? "nb-NO" : "en-GB";
+          const dow = d.toLocaleDateString(dateLocale, {
             weekday: "short",
             timeZone: "UTC",
           });
-          const dm = d.toLocaleDateString("en-GB", {
+          const dm = d.toLocaleDateString(dateLocale, {
             day: "2-digit",
             month: "short",
             timeZone: "UTC",

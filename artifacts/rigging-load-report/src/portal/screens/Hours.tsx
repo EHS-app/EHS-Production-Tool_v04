@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { PALETTE, type ThemeMode } from "../lib/portalTheme";
 import type { Gig, PortalData } from "../lib/portalStorage";
+import { useI18n, useT } from "../../lib/i18n/I18nContext";
+
+type T = ReturnType<typeof useT>;
 
 type TimeEntryStatus =
   | "draft"
@@ -66,10 +69,10 @@ function computeHours(d: Draft): number {
   return Math.round((net / 60) * 100) / 100;
 }
 
-function fmtDate(iso: string): string {
+function fmtDate(iso: string, locale: string): string {
   if (!iso) return "—";
   const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("en-GB", {
+  return d.toLocaleDateString(locale === "no" ? "nb-NO" : "en-GB", {
     weekday: "short",
     day: "2-digit",
     month: "short",
@@ -79,18 +82,19 @@ function fmtDate(iso: string): string {
 function statusPill(
   status: TimeEntryStatus,
   c: (typeof PALETTE)[ThemeMode],
+  t: T,
 ): { bg: string; fg: string; label: string } {
   switch (status) {
     case "submitted":
-      return { bg: "rgba(34,108,255,0.18)", fg: "#3a86ff", label: "Submitted" };
+      return { bg: "rgba(34,108,255,0.18)", fg: "#3a86ff", label: t("portal.hours.statusPill.submitted") };
     case "approved":
-      return { bg: "rgba(46,160,67,0.18)", fg: "#2ea043", label: "Approved" };
+      return { bg: "rgba(46,160,67,0.18)", fg: "#2ea043", label: t("portal.hours.statusPill.approved") };
     case "rejected":
-      return { bg: "rgba(239,68,68,0.18)", fg: "#ef4444", label: "Rejected" };
+      return { bg: "rgba(239,68,68,0.18)", fg: "#ef4444", label: t("portal.hours.statusPill.rejected") };
     case "locked":
-      return { bg: "rgba(120,120,120,0.22)", fg: c.muted, label: "Locked" };
+      return { bg: "rgba(120,120,120,0.22)", fg: c.muted, label: t("portal.hours.statusPill.locked") };
     default:
-      return { bg: c.cardBgSubtle, fg: c.muted, label: "Draft" };
+      return { bg: c.cardBgSubtle, fg: c.muted, label: t("portal.hours.statusPill.draft") };
   }
 }
 
@@ -102,6 +106,8 @@ export function Hours({
   data: PortalData;
 }) {
   const c = PALETTE[theme];
+  const t = useT();
+  const { locale } = useI18n();
   const { getToken } = useAuth();
 
   // Only working gigs surface here. Invoiced/paid history isn't editable.
@@ -207,7 +213,7 @@ export function Hours({
         error?: string;
       };
       if (!res.ok || !json.ok || !json.entry) {
-        setErrorMsg(json.error ?? "Save failed");
+        setErrorMsg(json.error ?? t("portal.hours.saveFailed"));
         return false;
       }
       setEntriesByGig((prev) => ({
@@ -222,7 +228,7 @@ export function Hours({
       });
       return true;
     } catch {
-      setErrorMsg("Network error while saving");
+      setErrorMsg(t("portal.hours.netSave"));
       return false;
     } finally {
       setSavingKey(null);
@@ -252,7 +258,7 @@ export function Hours({
         error?: string;
       };
       if (!res.ok || !json.ok || !json.entry) {
-        setErrorMsg(json.error ?? "Submit failed");
+        setErrorMsg(json.error ?? t("portal.hours.submitFailed"));
         return;
       }
       setEntriesByGig((prev) => ({
@@ -260,7 +266,7 @@ export function Hours({
         [gigId]: { ...(prev[gigId] ?? {}), [workDate]: json.entry! },
       }));
     } catch {
-      setErrorMsg("Network error while submitting");
+      setErrorMsg(t("portal.hours.netSubmit"));
     } finally {
       setSavingKey(null);
     }
@@ -277,11 +283,10 @@ export function Hours({
         }}
       >
         <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, flex: 1 }}>
-          Hours
+          {t("portal.hours.title")}
         </h1>
         <span style={{ color: c.muted, fontSize: 13 }}>
-          Log start, end and break for each working day, then submit for the
-          producer to approve.
+          {t("portal.hours.intro")}
         </span>
       </header>
 
@@ -311,8 +316,7 @@ export function Hours({
             borderRadius: 12,
           }}
         >
-          No active gigs with working days yet. Accept a brief and the days you
-          worked will appear here.
+          {t("portal.hours.empty")}
         </div>
       ) : (
         eligibleGigs.map((g) => (
@@ -326,6 +330,8 @@ export function Hours({
             saveDraft={(date) => saveDraft(g.id, date)}
             submitDay={(date) => submitDay(g.id, date)}
             savingKey={savingKey}
+            t={t}
+            locale={locale}
           />
         ))
       )}
@@ -342,6 +348,8 @@ function GigBlock({
   saveDraft,
   submitDay,
   savingKey,
+  t,
+  locale,
 }: {
   theme: ThemeMode;
   gig: Gig;
@@ -351,6 +359,8 @@ function GigBlock({
   saveDraft: (workDate: string) => Promise<boolean>;
   submitDay: (workDate: string) => void;
   savingKey: string | null;
+  t: T;
+  locale: string;
 }) {
   const c = PALETTE[theme];
 
@@ -394,7 +404,7 @@ function GigBlock({
         }}
       >
         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, flex: 1 }}>
-          {gig.projectName || "Untitled project"}
+          {gig.projectName || t("portal.hours.untitledProject")}
         </h2>
         <span style={{ fontSize: 12, color: c.muted }}>
           {gig.role}
@@ -411,7 +421,7 @@ function GigBlock({
             borderRadius: 999,
           }}
         >
-          {totalSubmitted}h logged
+          {t("portal.hours.totalLogged").replace("{n}", String(totalSubmitted))}
         </span>
       </header>
 
@@ -420,7 +430,7 @@ function GigBlock({
           const row = entries[date];
           const status: TimeEntryStatus = row?.status ?? "draft";
           const editable = status === "draft" || status === "rejected";
-          const pill = statusPill(status, c);
+          const pill = statusPill(status, c, t);
           const d = draftFor(date);
           const computedH = computeHours(d);
           const isSaving = savingKey?.startsWith(`${gig.id}|${date}|`);
@@ -442,7 +452,7 @@ function GigBlock({
             >
               <div style={{ minWidth: 110 }}>
                 <div style={{ fontSize: 13, fontWeight: 700 }}>
-                  {fmtDate(date)}
+                  {fmtDate(date, locale)}
                 </div>
                 <div style={{ fontSize: 11, color: c.muted, marginTop: 1 }}>
                   {date}
@@ -453,21 +463,21 @@ function GigBlock({
                 value={d.start}
                 disabled={!editable}
                 onChange={(v) => patchDraft(date, { start: v })}
-                placeholder="Start"
+                placeholder={t("portal.hours.start")}
               />
               <TimeField
                 theme={theme}
                 value={d.end}
                 disabled={!editable}
                 onChange={(v) => patchDraft(date, { end: v })}
-                placeholder="End"
+                placeholder={t("portal.hours.end")}
               />
               <NumField
                 theme={theme}
                 value={d.breakMinutes}
                 disabled={!editable}
                 onChange={(v) => patchDraft(date, { breakMinutes: v })}
-                label="min break"
+                label={t("portal.hours.minBreak")}
               />
               <span
                 style={{
@@ -510,7 +520,7 @@ function GigBlock({
                       cursor: isSaving ? "not-allowed" : "pointer",
                     }}
                   >
-                    Save
+                    {t("portal.hours.save")}
                   </button>
                   <button
                     type="button"
@@ -542,16 +552,16 @@ function GigBlock({
                           : 1,
                     }}
                   >
-                    Submit
+                    {t("portal.hours.submit")}
                   </button>
                 </div>
               ) : (
                 <span style={{ fontSize: 11, color: c.muted, minWidth: 110 }}>
                   {status === "approved"
-                    ? "Approved by producer"
+                    ? t("portal.hours.approvedBy")
                     : status === "locked"
-                      ? "Locked for payroll"
-                      : "Awaiting decision"}
+                      ? t("portal.hours.lockedPayroll")
+                      : t("portal.hours.awaiting")}
                 </span>
               )}
             </div>

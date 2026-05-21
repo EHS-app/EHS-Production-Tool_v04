@@ -491,6 +491,33 @@ export function statusLabel(s: GigStatus): string {
   }
 }
 
+/** Localized status label. Pass a `t` from `useT()` to get the
+ *  current-locale rendering. The `statusLabel` above is kept for the
+ *  CSV exporter (which writes raw, locale-independent values for
+ *  bookkeeping spreadsheets). */
+export function statusLabelT(
+  s: GigStatus,
+  t: (key:
+    | "portal.status.invited"
+    | "portal.status.confirmed"
+    | "portal.status.done"
+    | "portal.status.invoiced"
+    | "portal.status.paid") => string,
+): string {
+  switch (s) {
+    case "invited":
+      return t("portal.status.invited");
+    case "confirmed":
+      return t("portal.status.confirmed");
+    case "done":
+      return t("portal.status.done");
+    case "invoiced":
+      return t("portal.status.invoiced");
+    case "paid":
+      return t("portal.status.paid");
+  }
+}
+
 export function statusColor(s: GigStatus): { bg: string; fg: string } {
   switch (s) {
     case "invited":

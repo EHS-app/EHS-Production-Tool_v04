@@ -4,8 +4,17 @@ import {
   type AvailabilityState,
   type PortalData,
 } from "../lib/portalStorage";
+import { useI18n, useT } from "../../lib/i18n/I18nContext";
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const WEEKDAY_KEYS = [
+  "portal.availability.weekday.mon",
+  "portal.availability.weekday.tue",
+  "portal.availability.weekday.wed",
+  "portal.availability.weekday.thu",
+  "portal.availability.weekday.fri",
+  "portal.availability.weekday.sat",
+  "portal.availability.weekday.sun",
+] as const;
 
 function isoFor(year: number, month: number, day: number): string {
   const d = new Date(year, month, day);
@@ -59,6 +68,8 @@ export function Availability({
   setData: React.Dispatch<React.SetStateAction<PortalData>>;
 }) {
   const c = PALETTE[theme];
+  const t = useT();
+  const { locale } = useI18n();
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -124,10 +135,10 @@ export function Availability({
     });
   }
 
-  const monthName = new Date(viewYear, viewMonth, 1).toLocaleString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
+  const monthName = new Date(viewYear, viewMonth, 1).toLocaleString(
+    locale === "no" ? "nb-NO" : "en-GB",
+    { month: "long", year: "numeric" },
+  );
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -140,7 +151,7 @@ export function Availability({
         }}
       >
         <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, flex: 1 }}>
-          Availability
+          {t("portal.availability.title")}
         </h1>
       </header>
 
@@ -157,11 +168,15 @@ export function Availability({
         }}
       >
         <span style={{ fontSize: 13, fontWeight: 700, color: c.muted }}>
-          Painting:
+          {t("portal.availability.painting")}
         </span>
         {(["available", "busy"] as AvailabilityState[]).map((m) => {
           const active = paintMode === m;
           const accent = m === "available" ? c.success : c.danger;
+          const label =
+            m === "available"
+              ? t("portal.availability.available")
+              : t("portal.availability.busy");
           return (
             <button
               key={m}
@@ -176,16 +191,15 @@ export function Availability({
                 background: active ? accent : "transparent",
                 color: active ? "#0b0b0b" : c.text,
                 border: `1px solid ${active ? accent : c.border}`,
-                textTransform: "capitalize",
               }}
             >
-              {m}
+              {label}
             </button>
           );
         })}
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: 12, color: c.muted }}>
-          Tap a day to mark · tap again to clear
+          {t("portal.availability.tapHint")}
         </span>
       </div>
 
@@ -209,7 +223,7 @@ export function Availability({
           <button
             type="button"
             onClick={() => shiftMonth(-1)}
-            aria-label="Previous month"
+            aria-label={t("portal.availability.prevMonth")}
             style={navBtnStyle(theme)}
           >
             ‹
@@ -220,7 +234,7 @@ export function Availability({
           <button
             type="button"
             onClick={() => shiftMonth(+1)}
-            aria-label="Next month"
+            aria-label={t("portal.availability.nextMonth")}
             style={navBtnStyle(theme)}
           >
             ›
@@ -235,9 +249,9 @@ export function Availability({
             marginBottom: 4,
           }}
         >
-          {WEEKDAYS.map((w) => (
+          {WEEKDAY_KEYS.map((wk) => (
             <div
-              key={w}
+              key={wk}
               style={{
                 fontSize: 11,
                 fontWeight: 700,
@@ -247,7 +261,7 @@ export function Availability({
                 textTransform: "uppercase",
               }}
             >
-              {w}
+              {t(wk)}
             </div>
           ))}
         </div>
@@ -282,7 +296,7 @@ export function Availability({
                 onClick={() => toggleCell(cell.iso!)}
                 title={
                   conflictWithBusy
-                    ? "Available marked but a gig is logged on this date"
+                    ? t("portal.availability.conflictTooltip")
                     : undefined
                 }
                 style={{
@@ -314,7 +328,7 @@ export function Availability({
                       fontSize: 10,
                       color: "#dc2626",
                     }}
-                    title="Conflict"
+                    title={t("portal.availability.conflictShort")}
                   >
                     ⚠
                   </span>
@@ -338,28 +352,30 @@ export function Availability({
             onClick={() => fillMonth("available")}
             style={pillBtn(theme, c.success)}
           >
-            All available
+            {t("portal.availability.allAvailable")}
           </button>
           <button
             type="button"
             onClick={() => fillMonth("busy")}
             style={pillBtn(theme, c.danger)}
           >
-            All busy
+            {t("portal.availability.allBusy")}
           </button>
           <button
             type="button"
             onClick={() => fillRemaining(paintMode)}
             style={pillBtn(theme, c.accent)}
           >
-            From today → {paintMode}
+            {paintMode === "available"
+              ? t("portal.availability.fromTodayAvailable")
+              : t("portal.availability.fromTodayBusy")}
           </button>
           <button
             type="button"
             onClick={() => fillMonth(null)}
             style={pillBtn(theme, c.muted)}
           >
-            Clear month
+            {t("portal.availability.clearMonth")}
           </button>
         </div>
       </div>
@@ -374,10 +390,18 @@ export function Availability({
           color: c.muted,
         }}
       >
-        <LegendDot color={c.success} label="Available" />
-        <LegendDot color={c.danger} label="Busy" />
-        <LegendDot color={c.cardBgSubtle} label="Not set" border={c.border} />
-        <LegendDot color="#dc2626" label="⚠ Gig conflict" plain />
+        <LegendDot color={c.success} label={t("portal.availability.available")} />
+        <LegendDot color={c.danger} label={t("portal.availability.busy")} />
+        <LegendDot
+          color={c.cardBgSubtle}
+          label={t("portal.availability.notSet")}
+          border={c.border}
+        />
+        <LegendDot
+          color="#dc2626"
+          label={t("portal.availability.gigConflict")}
+          plain
+        />
       </div>
     </div>
   );

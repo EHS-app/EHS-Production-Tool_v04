@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@clerk/react";
 import { PALETTE, type ThemeMode } from "../lib/portalTheme";
 import { type PortalData, type Profile as ProfileType } from "../lib/portalStorage";
 import { searchSkills } from "../lib/skillLibrary";
@@ -25,8 +26,11 @@ export function Profile({
 }) {
   const c = PALETTE[theme];
   const t = useT();
+  const { getToken } = useAuth();
   const [draft, setDraft] = useState<ProfileType>(data.profile);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const dirty = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(data.profile),
@@ -55,10 +59,58 @@ export function Profile({
     setDraft((d) => ({ ...d, [key]: value }));
   }
 
-  function save() {
-    setData((prev) => ({ ...prev, profile: draft }));
-    setSavedFlash(true);
-    setTimeout(() => setSavedFlash(false), 1800);
+  async function save() {
+    if (saving) return;
+    setSaving(true);
+    setSaveError(null);
+    // We commit `draft` to local state only after the PUT succeeds.
+    // Committing optimistically would set `dirty=false` and disable
+    // the Save button — leaving the user no way to retry a failed
+    // save without making another edit first.
+    const baseUrl =
+      (typeof import.meta !== "undefined" &&
+        (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+      "/";
+    try {
+      const token = await getToken();
+      const res = await fetch(`${baseUrl}api/portal/profile/me`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          fullName: draft.fullName,
+          phone: draft.phone,
+          email: draft.email,
+          primaryRole: draft.primaryRole,
+          insurance: draft.insurance,
+          languages: draft.languages,
+          dietaryRequirements: draft.dietary,
+          allergies: draft.allergies,
+          skills: draft.skills,
+          bankAccount: draft.bankAccount,
+          orgNumber: draft.orgNumber,
+          roomShare: draft.roomShare,
+          gender: draft.gender,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      // Commit to local state only on success so the button only
+      // returns to its non-dirty resting state when the server
+      // confirmed the write.
+      setData((prev) => ({ ...prev, profile: draft }));
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 1800);
+    } catch (err) {
+      setSaveError(
+        err instanceof Error ? err.message : t("portal.profile.saveError"),
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -87,6 +139,21 @@ export function Profile({
             }}
           >
             {t("portal.profile.saved")}
+          </span>
+        ) : null}
+        {saveError ? (
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: "#b42318",
+              padding: "6px 10px",
+              borderRadius: 8,
+              background: "rgba(180, 35, 24, 0.10)",
+              border: "1px solid rgba(180, 35, 24, 0.35)",
+            }}
+          >
+            {t("portal.profile.saveError")}
           </span>
         ) : null}
       </header>

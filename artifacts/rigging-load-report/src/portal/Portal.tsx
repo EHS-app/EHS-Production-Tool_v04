@@ -176,6 +176,92 @@ export function Portal({ theme, pref, setPref }: PortalProps) {
     });
   }, [user]);
 
+  // Hydrate the freelancer's profile from the server on sign-in. The
+  // server row is the source of truth across devices — without this
+  // fetch, a returning user on a fresh browser sees their previous
+  // saves disappear (only localStorage had them). To avoid clobbering
+  // an in-flight local edit (a slow hydration arriving after the user
+  // typed/saved), we snapshot the local profile before the request and
+  // only merge if the local profile is still equal to that snapshot
+  // when the response lands.
+  useEffect(() => {
+    if (!isSignedIn || !userId) return;
+    let cancelled = false;
+    const baseUrl =
+      (typeof import.meta !== "undefined" &&
+        (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+      "/";
+    // Capture the local profile at the moment the fetch starts so we
+    // can detect "user edited or saved during the request" later.
+    const localSnapshot = JSON.stringify(data.profile);
+    const fetchProfile = async () => {
+      try {
+        const token = await getToken();
+        if (cancelled) return;
+        const res = await fetch(`${baseUrl}api/portal/profile/me`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (cancelled || !res.ok) return;
+        const json = (await res.json()) as {
+          ok?: boolean;
+          profile?: ServerProfileRow | null;
+        };
+        if (cancelled || !json.ok || !json.profile) return;
+        const sp = json.profile;
+        setData((prev) => {
+          // If the user changed the profile while the GET was in
+          // flight, the local edits win — never overwrite fresher
+          // local state with a stale server snapshot.
+          if (JSON.stringify(prev.profile) !== localSnapshot) return prev;
+          return {
+          ...prev,
+          profile: {
+            fullName: typeof sp.fullName === "string" ? sp.fullName : prev.profile.fullName,
+            phone: typeof sp.phone === "string" ? sp.phone : prev.profile.phone,
+            email: typeof sp.email === "string" ? sp.email : prev.profile.email,
+            primaryRole:
+              typeof sp.primaryRole === "string" ? sp.primaryRole : prev.profile.primaryRole,
+            insurance:
+              typeof sp.insurance === "string" ? sp.insurance : prev.profile.insurance,
+            languages: Array.isArray(sp.languages)
+              ? sp.languages.filter((x): x is string => typeof x === "string")
+              : prev.profile.languages,
+            dietary:
+              typeof sp.dietaryRequirements === "string"
+                ? sp.dietaryRequirements
+                : typeof sp.dietary === "string"
+                ? sp.dietary
+                : prev.profile.dietary,
+            allergies:
+              typeof sp.allergies === "string" ? sp.allergies : prev.profile.allergies,
+            skills: Array.isArray(sp.skills)
+              ? sp.skills.filter((x): x is string => typeof x === "string")
+              : prev.profile.skills,
+            bankAccount:
+              typeof sp.bankAccount === "string" ? sp.bankAccount : prev.profile.bankAccount,
+            orgNumber:
+              typeof sp.orgNumber === "string" ? sp.orgNumber : prev.profile.orgNumber,
+            roomShare:
+              sp.roomShare === "twin" || sp.roomShare === "single" || sp.roomShare === "either"
+                ? sp.roomShare
+                : prev.profile.roomShare,
+            gender:
+              sp.gender === "female" || sp.gender === "male" || sp.gender === "other"
+                ? sp.gender
+                : "",
+          },
+          };
+        });
+      } catch {
+        /* swallow — local state remains usable; user can retry by saving */
+      }
+    };
+    void fetchProfile();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSignedIn, userId, getToken]);
+
   return (
     <PortalLayout
       theme={theme}
@@ -324,6 +410,27 @@ function isFresh(ts: number | undefined): boolean {
 /** Shape of a row returned by `GET /api/portal/gigs`. The endpoint
  *  returns gigs the caller can see in either role (their own gigs or
  *  gigs from briefs they own). The portal only consumes its own. */
+/** Shape of a row returned by `GET /api/portal/profile/me`. Mirrors the
+ *  server's `projectProfile` output. All string fields default to "" on
+ *  the server side; this client treats them as optional anyway because
+ *  legacy rows or schema drift shouldn't break hydration. */
+type ServerProfileRow = {
+  fullName?: unknown;
+  phone?: unknown;
+  email?: unknown;
+  primaryRole?: unknown;
+  insurance?: unknown;
+  languages?: unknown;
+  dietary?: unknown;
+  dietaryRequirements?: unknown;
+  allergies?: unknown;
+  skills?: unknown;
+  bankAccount?: unknown;
+  orgNumber?: unknown;
+  roomShare?: unknown;
+  gender?: unknown;
+};
+
 type ServerGigRow = {
   id: string;
   freelancerUserId: string;

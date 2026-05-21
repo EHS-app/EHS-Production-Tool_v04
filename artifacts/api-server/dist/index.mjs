@@ -76216,8 +76216,7 @@ function clampStr(raw, cap = MAX_TEXT) {
   return raw.trim().slice(0, cap);
 }
 function normaliseProfile(body) {
-  const primaryRoleRaw = clampStr(body.primaryRole);
-  const primaryRole = primaryRoleRaw && isValidSkill(primaryRoleRaw) ? primaryRoleRaw : "";
+  const primaryRole = clampStr(body.primaryRole);
   const dietary = clampStr(body.dietaryRequirements ?? body.dietary);
   const skills = sanitizeSkills(
     Array.isArray(body.skills) ? body.skills.filter((x) => typeof x === "string") : []

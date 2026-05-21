@@ -77,11 +77,15 @@ function clampStr(raw: unknown, cap: number = MAX_TEXT): string {
 function normaliseProfile(
   body: Record<string, unknown>,
 ): Omit<FreelancerProfileRow, "userId" | "createdAt" | "updatedAt"> {
-  const primaryRoleRaw = clampStr(body.primaryRole);
-  // Drop the primary role too if the client somehow sent something
-  // outside the strict list — keeps the directory clean.
-  const primaryRole =
-    primaryRoleRaw && isValidSkill(primaryRoleRaw) ? primaryRoleRaw : "";
+  // Primary role is free-text. The Profile UI ships a text input
+  // (placeholder "Lystekniker") and freelancers legitimately type
+  // localised role labels that don't appear in the strict skill
+  // library. Previously we silently dropped anything off-list, which
+  // surfaced to users as "info was not saved on the profile" — the
+  // field would reappear blank after every save. Accept any clamped
+  // string; the `skills` array remains library-validated so the
+  // producer's directory chips stay clean.
+  const primaryRole = clampStr(body.primaryRole);
   // Accept either the new `dietaryRequirements` field name (matches the
   // canonical schema language and the Profile UI label) or the legacy
   // `dietary` key for back-compat with older clients.

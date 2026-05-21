@@ -328,6 +328,30 @@ export function PortalLayout({
             >
               <Bell size={14} />
             </button>
+            <button
+              type="button"
+              className="ehs-shell-signout-btn"
+              onClick={() => {
+                try {
+                  sessionStorage.setItem("ehs-skip-dev-auto-signin", "1");
+                } catch {
+                  /* sessionStorage may be unavailable */
+                }
+                try {
+                  localStorage.removeItem("ehs-user-role");
+                } catch {
+                  /* localStorage may be unavailable */
+                }
+                void signOut();
+              }}
+              aria-label={t("portal.header.signOut")}
+              title={t("portal.header.signOut")}
+            >
+              <LogOut size={14} />
+              <span className="ehs-shell-signout-label">
+                {t("portal.header.signOut")}
+              </span>
+            </button>
           </div>
         </header>
 

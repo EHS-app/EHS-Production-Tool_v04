@@ -646,6 +646,7 @@ export const en = {
   // Portal — Profile screen
   "portal.profile.title": "Profile",
   "portal.profile.saved": "✓ Saved",
+  "portal.profile.saveError": "Couldn't save — please try again",
   "portal.profile.section.personal": "Personal",
   "portal.profile.section.catering": "Catering",
   "portal.profile.section.travel": "Travel & accommodation",

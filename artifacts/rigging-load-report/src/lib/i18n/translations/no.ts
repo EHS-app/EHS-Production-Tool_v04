@@ -665,6 +665,7 @@ export const no: Translations = {
   // Portal — Profile
   "portal.profile.title": "Profil",
   "portal.profile.saved": "✓ Lagret",
+  "portal.profile.saveError": "Kunne ikke lagre – prøv igjen",
   "portal.profile.section.personal": "Personlig",
   "portal.profile.section.catering": "Catering",
   "portal.profile.section.travel": "Reise & overnatting",

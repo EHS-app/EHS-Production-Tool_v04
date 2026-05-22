@@ -10,6 +10,7 @@ import portalGigsRouter from "./portalGigs";
 import portalTimeEntriesRouter from "./portalTimeEntries";
 import projectsRouter from "./projects";
 import inspectionExtractRouter from "./inspectionExtract";
+import adminRouter from "./admin";
 import { requireEmployee } from "../middleware/userType";
 
 const router: IRouter = Router();
@@ -27,6 +28,12 @@ router.use(requireEmployee, venueMemoryRouter);
 router.use(requireEmployee, storageRouter);
 router.use(requireEmployee, projectsRouter);
 router.use(requireEmployee, inspectionExtractRouter);
+
+// Admin tools — gated internally to @ehs.no callers via its own
+// `requireAdmin` middleware. Mounted outside `requireEmployee` so we
+// don't accidentally double-gate it, but the admin gate is strictly
+// tighter than the employee gate.
+router.use(adminRouter);
 
 // Portal surface — open to both freelancers (their own data) and
 // employees (producers reading freelancer data via the Crew Report).

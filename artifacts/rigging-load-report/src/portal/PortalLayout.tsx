@@ -274,13 +274,6 @@ export function PortalLayout({
                   </button>
                 ))}
                 <div className="ehs-shell-menu-sep" />
-                <Link
-                  href="/"
-                  className="ehs-shell-menu-item"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  {t("portal.header.productionTool")}
-                </Link>
                 <button
                   type="button"
                   role="menuitem"

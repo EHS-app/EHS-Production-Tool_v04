@@ -166,7 +166,7 @@ export function Profile({
               value={draft.fullName}
               onChange={(e) => patch("fullName", e.target.value)}
               style={inputStyle(theme)}
-              placeholder="Edvin Hoff Hasle"
+              placeholder=""
             />
           </Field>
           <Field theme={theme} label={t("portal.profile.field.phone")}>
@@ -175,7 +175,7 @@ export function Profile({
               value={draft.phone}
               onChange={(e) => patch("phone", e.target.value)}
               style={inputStyle(theme)}
-              placeholder="+47 940 84 026"
+              placeholder=""
             />
           </Field>
           <Field theme={theme} label={t("portal.profile.field.email")}>
@@ -184,7 +184,7 @@ export function Profile({
               value={draft.email}
               onChange={(e) => patch("email", e.target.value)}
               style={inputStyle(theme)}
-              placeholder="navn@firma.no"
+              placeholder=""
             />
           </Field>
           <Field theme={theme} label={t("portal.profile.field.primaryRole")}>
@@ -193,7 +193,7 @@ export function Profile({
               value={draft.primaryRole}
               onChange={(e) => patch("primaryRole", e.target.value)}
               style={inputStyle(theme)}
-              placeholder="Lystekniker"
+              placeholder=""
             />
           </Field>
         </Grid2>
@@ -323,7 +323,7 @@ export function Profile({
               resize: "vertical",
               fontFamily: "inherit",
             }}
-            placeholder="Gjensidige · 12345678"
+            placeholder=""
           />
         </Field>
       </Section>
@@ -336,7 +336,7 @@ export function Profile({
               value={draft.bankAccount}
               onChange={(e) => patch("bankAccount", e.target.value)}
               style={inputStyle(theme)}
-              placeholder="1234.56.78901"
+              placeholder=""
             />
           </Field>
           <Field theme={theme} label={t("portal.profile.field.org")}>
@@ -345,7 +345,7 @@ export function Profile({
               value={draft.orgNumber}
               onChange={(e) => patch("orgNumber", e.target.value)}
               style={inputStyle(theme)}
-              placeholder="999 999 999"
+              placeholder=""
             />
           </Field>
         </Grid2>

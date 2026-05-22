@@ -928,7 +928,7 @@ function GigEditor({
               type="text"
               value={draft.projectName}
               onChange={(e) => patch("projectName", e.target.value)}
-              placeholder="e.g. NRK MGP 2026"
+              placeholder=""
               style={inputStyle(theme)}
               autoFocus
             />
@@ -940,7 +940,7 @@ function GigEditor({
                 type="text"
                 value={draft.client}
                 onChange={(e) => patch("client", e.target.value)}
-                placeholder="NRK"
+                placeholder=""
                 style={inputStyle(theme)}
               />
             </Field>
@@ -949,7 +949,7 @@ function GigEditor({
                 type="text"
                 value={draft.role}
                 onChange={(e) => patch("role", e.target.value)}
-                placeholder="Lystekniker"
+                placeholder=""
                 style={inputStyle(theme)}
               />
             </Field>
@@ -960,7 +960,7 @@ function GigEditor({
               type="text"
               value={draft.venue}
               onChange={(e) => patch("venue", e.target.value)}
-              placeholder="Håkons Hall, Lillehammer"
+              placeholder=""
               style={inputStyle(theme)}
             />
           </Field>

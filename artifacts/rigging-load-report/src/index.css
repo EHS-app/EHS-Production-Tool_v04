@@ -9026,3 +9026,17 @@ html[data-shell="linear"] .container {
 [data-theme="dark"] .led-touring-pill-error { background: rgba(248,113,113,0.18); color: #fca5a5; }
 [data-theme="dark"] .led-touring-pill-warn  { background: rgba(251,191,36,0.18); color: #fde68a; }
 [data-theme="dark"] .led-touring-pill-ok    { background: rgba(52,211,153,0.18); color: #86efac; }
+
+/* LED System Designer — stack to a single column on narrow viewports
+   so the 320px Inspector column does not crush the canvas on mobile. */
+.led-system-designer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 12px;
+}
+@media (max-width: 820px) {
+  .led-system-designer-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

@@ -668,10 +668,8 @@ function DesignerInner({ system, onChange, screens, screenPixelsById }: Props) {
 
   return (
     <div
+      className="led-system-designer-grid"
       style={{
-        display: "grid",
-        gridTemplateColumns: "minmax(0,1fr) 320px",
-        gap: 12,
         background: "#1C1C24",
         border: "1px solid #2F2F3A",
         borderRadius: 12,

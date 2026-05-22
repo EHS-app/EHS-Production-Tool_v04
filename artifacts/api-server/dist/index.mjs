@@ -20485,27 +20485,27 @@ var require_router = __commonJS({
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module.exports = Router13;
+    module.exports = Router14;
     module.exports.Route = Route;
-    function Router13(options) {
-      if (!(this instanceof Router13)) {
-        return new Router13(options);
+    function Router14(options) {
+      if (!(this instanceof Router14)) {
+        return new Router14(options);
       }
       const opts = options || {};
-      function router13(req, res, next) {
-        router13.handle(req, res, next);
+      function router14(req, res, next) {
+        router14.handle(req, res, next);
       }
-      Object.setPrototypeOf(router13, this);
-      router13.caseSensitive = opts.caseSensitive;
-      router13.mergeParams = opts.mergeParams;
-      router13.params = {};
-      router13.strict = opts.strict;
-      router13.stack = [];
-      return router13;
+      Object.setPrototypeOf(router14, this);
+      router14.caseSensitive = opts.caseSensitive;
+      router14.mergeParams = opts.mergeParams;
+      router14.params = {};
+      router14.strict = opts.strict;
+      router14.stack = [];
+      return router14;
     }
-    Router13.prototype = function() {
+    Router14.prototype = function() {
     };
-    Router13.prototype.param = function param(name, fn) {
+    Router14.prototype.param = function param(name, fn) {
       if (!name) {
         throw new TypeError("argument name is required");
       }
@@ -20525,7 +20525,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router13.prototype.handle = function handle(req, res, callback) {
+    Router14.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -20652,7 +20652,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router13.prototype.use = function use(handler) {
+    Router14.prototype.use = function use(handler) {
       let offset = 0;
       let path2 = "/";
       if (typeof handler !== "function") {
@@ -20685,7 +20685,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router13.prototype.route = function route(path2) {
+    Router14.prototype.route = function route(path2) {
       const route2 = new Route(path2);
       const layer = new Layer(path2, {
         sensitive: this.caseSensitive,
@@ -20700,7 +20700,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router13.prototype[method] = function(path2) {
+      Router14.prototype[method] = function(path2) {
         const route = this.route(path2);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
@@ -20883,13 +20883,13 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = __require("node:path").resolve;
     var once = require_once();
-    var Router13 = require_router();
+    var Router14 = require_router();
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app2 = exports = module.exports = {};
     var trustProxyDefaultSymbol = "@@symbol:trust_proxy_default";
     app2.init = function init() {
-      var router13 = null;
+      var router14 = null;
       this.cache = /* @__PURE__ */ Object.create(null);
       this.engines = /* @__PURE__ */ Object.create(null);
       this.settings = /* @__PURE__ */ Object.create(null);
@@ -20898,13 +20898,13 @@ var require_application = __commonJS({
         configurable: true,
         enumerable: true,
         get: function getrouter() {
-          if (router13 === null) {
-            router13 = new Router13({
+          if (router14 === null) {
+            router14 = new Router14({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
           }
-          return router13;
+          return router14;
         }
       });
     };
@@ -20975,15 +20975,15 @@ var require_application = __commonJS({
       if (fns.length === 0) {
         throw new TypeError("app.use() requires a middleware function");
       }
-      var router13 = this.router;
+      var router14 = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router13.use(path2, fn2);
+          return router14.use(path2, fn2);
         }
         debug(".use app under %s", path2);
         fn2.mountpath = path2;
         fn2.parent = this;
-        router13.use(path2, function mounted_app(req, res, next) {
+        router14.use(path2, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -23510,7 +23510,7 @@ var require_express = __commonJS({
     var EventEmitter = __require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router13 = require_router();
+    var Router14 = require_router();
     var req = require_request();
     var res = require_response();
     exports = module.exports = createApplication;
@@ -23532,8 +23532,8 @@ var require_express = __commonJS({
     exports.application = proto;
     exports.request = req;
     exports.response = res;
-    exports.Route = Router13.Route;
-    exports.Router = Router13;
+    exports.Route = Router14.Route;
+    exports.Router = Router14;
     exports.json = bodyParser.json;
     exports.raw = bodyParser.raw;
     exports.static = require_serve_static();
@@ -33120,11 +33120,11 @@ var require_router2 = __commonJS({
     var debug = debug_1.Debug.extend("router");
     async function getTarget(req, config2) {
       let newTarget;
-      const router13 = config2.router;
-      if ((0, is_plain_object_1.isPlainObject)(router13)) {
-        newTarget = getTargetFromProxyTable(req, router13);
-      } else if (typeof router13 === "function") {
-        newTarget = await router13(req);
+      const router14 = config2.router;
+      if ((0, is_plain_object_1.isPlainObject)(router14)) {
+        newTarget = getTargetFromProxyTable(req, router14);
+      } else if (typeof router14 === "function") {
+        newTarget = await router14(req);
       }
       return newTarget;
     }
@@ -33167,7 +33167,7 @@ var require_http_proxy_middleware = __commonJS({
     var get_plugins_1 = require_get_plugins();
     var path_filter_1 = require_path_filter();
     var PathRewriter = require_path_rewriter();
-    var Router13 = require_router2();
+    var Router14 = require_router2();
     var debug_1 = require_debug2();
     var function_1 = require_function();
     var logger_1 = require_logger2();
@@ -33238,7 +33238,7 @@ var require_http_proxy_middleware = __commonJS({
         this.applyRouter = async (req, options2) => {
           let newTarget;
           if (options2.router) {
-            newTarget = await Router13.getTarget(req, options2);
+            newTarget = await Router14.getTarget(req, options2);
             if (newTarget) {
               (0, debug_1.Debug)('router new target: "%s"', newTarget);
               options2.target = newTarget;
@@ -39014,7 +39014,7 @@ var require_connectors_sdk = __commonJS({
 });
 
 // src/app.ts
-var import_express15 = __toESM(require_express2(), 1);
+var import_express17 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 
@@ -46476,8 +46476,8 @@ var InMemoryThrottlerCache = class {
     this.#cache.delete(key);
   }
 };
-function isWindowClerkWithMetadata(clerk3) {
-  return typeof clerk3 === "object" && clerk3 !== null && "constructor" in clerk3 && typeof clerk3.constructor === "function";
+function isWindowClerkWithMetadata(clerk4) {
+  return typeof clerk4 === "object" && clerk4 !== null && "constructor" in clerk4 && typeof clerk4.constructor === "function";
 }
 var VALID_LOG_LEVELS = /* @__PURE__ */ new Set([
   "error",
@@ -47188,7 +47188,7 @@ function clerkProxyMiddleware() {
 }
 
 // src/routes/index.ts
-var import_express14 = __toESM(require_express2(), 1);
+var import_express16 = __toESM(require_express2(), 1);
 
 // src/routes/health.ts
 var import_express = __toESM(require_express2(), 1);
@@ -76072,6 +76072,9 @@ function readCache(userId) {
 function writeCache(userId, type) {
   cache2.set(userId, { type, at: Date.now() });
 }
+function invalidateUserTypeCache(userId) {
+  cache2.delete(userId);
+}
 async function tagAsFreelancer(userId) {
   if (!clerk) return;
   try {
@@ -79490,23 +79493,200 @@ router11.post(
 );
 var inspectionExtract_default = router11;
 
-// src/routes/index.ts
+// src/routes/admin.ts
+var import_express14 = __toESM(require_express2(), 1);
+var clerk3 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+var ADMIN_EMAIL_DOMAIN = "@ehs.no";
+function getEmailFromUser(user) {
+  const list = user.emailAddresses ?? [];
+  for (const e of list) {
+    const addr = e?.emailAddress;
+    if (typeof addr === "string" && addr.includes("@")) return addr;
+  }
+  return null;
+}
+var requireAdmin = async (req, res, next) => {
+  if (!clerk3) {
+    res.status(503).json({ ok: false, error: "Admin API unavailable (Clerk not configured)." });
+    return;
+  }
+  const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
+  const userId = auth?.userId ?? null;
+  if (!userId) {
+    res.status(401).json({ ok: false, error: "Sign in required." });
+    return;
+  }
+  try {
+    const caller = await clerk3.users.getUser(userId);
+    const email3 = getEmailFromUser(caller);
+    if (!email3 || !email3.toLowerCase().endsWith(ADMIN_EMAIL_DOMAIN)) {
+      res.status(403).json({
+        ok: false,
+        error: "Admin tools are restricted to EHS staff."
+      });
+      return;
+    }
+    req._adminEmail = email3;
+    next();
+  } catch (err) {
+    logger.warn(
+      {
+        scope: "admin",
+        userId,
+        err: err instanceof Error ? err.message : String(err)
+      },
+      "admin gate: Clerk getUser failed"
+    );
+    res.status(500).json({ ok: false, error: "Admin auth check failed." });
+  }
+};
 var router12 = (0, import_express14.Router)();
-router12.use(health_default);
-router12.use(devAutoSignIn_default);
-router12.use(requireEmployee, rigplanAnalyze_default);
-router12.use(requireEmployee, venueMemory_default);
-router12.use(requireEmployee, storage_default);
-router12.use(requireEmployee, projects_default);
-router12.use(requireEmployee, inspectionExtract_default);
-router12.use(portalProfile_default);
-router12.use(portalBriefs_default);
-router12.use(portalGigs_default);
-router12.use(portalTimeEntries_default);
-var routes_default = router12;
+router12.post("/admin/set-user-type", requireAdmin, async (req, res) => {
+  if (!clerk3) {
+    res.status(503).json({ ok: false, error: "Clerk not configured." });
+    return;
+  }
+  const body = req.body ?? {};
+  const email3 = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const userType = body.userType === "freelancer" ? "freelancer" : "employee";
+  if (!email3 || !email3.includes("@")) {
+    res.status(400).json({ ok: false, error: "Valid email required." });
+    return;
+  }
+  try {
+    const list = await clerk3.users.getUserList({ emailAddress: [email3] });
+    const users = Array.isArray(list) ? list : list.data || [];
+    if (users.length === 0) {
+      res.status(404).json({ ok: false, error: "No user found with that email." });
+      return;
+    }
+    const results = [];
+    for (const u of users) {
+      const previousType = (u.publicMetadata ?? {})?.userType;
+      await clerk3.users.updateUserMetadata(u.id, {
+        publicMetadata: { ...u.publicMetadata ?? {}, userType }
+      });
+      invalidateUserTypeCache(u.id);
+      let freelancerProfileDeleted = false;
+      if (userType === "employee") {
+        try {
+          const del = await db.delete(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, u.id)).returning({ userId: freelancerProfilesTable.userId });
+          freelancerProfileDeleted = del.length > 0;
+        } catch (err) {
+          logger.warn(
+            {
+              scope: "admin",
+              userId: u.id,
+              err: err instanceof Error ? err.message : String(err)
+            },
+            "admin: failed to delete freelancer_profiles row"
+          );
+        }
+      }
+      results.push({
+        userId: u.id,
+        email: getEmailFromUser(u),
+        previousType,
+        newType: userType,
+        freelancerProfileDeleted
+      });
+    }
+    const adminEmail = req._adminEmail;
+    logger.info(
+      { scope: "admin", adminEmail, email: email3, userType, results },
+      "admin: set-user-type completed"
+    );
+    res.json({ ok: true, results });
+  } catch (err) {
+    logger.error(
+      {
+        scope: "admin",
+        email: email3,
+        err: err instanceof Error ? err.message : String(err)
+      },
+      "admin: set-user-type failed"
+    );
+    res.status(500).json({ ok: false, error: "Failed to update user." });
+  }
+});
+router12.post("/admin/delete-user", requireAdmin, async (req, res) => {
+  if (!clerk3) {
+    res.status(503).json({ ok: false, error: "Clerk not configured." });
+    return;
+  }
+  const body = req.body ?? {};
+  const email3 = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (!email3 || !email3.includes("@")) {
+    res.status(400).json({ ok: false, error: "Valid email required." });
+    return;
+  }
+  const adminEmail = req._adminEmail;
+  if (adminEmail && adminEmail.toLowerCase() === email3) {
+    res.status(400).json({ ok: false, error: "Refusing to delete the calling admin account." });
+    return;
+  }
+  try {
+    const list = await clerk3.users.getUserList({ emailAddress: [email3] });
+    const users = Array.isArray(list) ? list : list.data || [];
+    if (users.length === 0) {
+      res.status(404).json({ ok: false, error: "No user found with that email." });
+      return;
+    }
+    const deleted = [];
+    for (const u of users) {
+      try {
+        await db.delete(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, u.id));
+      } catch (err) {
+        logger.warn(
+          {
+            scope: "admin",
+            userId: u.id,
+            err: err instanceof Error ? err.message : String(err)
+          },
+          "admin: failed to delete freelancer_profiles row during user delete"
+        );
+      }
+      await clerk3.users.deleteUser(u.id);
+      invalidateUserTypeCache(u.id);
+      deleted.push({ userId: u.id, email: getEmailFromUser(u) });
+    }
+    logger.info(
+      { scope: "admin", adminEmail, email: email3, deleted },
+      "admin: delete-user completed"
+    );
+    res.json({ ok: true, deleted });
+  } catch (err) {
+    logger.error(
+      {
+        scope: "admin",
+        email: email3,
+        err: err instanceof Error ? err.message : String(err)
+      },
+      "admin: delete-user failed"
+    );
+    res.status(500).json({ ok: false, error: "Failed to delete user." });
+  }
+});
+var admin_default = router12;
+
+// src/routes/index.ts
+var router13 = (0, import_express16.Router)();
+router13.use(health_default);
+router13.use(devAutoSignIn_default);
+router13.use(requireEmployee, rigplanAnalyze_default);
+router13.use(requireEmployee, venueMemory_default);
+router13.use(requireEmployee, storage_default);
+router13.use(requireEmployee, projects_default);
+router13.use(requireEmployee, inspectionExtract_default);
+router13.use(admin_default);
+router13.use(portalProfile_default);
+router13.use(portalBriefs_default);
+router13.use(portalGigs_default);
+router13.use(portalTimeEntries_default);
+var routes_default = router13;
 
 // src/app.ts
-var app = (0, import_express15.default)();
+var app = (0, import_express17.default)();
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -79531,12 +79711,12 @@ app.use((0, import_cors.default)());
 var PATHS_WITHOUT_GLOBAL_JSON = /* @__PURE__ */ new Set([
   "/api/rigplan/analyze"
 ]);
-var globalJsonParser = import_express15.default.json({ limit: "256kb" });
+var globalJsonParser = import_express17.default.json({ limit: "256kb" });
 app.use((req, res, next) => {
   if (PATHS_WITHOUT_GLOBAL_JSON.has(req.path)) return next();
   return globalJsonParser(req, res, next);
 });
-app.use(import_express15.default.urlencoded({ extended: true }));
+app.use(import_express17.default.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 app.use("/api", routes_default);
 var app_default = app;

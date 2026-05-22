@@ -929,8 +929,20 @@ function FreelancerGuard() {
   const [location, setLocation] = useLocation();
   const localRole = loadUserRole();
   const serverRole = useClerkUserType();
+  // Server (Clerk publicMetadata) is the source of truth once it has
+  // resolved. If the server says the user is an employee, ignore any
+  // stale localStorage role flag — and clear it — so an employee who
+  // once clicked the Frilanser tab is not permanently bounced back to
+  // the portal. Only fall back to localRole while serverRole is still
+  // loading (null) to avoid a flash of the wrong screen.
+  useEffect(() => {
+    if (serverRole === "employee" && localRole === "freelancer") {
+      saveUserRole(null);
+    }
+  }, [serverRole, localRole]);
   const isFreelancer =
-    serverRole === "freelancer" || localRole === "freelancer";
+    serverRole === "freelancer" ||
+    (serverRole === null && localRole === "freelancer");
   useEffect(() => {
     if (!isFreelancer) return;
     const inPortal = location === "/portal" || location.startsWith("/portal/");

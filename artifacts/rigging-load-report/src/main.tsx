@@ -1174,11 +1174,16 @@ function ProductionToolGate() {
     // authoritative type.
     return null;
   }
-  if (
-    serverRole === "freelancer" ||
-    localRole === "freelancer" ||
-    intent === "freelancer"
-  ) {
+  // Server (Clerk publicMetadata) wins. If Clerk says "employee",
+  // ignore any stale localStorage/intent flag from a prior portal
+  // visit — otherwise an employee who once clicked the Frilanser tab
+  // is permanently locked out of the Production Tool.
+  if (serverRole === "freelancer") {
+    return <Redirect to="/portal" />;
+  }
+  if (serverRole === "employee") {
+    // fall through to render <App />
+  } else if (localRole === "freelancer" || intent === "freelancer") {
     return <Redirect to="/portal" />;
   }
   return (

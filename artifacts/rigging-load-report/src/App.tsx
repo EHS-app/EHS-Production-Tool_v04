@@ -5382,45 +5382,11 @@ function App() {
         onClick: simulateShow,
         title: tr("shell.action.simulateTitle"),
       },
-    ],
-    [exportClientPackPdf, simulateShow, tr],
-  );
-
-  const shellOverflowActions: ShellAction[] = useMemo(
-    () => [
-      {
-        id: "open-projects",
-        label: tr("projects.title"),
-        icon: ShellFolderOpen,
-        onClick: () => setProjectsOpen(true),
-      },
-      {
-        id: "save-as-new",
-        label: tr("projects.saveAs"),
-        icon: ShellCopy,
-        onClick: () => void saveAsNewProject(),
-        title: tr("projects.saveAsTitle"),
-      },
-      {
-        id: "export-report",
-        label: tr("shell.action.printReport"),
-        icon: ShellFileDown,
-        onClick: () => {
-          if (mainView !== "rigging") {
-            setMainView("rigging");
-            requestAnimationFrame(() =>
-              requestAnimationFrame(() => window.print()),
-            );
-          } else {
-            window.print();
-          }
-        },
-        title: tr("shell.action.printReportTitle"),
-      },
       {
         id: "led-project-pdf",
         label: tr("shell.action.ledProjectPdf"),
         icon: ShellFileDown,
+        variant: "secondary",
         onClick: async () => {
           // Switch to the LED tab first so the canvas SVG is mounted
           // in the DOM — the export reads `.led-canvas` directly. We
@@ -5455,6 +5421,52 @@ function App() {
         },
         title: tr("shell.action.ledProjectPdfTitle"),
       },
+    ],
+    [
+      exportClientPackPdf,
+      simulateShow,
+      tr,
+      mainView,
+      allLedScreens,
+      ledPanels,
+      ledSettings,
+      venue,
+      client,
+      reportDate,
+    ],
+  );
+
+  const shellOverflowActions: ShellAction[] = useMemo(
+    () => [
+      {
+        id: "open-projects",
+        label: tr("projects.title"),
+        icon: ShellFolderOpen,
+        onClick: () => setProjectsOpen(true),
+      },
+      {
+        id: "save-as-new",
+        label: tr("projects.saveAs"),
+        icon: ShellCopy,
+        onClick: () => void saveAsNewProject(),
+        title: tr("projects.saveAsTitle"),
+      },
+      {
+        id: "export-report",
+        label: tr("shell.action.printReport"),
+        icon: ShellFileDown,
+        onClick: () => {
+          if (mainView !== "rigging") {
+            setMainView("rigging");
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => window.print()),
+            );
+          } else {
+            window.print();
+          }
+        },
+        title: tr("shell.action.printReportTitle"),
+      },
       {
         id: "csv",
         label: tr("shell.action.downloadCsv"),
@@ -5474,20 +5486,7 @@ function App() {
         onClick: () => setHelpOpen(true),
       },
     ],
-    [
-      mainView,
-      downloadCsv,
-      simulateShow,
-      resetAll,
-      saveAsNewProject,
-      tr,
-      allLedScreens,
-      ledPanels,
-      ledSettings,
-      venue,
-      client,
-      reportDate,
-    ],
+    [mainView, downloadCsv, simulateShow, resetAll, saveAsNewProject, tr],
   );
 
   const projectMetaSlot = (

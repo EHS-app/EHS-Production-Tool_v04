@@ -1450,6 +1450,56 @@ function ScreenRow({
                     ))}
                   </div>
                 </div>
+                <div className="led-color-menu-section">
+                  <div className="led-color-menu-heading">Label colour</div>
+                  <div
+                    className="led-color-picker"
+                    style={{ alignItems: "center", gap: 8 }}
+                  >
+                    <button
+                      type="button"
+                      className={`led-preset-chip is-auto ${
+                        screen.labelColor === undefined ? "is-active" : ""
+                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUpdate({ labelColor: undefined });
+                      }}
+                      title="Use the default label colour"
+                    >
+                      Auto
+                    </button>
+                    {LED_SCREEN_COLORS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        className={`led-color-swatch ${(screen.labelColor ?? "").toLowerCase() === c.toLowerCase() ? "is-active" : ""}`}
+                        style={{ background: c }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onUpdate({ labelColor: c });
+                        }}
+                        aria-label={`Label colour ${c}`}
+                      />
+                    ))}
+                    <input
+                      type="color"
+                      value={screen.labelColor ?? "#0f172a"}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => onUpdate({ labelColor: e.target.value })}
+                      title="Custom label colour"
+                      style={{
+                        width: 28,
+                        height: 24,
+                        padding: 0,
+                        border: "1px solid var(--border)",
+                        borderRadius: 4,
+                        background: "transparent",
+                        cursor: "pointer",
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -2449,7 +2499,7 @@ function ScreenSvg({
               x={cx + Math.max(2, cellW * 0.06)}
               y={cy + Math.max(2, cellH * 0.06) + labelFont * 0.85}
               fontSize={labelFont}
-              fill="#0f172a"
+              fill={screen.labelColor || "#0f172a"}
               fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
               fontWeight={600}
             >

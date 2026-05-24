@@ -81,6 +81,10 @@ export type LedScreen = {
    *  field, so older persisted blobs keep working. */
   panelColorDark?: string;
   panelColorLight?: string;
+  /** Per-screen colour for the "1.A / 2.A / …" cell labels on both the
+   *  pixel-map canvas and the exported PNG. Undefined = fall back to
+   *  the built-in default (dark slate on screen, white on the PNG). */
+  labelColor?: string;
   /** Explicit position of the screen on the pixel-map canvas, in canvas
    *  pixels. When set the screen is rendered at (posX, posY) and is
    *  excluded from the auto-flow layout; when undefined the screen

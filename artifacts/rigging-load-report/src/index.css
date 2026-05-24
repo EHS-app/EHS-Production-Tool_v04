@@ -3319,16 +3319,8 @@ input:focus {
   .paint-mode-btn { padding: 6px 9px; font-size: 12px; }
   .paint-cable-summary { margin-left: 0; width: 100%; }
 }
-/* Port-chain overlay drawn on top of the pixel-map cells. Light theme
-   uses near-black strokes, dark theme inverts to near-white so arrows
-   and start labels stay legible against dark cabinets. */
-.paint-arrow { stroke: #111; }
-.paint-start-circle { fill: #ffffff; stroke: #111; }
-.paint-start-label { fill: #111; }
-[data-theme="dark"] .paint-arrow { stroke: #f8fafc; }
-[data-theme="dark"] .paint-start-circle { fill: #0f172a; stroke: #f8fafc; }
-[data-theme="dark"] .paint-start-label { fill: #f8fafc; }
-[data-theme="dark"] #paint-arrowhead path { fill: #f8fafc; }
+/* Port-chain overlay colours are driven inline per port (chip colour
+   from the toolbar), so no theme-aware overrides are needed here. */
 .led-canvas {
   width: 100%;
   height: auto;

@@ -1502,7 +1502,7 @@ function ScreenRow({
           </td>
         </tr>
       )}
-      {advancedMode && beamsCatalog.length > 0 && (
+      {beamsCatalog.length > 0 && (
         <tr className="led-row-rig">
           <td colSpan={12}>
             <RigAccessoriesPanel
@@ -1873,20 +1873,6 @@ function PixelMapCanvas({
           if (e.target === e.currentTarget) onSelectScreen(null);
         }}
       >
-        {/* Arrowhead marker shared by every screen's port-chain overlay. */}
-        <defs>
-          <marker
-            id="paint-arrowhead"
-            viewBox="0 0 10 10"
-            refX="9"
-            refY="5"
-            markerWidth="6"
-            markerHeight="6"
-            orient="auto-start-reverse"
-          >
-            <path d="M0,0 L10,5 L0,10 z" fill="#111" />
-          </marker>
-        </defs>
         {layout.items.map((item) => (
           <ScreenSvg
             key={item.screen.id}
@@ -1932,6 +1918,21 @@ type SvgItem = {
    *  hint badge). */
   positioned: boolean;
 };
+
+/** Choose a near-black or near-white ink for text/strokes layered on
+ *  top of `bg`, using the standard luminance formula. Falls back to
+ *  black for malformed colours. */
+function pickContrastInk(bg: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(bg.trim());
+  if (!m) return "#111";
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 0xff;
+  const g = (n >> 8) & 0xff;
+  const b = n & 0xff;
+  // Per WCAG: relative luminance approximation (sRGB gamma simplified).
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.6 ? "#111" : "#fff";
+}
 
 function ScreenSvg({
   item,
@@ -2172,7 +2173,11 @@ function ScreenSvg({
   // Arrows need a bit of room — skip on tiny cells where they'd be a
   // smudge. Labels (top-left) and arrows (bottom-right or center) sit
   // in different parts of the cell, so they don't collide visually.
-  const showArrowsHere = settings.showArrows && minDim >= 12;
+  // The per-cell data-flow arrows are suppressed whenever the canvas
+  // is in a paint mode — the port-chain arrows from the paint overlay
+  // take over so the user only sees one set of arrows at a time.
+  const showArrowsHere =
+    settings.showArrows && minDim >= 12 && paintMode === "off";
   const arrowSize = Math.max(6, minDim * 0.32);
   const arrowStroke = Math.max(1.2, arrowSize * 0.16);
   // Cabinet-ID badge font matches the label font so the two pieces of
@@ -2709,23 +2714,10 @@ function ScreenSvg({
         const nodes: React.ReactNode[] = [];
         for (const p of map.ports) {
           const validCells = p.cells.filter(inBounds);
-          for (const cellIdx of validCells) {
-            const col = cellIdx % screen.panelsWide;
-            const row = Math.floor(cellIdx / screen.panelsWide);
-            nodes.push(
-              <rect
-                key={`${p.id}-fill-${cellIdx}`}
-                x={x + col * cellW}
-                y={y + row * cellH}
-                width={cellW}
-                height={cellH}
-                fill={p.color}
-                opacity={0.62}
-                pointerEvents="none"
-              />,
-            );
-          }
           // Arrows between consecutive painted cells (chain order).
+          // The arrows themselves are drawn in the port's selected
+          // colour — the cabinet fill is left untouched so the panel
+          // pattern underneath stays visible.
           for (let i = 0; i < validCells.length - 1; i++) {
             const ai = validCells[i];
             const bi = validCells[i + 1];
@@ -2740,28 +2732,59 @@ function ScreenSvg({
                 y1={y + (aRow + 0.5) * cellH}
                 x2={x + (bCol + 0.5) * cellW}
                 y2={y + (bRow + 0.5) * cellH}
-                className="paint-arrow"
+                stroke={p.color}
                 strokeWidth={arrowStrokeW}
-                markerEnd="url(#paint-arrowhead)"
+                strokeLinecap="round"
+                pointerEvents="none"
+              />,
+            );
+            // Manual arrowhead at the destination end so we can colour
+            // each port's arrows individually (a single SVG marker
+            // can't carry per-line fill).
+            const dx = (bCol - aCol) * cellW;
+            const dy = (bRow - aRow) * cellH;
+            const len = Math.hypot(dx, dy) || 1;
+            const ux = dx / len;
+            const uy = dy / len;
+            const tipX = x + (bCol + 0.5) * cellW;
+            const tipY = y + (bRow + 0.5) * cellH;
+            const headLen = Math.max(4, minDim * 0.22);
+            const headW = headLen * 0.7;
+            const baseX = tipX - ux * headLen;
+            const baseY = tipY - uy * headLen;
+            const px = -uy;
+            const py = ux;
+            const p1x = baseX + px * (headW / 2);
+            const p1y = baseY + py * (headW / 2);
+            const p2x = baseX - px * (headW / 2);
+            const p2y = baseY - py * (headW / 2);
+            nodes.push(
+              <polygon
+                key={`${p.id}-head-${i}`}
+                points={`${tipX},${tipY} ${p1x},${p1y} ${p2x},${p2y}`}
+                fill={p.color}
                 pointerEvents="none"
               />,
             );
           }
           // Numbered circle on the chain start so producers can
-          // read "Port 1 starts here".
+          // read "Port 1 starts here". Filled in the port colour with
+          // a contrast-picked label for readability over any hue.
           if (validCells.length > 0) {
             const sIdx = validCells[0];
             const sCol = sIdx % screen.panelsWide;
             const sRow = Math.floor(sIdx / screen.panelsWide);
             const cx = x + (sCol + 0.5) * cellW;
             const cy = y + (sRow + 0.5) * cellH;
+            const labelInk = pickContrastInk(p.color);
             nodes.push(
               <g key={`${p.id}-circle`} pointerEvents="none">
                 <circle
                   cx={cx}
                   cy={cy}
                   r={circleR}
-                  className="paint-start-circle"
+                  fill={p.color}
+                  stroke={labelInk}
                   strokeWidth={Math.max(1.2, circleR * 0.14)}
                 />
                 <text
@@ -2771,7 +2794,7 @@ function ScreenSvg({
                   fontWeight={700}
                   textAnchor="middle"
                   dominantBaseline="central"
-                  className="paint-start-label"
+                  fill={labelInk}
                   fontFamily="system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
                 >
                   {p.label}

@@ -1,0 +1,76 @@
+New Release: Pixel Perfect Pro – The Ultimate LED Screen Design Software
+Are you planning LED screens for music festivals, concerts, tours, corporate events, or film shoots — and struggling with pixel mapping, wiring diagrams, or power calculations?
+Look no further.
+Pixel Perfect Pro is the all-in-one LED software trusted by content creators, AV professionals, and production designers worldwide. Whether you’re building a stunning screen design for a high-profile show or mapping out LED layouts for a complex studio shoot, Pixel Perfect Pro delivers pixel-level precision, flexibility, and performance.
+From creating accurate pixel maps, data paths, and power diagrams to exporting visuals for media servers and processors, Pixel Perfect Pro simplifies the entire content creation workflow for LED screens.
+🔍 Why Pixel Perfect Pro?
+This isn’t just a drawing tool — it’s your complete companion for LED screen production for any event:
+✅ Music Festivals
+✅ Concerts & World Tours
+✅ Corporate Events
+✅ Film Shoots & Studios
+✅ Content Creation for LED Screens
+🔧Key Features for LED Screen Professionals
+🎯 Pixel-Level Screen Design
+Create LED screen layouts with pixel-by-pixel precision.
+🔌 Data Path Mapping with Auto Port Calculation
+Draw 100% accurate data flows with automated port limits for seamless processor setup.
+⚡ Power Path Planning
+Map power lines based on cabinet wattage, voltage, and amperage used in your region.
+📊 Power Consumption Calculator
+Calculate power usage for each screen and total consumption per raster.
+⚖️ Cabinet Weight & Screen Size Estimator
+Instantly view total screen weight, and diagonal measurement in standard or metric mesurements.
+🧩 Custom Raster Tools
+Customize panel colors, numbers, raster sizes, and add your personal or company logo to all drawings.
+🧱 Blank Panel & Cable Routing Tools
+Remove panels and automatically reroute data and power cables around blank areas.
+🔄 Layer Rotation
+Rotate screen layers to design artistic or angled screens for creative stages.
+🎨 Advanced Color Picker
+Select precise colors using RGB, HSV, or HEX codes — perfect for matching visual content.
+🧰 Enhanced Power Tools
+New palette combines power diagrams and power calculations for both single-phase and 3-phase systems.
+📤 Flexible Export Options
+Export to PNG for media servers, PSD for Adobe Photoshop, XML for Resolume Arena or save editable RDL project files.
+📺 Live Output to LED Processors
+Send your pixel-perfect design directly to the video processor for real-time, screen-accurate display.
+🔧 Built-in LED Screen Presets
+Includes preset configurations for various LED cabinets and customize your screens used by your company.
+✨What’s New in Pixel Perfect Pro?
+This major update is built for the fast-paced needs of live events, LED production, and creative content workflows:
+💻 Full Compatibility with Windows & macOS
+Now optimized for Apple Silicon (M1, M2, M3) and Intel-based systems.
+🔐 Log in with Google or Microsoft Accounts
+Secure, easy license management across multiple devices.
+🖋️ Persistent Company Branding
+Set your logo once and it appears on all project exports and documents.
+🖱️ Faster Panel Blanking
+Quickly blank out cabinets with holding down Ctrl + Click & Drag.
+🔌 Smarter Data Flow Mapping
+Use Spacebar to start new data ports in custom path mode, Right-click to undo, and create custom data paths. Now supports advanced routing for Brompton, Colorlight, Evision, and other processors beyond Novastar.
+✏️ Custom Naming for Data & Power Ports
+Assign your own labels to each port for precise matching with your rig or schematic.
+🧩 Improved Raster Label Tool
+Better labeling and layer organization.
+🎨 Precision Color Picker
+Now with RGB, HSV, and HEX inputs for perfect color matching.
+⚖️ Cabinet Weight Calculation
+Automatically calculate total screen weight for accurate rigging specs.
+📐 Diagonal Screen Size Display
+See your screen’s diagonal size in both standard (inches) and metric (cm) formats.
+🔄 Layer Rotation Tool
+Rotate screen layers for creative angles for custom artistic stage designs.
+🔋 All-New Power Tools Palette
+Combine power diagrams and power consumption logic in a single, user-friendly interface.
+⚡ Multiple Voltage Support
+Plan for a variety of regional and custom voltages, including 1-phase and 3-phase configurations.
+🧊 95% Lower Resource Usage
+Performance-optimized engine — works smoother and faster on large projects.
+📄 Cross-Layer Copying
+Copy text fields and color settings between layers with single click.
+🌍 Built for Real-World LED Production
+Whether you’re building immersive LED content for live tours, corporate events, film sets, or broadcast studios, Pixel Perfect Pro equips you with the tools to:
+Design with precision
+Export with confidence
+Deliver pixel-perfect results, every time

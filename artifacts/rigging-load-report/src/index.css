@@ -9183,10 +9183,31 @@ html[data-shell="linear"] .container {
 .led-rig-accessories-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 8px;
 }
+.led-rig-accessories-autofit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.2;
+  color: var(--ink, inherit);
+  cursor: pointer;
+  user-select: none;
+}
+.led-rig-accessories-autofit input[type="checkbox"] {
+  margin: 0;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  accent-color: var(--accent, #f88000);
+}
+.led-rig-accessories-autofit > span {
+  line-height: 1.2;
+}
 .led-rig-accessories-total {
+  margin-left: auto;
   font-size: 12px;
   font-family: ui-monospace, monospace;
   color: var(--ink-soft, #6b6b75);

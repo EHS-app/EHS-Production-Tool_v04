@@ -76,7 +76,6 @@ import {
 } from "./led/RigAccessoriesPanel";
 import { AdvancedScreenInspector } from "./led/AdvancedScreenInspector";
 import { ValidationDrawer } from "./led/ValidationDrawer";
-import { PortMappingPanel } from "./led/PortMappingPanel";
 import { PaintToolbar, type PaintMode } from "./led/PaintToolbar";
 
 type Props = {
@@ -1405,58 +1404,6 @@ function ScreenRow({
           </div>
         </td>
         <td className="led-actions">
-          {/* Cable-marker toolbar — visible per row so the producer can
-              annotate one screen without disturbing markers on others.
-              `armed` highlights whichever button is currently in
-              placement mode; clicking it again cancels. */}
-          <div
-            className="led-marker-toolbar"
-            role="group"
-            aria-label={`Power and signal markers for ${screen.name || "screen"}`}
-          >
-            <button
-              type="button"
-              className={`btn btn-sm led-marker-btn led-marker-btn-power ${armed === "power" ? "is-armed" : ""}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onTogglePlaceMode("power");
-              }}
-              title={
-                armed === "power"
-                  ? "Cancel — click here to stop placing power markers"
-                  : "Click, then click a CABINET on the visual to mark its power feed (P1, P2…). Click the same cabinet again to remove."
-              }
-            >
-              {armed === "power" ? "Click cell…" : `+P${powerCount > 0 ? ` (${powerCount})` : ""}`}
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm led-marker-btn led-marker-btn-signal ${armed === "signal" ? "is-armed" : ""}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onTogglePlaceMode("signal");
-              }}
-              title={
-                armed === "signal"
-                  ? "Cancel — click here to stop placing signal markers"
-                  : "Click, then click a CABINET on the visual to mark its signal feed (S1, S2…). Click the same cabinet again to remove."
-              }
-            >
-              {armed === "signal" ? "Click cell…" : `+S${signalCount > 0 ? ` (${signalCount})` : ""}`}
-            </button>
-            <button
-              type="button"
-              className="btn btn-soft btn-sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                onClearMarkers();
-              }}
-              disabled={totalMarkerCount === 0}
-              title="Remove every power & signal marker on this screen"
-            >
-              Clear
-            </button>
-          </div>
           <button
             className="btn btn-primary btn-sm"
             onClick={() => onExport()}
@@ -1527,17 +1474,6 @@ function ScreenRow({
               catalog={beamsCatalog}
               onChange={(rigAccessories) => onUpdate({ rigAccessories })}
               onToggleAutoFit={(autoFitBeams) => onUpdate({ autoFitBeams })}
-            />
-          </td>
-        </tr>
-      )}
-      {advancedMode && (
-        <tr className="led-row-portmap">
-          <td colSpan={12}>
-            <PortMappingPanel
-              screen={screen}
-              panel={panel}
-              onUpdate={onUpdate}
             />
           </td>
         </tr>
@@ -1869,18 +1805,19 @@ function PixelMapCanvas({
 
   return (
     <div className="led-canvas-wrap">
-      {advancedMode && (
-        <PaintToolbar
-          mode={paintMode}
-          onModeChange={onPaintModeChange}
-          selectedScreen={paintScreen}
-          map={paintMap}
-          onMapChange={onPaintMapChange}
-          activePortId={activePortId}
-          onActivePortChange={onActivePortChange}
-          canvasSvgRef={svgRef}
-        />
-      )}
+      {/* Paint Power / Paint Signal toolbar — visible in BOTH Basic
+          and Advanced modes so producers can plan power/signal cabling
+          without having to switch views. */}
+      <PaintToolbar
+        mode={paintMode}
+        onModeChange={onPaintModeChange}
+        selectedScreen={paintScreen}
+        map={paintMap}
+        onMapChange={onPaintMapChange}
+        activePortId={activePortId}
+        onActivePortChange={onActivePortChange}
+        canvasSvgRef={svgRef}
+      />
       <svg
         ref={svgRef}
         className="led-canvas"

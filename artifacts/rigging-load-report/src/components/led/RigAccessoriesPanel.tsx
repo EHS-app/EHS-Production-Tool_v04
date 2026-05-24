@@ -99,15 +99,7 @@ export function RigAccessoriesPanel({
       <div className="led-rig-accessories-head">
         <strong>Rigging accessories</strong>
         <label
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            marginLeft: 12,
-            fontSize: 12,
-            opacity: 0.9,
-            cursor: "pointer",
-          }}
+          className="led-rig-accessories-autofit"
           title="Auto-fit beams to the screen width, longest pieces first"
         >
           <input
@@ -115,7 +107,7 @@ export function RigAccessoriesPanel({
             checked={autoFit}
             onChange={(e) => onToggleAutoFit(e.target.checked)}
           />
-          Auto-fit beams to width
+          <span>Auto-fit beams to width</span>
         </label>
         <span className="led-rig-accessories-total">
           {effective.length} item{effective.length === 1 ? "" : "s"} ·{" "}

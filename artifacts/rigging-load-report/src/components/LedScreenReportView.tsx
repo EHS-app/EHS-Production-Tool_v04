@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ehsLogo from "../assets/ehs-logo.png";
 import { NumberField } from "./NumberField";
 import { LedSystemDesigner } from "./LedSystemDesigner";
 import type { LedSystem } from "../lib/ledSystem";
@@ -2821,6 +2822,109 @@ function ScreenSvg({
           }
         }
         return <g>{nodes}</g>;
+      })()}
+      {/* Alignment test pattern — large inscribed circle + dashed
+          corner X. Mirrors the PNG export so the producer sees live
+          what will be on the exported image. */}
+      {settings.showTestPattern && (() => {
+        const r = Math.min(width, height) / 2 - Math.min(width, height) * 0.04;
+        const stroke = Math.max(1, Math.min(width, height) * 0.004);
+        const dash = stroke * 6;
+        return (
+          <g pointerEvents="none">
+            <circle
+              cx={x + width / 2}
+              cy={y + height / 2}
+              r={r}
+              fill="none"
+              stroke="#ffffff"
+              strokeOpacity={0.7}
+              strokeWidth={stroke}
+            />
+            <line
+              x1={x}
+              y1={y}
+              x2={x + width}
+              y2={y + height}
+              stroke="#ffffff"
+              strokeOpacity={0.5}
+              strokeWidth={stroke}
+              strokeDasharray={`${dash} ${dash}`}
+            />
+            <line
+              x1={x + width}
+              y1={y}
+              x2={x}
+              y2={y + height}
+              stroke="#ffffff"
+              strokeOpacity={0.5}
+              strokeWidth={stroke}
+              strokeDasharray={`${dash} ${dash}`}
+            />
+          </g>
+        );
+      })()}
+      {/* EHS logo in the top-right corner. Mirrors the PNG export. */}
+      {settings.showLogo && (() => {
+        const minDim = Math.min(width, height);
+        const logoH = Math.max(16, minDim * 0.08);
+        const logoW = logoH * 2.6;
+        const margin = Math.max(6, minDim * 0.018);
+        return (
+          <image
+            href={ehsLogo}
+            x={x + width - logoW - margin}
+            y={y + margin}
+            width={logoW}
+            height={logoH}
+            preserveAspectRatio="xMidYMid meet"
+            pointerEvents="none"
+          />
+        );
+      })()}
+      {/* Bottom info bar — panels / resolution / aspect. Mirrors PNG. */}
+      {settings.showInfoBar && (() => {
+        const m = computeScreenMetrics(screen, panels);
+        const gcd = (a: number, b: number): number =>
+          b === 0 ? a : gcd(b, a % b);
+        const g = gcd(m.pixelsX, m.pixelsY) || 1;
+        const text = `${screen.panelsWide} × ${screen.panelsTall}  •  ${m.panels} panels  •  ${m.pixelsX} × ${m.pixelsY} px  •  ${m.pixelsX / g}:${m.pixelsY / g}`;
+        const minDim = Math.min(width, height);
+        const infoFont = Math.max(8, Math.min(20, minDim * 0.028));
+        const padX = infoFont * 1.2;
+        const padY = infoFont * 0.45;
+        const approxTextW = text.length * infoFont * 0.5;
+        const barW = Math.min(width * 0.96, approxTextW + padX * 2);
+        const barH = infoFont + padY * 2;
+        const bx = x + (width - barW) / 2;
+        const by = y + height - barH - Math.max(4, minDim * 0.02);
+        const radius = barH * 0.22;
+        return (
+          <g pointerEvents="none">
+            <rect
+              x={bx}
+              y={by}
+              width={barW}
+              height={barH}
+              rx={radius}
+              ry={radius}
+              fill="#1c1f24"
+              fillOpacity={0.92}
+            />
+            <text
+              x={x + width / 2}
+              y={by + barH / 2}
+              fontSize={infoFont}
+              fill="#f5f6f7"
+              fontWeight={500}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontFamily="system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+            >
+              {text}
+            </text>
+          </g>
+        );
       })()}
       {/* Centered "Main"/"IMAG" name pill — matches the PNG export so the
           user can preview what they'll get. Hidden if the user disabled

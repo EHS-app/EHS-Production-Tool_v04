@@ -83,9 +83,18 @@ export async function downloadLedProjectPdf(
   const pageH = pdf.internal.pageSize.getHeight();
   const margin = 12;
 
-  // ── Page 1 — Cover (logo + metadata, no snapshot) ───────────────
+  // ── Page 1 — Cover (logo + metadata + totals, no snapshot) ──────
   drawHeader(pdf, "LED Project Pack", pageW, margin, logoDataUrl);
   drawMetaBlock(pdf, input, margin, 36, pageW - margin * 2);
+  drawTotalsBlock(
+    pdf,
+    input.screens,
+    input.panels,
+    input.settings,
+    margin,
+    82,
+    pageW - margin * 2,
+  );
 
   // ── Page 2 — Power drawing ──────────────────────────────────────
   pdf.addPage();
@@ -377,6 +386,88 @@ function drawMetaBlock(
     pdf.setTextColor(30, 30, 30);
     const text = pdf.splitTextToSize(value, colW - 12);
     pdf.text(text, cx, y + 20);
+  });
+}
+
+/** Pixels per processor output used for the "Outputs needed" stat.
+ *  Matches the threshold shown in the LED tab UI. */
+const PIXELS_PER_OUTPUT = 650_000;
+
+function drawTotalsBlock(
+  pdf: JsPDF,
+  screens: LedScreen[],
+  panels: LedPanel[],
+  settings: LedSettings,
+  x: number,
+  y: number,
+  width: number,
+) {
+  let totPanels = 0;
+  let totPixels = 0;
+  let totArea = 0;
+  let totWeight = 0;
+  let totWatts = 0;
+  for (const s of screens) {
+    const panel = resolveScreenPanel(s, panels);
+    const m = computeScreenMetrics(s, panels);
+    const power = estimateScreenPower(s, panel, settings);
+    const enabled = enabledPanelCount(s);
+    totPanels += enabled;
+    totPixels += m.pixelsX * m.pixelsY;
+    totArea += m.widthM * m.heightM;
+    totWeight += enabled * panel.weight;
+    totWatts += power.totalWatts;
+  }
+  const outputs = Math.max(1, Math.ceil(totPixels / PIXELS_PER_OUTPUT));
+
+  const stats: Array<{ label: string; value: string; note?: string }> = [
+    { label: "SCREENS", value: String(screens.length) },
+    { label: "PANELS", value: String(totPanels) },
+    { label: "TOTAL PIXELS", value: totPixels.toLocaleString() },
+    { label: "AREA", value: `${totArea.toFixed(1)} m²` },
+    { label: "WEIGHT", value: `${totWeight.toFixed(1)} kg` },
+    { label: "POWER", value: `${(totWatts / 1000).toFixed(1)} kW` },
+    {
+      label: "OUTPUTS NEEDED",
+      value: String(outputs),
+      note: `@ ${PIXELS_PER_OUTPUT.toLocaleString()} px/output`,
+    },
+  ];
+
+  const cols = stats.length;
+  const cellW = width / cols;
+  const cellH = 28;
+
+  pdf.setDrawColor(220, 220, 220);
+  pdf.setFillColor(248, 248, 248);
+  pdf.roundedRect(x, y, width, cellH, 2, 2, "FD");
+
+  // Vertical dividers between cells.
+  pdf.setDrawColor(228, 228, 228);
+  pdf.setLineWidth(0.2);
+  for (let i = 1; i < cols; i++) {
+    const cx = x + cellW * i;
+    pdf.line(cx, y + 4, cx, y + cellH - 4);
+  }
+
+  stats.forEach((s, i) => {
+    const cx = x + cellW * i;
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7);
+    pdf.setTextColor(130, 130, 130);
+    pdf.text(s.label, cx + cellW / 2, y + 8, { align: "center" });
+
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(14);
+    pdf.setTextColor(20, 20, 20);
+    pdf.text(s.value, cx + cellW / 2, y + 18, { align: "center" });
+
+    if (s.note) {
+      pdf.setFont("helvetica", "italic");
+      pdf.setFontSize(7);
+      pdf.setTextColor(140, 140, 140);
+      pdf.text(s.note, cx + cellW / 2, y + 24, { align: "center" });
+    }
   });
 }
 

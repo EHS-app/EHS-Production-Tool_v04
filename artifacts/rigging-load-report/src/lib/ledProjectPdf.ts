@@ -96,19 +96,7 @@ export async function downloadLedProjectPdf(
     pageW - margin * 2,
   );
 
-  // ── Page 2 — Power drawing ──────────────────────────────────────
-  pdf.addPage();
-  drawHeader(pdf, "Power drawing", pageW, margin, "");
-  drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
-  await drawFittedImage(pdf, powerPng, margin, 32, pageW - margin * 2, pageH - 32 - margin);
-
-  // ── Page 3 — Signal drawing ─────────────────────────────────────
-  pdf.addPage();
-  drawHeader(pdf, "Signal drawing", pageW, margin, "");
-  drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
-  await drawFittedImage(pdf, signalPng, margin, 32, pageW - margin * 2, pageH - 32 - margin);
-
-  // ── Page 4 — Technical summary ──────────────────────────────────
+  // ── Page 2 — Technical summary ──────────────────────────────────
   pdf.addPage();
   drawHeader(pdf, "Technical summary", pageW, margin, "");
   drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
@@ -127,7 +115,7 @@ export async function downloadLedProjectPdf(
     "",
   );
 
-  // ── Page 5 — Cable summary ──────────────────────────────────────
+  // ── Page 3 — Cable summary ──────────────────────────────────────
   pdf.addPage();
   drawHeader(pdf, "Cable summary", pageW, margin, "");
   drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
@@ -144,6 +132,18 @@ export async function downloadLedProjectPdf(
     margin,
     "",
   );
+
+  // ── Page 4 — Power drawing ──────────────────────────────────────
+  pdf.addPage();
+  drawHeader(pdf, "Power drawing", pageW, margin, "");
+  drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
+  await drawFittedImage(pdf, powerPng, margin, 32, pageW - margin * 2, pageH - 32 - margin);
+
+  // ── Page 5 — Signal drawing ─────────────────────────────────────
+  pdf.addPage();
+  drawHeader(pdf, "Signal drawing", pageW, margin, "");
+  drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
+  await drawFittedImage(pdf, signalPng, margin, 32, pageW - margin * 2, pageH - 32 - margin);
 
   const base = safeFilename(input.projectName || input.venue || "led-project");
   pdf.save(`${base}_led-project.pdf`);

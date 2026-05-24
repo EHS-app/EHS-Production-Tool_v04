@@ -1,0 +1,216 @@
+EXPORT SYSTEM REDESIGN – LED PIXEL MAP
+
+OVERVIEW
+Redesign the export system so the exported PDF contains ALL project information from the main canvas, including TWO separate technical drawings inside the SAME PDF document:
+
+* Power Drawing
+* Signal Drawing
+
+The system should generate one complete professional PDF document containing all technical documentation.
+
+---
+
+1. EXPORT CONTENT REQUIREMENTS
+
+---
+
+The export PDF must include ALL project information from the main canvas.
+
+Include:
+
+* Project name
+* Company logo
+* Export date and time
+* Main canvas layout
+* Panel information
+* Beam information
+* Processor information
+* Power connections
+* Signal connections
+* Rigging details
+* Cable calculations
+* Labels and annotations
+* Any visible technical markers
+
+---
+
+2. POWER & SIGNAL DRAWINGS INSIDE THE SAME PDF
+
+---
+
+The export must automatically generate TWO separate technical images and place BOTH images inside the SAME PDF document.
+
+---
+
+## A. POWER DRAWING PAGE
+
+Create a dedicated PDF page titled:
+
+“Power Drawing”
+
+This page must contain a generated image showing ONLY power-related information.
+
+Include:
+
+* Power cable routing
+* True1 connections
+* Power calculations
+* Power grouping
+* Power zones
+* Power labels
+* Legends
+
+Hide:
+
+* Signal routing
+* Signal labels
+* Processor signal overlays
+
+This page is intended for power distribution and electrical planning.
+
+---
+
+## B. SIGNAL DRAWING PAGE
+
+Create a dedicated PDF page titled:
+
+“Signal Drawing”
+
+This page must contain a generated image showing ONLY signal-related information.
+
+Include:
+
+* Signal cable routing
+* Processor outputs
+* Signal chain flow
+* Signal labels
+* Data flow connections
+* Legends
+
+Hide:
+
+* Power routing
+* Power labels
+* Power overlays
+
+This page is intended for LED signal and data planning.
+
+---
+
+3. PDF STRUCTURE
+
+---
+
+The final export must generate ONE PDF containing multiple pages in this order:
+
+PAGE 1 — COVER PAGE
+Include:
+
+* Project name
+* Company logo
+* Export date/time
+* Main layout preview
+* Project summary
+
+PAGE 2 — POWER DRAWING
+Include:
+
+* Full-page Power Drawing image
+* Power statistics
+* Total power consumption
+* True1 cable totals
+* Power routing overview
+
+PAGE 3 — SIGNAL DRAWING
+Include:
+
+* Full-page Signal Drawing image
+* Signal statistics
+* Processor overview
+* Signal routing summary
+
+PAGE 4 — TECHNICAL SUMMARY
+Include:
+
+* Total number of panels
+* Resolution information
+* Beam information
+* Processor models and quantity
+* Rigging information
+* Hanging points
+* Total dimensions
+
+PAGE 5 — CABLE SUMMARY
+Include:
+
+* Number of True1 cables used
+* Number of signal cables used
+* Cable grouping
+* Connection totals
+* Cable calculations
+
+---
+
+4. EXPORT QUALITY REQUIREMENTS
+
+---
+
+All images and pages inside the PDF must be professional quality.
+
+Requirements:
+
+* High-resolution rendering
+* Sharp labels and text
+* Correct scaling
+* Proper alignment
+* Preserve logo quality
+* Print-ready output
+* Clean margins and spacing
+* Consistent typography
+
+Support:
+
+* A4 landscape
+* A3 landscape
+* High-DPI export quality
+
+---
+
+5. EXPORT ENGINE REQUIREMENTS
+
+---
+
+Recommended export workflow:
+
+1. Capture current canvas state
+2. Generate Power Drawing render
+3. Generate Signal Drawing render
+4. Insert both rendered images into separate PDF pages
+5. Generate technical summary pages
+6. Generate cable summary pages
+7. Export one final PDF document
+
+The export engine must:
+
+* Preserve layer order
+* Prevent clipping
+* Support large projects
+* Maintain responsive performance
+* Export consistent layouts
+
+---
+
+6. GENERAL UI CLEANUP
+
+---
+
+After redesigning the export system:
+
+* Maintain consistent spacing
+* Improve alignment across all views
+* Keep responsive layout behavior
+* Remove unused controls
+* Simplify the export workflow
+* Improve readability of technical information
+
+The export experience should feel clean, fast, and professional.

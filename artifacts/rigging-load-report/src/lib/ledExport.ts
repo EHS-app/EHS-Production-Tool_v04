@@ -371,15 +371,35 @@ export function buildScreenSvg(input: BuildSvgInput): string {
     }
   }
 
-  // EHS logo — top-right corner. Embedded as data URL so the rasterizer
-  // doesn't taint the canvas.
-  if (settings.showLogo && logoDataUrl) {
-    const logoH = Math.max(40, minDim * 0.08);
-    // Logo aspect roughly 2.6:1 from inspection of the brand mark.
-    const logoW = logoH * 2.6;
+  // Logo — user-uploaded custom logo if set, else the built-in EHS
+  // mark. Position is drag-controlled via settings.logoX/Y (normalised
+  // 0..1 to this screen rect). If unset, falls back to the legacy
+  // top-right anchor. Size is multiplied by settings.logoScale.
+  const effectiveLogoUrl = settings.customLogoUrl ?? logoDataUrl;
+  if (settings.showLogo && effectiveLogoUrl) {
+    const aspect =
+      settings.customLogoUrl && settings.customLogoAspect
+        ? settings.customLogoAspect
+        : 2.6;
+    const scale = settings.logoScale ?? 1;
+    const logoH = Math.max(40, minDim * 0.08) * scale;
+    const logoW = logoH * aspect;
     const margin = Math.max(16, minDim * 0.018);
+    // Clamp persisted normalised coords so the logo can never render
+    // off-canvas if the user resized it after dragging (matches the
+    // live canvas clamp in ScreenSvg).
+    const maxX = Math.max(0, 1 - logoW / W);
+    const maxY = Math.max(0, 1 - logoH / H);
+    const lx =
+      typeof settings.logoX === "number"
+        ? Math.min(maxX, Math.max(0, settings.logoX)) * W
+        : W - logoW - margin;
+    const ly =
+      typeof settings.logoY === "number"
+        ? Math.min(maxY, Math.max(0, settings.logoY)) * H
+        : margin;
     parts.push(
-      `<image href="${logoDataUrl}" x="${W - logoW - margin}" y="${margin}" width="${logoW}" height="${logoH}" preserveAspectRatio="xMidYMid meet"/>`,
+      `<image href="${effectiveLogoUrl}" x="${lx}" y="${ly}" width="${logoW}" height="${logoH}" preserveAspectRatio="xMidYMid meet"/>`,
     );
   }
 

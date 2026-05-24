@@ -757,6 +757,7 @@ export function LedScreenReportView(props: Props) {
             activePortId={activePortId}
             onActivePortChange={setActivePortId}
             onPaintCell={onPaintCell}
+            onUpdateSettings={onUpdateSettings}
           />
         </section>
       )}
@@ -1652,10 +1653,12 @@ function PixelMapCanvas({
   activePortId,
   onActivePortChange,
   onPaintCell,
+  onUpdateSettings,
 }: {
   screens: LedScreen[];
   panels: LedPanel[];
   settings: LedSettings;
+  onUpdateSettings: (patch: Partial<LedSettings>) => void;
   placeMode: PlaceMode;
   selectedScreenId: string | null;
   onSelectScreen: (id: string | null) => void;
@@ -1915,6 +1918,7 @@ function PixelMapCanvas({
               paintMode !== "off" && selectedScreenId === item.screen.id
             }
             onPaintCell={onPaintCell}
+            onUpdateSettings={onUpdateSettings}
           />
         ))}
       </svg>
@@ -1970,6 +1974,7 @@ function ScreenSvg({
   paintMode,
   isPaintTarget,
   onPaintCell,
+  onUpdateSettings,
 }: {
   item: SvgItem;
   panels: LedPanel[];
@@ -1996,6 +2001,9 @@ function ScreenSvg({
    *  every map at a glance, but clicks only paint the selected one. */
   isPaintTarget: boolean;
   onPaintCell: (screenId: string, col: number, row: number) => void;
+  /** Patch global LedSettings — used by the draggable logo overlay
+   *  to persist `logoX/Y` after the user repositions it. */
+  onUpdateSettings: (patch: Partial<LedSettings>) => void;
 }) {
   const { screen, x, y, width, height, cellW, cellH } = item;
   /** Per-screen panel colours override the global ledSettings ones when
@@ -2012,6 +2020,23 @@ function ScreenSvg({
    *  whereas a viewBox-based math conversion would need extra work. */
   const overlayRectRef = useRef<SVGRectElement | null>(null);
   const [draggingMarkerId, setDraggingMarkerId] = useState<string | null>(
+    null,
+  );
+  /** Logo drag state. `dragOffset` stores the click-point's offset from
+   *  the logo's top-left (in normalised 0..1 coords) so the cursor
+   *  stays glued to the same spot inside the logo while dragging.
+   *  `logoDragPos` holds the live drag position locally so we don't
+   *  thrash `onUpdateSettings` (and the autosave path, which
+   *  re-serialises the full PersistedV2 blob including the multi-MB
+   *  custom-logo data URL) on every pointer move — we only commit
+   *  the final position on pointerup. */
+  const [isDraggingLogo, setIsDraggingLogo] = useState(false);
+  const logoDragOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+  /** Max normalised top-left coords (= 1 - logoSize/screenSize) at the
+   *  moment the drag started, shared between the element-side commit
+   *  and the window-fallback commit so both clamp identically. */
+  const logoDragMaxRef = useRef<{ maxX: number; maxY: number }>({ maxX: 1, maxY: 1 });
+  const [logoDragPos, setLogoDragPos] = useState<{ x: number; y: number } | null>(
     null,
   );
 
@@ -2174,6 +2199,43 @@ function ScreenSvg({
       window.removeEventListener("pointercancel", onUp);
     };
   }, [draggingMarkerId, eventToNorm, onMoveMarker, screenId]);
+
+  /** Same window-level fallback for the logo drag — if the cursor
+   *  leaves the logo element while dragging (e.g. capture rejected),
+   *  keep tracking until the pointer is released. Writes to local
+   *  `logoDragPos` only; the final position is committed to settings
+   *  on pointerup so autosave doesn't re-serialise the (potentially
+   *  multi-MB) custom-logo data URL on every pointermove. */
+  useEffect(() => {
+    if (!isDraggingLogo) return;
+    const onMove = (e: PointerEvent) => {
+      const norm = eventToNorm(e);
+      if (!norm) return;
+      const { dx, dy } = logoDragOffsetRef.current;
+      setLogoDragPos({ x: norm.x - dx, y: norm.y - dy });
+    };
+    const onUp = () => {
+      setIsDraggingLogo(false);
+      setLogoDragPos((pos) => {
+        if (pos) {
+          const { maxX, maxY } = logoDragMaxRef.current;
+          onUpdateSettings({
+            logoX: Math.min(maxX, Math.max(0, pos.x)),
+            logoY: Math.min(maxY, Math.max(0, pos.y)),
+          });
+        }
+        return null;
+      });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [isDraggingLogo, eventToNorm, onUpdateSettings]);
 
   const handleMarkerContextMenu = useCallback(
     (markerId: string) => (e: React.MouseEvent) => {
@@ -2864,22 +2926,101 @@ function ScreenSvg({
           </g>
         );
       })()}
-      {/* EHS logo in the top-right corner. Mirrors the PNG export. */}
+      {/* Logo overlay — uses the user's uploaded custom logo when set,
+          otherwise the built-in EHS mark. Drag the logo to reposition
+          it; `settings.logoX/Y` persist the new normalised position so
+          the live canvas and PNG/PDF export stay in sync. */}
       {settings.showLogo && (() => {
+        const aspect =
+          settings.customLogoUrl && settings.customLogoAspect
+            ? settings.customLogoAspect
+            : 2.6;
+        const scale = settings.logoScale ?? 1;
         const minDim = Math.min(width, height);
-        const logoH = Math.max(16, minDim * 0.08);
-        const logoW = logoH * 2.6;
+        const logoH = Math.max(16, minDim * 0.08) * scale;
+        const logoW = logoH * aspect;
         const margin = Math.max(6, minDim * 0.018);
+        // Effective normalised top-left: live drag pos while dragging,
+        // else persisted settings, else default top-right anchor.
+        const maxX = Math.max(0, 1 - logoW / width);
+        const maxY = Math.max(0, 1 - logoH / height);
+        const clamp = (v: number, hi: number) =>
+          Math.min(hi, Math.max(0, v));
+        const effX =
+          logoDragPos !== null
+            ? clamp(logoDragPos.x, maxX)
+            : typeof settings.logoX === "number"
+              ? clamp(settings.logoX, maxX)
+              : (width - logoW - margin) / width;
+        const effY =
+          logoDragPos !== null
+            ? clamp(logoDragPos.y, maxY)
+            : typeof settings.logoY === "number"
+              ? clamp(settings.logoY, maxY)
+              : margin / height;
+        const lx = x + effX * width;
+        const ly = y + effY * height;
+        const href = settings.customLogoUrl ?? ehsLogo;
+        const commit = (pos: { x: number; y: number } | null) => {
+          if (pos) {
+            onUpdateSettings({
+              logoX: clamp(pos.x, maxX),
+              logoY: clamp(pos.y, maxY),
+            });
+          }
+          setLogoDragPos(null);
+          setIsDraggingLogo(false);
+        };
         return (
-          <image
-            href={ehsLogo}
-            x={x + width - logoW - margin}
-            y={y + margin}
-            width={logoW}
-            height={logoH}
-            preserveAspectRatio="xMidYMid meet"
-            pointerEvents="none"
-          />
+          <g
+            style={{ cursor: isDraggingLogo ? "grabbing" : "grab" }}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              const norm = eventToNorm(e);
+              if (!norm) return;
+              logoDragOffsetRef.current = {
+                dx: norm.x - effX,
+                dy: norm.y - effY,
+              };
+              logoDragMaxRef.current = { maxX, maxY };
+              setLogoDragPos({ x: effX, y: effY });
+              setIsDraggingLogo(true);
+              try {
+                e.currentTarget.setPointerCapture(e.pointerId);
+              } catch {
+                // Window-level fallback effect handles capture failures.
+              }
+            }}
+            onPointerMove={(e) => {
+              if (!isDraggingLogo) return;
+              const norm = eventToNorm(e);
+              if (!norm) return;
+              const { dx, dy } = logoDragOffsetRef.current;
+              setLogoDragPos({ x: norm.x - dx, y: norm.y - dy });
+            }}
+            onPointerUp={() => commit(logoDragPos)}
+            onPointerCancel={() => commit(null)}
+          >
+            {/* Transparent hit rect slightly larger than the logo so
+                producers don't have to click a transparent PNG pixel
+                to start the drag. */}
+            <rect
+              x={lx - 4}
+              y={ly - 4}
+              width={logoW + 8}
+              height={logoH + 8}
+              fill="transparent"
+            />
+            <image
+              href={href}
+              x={lx}
+              y={ly}
+              width={logoW}
+              height={logoH}
+              preserveAspectRatio="xMidYMid meet"
+              pointerEvents="none"
+            />
+          </g>
         );
       })()}
       {/* Bottom info bar — panels / resolution / aspect. Mirrors PNG. */}
@@ -3928,7 +4069,7 @@ function ExportOptions({
                   ["showTestPattern", "Alignment circle + corner X"],
                   ["showScreenName", "Screen name pill"],
                   ["showInfoBar", "Bottom info bar"],
-                  ["showLogo", "EHS logo"],
+                  ["showLogo", settings.customLogoUrl ? "Custom logo" : "EHS logo"],
                 ] as const
               ).map(([key, label]) => {
                 const checked = Boolean(settings[key]);
@@ -3956,6 +4097,145 @@ function ExportOptions({
                   </label>
                 );
               })}
+            </div>
+          </div>
+
+          {/* ── Group 2.5: Custom logo ───────────────────────────── */}
+          <div className="led-export-group">
+            <div className="led-export-group-head">
+              <span className="led-export-group-title">Logo</span>
+              <span className="led-export-group-hint">
+                Upload your own logo to replace the EHS mark. Drag the
+                logo on the canvas to reposition it, and use the slider
+                to resize.
+              </span>
+            </div>
+            <div
+              className="led-export-look"
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <label className="led-btn led-btn-secondary" style={{ cursor: "pointer" }}>
+                {settings.customLogoUrl ? "Replace logo" : "Upload logo"}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    // Reset the input so re-selecting the same file
+                    // still fires onChange.
+                    e.target.value = "";
+                    if (!file) return;
+                    if (file.size > 4 * 1024 * 1024) {
+                      window.alert(
+                        "Logo file is too large (max 4 MB). Please use a smaller image.",
+                      );
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      const dataUrl = String(reader.result ?? "");
+                      if (!dataUrl.startsWith("data:image/")) return;
+                      // Decode to capture aspect ratio so the canvas
+                      // and export keep the logo's true proportions.
+                      const img = new Image();
+                      img.onload = () => {
+                        const aspect =
+                          img.naturalWidth > 0 && img.naturalHeight > 0
+                            ? img.naturalWidth / img.naturalHeight
+                            : 2.6;
+                        onUpdateSettings({
+                          customLogoUrl: dataUrl,
+                          customLogoAspect: aspect,
+                          showLogo: true,
+                        });
+                      };
+                      img.onerror = () => {
+                        onUpdateSettings({
+                          customLogoUrl: dataUrl,
+                          customLogoAspect: 2.6,
+                          showLogo: true,
+                        });
+                      };
+                      img.src = dataUrl;
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                />
+              </label>
+              {settings.customLogoUrl && (
+                <button
+                  type="button"
+                  className="led-btn led-btn-secondary"
+                  onClick={() =>
+                    onUpdateSettings({
+                      customLogoUrl: null,
+                      customLogoAspect: undefined,
+                    })
+                  }
+                  title="Revert to the built-in EHS logo"
+                >
+                  Use EHS logo
+                </button>
+              )}
+              <button
+                type="button"
+                className="led-btn led-btn-secondary"
+                onClick={() =>
+                  onUpdateSettings({
+                    logoX: undefined,
+                    logoY: undefined,
+                    logoScale: undefined,
+                  })
+                }
+                title="Move the logo back to the top-right corner at its default size"
+                disabled={
+                  settings.logoX === undefined &&
+                  settings.logoY === undefined &&
+                  settings.logoScale === undefined
+                }
+              >
+                Reset position &amp; size
+              </button>
+              <label
+                className="led-field"
+                style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 220 }}
+              >
+                <span className="led-field-label" style={{ whiteSpace: "nowrap" }}>
+                  Size {Math.round((settings.logoScale ?? 1) * 100)}%
+                </span>
+                <input
+                  type="range"
+                  min={0.3}
+                  max={3}
+                  step={0.05}
+                  value={settings.logoScale ?? 1}
+                  onChange={(e) =>
+                    onUpdateSettings({ logoScale: Number(e.target.value) })
+                  }
+                  style={{ flex: 1 }}
+                />
+              </label>
+              {settings.customLogoUrl && (
+                <img
+                  src={settings.customLogoUrl}
+                  alt="Custom logo preview"
+                  style={{
+                    height: 36,
+                    maxWidth: 120,
+                    objectFit: "contain",
+                    background: "var(--surface-soft, #f5f6f7)",
+                    border: "1px solid var(--border, #d0d4d9)",
+                    borderRadius: 4,
+                    padding: 4,
+                  }}
+                />
+              )}
             </div>
           </div>
 

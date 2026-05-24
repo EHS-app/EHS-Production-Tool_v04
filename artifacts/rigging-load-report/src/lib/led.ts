@@ -714,8 +714,27 @@ export type LedSettings = {
   showScreenName: boolean;
   /** Render the bottom info bar (panel count / resolution / aspect) on PNG. */
   showInfoBar: boolean;
-  /** Render the EHS logo in the top-right corner of the PNG export. */
+  /** Render a logo on each screen (EHS by default, or the user's
+   *  uploaded `customLogoUrl`). Drag-positioned by `logoX/Y` and
+   *  resized by `logoScale`. */
   showLogo: boolean;
+  /** User-uploaded logo as a base64 data URL. When set, replaces the
+   *  built-in EHS logo on both the live canvas and the PNG/PDF export.
+   *  Null / undefined falls back to the EHS logo. */
+  customLogoUrl?: string | null;
+  /** Width-over-height ratio of the uploaded logo, captured at upload
+   *  time so we can keep its proportions without re-decoding the
+   *  image on every render. Falls back to 2.6 (the EHS mark's ratio)
+   *  when the custom logo is missing or undecodable. */
+  customLogoAspect?: number;
+  /** Top-left position of the logo, normalised to each screen's rect
+   *  (0..1). Undefined means "auto" — falls back to the legacy top-
+   *  right anchor. Updated by the on-canvas drag handle. */
+  logoX?: number;
+  logoY?: number;
+  /** Logo size multiplier (1 = the legacy default of ~8% of the
+   *  screen's short edge). Clamped to a sensible range. */
+  logoScale?: number;
   /** Wiring path drawn by the data-flow arrows. */
   wirePath: LedWirePath;
   /** How to assign processor outputs.
@@ -989,6 +1008,46 @@ export function normalizeLedSettings(s: unknown): LedSettings {
     showScreenName: obj.showScreenName !== false,
     showInfoBar: obj.showInfoBar !== false,
     showLogo: obj.showLogo !== false,
+    // Only accept a custom logo if it parses as a `data:image/...`
+    // URL. Rejects http(s):// (cross-origin canvas taint risk),
+    // javascript:/data:text/html (SVG injection surface), and any
+    // junk persisted from earlier malformed states.
+    customLogoUrl:
+      typeof obj.customLogoUrl === "string" &&
+      /^data:image\/(png|jpeg|jpg|webp|svg\+xml|gif);(?:charset=[\w-]+;)?base64,/i.test(
+        obj.customLogoUrl,
+      ) &&
+      obj.customLogoUrl.length <= 6 * 1024 * 1024
+        ? obj.customLogoUrl
+        : null,
+    customLogoAspect:
+      typeof obj.customLogoAspect === "number" &&
+      Number.isFinite(obj.customLogoAspect) &&
+      obj.customLogoAspect > 0.05 &&
+      obj.customLogoAspect < 50
+        ? obj.customLogoAspect
+        : undefined,
+    logoX:
+      typeof obj.logoX === "number" &&
+      Number.isFinite(obj.logoX) &&
+      obj.logoX >= 0 &&
+      obj.logoX <= 1
+        ? obj.logoX
+        : undefined,
+    logoY:
+      typeof obj.logoY === "number" &&
+      Number.isFinite(obj.logoY) &&
+      obj.logoY >= 0 &&
+      obj.logoY <= 1
+        ? obj.logoY
+        : undefined,
+    logoScale:
+      typeof obj.logoScale === "number" &&
+      Number.isFinite(obj.logoScale) &&
+      obj.logoScale >= 0.2 &&
+      obj.logoScale <= 5
+        ? obj.logoScale
+        : undefined,
     wirePath,
     outputMode,
     panelColorDark: normalizeHexColor(

@@ -141,18 +141,35 @@ export async function downloadLedProjectPdf(
 
 // ─── Logo loading ──────────────────────────────────────────────────
 
-/** Fetch the logo URL and return a data URL. Returns "" on failure
- *  so callers can guard with a simple truthiness check. */
+/** Load the logo URL into a canvas and return a PNG data URL.
+ *  Using an Image element (rather than `fetch`) lets the browser
+ *  resolve the URL exactly as it would in the live app — including
+ *  any Vite BASE path prefix — so the asset reliably loads in both
+ *  development and production builds. Returns "" on failure so
+ *  callers can guard with a simple truthiness check. */
 async function loadLogoDataUrl(src: string | undefined): Promise<string> {
   if (!src) return "";
   // Already a data URL — pass through.
   if (src.startsWith("data:")) return src;
   try {
-    const resp = await fetch(src);
-    if (!resp.ok) return "";
-    const blob = await resp.blob();
-    return await blobToDataUrl(blob);
-  } catch {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.decoding = "async";
+    img.src = src;
+    await new Promise<void>((resolve, reject) => {
+      if (img.complete && img.naturalWidth > 0) return resolve();
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error(`Failed to load logo: ${src}`));
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth || 256;
+    canvas.height = img.naturalHeight || 96;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return "";
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/png");
+  } catch (err) {
+    console.warn("[ledProjectPdf] could not load logo:", err);
     return "";
   }
 }

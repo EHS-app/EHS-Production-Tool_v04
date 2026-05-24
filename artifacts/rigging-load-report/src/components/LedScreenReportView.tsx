@@ -3124,6 +3124,94 @@ function ScreenSvg({
           );
         });
       })()}
+      {/* "Painted" badges — passive indicators showing whether this
+          screen already has a power map and/or signal map with at
+          least one port carrying cells. Rendered for every screen in
+          both Basic and Advanced modes so producers can see at a
+          glance which screens are cabled without opening the paint
+          toolbar. Sits in the top-right corner inside the screen so
+          it doesn't fight the title / output badge above. */}
+      {(() => {
+        const powerPorts = (screen.powerMap?.ports ?? []).filter(
+          (p) => p.cells.length > 0,
+        );
+        const signalPorts = (screen.signalMap?.ports ?? []).filter(
+          (p) => p.cells.length > 0,
+        );
+        const hasPower = powerPorts.length > 0;
+        const hasSignal = signalPorts.length > 0;
+        if (!hasPower && !hasSignal) return null;
+        const badgeR = Math.max(8, Math.min(16, Math.min(cellW, cellH) * 0.22));
+        const pad = badgeR * 0.5;
+        const gap = badgeR * 0.5;
+        type Item = {
+          key: "power" | "signal";
+          icon: string;
+          color: string;
+          title: string;
+        };
+        const items: Item[] = [];
+        if (hasPower) {
+          const cables = powerPorts.reduce((n, p) => n + p.cells.length, 0);
+          items.push({
+            key: "power",
+            icon: "⚡",
+            color: "#f59e0b",
+            title: `Power map: ${powerPorts.length} port${
+              powerPorts.length === 1 ? "" : "s"
+            }, ${cables} cable${cables === 1 ? "" : "s"}`,
+          });
+        }
+        if (hasSignal) {
+          const cables = signalPorts.reduce((n, p) => n + p.cells.length, 0);
+          items.push({
+            key: "signal",
+            icon: "⇄",
+            color: "#2563eb",
+            title: `Signal map: ${signalPorts.length} port${
+              signalPorts.length === 1 ? "" : "s"
+            }, ${cables} cable${cables === 1 ? "" : "s"}`,
+          });
+        }
+        const count = items.length;
+        const totalW = count * (badgeR * 2) + (count - 1) * gap;
+        const startCx = x + width - pad - totalW + badgeR;
+        const cy = y + pad + badgeR;
+        return (
+          <g>
+            {items.map((it, i) => {
+              const cx = startCx + i * (badgeR * 2 + gap);
+              return (
+                <g key={it.key}>
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={badgeR}
+                    fill="#ffffff"
+                    stroke={it.color}
+                    strokeWidth={1.5}
+                    opacity={0.95}
+                  />
+                  <text
+                    x={cx}
+                    y={cy}
+                    fontSize={badgeR * 1.25}
+                    fontWeight={700}
+                    fill={it.color}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fontFamily="system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+                    pointerEvents="none"
+                  >
+                    {it.icon}
+                  </text>
+                  <title>{it.title}</title>
+                </g>
+              );
+            })}
+          </g>
+        );
+      })()}
     </g>
   );
 }

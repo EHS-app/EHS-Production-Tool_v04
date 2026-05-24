@@ -3,16 +3,18 @@
  * pixel-map workspace as a deliverable for the venue / freelancer
  * crew. The output is A4 landscape and contains:
  *
- *   1. Cover           — project metadata + main canvas snapshot
+ *   1. Cover           — EHS logo + project metadata (no snapshot)
  *   2. Power drawing   — canvas snapshot with ONLY power overlays
  *   3. Signal drawing  — canvas snapshot with ONLY signal overlays
  *   4. Technical summary — per-screen pixels, area, weight, power
  *   5. Cable summary     — per-screen signal/power jumpers + brackets
  *
- * The three canvas snapshots are produced by cloning the live
+ * The two canvas snapshots are produced by cloning the live
  * `<svg class="led-canvas">` in the DOM and selectively showing or
  * hiding the elements tagged with `data-paint-overlay`,
- * `data-marker-kind`, and `data-painted-badge`. This avoids any
+ * `data-marker-kind`, and `data-painted-badge`. The EHS logo is
+ * stamped onto the snapshot SVG so it shows up in the drawing
+ * itself, mirroring how the canvas reads on screen. This avoids any
  * React state round-trip and keeps export logic decoupled from the
  * paint toolbar's `paintMode` UI state.
  */
@@ -28,7 +30,7 @@ import {
 import { estimateScreenPower } from "./led/engine/power";
 import { rasterizeSvgToPng, safeFilename } from "./ledExport";
 
-type Mode = "all" | "power" | "signal";
+type Mode = "power" | "signal";
 
 export type LedProjectPdfInput = {
   screens: LedScreen[];
@@ -38,6 +40,11 @@ export type LedProjectPdfInput = {
   venue: string;
   client: string;
   reportDate: string;
+  /** URL or data URI for the EHS logo. The caller passes the
+   *  imported asset (e.g. `import ehsLogo from "./assets/ehs-logo.png"`).
+   *  The logo is fetched once, converted to a data URL, and reused
+   *  for every page header + the in-canvas watermark. */
+  logoSrc?: string;
   /** Optional override for the canvas SVG element. Defaults to the
    *  first `.led-canvas` found in the document. */
   canvasSvg?: SVGSVGElement | null;
@@ -60,10 +67,13 @@ export async function downloadLedProjectPdf(
     );
   }
 
-  const [coverPng, powerPng, signalPng] = await Promise.all([
-    snapshotCanvas(live, "all"),
-    snapshotCanvas(live, "power"),
-    snapshotCanvas(live, "signal"),
+  // Load the EHS logo once, up-front. Fall back to an empty data
+  // URI on failure so the rest of the export still succeeds.
+  const logoDataUrl = await loadLogoDataUrl(input.logoSrc);
+
+  const [powerPng, signalPng] = await Promise.all([
+    snapshotCanvas(live, "power", logoDataUrl),
+    snapshotCanvas(live, "signal", logoDataUrl),
   ]);
 
   const { default: jsPDF } = await import("jspdf");
@@ -72,75 +82,100 @@ export async function downloadLedProjectPdf(
   const pageH = pdf.internal.pageSize.getHeight();
   const margin = 12;
 
-  // ── Page 1 — Cover ──────────────────────────────────────────────
-  drawHeader(pdf, "LED Project Pack", pageW, margin);
-  drawMetaBlock(pdf, input, margin, 26, pageW - margin * 2);
-  await drawFittedImage(pdf, coverPng, margin, 70, pageW - margin * 2, pageH - 70 - margin);
+  // ── Page 1 — Cover (logo + metadata, no snapshot) ───────────────
+  drawHeader(pdf, "LED Project Pack", pageW, margin, logoDataUrl);
+  drawMetaBlock(pdf, input, margin, 36, pageW - margin * 2);
 
   // ── Page 2 — Power drawing ──────────────────────────────────────
   pdf.addPage();
-  drawHeader(pdf, "Power drawing", pageW, margin);
-  drawSubLine(pdf, input, margin, 22, pageW - margin * 2);
-  await drawFittedImage(pdf, powerPng, margin, 30, pageW - margin * 2, pageH - 30 - margin);
+  drawHeader(pdf, "Power drawing", pageW, margin, logoDataUrl);
+  drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
+  await drawFittedImage(pdf, powerPng, margin, 32, pageW - margin * 2, pageH - 32 - margin);
 
   // ── Page 3 — Signal drawing ─────────────────────────────────────
   pdf.addPage();
-  drawHeader(pdf, "Signal drawing", pageW, margin);
-  drawSubLine(pdf, input, margin, 22, pageW - margin * 2);
-  await drawFittedImage(pdf, signalPng, margin, 30, pageW - margin * 2, pageH - 30 - margin);
+  drawHeader(pdf, "Signal drawing", pageW, margin, logoDataUrl);
+  drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
+  await drawFittedImage(pdf, signalPng, margin, 32, pageW - margin * 2, pageH - 32 - margin);
 
   // ── Page 4 — Technical summary ──────────────────────────────────
   pdf.addPage();
-  drawHeader(pdf, "Technical summary", pageW, margin);
-  drawSubLine(pdf, input, margin, 22, pageW - margin * 2);
+  drawHeader(pdf, "Technical summary", pageW, margin, logoDataUrl);
+  drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
   drawTechSummary(
     pdf,
     input.screens,
     input.panels,
     input.settings,
     margin,
-    30,
+    32,
     pageW - margin * 2,
     input,
     pageW,
     pageH,
     margin,
+    logoDataUrl,
   );
 
   // ── Page 5 — Cable summary ──────────────────────────────────────
   pdf.addPage();
-  drawHeader(pdf, "Cable summary", pageW, margin);
-  drawSubLine(pdf, input, margin, 22, pageW - margin * 2);
+  drawHeader(pdf, "Cable summary", pageW, margin, logoDataUrl);
+  drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
   drawCableSummary(
     pdf,
     input.screens,
     input.panels,
     margin,
-    30,
+    32,
     pageW - margin * 2,
     input,
     pageW,
     pageH,
     margin,
+    logoDataUrl,
   );
 
   const base = safeFilename(input.projectName || input.venue || "led-project");
   pdf.save(`${base}_led-project.pdf`);
 }
 
+// ─── Logo loading ──────────────────────────────────────────────────
+
+/** Fetch the logo URL and return a data URL. Returns "" on failure
+ *  so callers can guard with a simple truthiness check. */
+async function loadLogoDataUrl(src: string | undefined): Promise<string> {
+  if (!src) return "";
+  // Already a data URL — pass through.
+  if (src.startsWith("data:")) return src;
+  try {
+    const resp = await fetch(src);
+    if (!resp.ok) return "";
+    const blob = await resp.blob();
+    return await blobToDataUrl(blob);
+  } catch {
+    return "";
+  }
+}
+
+/** Logo dimensions in mm for the PDF page header. */
+const LOGO_HEADER_W_MM = 24;
+const LOGO_HEADER_H_MM = 10;
+
 // ─── Canvas snapshot ───────────────────────────────────────────────
 
 /** Clone the live canvas SVG, filter overlays/markers/badges by the
- *  requested mode, and rasterise to a PNG data URL. */
+ *  requested mode, stamp the EHS logo onto the top-left corner, and
+ *  rasterise to a PNG data URL. */
 async function snapshotCanvas(
   live: SVGSVGElement,
   mode: Mode,
+  logoDataUrl: string,
 ): Promise<{ dataUrl: string; width: number; height: number }> {
   const clone = live.cloneNode(true) as SVGSVGElement;
 
   // Apply mode filter to the clone.
-  const showPower = mode === "all" || mode === "power";
-  const showSignal = mode === "all" || mode === "signal";
+  const showPower = mode === "power";
+  const showSignal = mode === "signal";
 
   // Painted port-chain overlays.
   clone.querySelectorAll<SVGElement>('[data-paint-overlay="power"]').forEach((el) => {
@@ -193,6 +228,30 @@ async function snapshotCanvas(
   bg.setAttribute("fill", "#ffffff");
   clone.insertBefore(bg, clone.firstChild);
 
+  // Stamp the EHS logo onto the snapshot in the same way as the
+  // canvas reads on screen — top-left corner, sized to ~9% of the
+  // long edge for legibility at print resolution.
+  if (logoDataUrl) {
+    const logoLong = Math.max(viewW, viewH) * 0.09;
+    const aspectGuess = 2.4; // ehs-logo.png is wide; refined by browser if needed.
+    const logoW = logoLong;
+    const logoH = logoLong / aspectGuess;
+    const pad = Math.max(viewW, viewH) * 0.012;
+    const img = document.createElementNS("http://www.w3.org/2000/svg", "image");
+    img.setAttributeNS(
+      "http://www.w3.org/1999/xlink",
+      "xlink:href",
+      logoDataUrl,
+    );
+    img.setAttribute("href", logoDataUrl);
+    img.setAttribute("x", String((vb?.x ?? 0) + pad));
+    img.setAttribute("y", String((vb?.y ?? 0) + pad));
+    img.setAttribute("width", String(logoW));
+    img.setAttribute("height", String(logoH));
+    img.setAttribute("preserveAspectRatio", "xMinYMin meet");
+    clone.appendChild(img);
+  }
+
   const svgString = new XMLSerializer().serializeToString(clone);
   const blob = await rasterizeSvgToPng(svgString, pixelW, pixelH);
   const dataUrl = await blobToDataUrl(blob);
@@ -212,20 +271,45 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 
 type JsPDF = import("jspdf").jsPDF;
 
-function drawHeader(pdf: JsPDF, title: string, pageW: number, margin: number) {
-  pdf.setDrawColor(248, 128, 0);
-  pdf.setLineWidth(0.8);
-  pdf.line(margin, margin + 8, pageW - margin, margin + 8);
+function drawHeader(
+  pdf: JsPDF,
+  title: string,
+  pageW: number,
+  margin: number,
+  logoDataUrl: string,
+) {
+  // Logo top-left. The image silently no-ops if the data URL is empty.
+  let titleX = margin;
+  if (logoDataUrl) {
+    try {
+      pdf.addImage(
+        logoDataUrl,
+        "PNG",
+        margin,
+        margin - 2,
+        LOGO_HEADER_W_MM,
+        LOGO_HEADER_H_MM,
+        undefined,
+        "FAST",
+      );
+      titleX = margin + LOGO_HEADER_W_MM + 6;
+    } catch {
+      // Bad image format — skip and fall through to text-only header.
+    }
+  }
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(18);
+  pdf.setFontSize(16);
   pdf.setTextColor(20, 20, 20);
-  pdf.text(title, margin, margin + 5);
+  pdf.text(title, titleX, margin + 5);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(9);
   pdf.setTextColor(120, 120, 120);
   pdf.text("EHS Production Tool — LED Pixel Map", pageW - margin, margin + 5, {
     align: "right",
   });
+  pdf.setDrawColor(248, 128, 0);
+  pdf.setLineWidth(0.8);
+  pdf.line(margin, margin + 10, pageW - margin, margin + 10);
 }
 
 function drawSubLine(
@@ -413,6 +497,7 @@ function drawTechSummary(
   pageW: number,
   pageH: number,
   margin: number,
+  logoDataUrl: string,
 ) {
   const headers = [
     "Screen",
@@ -476,9 +561,9 @@ function drawTechSummary(
     "Technical summary",
     pageH - margin,
     (p, px) => {
-      drawHeader(p, "Technical summary", pageW, margin);
-      drawSubLine(p, input, px, 22, pageW - margin * 2);
-      return 30;
+      drawHeader(p, "Technical summary", pageW, margin, logoDataUrl);
+      drawSubLine(p, input, px, 26, pageW - margin * 2);
+      return 32;
     },
   );
 }
@@ -494,6 +579,7 @@ function drawCableSummary(
   pageW: number,
   pageH: number,
   margin: number,
+  logoDataUrl: string,
 ) {
   const headers = [
     "Screen",
@@ -549,9 +635,9 @@ function drawCableSummary(
     "Cable summary",
     pageH - margin - 12, // Reserve space for the footnote at page bottom.
     (p, px) => {
-      drawHeader(p, "Cable summary", pageW, margin);
-      drawSubLine(p, input, px, 22, pageW - margin * 2);
-      return 30;
+      drawHeader(p, "Cable summary", pageW, margin, logoDataUrl);
+      drawSubLine(p, input, px, 26, pageW - margin * 2);
+      return 32;
     },
   );
 

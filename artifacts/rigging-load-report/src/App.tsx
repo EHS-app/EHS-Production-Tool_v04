@@ -5410,6 +5410,7 @@ function App() {
               venue,
               client,
               reportDate,
+              logoSrc: ehsLogo,
             });
           } catch (err) {
             const msg =

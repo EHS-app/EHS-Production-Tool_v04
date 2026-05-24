@@ -1051,6 +1051,46 @@ function ScreenRow({
   const armed: PlaceModeKind | null =
     placeMode && placeMode.screenId === screen.id ? placeMode.kind : null;
   const [shapeOpen, setShapeOpen] = useState(false);
+  // Single dropdown for the Color column — collapses the badge swatches
+  // and the dual-color presets (incl. "Auto") behind one trigger so the
+  // row stays compact. Click-outside / Escape closes the popover.
+  const [colorMenuOpen, setColorMenuOpen] = useState(false);
+  const colorMenuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!colorMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!colorMenuRef.current) return;
+      if (!colorMenuRef.current.contains(e.target as Node)) {
+        setColorMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setColorMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [colorMenuOpen]);
+  const activePreset = useMemo(() => {
+    if (
+      screen.panelColorDark === undefined &&
+      screen.panelColorLight === undefined
+    ) {
+      return null;
+    }
+    const dark = (screen.panelColorDark ?? "").toLowerCase();
+    const light = (screen.panelColorLight ?? "").toLowerCase();
+    return (
+      LED_PANEL_COLOR_PRESETS.find(
+        (p) =>
+          p.dark.toLowerCase() === dark && p.light.toLowerCase() === light,
+      ) ?? null
+    );
+  }, [screen.panelColorDark, screen.panelColorLight]);
+  const triggerLabel = activePreset ? activePreset.label : "Auto";
   // Build-by-size form state. Pre-fill with the screen's current
   // physical width/height so the producer can tweak rather than
   // re-type from scratch on every open.
@@ -1283,83 +1323,129 @@ function ScreenRow({
           />
         </td>
         <td>
-          {/* Top row — original badge-color swatches. Drives the small
-              circle that shows the screen's processor-output number on
-              the canvas. Kept for backwards compatibility with screens
-              created before per-screen panel presets existed. */}
-          <div className="led-color-picker">
-            {LED_SCREEN_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                className={`led-color-swatch ${screen.color === c ? "is-active" : ""}`}
-                style={{ background: c }}
-                onClick={(e) => {
-                  // Stop the row-level click handler from firing (which
-                  // would also select the screen — fine, but leave the
-                  // intent unambiguous).
-                  e.stopPropagation();
-                  onUpdate({ color: c });
-                }}
-                aria-label={`Color ${c}`}
-              />
-            ))}
-          </div>
-          {/* Bottom row — dual-color panel-grid presets. Picking one
-              overrides the global ledSettings panel colours for THIS
-              screen only, which is what makes a 3-screen import look
-              visually distinct on the canvas. The "Auto" chip clears
-              the override and falls back to the global setting. */}
-          <div className="led-preset-picker" aria-label="Panel grid preset">
+          {/* Single dropdown that hosts BOTH the badge swatches and the
+              dual-color panel-grid presets. Trigger label is the active
+              preset name, or "Auto" when the screen falls back to the
+              global Export panel colours. */}
+          <div
+            className="led-color-menu"
+            ref={colorMenuRef}
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               type="button"
-              className={`led-preset-chip is-auto ${
-                screen.panelColorDark === undefined &&
-                screen.panelColorLight === undefined
-                  ? "is-active"
-                  : ""
-              }`}
+              className={`led-color-menu-trigger ${colorMenuOpen ? "is-open" : ""}`}
               onClick={(e) => {
                 e.stopPropagation();
-                onUpdate({
-                  panelColorDark: undefined,
-                  panelColorLight: undefined,
-                });
+                setColorMenuOpen((v) => !v);
               }}
-              title="Use the global panel colours from Export options"
+              aria-haspopup="true"
+              aria-expanded={colorMenuOpen}
+              title={
+                activePreset
+                  ? `Panel preset: ${activePreset.label}`
+                  : "Using global panel colours — click to change"
+              }
             >
-              Auto
+              <span
+                className="led-color-menu-swatch"
+                style={
+                  activePreset
+                    ? {
+                        background: `linear-gradient(135deg, ${activePreset.dark} 0%, ${activePreset.dark} 50%, ${activePreset.light} 50%, ${activePreset.light} 100%)`,
+                      }
+                    : { background: screen.color }
+                }
+                aria-hidden="true"
+              />
+              <span className="led-color-menu-label">{triggerLabel}</span>
+              <span className="led-color-menu-chev" aria-hidden="true">
+                ▾
+              </span>
             </button>
-            {LED_PANEL_COLOR_PRESETS.map((p) => {
-              const active =
-                (screen.panelColorDark ?? "").toLowerCase() ===
-                  p.dark.toLowerCase() &&
-                (screen.panelColorLight ?? "").toLowerCase() ===
-                  p.light.toLowerCase();
-              return (
-                <button
-                  key={p.label}
-                  type="button"
-                  className={`led-preset-chip ${active ? "is-active" : ""}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onUpdate({
-                      panelColorDark: p.dark,
-                      panelColorLight: p.light,
-                      // Mirror the badge color to the preset's light
-                      // value too — keeps the table swatches and the
-                      // visual in sync after a one-click change.
-                      color: p.light,
-                    });
-                  }}
-                  title={`${p.label} preset`}
-                  style={{
-                    background: `linear-gradient(135deg, ${p.dark} 0%, ${p.dark} 50%, ${p.light} 50%, ${p.light} 100%)`,
-                  }}
-                  aria-label={`${p.label} preset`}
-                />
-              );
-            })}
+            {colorMenuOpen && (
+              <div
+                className="led-color-menu-popover"
+                role="dialog"
+                aria-label="Screen colour"
+              >
+                <div className="led-color-menu-section">
+                  <div className="led-color-menu-heading">Panel preset</div>
+                  <div
+                    className="led-preset-picker"
+                    aria-label="Panel grid preset"
+                  >
+                    <button
+                      type="button"
+                      className={`led-preset-chip is-auto ${
+                        screen.panelColorDark === undefined &&
+                        screen.panelColorLight === undefined
+                          ? "is-active"
+                          : ""
+                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUpdate({
+                          panelColorDark: undefined,
+                          panelColorLight: undefined,
+                        });
+                      }}
+                      title="Use the global panel colours from Export options"
+                    >
+                      Auto
+                    </button>
+                    {LED_PANEL_COLOR_PRESETS.map((p) => {
+                      const active =
+                        (screen.panelColorDark ?? "").toLowerCase() ===
+                          p.dark.toLowerCase() &&
+                        (screen.panelColorLight ?? "").toLowerCase() ===
+                          p.light.toLowerCase();
+                      return (
+                        <button
+                          key={p.label}
+                          type="button"
+                          className={`led-preset-chip ${active ? "is-active" : ""}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onUpdate({
+                              panelColorDark: p.dark,
+                              panelColorLight: p.light,
+                              // Mirror the badge color to the preset's
+                              // light value too — keeps the table
+                              // swatches and the canvas in sync.
+                              color: p.light,
+                            });
+                          }}
+                          title={`${p.label} preset`}
+                          style={{
+                            background: `linear-gradient(135deg, ${p.dark} 0%, ${p.dark} 50%, ${p.light} 50%, ${p.light} 100%)`,
+                          }}
+                          aria-label={`${p.label} preset`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="led-color-menu-section">
+                  <div className="led-color-menu-heading">Badge colour</div>
+                  <div className="led-color-picker">
+                    {LED_SCREEN_COLORS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        className={`led-color-swatch ${screen.color === c ? "is-active" : ""}`}
+                        style={{ background: c }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onUpdate({ color: c });
+                        }}
+                        aria-label={`Color ${c}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </td>
         <td>

@@ -3068,6 +3068,87 @@ input:focus {
   color: var(--text, #0f172a);
 }
 
+/* Single-trigger dropdown that hosts the per-row colour controls. The
+   trigger shows a small swatch (current preset gradient, or the badge
+   colour when on Auto) + the preset label, and toggles a popover with
+   both the panel preset chips and the badge swatches. */
+.led-color-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.led-color-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px 3px 4px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 6px;
+  background: var(--surface, var(--card-bg, #fff));
+  color: var(--ink, var(--text, #0f172a));
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+.led-color-menu-trigger:hover {
+  border-color: var(--text, #0f172a);
+}
+.led-color-menu-trigger.is-open {
+  border-color: var(--text, #0f172a);
+  background: var(--surface-soft, #f3f4f6);
+}
+.led-color-menu-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  flex: 0 0 auto;
+}
+.led-color-menu-label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.led-color-menu-chev {
+  font-size: 10px;
+  opacity: 0.7;
+  margin-left: 2px;
+}
+.led-color-menu-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 220px;
+  padding: 10px;
+  background: var(--surface, var(--card-bg, #fff));
+  color: var(--ink, var(--text, #0f172a));
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.led-color-menu-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.led-color-menu-heading {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft, var(--text-soft, #6b7280));
+}
+.led-color-menu-popover .led-preset-picker,
+.led-color-menu-popover .led-color-picker {
+  margin: 0;
+}
+
 /* Selected screen row in the LED table — also matches the canvas halo
    color so the relationship between table row and pixel-map screen is
    obvious. Outranks the linked-row tint by being declared after it. */

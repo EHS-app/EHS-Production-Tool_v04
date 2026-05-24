@@ -71,9 +71,10 @@ export async function downloadLedProjectPdf(
   // URI on failure so the rest of the export still succeeds.
   const logoDataUrl = await loadLogoDataUrl(input.logoSrc);
 
+  // Logo appears on the cover page only — drawings stay clean.
   const [powerPng, signalPng] = await Promise.all([
-    snapshotCanvas(live, "power", logoDataUrl),
-    snapshotCanvas(live, "signal", logoDataUrl),
+    snapshotCanvas(live, "power", ""),
+    snapshotCanvas(live, "signal", ""),
   ]);
 
   const { default: jsPDF } = await import("jspdf");
@@ -88,19 +89,19 @@ export async function downloadLedProjectPdf(
 
   // ── Page 2 — Power drawing ──────────────────────────────────────
   pdf.addPage();
-  drawHeader(pdf, "Power drawing", pageW, margin, logoDataUrl);
+  drawHeader(pdf, "Power drawing", pageW, margin, "");
   drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
   await drawFittedImage(pdf, powerPng, margin, 32, pageW - margin * 2, pageH - 32 - margin);
 
   // ── Page 3 — Signal drawing ─────────────────────────────────────
   pdf.addPage();
-  drawHeader(pdf, "Signal drawing", pageW, margin, logoDataUrl);
+  drawHeader(pdf, "Signal drawing", pageW, margin, "");
   drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
   await drawFittedImage(pdf, signalPng, margin, 32, pageW - margin * 2, pageH - 32 - margin);
 
   // ── Page 4 — Technical summary ──────────────────────────────────
   pdf.addPage();
-  drawHeader(pdf, "Technical summary", pageW, margin, logoDataUrl);
+  drawHeader(pdf, "Technical summary", pageW, margin, "");
   drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
   drawTechSummary(
     pdf,
@@ -114,12 +115,12 @@ export async function downloadLedProjectPdf(
     pageW,
     pageH,
     margin,
-    logoDataUrl,
+    "",
   );
 
   // ── Page 5 — Cable summary ──────────────────────────────────────
   pdf.addPage();
-  drawHeader(pdf, "Cable summary", pageW, margin, logoDataUrl);
+  drawHeader(pdf, "Cable summary", pageW, margin, "");
   drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
   drawCableSummary(
     pdf,
@@ -132,7 +133,7 @@ export async function downloadLedProjectPdf(
     pageW,
     pageH,
     margin,
-    logoDataUrl,
+    "",
   );
 
   const base = safeFilename(input.projectName || input.venue || "led-project");

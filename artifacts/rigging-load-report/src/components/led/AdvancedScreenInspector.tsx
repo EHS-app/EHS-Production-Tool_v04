@@ -9,10 +9,8 @@
  *  (= fall back to settings default).
  */
 
-import { useState } from "react";
 import type {
   LedCurveType,
-  LedPanel,
   LedScanRateProfile,
   LedScreen,
   LedTransparencyMode,
@@ -25,77 +23,19 @@ import {
   LED_VOLTAGE_REGION_OPTIONS,
 } from "../../lib/led";
 import type { PowerEstimate } from "../../lib/led/engine/power";
-import { PortPainter } from "./PortPainter";
-
-type AdvTab = "engineering" | "power" | "signal";
 
 export function AdvancedScreenInspector({
   screen,
-  panels,
   power,
   onUpdate,
 }: {
   screen: LedScreen;
-  /** Panel catalog — needed by the Power / Signal map painter to look
-   *  up the cabinet's physical pixel dimensions for the header strip. */
-  panels: LedPanel[];
   /** Pre-computed by the validation runner so this component stays
    *  free of engine imports at render time. */
   power: PowerEstimate | undefined;
   onUpdate: (patch: Partial<LedScreen>) => void;
 }) {
-  const [tab, setTab] = useState<AdvTab>("engineering");
-  return (
-    <div className="led-adv-shell">
-      <div className="led-adv-tabs" role="tablist">
-        <button
-          role="tab"
-          aria-selected={tab === "engineering"}
-          className={`led-adv-tab ${tab === "engineering" ? "is-active" : ""}`}
-          onClick={() => setTab("engineering")}
-        >
-          Engineering
-        </button>
-        <button
-          role="tab"
-          aria-selected={tab === "power"}
-          className={`led-adv-tab ${tab === "power" ? "is-active" : ""}`}
-          onClick={() => setTab("power")}
-        >
-          Power map
-        </button>
-        <button
-          role="tab"
-          aria-selected={tab === "signal"}
-          className={`led-adv-tab ${tab === "signal" ? "is-active" : ""}`}
-          onClick={() => setTab("signal")}
-        >
-          Signal map
-        </button>
-      </div>
-      {tab === "power" && (
-        <PortPainter
-          screen={screen}
-          panels={panels}
-          kind="power"
-          map={screen.powerMap}
-          onChange={(powerMap) => onUpdate({ powerMap })}
-        />
-      )}
-      {tab === "signal" && (
-        <PortPainter
-          screen={screen}
-          panels={panels}
-          kind="signal"
-          map={screen.signalMap}
-          onChange={(signalMap) => onUpdate({ signalMap })}
-        />
-      )}
-      {tab === "engineering" && (
-        <EngineeringFields screen={screen} power={power} onUpdate={onUpdate} />
-      )}
-    </div>
-  );
+  return <EngineeringFields screen={screen} power={power} onUpdate={onUpdate} />;
 }
 
 function EngineeringFields({

@@ -51,6 +51,8 @@ import {
   type LedScreenProcessor,
   type ScreenProcessorCapacity,
   type NovastarProcessorModel,
+  type LedPortChain,
+  type LedPortMap,
 } from "../lib/led";
 import {
   LED_PROCESSORS,
@@ -73,6 +75,7 @@ import {
 import { AdvancedScreenInspector } from "./led/AdvancedScreenInspector";
 import { ValidationDrawer } from "./led/ValidationDrawer";
 import { PortMappingPanel } from "./led/PortMappingPanel";
+import { PaintToolbar, type PaintMode } from "./led/PaintToolbar";
 
 type Props = {
   screens: LedScreen[];
@@ -213,6 +216,99 @@ export function LedScreenReportView(props: Props) {
   );
 
   const [placeMode, setPlaceMode] = useState<PlaceMode>(null);
+
+  // ── Paint mode (Power / Signal map painter on the pixel-map canvas) ──
+  //
+  // Lives at the report-view level so the toolbar (rendered inside the
+  // pixel-map canvas) and the per-screen ScreenSvg overlay agree on a
+  // single mode + active port. Painting is bound to `selectedScreenId`:
+  // the overlay shows for every screen, but clicks only paint the
+  // currently selected one (mirrors how the rest of the LED tab acts
+  // on the selection).
+  const [paintMode, setPaintMode] = useState<PaintMode>("off");
+  const [activePortId, setActivePortId] = useState<string | null>(null);
+  const paintScreen = useMemo(
+    () => screens.find((s) => s.id === selectedScreenId) ?? null,
+    [screens, selectedScreenId],
+  );
+  const paintMap: LedPortMap | undefined =
+    paintScreen && paintMode !== "off"
+      ? paintMode === "power"
+        ? paintScreen.powerMap
+        : paintScreen.signalMap
+      : undefined;
+  const setPaintMap = useCallback(
+    (next: LedPortMap | undefined) => {
+      if (!paintScreen || paintMode === "off") return;
+      if (paintMode === "power") {
+        onUpdateScreen(paintScreen.id, { powerMap: next });
+      } else {
+        onUpdateScreen(paintScreen.id, { signalMap: next });
+      }
+    },
+    [paintScreen, paintMode, onUpdateScreen],
+  );
+  /** Click a panel cell in paint mode: toggle off if already in the
+   *  active port; otherwise append to the active port (and remove from
+   *  any other port that owned it — a cell belongs to at most one port
+   *  per map). No-op if no port is active or this isn't the painted
+   *  screen. */
+  const onPaintCell = useCallback(
+    (screenId: string, col: number, row: number) => {
+      if (
+        !paintScreen ||
+        paintScreen.id !== screenId ||
+        paintMode === "off" ||
+        !activePortId
+      ) {
+        return;
+      }
+      const map =
+        paintMode === "power" ? paintScreen.powerMap : paintScreen.signalMap;
+      const ports = map?.ports ?? [];
+      const active = ports.find((p) => p.id === activePortId);
+      if (!active) return;
+      // Don't allow painting onto void cabinets — a chain referencing
+      // a disabled cell would inflate the cable count and render a
+      // visually broken overlay on shaped (non-rectangular) screens.
+      if (
+        isCellDisabled(
+          disabledCellSet(paintScreen),
+          col,
+          row,
+          paintScreen.panelsWide,
+        )
+      ) {
+        return;
+      }
+      const cellIdx = row * paintScreen.panelsWide + col;
+      let nextPorts: LedPortChain[];
+      if (active.cells.includes(cellIdx)) {
+        nextPorts = ports.map((p) =>
+          p.id === activePortId
+            ? { ...p, cells: p.cells.filter((c) => c !== cellIdx) }
+            : p,
+        );
+      } else {
+        nextPorts = ports.map((p) => {
+          if (p.id === activePortId) {
+            return { ...p, cells: [...p.cells, cellIdx] };
+          }
+          if (p.cells.includes(cellIdx)) {
+            return { ...p, cells: p.cells.filter((c) => c !== cellIdx) };
+          }
+          return p;
+        });
+      }
+      setPaintMap(nextPorts.length === 0 ? undefined : { ports: nextPorts });
+    },
+    [paintScreen, paintMode, activePortId, setPaintMap],
+  );
+  // When the selected screen changes (or paint mode flips off), reset
+  // the active port — the new screen has its own port set.
+  useEffect(() => {
+    setActivePortId(null);
+  }, [selectedScreenId, paintMode]);
 
   /** Toggle the click-mode for a screen: `+P`, `+S`, or "Shape" arm
    *  cell-edit mode; clicking the same button twice (or arming a
@@ -638,6 +734,14 @@ export function LedScreenReportView(props: Props) {
             onAddPanelMarker={addPanelMarker}
             onRemovePanelMarker={removePanelMarker}
             onToggleCell={toggleCell}
+            paintMode={paintMode}
+            onPaintModeChange={setPaintMode}
+            paintScreen={paintScreen}
+            paintMap={paintMap}
+            onPaintMapChange={setPaintMap}
+            activePortId={activePortId}
+            onActivePortChange={setActivePortId}
+            onPaintCell={onPaintCell}
           />
         </section>
       )}
@@ -1392,7 +1496,6 @@ function ScreenRow({
           <td colSpan={12}>
             <AdvancedScreenInspector
               screen={screen}
-              panels={panels}
               power={power}
               onUpdate={onUpdate}
             />
@@ -1525,6 +1628,14 @@ function PixelMapCanvas({
   onAddPanelMarker,
   onRemovePanelMarker,
   onToggleCell,
+  paintMode,
+  onPaintModeChange,
+  paintScreen,
+  paintMap,
+  onPaintMapChange,
+  activePortId,
+  onActivePortChange,
+  onPaintCell,
 }: {
   screens: LedScreen[];
   panels: LedPanel[];
@@ -1543,6 +1654,14 @@ function PixelMapCanvas({
   ) => void;
   onRemovePanelMarker: (screenId: string, markerId: string) => void;
   onToggleCell: (screenId: string, col: number, row: number) => void;
+  paintMode: PaintMode;
+  onPaintModeChange: (m: PaintMode) => void;
+  paintScreen: LedScreen | null;
+  paintMap: LedPortMap | undefined;
+  onPaintMapChange: (m: LedPortMap | undefined) => void;
+  activePortId: string | null;
+  onActivePortChange: (id: string | null) => void;
+  onPaintCell: (screenId: string, col: number, row: number) => void;
 }) {
   /** Outer SVG ref — used by the drag handler to translate client-pixel
    *  pointer movement into the SVG's user-space units (which is what
@@ -1730,6 +1849,16 @@ function PixelMapCanvas({
 
   return (
     <div className="led-canvas-wrap">
+      <PaintToolbar
+        mode={paintMode}
+        onModeChange={onPaintModeChange}
+        selectedScreen={paintScreen}
+        map={paintMap}
+        onMapChange={onPaintMapChange}
+        activePortId={activePortId}
+        onActivePortChange={onActivePortChange}
+        canvasSvgRef={svgRef}
+      />
       <svg
         ref={svgRef}
         className="led-canvas"
@@ -1744,6 +1873,20 @@ function PixelMapCanvas({
           if (e.target === e.currentTarget) onSelectScreen(null);
         }}
       >
+        {/* Arrowhead marker shared by every screen's port-chain overlay. */}
+        <defs>
+          <marker
+            id="paint-arrowhead"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="6"
+            markerHeight="6"
+            orient="auto-start-reverse"
+          >
+            <path d="M0,0 L10,5 L0,10 z" fill="#111" />
+          </marker>
+        </defs>
         {layout.items.map((item) => (
           <ScreenSvg
             key={item.screen.id}
@@ -1762,6 +1905,11 @@ function PixelMapCanvas({
             onAddPanelMarker={onAddPanelMarker}
             onRemovePanelMarker={onRemovePanelMarker}
             onToggleCell={onToggleCell}
+            paintMode={paintMode}
+            isPaintTarget={
+              paintMode !== "off" && selectedScreenId === item.screen.id
+            }
+            onPaintCell={onPaintCell}
           />
         ))}
       </svg>
@@ -1799,6 +1947,9 @@ function ScreenSvg({
   onAddPanelMarker,
   onRemovePanelMarker,
   onToggleCell,
+  paintMode,
+  isPaintTarget,
+  onPaintCell,
 }: {
   item: SvgItem;
   panels: LedPanel[];
@@ -1818,6 +1969,13 @@ function ScreenSvg({
   ) => void;
   onRemovePanelMarker: (screenId: string, markerId: string) => void;
   onToggleCell: (screenId: string, col: number, row: number) => void;
+  paintMode: PaintMode;
+  /** True when this screen is the active paint target — i.e. paint
+   *  mode is on AND this is the selected screen. Other screens still
+   *  *render* their port overlay in paint mode so producers can see
+   *  every map at a glance, but clicks only paint the selected one. */
+  isPaintTarget: boolean;
+  onPaintCell: (screenId: string, col: number, row: number) => void;
 }) {
   const { screen, x, y, width, height, cellW, cellH } = item;
   /** Per-screen panel colours override the global ledSettings ones when
@@ -1904,6 +2062,14 @@ function ScreenSvg({
 
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent<SVGRectElement>) => {
+      // Paint mode wins when the screen is the active paint target —
+      // the toolbar above the canvas is in Power / Signal mode and
+      // this is the selected screen.
+      if (isPaintTarget) {
+        const cell = eventToCell(e);
+        if (cell) onPaintCell(screenId, cell.col, cell.row);
+        return;
+      }
       if (!armed) return;
       const cell = eventToCell(e);
       if (!cell) return;
@@ -1916,7 +2082,15 @@ function ScreenSvg({
         onAddPanelMarker(screenId, armed, cell.col, cell.row);
       }
     },
-    [armed, eventToCell, onAddPanelMarker, onToggleCell, screenId],
+    [
+      armed,
+      eventToCell,
+      isPaintTarget,
+      onAddPanelMarker,
+      onPaintCell,
+      onToggleCell,
+      screenId,
+    ],
   );
 
   /** Marker pointer-down: alt or right-button = delete, otherwise begin
@@ -2502,10 +2676,112 @@ function ScreenSvg({
         width={width}
         height={height}
         fill="transparent"
-        pointerEvents={armed ? "all" : "none"}
-        style={armed ? { cursor: "crosshair" } : undefined}
+        pointerEvents={armed || isPaintTarget ? "all" : "none"}
+        style={
+          armed || isPaintTarget ? { cursor: "crosshair" } : undefined
+        }
         onClick={handleOverlayClick}
       />
+      {/* ── Power / Signal port-chain overlay ──────────────────────
+          Rendered for every screen when the canvas is in a paint
+          mode (Power / Signal) so producers see every map at a
+          glance. Click-painting is restricted to the selected
+          screen via `isPaintTarget` (see handleOverlayClick). */}
+      {paintMode !== "off" && (() => {
+        const map =
+          paintMode === "power" ? screen.powerMap : screen.signalMap;
+        if (!map || map.ports.length === 0) return null;
+        const minDim = Math.min(cellW, cellH);
+        const arrowStrokeW = Math.max(1.4, minDim * 0.06);
+        const circleR = minDim * 0.28;
+        const labelFont = circleR * 1.15;
+        const offCells = disabledCellSet(screen);
+        const inBounds = (idx: number) => {
+          if (idx < 0) return false;
+          const c = idx % screen.panelsWide;
+          const r = Math.floor(idx / screen.panelsWide);
+          if (r >= screen.panelsTall) return false;
+          return !isCellDisabled(offCells, c, r, screen.panelsWide);
+        };
+        // Drop any chain references to cabinets that no longer exist
+        // (resized grid, freshly disabled cell, etc.) so the overlay
+        // and the cable summary always reflect the current shape.
+        const nodes: React.ReactNode[] = [];
+        for (const p of map.ports) {
+          const validCells = p.cells.filter(inBounds);
+          for (const cellIdx of validCells) {
+            const col = cellIdx % screen.panelsWide;
+            const row = Math.floor(cellIdx / screen.panelsWide);
+            nodes.push(
+              <rect
+                key={`${p.id}-fill-${cellIdx}`}
+                x={x + col * cellW}
+                y={y + row * cellH}
+                width={cellW}
+                height={cellH}
+                fill={p.color}
+                opacity={0.62}
+                pointerEvents="none"
+              />,
+            );
+          }
+          // Arrows between consecutive painted cells (chain order).
+          for (let i = 0; i < validCells.length - 1; i++) {
+            const ai = validCells[i];
+            const bi = validCells[i + 1];
+            const aCol = ai % screen.panelsWide;
+            const aRow = Math.floor(ai / screen.panelsWide);
+            const bCol = bi % screen.panelsWide;
+            const bRow = Math.floor(bi / screen.panelsWide);
+            nodes.push(
+              <line
+                key={`${p.id}-arr-${i}`}
+                x1={x + (aCol + 0.5) * cellW}
+                y1={y + (aRow + 0.5) * cellH}
+                x2={x + (bCol + 0.5) * cellW}
+                y2={y + (bRow + 0.5) * cellH}
+                className="paint-arrow"
+                strokeWidth={arrowStrokeW}
+                markerEnd="url(#paint-arrowhead)"
+                pointerEvents="none"
+              />,
+            );
+          }
+          // Numbered circle on the chain start so producers can
+          // read "Port 1 starts here".
+          if (validCells.length > 0) {
+            const sIdx = validCells[0];
+            const sCol = sIdx % screen.panelsWide;
+            const sRow = Math.floor(sIdx / screen.panelsWide);
+            const cx = x + (sCol + 0.5) * cellW;
+            const cy = y + (sRow + 0.5) * cellH;
+            nodes.push(
+              <g key={`${p.id}-circle`} pointerEvents="none">
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={circleR}
+                  className="paint-start-circle"
+                  strokeWidth={Math.max(1.2, circleR * 0.14)}
+                />
+                <text
+                  x={cx}
+                  y={cy}
+                  fontSize={labelFont}
+                  fontWeight={700}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  className="paint-start-label"
+                  fontFamily="system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+                >
+                  {p.label}
+                </text>
+              </g>,
+            );
+          }
+        }
+        return <g>{nodes}</g>;
+      })()}
       {/* Centered "Main"/"IMAG" name pill — matches the PNG export so the
           user can preview what they'll get. Hidden if the user disabled
           the pill in Export options, or if there is no name. */}

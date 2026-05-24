@@ -3203,6 +3203,132 @@ input:focus {
   border-radius: 8px;
   padding: 12px;
 }
+.paint-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+}
+.paint-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.paint-toolbar-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft, #475569);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.paint-toolbar-spacer { flex: 1 1 auto; }
+.paint-mode-seg {
+  display: inline-flex;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface, #f8fafc);
+}
+.paint-mode-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink, #0f172a);
+  cursor: pointer;
+  border-right: 1px solid var(--border, #e5e7eb);
+}
+.paint-mode-btn:last-child { border-right: 0; }
+.paint-mode-btn.is-active {
+  background: #f88000;
+  color: #fff;
+}
+.paint-hint {
+  font-size: 13px;
+  color: var(--ink-soft, #475569);
+}
+.paint-port {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 4px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 6px;
+  background: var(--surface, #f8fafc);
+  cursor: pointer;
+}
+.paint-port.is-active {
+  border-color: #f88000;
+  box-shadow: 0 0 0 2px rgba(248,128,0,0.18);
+}
+.paint-port-color {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+.paint-port-label {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink, #0f172a);
+  padding: 2px 4px;
+  outline: none;
+}
+.paint-port-count {
+  font-size: 11px;
+  color: var(--ink-soft, #475569);
+  background: var(--surface-soft, #eef2f7);
+  border-radius: 999px;
+  padding: 1px 7px;
+  min-width: 18px;
+  text-align: center;
+}
+.paint-port-icon {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft, #475569);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.paint-port-icon:hover { background: var(--surface-soft-hover, #e5e7eb); }
+.paint-port-icon-danger:hover { color: #dc2626; }
+.paint-cable-summary {
+  font-size: 13px;
+  color: var(--ink-soft, #475569);
+  margin-left: auto;
+}
+@media (max-width: 640px) {
+  .paint-toolbar-row { gap: 6px; }
+  .paint-mode-btn { padding: 6px 9px; font-size: 12px; }
+  .paint-cable-summary { margin-left: 0; width: 100%; }
+}
+/* Port-chain overlay drawn on top of the pixel-map cells. Light theme
+   uses near-black strokes, dark theme inverts to near-white so arrows
+   and start labels stay legible against dark cabinets. */
+.paint-arrow { stroke: #111; }
+.paint-start-circle { fill: #ffffff; stroke: #111; }
+.paint-start-label { fill: #111; }
+[data-theme="dark"] .paint-arrow { stroke: #f8fafc; }
+[data-theme="dark"] .paint-start-circle { fill: #0f172a; stroke: #f8fafc; }
+[data-theme="dark"] .paint-start-label { fill: #f8fafc; }
+[data-theme="dark"] #paint-arrowhead path { fill: #f8fafc; }
 .led-canvas {
   width: 100%;
   height: auto;

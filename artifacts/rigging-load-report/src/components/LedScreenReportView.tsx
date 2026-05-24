@@ -557,7 +557,19 @@ export function LedScreenReportView(props: Props) {
           <span className="led-touring-strip-label">Mode</span>
           <LedModeToggle
             mode={settings.uiMode}
-            onChange={(next) => onUpdateSettings({ uiMode: next })}
+            onChange={(next) => {
+              onUpdateSettings({ uiMode: next });
+              // When switching INTO advanced mode, also flip the
+              // canvas into the Power paint toolbar so producers
+              // see the cabling controls without an extra click.
+              // Going back to basic disarms paint mode so the
+              // canvas returns to the plain pixel-map view.
+              if (next === "advanced") {
+                if (paintMode === "off") setPaintMode("power");
+              } else {
+                setPaintMode("off");
+              }
+            }}
           />
         </div>
         <div className="led-touring-strip-right">

@@ -1392,6 +1392,7 @@ function ScreenRow({
           <td colSpan={12}>
             <AdvancedScreenInspector
               screen={screen}
+              panels={panels}
               power={power}
               onUpdate={onUpdate}
             />

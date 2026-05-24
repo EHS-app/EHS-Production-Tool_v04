@@ -184,6 +184,13 @@ export type LedScreen = {
   /** When true, beams are auto-suggested from screen width. See the
    *  same field on `LedLinkedMeta` — the two stay in sync. */
   autoFitBeams?: boolean;
+
+  /** Producer-painted Power map (orange chains in the reference
+   *  imagery). Optional — undefined means "no power plan drawn". */
+  powerMap?: LedPortMap;
+  /** Producer-painted Signal map (blue chains in the reference
+   *  imagery). Optional — undefined means "no signal plan drawn". */
+  signalMap?: LedPortMap;
 };
 
 // ────────────────────────────────────────────────────────────────────
@@ -263,6 +270,33 @@ export type LedPortAssignment = {
   /** Optional backup port for redundancy. Same processor or a hot
    *  spare. */
   backupPortIndex?: number;
+};
+
+/** One painted port (power feed or signal port) on a screen. The
+ *  `cells` array is the daisy-chain order: cells[0] is where the
+ *  numbered circle is drawn, and an arrow is rendered from cells[i]
+ *  to cells[i+1] for every i. Independent of the routing solver's
+ *  `LedPortAssignment`s — this is a producer-painted visual plan. */
+export type LedPortChain = {
+  id: string;
+  /** Editable label shown in the numbered circle. Defaults to "1",
+   *  "2", … on creation but can be replaced with anything ("A-1", "L",
+   *  "Main feed", etc.). */
+  label: string;
+  /** Hex color (#RRGGBB) used for the cell fill, arrows, and circle. */
+  color: string;
+  /** Cell indexes (row * panelsWide + col) in chain order. May be
+   *  empty for a freshly-added port that hasn't been painted yet. */
+  cells: number[];
+};
+
+/** Producer-painted port map for a screen — used for the Power map
+ *  and Signal map tabs in the Advanced Inspector. Both maps share
+ *  the same shape; they're stored as separate fields on `LedScreen`
+ *  so a single cell can belong to one power port AND one signal
+ *  port simultaneously. */
+export type LedPortMap = {
+  ports: LedPortChain[];
 };
 
 export type LedRigAccessory = {

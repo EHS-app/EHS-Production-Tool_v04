@@ -1469,12 +1469,20 @@ function ScreenRow({
                     >
                       Auto
                     </button>
-                    {LED_SCREEN_COLORS.map((c) => (
+                    {[...LED_SCREEN_COLORS, "#ffffff"].map((c) => (
                       <button
                         key={c}
                         type="button"
                         className={`led-color-swatch ${(screen.labelColor ?? "").toLowerCase() === c.toLowerCase() ? "is-active" : ""}`}
-                        style={{ background: c }}
+                        style={{
+                          background: c,
+                          // Give the white swatch a visible outline so it
+                          // doesn't disappear into the popover background.
+                          border:
+                            c.toLowerCase() === "#ffffff"
+                              ? "1px solid var(--border)"
+                              : undefined,
+                        }}
                         onClick={(e) => {
                           e.stopPropagation();
                           onUpdate({ labelColor: c });

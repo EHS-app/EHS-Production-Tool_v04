@@ -83,30 +83,28 @@ export async function downloadLedProjectPdf(
   const pageH = pdf.internal.pageSize.getHeight();
   const margin = 12;
 
-  // ── Page 1 — Cover (logo + metadata + totals, no snapshot) ──────
+  // ── Page 1 — Cover: logo + metadata + totals + both summaries ───
   drawHeader(pdf, "LED Project Pack", pageW, margin, logoDataUrl);
-  drawMetaBlock(pdf, input, margin, 36, pageW - margin * 2);
+  drawMetaBlock(pdf, input, margin, 26, pageW - margin * 2);
   drawTotalsBlock(
     pdf,
     input.screens,
     input.panels,
     input.settings,
     margin,
-    82,
+    68,
     pageW - margin * 2,
   );
 
-  // ── Page 2 — Technical summary ──────────────────────────────────
-  pdf.addPage();
-  drawHeader(pdf, "Technical summary", pageW, margin, "");
-  drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
+  // Technical summary, inline on the cover.
+  drawSectionTitle(pdf, "Technical summary", margin, 104);
   drawTechSummary(
     pdf,
     input.screens,
     input.panels,
     input.settings,
     margin,
-    32,
+    108,
     pageW - margin * 2,
     input,
     pageW,
@@ -115,16 +113,20 @@ export async function downloadLedProjectPdf(
     "",
   );
 
-  // ── Page 3 — Cable summary ──────────────────────────────────────
-  pdf.addPage();
-  drawHeader(pdf, "Cable summary", pageW, margin, "");
-  drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
+  // Cable summary, placed below the technical summary. drawTable
+  // paginates onto a new page if both tables don't fit; that's OK —
+  // the totals + meta + drawings still come in the right order.
+  const cableY = Math.min(
+    pageH - margin - 40,
+    Math.max(150, 108 + 6 + 8 + 8 * (input.screens.length + 1)),
+  );
+  drawSectionTitle(pdf, "Cable summary", margin, cableY - 4);
   drawCableSummary(
     pdf,
     input.screens,
     input.panels,
     margin,
-    32,
+    cableY,
     pageW - margin * 2,
     input,
     pageW,
@@ -133,13 +135,13 @@ export async function downloadLedProjectPdf(
     "",
   );
 
-  // ── Page 4 — Power drawing ──────────────────────────────────────
+  // ── Page 2 — Power drawing ──────────────────────────────────────
   pdf.addPage();
   drawHeader(pdf, "Power drawing", pageW, margin, "");
   drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
   await drawFittedImage(pdf, powerPng, margin, 32, pageW - margin * 2, pageH - 32 - margin);
 
-  // ── Page 5 — Signal drawing ─────────────────────────────────────
+  // ── Page 3 — Signal drawing ─────────────────────────────────────
   pdf.addPage();
   drawHeader(pdf, "Signal drawing", pageW, margin, "");
   drawSubLine(pdf, input, margin, 26, pageW - margin * 2);
@@ -387,6 +389,13 @@ function drawMetaBlock(
     const text = pdf.splitTextToSize(value, colW - 12);
     pdf.text(text, cx, y + 20);
   });
+}
+
+function drawSectionTitle(pdf: JsPDF, text: string, x: number, y: number) {
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(11);
+  pdf.setTextColor(40, 40, 40);
+  pdf.text(text, x, y);
 }
 
 /** Pixels per processor output used for the "Outputs needed" stat.

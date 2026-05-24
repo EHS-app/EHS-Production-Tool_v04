@@ -774,24 +774,30 @@ export function LedScreenReportView(props: Props) {
         />
       )}
 
-      <section className="led-card">
-        <div className="led-card-head">
-          <h3>System</h3>
-          <span className="led-hint">
-            Drag screens, processors, CVT10 Pro-S fiber boxes and power
-            supplies onto the canvas, then connect them with cables.
-            Switch the cable type with the toolbar buttons before drawing
-            a connection. Distances drive the over-limit warnings
-            (CAT-6 90 m, fiber 300 m).
-          </span>
-        </div>
-        <LedSystemDesigner
-          system={ledSystem}
-          onChange={onLedSystemChange}
-          screens={screens}
-          screenPixelsById={screenPixelsById}
-        />
-      </section>
+      {/* System Designer — node-based architecture editor. Gated behind
+          Advanced mode so the Basic view stays focused on the per-screen
+          table + canvas; producers who need cable / processor / fiber
+          planning enable Advanced to reveal it. */}
+      {advancedMode && (
+        <section className="led-card">
+          <div className="led-card-head">
+            <h3>System</h3>
+            <span className="led-hint">
+              Drag screens, processors, CVT10 Pro-S fiber boxes and power
+              supplies onto the canvas, then connect them with cables.
+              Switch the cable type with the toolbar buttons before
+              drawing a connection. Distances drive the over-limit
+              warnings (CAT-6 90 m, fiber 300 m).
+            </span>
+          </div>
+          <LedSystemDesigner
+            system={ledSystem}
+            onChange={onLedSystemChange}
+            screens={screens}
+            screenPixelsById={screenPixelsById}
+          />
+        </section>
+      )}
 
       <ValidationDrawer
         open={validationOpen}

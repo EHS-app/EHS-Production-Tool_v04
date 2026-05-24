@@ -2796,15 +2796,16 @@ function ScreenSvg({
         }
         onClick={handleOverlayClick}
       />
-      {/* ── Power / Signal port-chain overlay ──────────────────────
-          Rendered for every screen when the canvas is in a paint
-          mode (Power / Signal) so producers see every map at a
-          glance. Click-painting is restricted to the selected
-          screen via `isPaintTarget` (see handleOverlayClick). */}
-      {paintMode !== "off" && (() => {
-        const map =
-          paintMode === "power" ? screen.powerMap : screen.signalMap;
-        if (!map || map.ports.length === 0) return null;
+      {/* ── Power / Signal port-chain overlays ─────────────────────
+          BOTH overlays are rendered for every screen and tagged with
+          `data-paint-overlay="power|signal"`. Visibility is toggled
+          by the current `paintMode` for the interactive canvas, but
+          the always-present DOM nodes also let the Project PDF
+          export clone the SVG and selectively show one overlay or
+          the other without having to switch React state.
+          Click-painting is restricted to the selected screen via
+          `isPaintTarget` (see handleOverlayClick). */}
+      {(() => {
         const minDim = Math.min(cellW, cellH);
         const arrowStrokeW = Math.max(1.4, minDim * 0.06);
         const circleR = minDim * 0.28;
@@ -2817,11 +2818,13 @@ function ScreenSvg({
           if (r >= screen.panelsTall) return false;
           return !isCellDisabled(offCells, c, r, screen.panelsWide);
         };
-        // Drop any chain references to cabinets that no longer exist
-        // (resized grid, freshly disabled cell, etc.) so the overlay
-        // and the cable summary always reflect the current shape.
-        const nodes: React.ReactNode[] = [];
-        for (const p of map.ports) {
+        const renderMap = (
+          kind: "power" | "signal",
+          map: LedPortMap | undefined,
+        ) => {
+          if (!map || map.ports.length === 0) return null;
+          const nodes: React.ReactNode[] = [];
+          for (const p of map.ports) {
           const validCells = p.cells.filter(inBounds);
           // Arrows between consecutive painted cells (chain order).
           // The arrows themselves are drawn in the port's selected
@@ -2911,8 +2914,23 @@ function ScreenSvg({
               </g>,
             );
           }
-        }
-        return <g>{nodes}</g>;
+          }
+          return (
+            <g
+              key={kind}
+              data-paint-overlay={kind}
+              style={{ display: paintMode === kind ? "block" : "none" }}
+            >
+              {nodes}
+            </g>
+          );
+        };
+        return (
+          <>
+            {renderMap("power", screen.powerMap)}
+            {renderMap("signal", screen.signalMap)}
+          </>
+        );
       })()}
       {/* Alignment test pattern — large inscribed circle + dashed
           corner X. Mirrors the PNG export so the producer sees live
@@ -3164,6 +3182,7 @@ function ScreenSvg({
           return (
             <g
               key={mk.id}
+              data-marker-kind={mk.kind}
               onPointerDown={handleMarkerPointerDown(mk.id)}
               onPointerMove={handleMarkerPointerMove(mk.id)}
               onPointerUp={handleMarkerPointerUp}
@@ -3245,6 +3264,7 @@ function ScreenSvg({
           return (
             <g
               key={mk.id}
+              data-marker-kind={mk.kind}
               style={{ cursor: "pointer" }}
               onClick={(e) => {
                 e.stopPropagation();
@@ -3352,7 +3372,7 @@ function ScreenSvg({
             {items.map((it, i) => {
               const cx = startCx + i * (badgeR * 2 + gap);
               return (
-                <g key={it.key}>
+                <g key={it.key} data-painted-badge={it.key}>
                   <circle
                     cx={cx}
                     cy={cy}

@@ -467,6 +467,8 @@ export const no: Translations = {
   "shell.action.clientPackTitle": "Åpne klient-pack med tidsplan, crew, rigg og kost",
   "shell.action.printReport": "Skriv ut rapport",
   "shell.action.printReportTitle": "Skriv ut rigg-rapporten",
+  "shell.action.ledProjectPdf": "LED-prosjekt PDF",
+  "shell.action.ledProjectPdfTitle": "Eksporter flersides LED pikselkart-PDF (forside, strøm, signal, teknisk og kabel-sammendrag)",
   "shell.action.downloadCsv": "Last ned CSV",
   "shell.action.simulate": "Simuler show",
   "shell.action.simulateTitle": "Gå gjennom 10 produksjonsfaser med risiko og verdikt",

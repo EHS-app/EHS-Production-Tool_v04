@@ -5418,6 +5418,44 @@ function App() {
         title: tr("shell.action.printReportTitle"),
       },
       {
+        id: "led-project-pdf",
+        label: tr("shell.action.ledProjectPdf"),
+        icon: ShellFileDown,
+        onClick: async () => {
+          // Switch to the LED tab first so the canvas SVG is mounted
+          // in the DOM — the export reads `.led-canvas` directly. We
+          // wait two animation frames so the new view is painted
+          // before we serialize the SVG.
+          if (mainView !== "led") {
+            setMainView("led");
+            await new Promise<void>((r) =>
+              requestAnimationFrame(() => requestAnimationFrame(() => r())),
+            );
+          }
+          try {
+            const { downloadLedProjectPdf } = await import(
+              "./lib/ledProjectPdf"
+            );
+            await downloadLedProjectPdf({
+              screens: allLedScreens,
+              panels: ledPanels,
+              settings: ledSettings,
+              projectName: venue,
+              venue,
+              client,
+              reportDate,
+            });
+          } catch (err) {
+            const msg =
+              err instanceof Error
+                ? err.message
+                : "Could not generate the LED project PDF.";
+            alert(msg);
+          }
+        },
+        title: tr("shell.action.ledProjectPdfTitle"),
+      },
+      {
         id: "csv",
         label: tr("shell.action.downloadCsv"),
         icon: ShellDownload,
@@ -5436,7 +5474,20 @@ function App() {
         onClick: () => setHelpOpen(true),
       },
     ],
-    [mainView, downloadCsv, simulateShow, resetAll, saveAsNewProject, tr],
+    [
+      mainView,
+      downloadCsv,
+      simulateShow,
+      resetAll,
+      saveAsNewProject,
+      tr,
+      allLedScreens,
+      ledPanels,
+      ledSettings,
+      venue,
+      client,
+      reportDate,
+    ],
   );
 
   const projectMetaSlot = (

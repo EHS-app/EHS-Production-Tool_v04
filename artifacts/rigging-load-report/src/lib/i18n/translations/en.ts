@@ -448,6 +448,8 @@ export const en = {
   "shell.action.clientPackTitle": "Open client pack with schedule, crew, rigging and cost",
   "shell.action.printReport": "Print report",
   "shell.action.printReportTitle": "Print rigging report",
+  "shell.action.ledProjectPdf": "LED project PDF",
+  "shell.action.ledProjectPdfTitle": "Export a multi-page LED pixel-map PDF (cover, power, signal, technical and cable summary)",
   "shell.action.downloadCsv": "Download CSV",
   "shell.action.simulate": "Simulate show",
   "shell.action.simulateTitle": "Run through 10 production phases with risk and verdict",

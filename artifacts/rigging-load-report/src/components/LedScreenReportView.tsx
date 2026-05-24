@@ -735,6 +735,7 @@ export function LedScreenReportView(props: Props) {
             </div>
           </div>
           <PixelMapCanvas
+            advancedMode={advancedMode}
             screens={screens}
             panels={panels}
             settings={settings}
@@ -1629,6 +1630,7 @@ function ScreenRow({
 }
 
 function PixelMapCanvas({
+  advancedMode,
   screens,
   panels,
   settings,
@@ -1667,6 +1669,7 @@ function PixelMapCanvas({
   ) => void;
   onRemovePanelMarker: (screenId: string, markerId: string) => void;
   onToggleCell: (screenId: string, col: number, row: number) => void;
+  advancedMode: boolean;
   paintMode: PaintMode;
   onPaintModeChange: (m: PaintMode) => void;
   paintScreen: LedScreen | null;
@@ -1862,16 +1865,18 @@ function PixelMapCanvas({
 
   return (
     <div className="led-canvas-wrap">
-      <PaintToolbar
-        mode={paintMode}
-        onModeChange={onPaintModeChange}
-        selectedScreen={paintScreen}
-        map={paintMap}
-        onMapChange={onPaintMapChange}
-        activePortId={activePortId}
-        onActivePortChange={onActivePortChange}
-        canvasSvgRef={svgRef}
-      />
+      {advancedMode && (
+        <PaintToolbar
+          mode={paintMode}
+          onModeChange={onPaintModeChange}
+          selectedScreen={paintScreen}
+          map={paintMap}
+          onMapChange={onPaintMapChange}
+          activePortId={activePortId}
+          onActivePortChange={onActivePortChange}
+          canvasSvgRef={svgRef}
+        />
+      )}
       <svg
         ref={svgRef}
         className="led-canvas"

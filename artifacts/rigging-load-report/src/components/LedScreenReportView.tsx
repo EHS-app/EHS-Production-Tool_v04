@@ -53,6 +53,7 @@ import {
   type NovastarProcessorModel,
   type LedPortChain,
   type LedPortMap,
+  rowLabel,
 } from "../lib/led";
 import {
   LED_PROCESSORS,
@@ -2343,8 +2344,7 @@ function ScreenSvg({
               fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
               fontWeight={600}
             >
-              {colLabel(col)}
-              {row + 1}
+              {col + 1}.{rowLabel(row)}
             </text>
           )}
           {showCabinetIdsHere && (

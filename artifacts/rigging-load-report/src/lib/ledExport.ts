@@ -4,6 +4,7 @@ import {
   PILL_PAD_Y_RATIO,
   clampNameScale,
   colLabel,
+  rowLabel,
   computeScreenMetrics,
   panelCellColor,
   cellArrowDirection,
@@ -179,7 +180,7 @@ export function buildScreenSvg(input: BuildSvgInput): string {
         if (isCellDisabled(offCells, cx, cy, screen.panelsWide)) continue;
         const tx = cx * cellW + padX;
         const ty = cy * cellH + padY + labelFont * 0.85;
-        const txt = `${colLabel(cx)},${cy + 1}`;
+        const txt = `${cx + 1}.${rowLabel(cy)}`;
         parts.push(
           `<text x="${tx}" y="${ty}" font-family="${FONT_FAMILY}" font-size="${labelFont}" fill="${COLOR_LABEL}" font-weight="600">${escXml(txt)}</text>`,
         );

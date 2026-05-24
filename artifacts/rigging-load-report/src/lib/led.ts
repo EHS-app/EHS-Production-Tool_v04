@@ -1516,6 +1516,13 @@ export function colLabel(i: number): string {
   return out;
 }
 
+/** Spreadsheet-style letter label for a row index (0 → "A", 1 → "B",
+ *  …, 25 → "Z", 26 → "AA"). Shares the alphabet generator with
+ *  `colLabel` since the format is identical, only the axis differs. */
+export function rowLabel(i: number): string {
+  return colLabel(i);
+}
+
 export function newLedScreen(
   defaultPanelKey: LedPanelKey,
   seed?: Partial<LedScreen>,

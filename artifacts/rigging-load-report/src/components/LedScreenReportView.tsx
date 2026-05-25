@@ -2865,7 +2865,7 @@ function ScreenSvg({
           `isPaintTarget` (see handleOverlayClick). */}
       {(() => {
         const minDim = Math.min(cellW, cellH);
-        const arrowStrokeW = Math.max(1.4, minDim * 0.06);
+        const arrowStrokeW = Math.max(0.8, minDim * 0.035);
         const circleR = minDim * 0.28;
         const labelFont = circleR * 1.15;
         const offCells = disabledCellSet(screen);
@@ -2918,7 +2918,7 @@ function ScreenSvg({
             const uy = dy / len;
             const tipX = x + (bCol + 0.5) * cellW;
             const tipY = y + (bRow + 0.5) * cellH;
-            const headLen = Math.max(4, minDim * 0.22);
+            const headLen = Math.max(3, minDim * 0.14);
             const headW = headLen * 0.7;
             const baseX = tipX - ux * headLen;
             const baseY = tipY - uy * headLen;

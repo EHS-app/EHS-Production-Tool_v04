@@ -5546,25 +5546,30 @@ function App() {
           placeholder={tr("project.placeholder.manager")}
         />
       </div>
-      <div className="meta-field meta-field--full">
+      <div
+        className="meta-field meta-field--full"
+        style={{ gridColumn: "1 / -1" }}
+      >
         <label>{tr("project.brief")}</label>
         <textarea
           value={briefDescription}
           onChange={(e) => setBriefDescription(e.target.value)}
           placeholder={tr("project.placeholder.brief")}
-          rows={4}
+          rows={12}
           style={{
             width: "100%",
             resize: "vertical",
-            minHeight: 72,
-            padding: "8px 10px",
-            border: "1px solid var(--border)",
+            minHeight: 220,
+            padding: "12px 14px",
+            border: "1px solid rgba(255, 255, 255, 0.12)",
             borderRadius: 6,
-            background: "var(--input-bg)",
-            color: "var(--ink)",
-            font: "inherit",
-            lineHeight: 1.4,
+            background: "var(--input-bg, #ffffff)",
+            color: "var(--text-main, #0f172a)",
+            fontSize: 14,
+            fontFamily: "inherit",
+            lineHeight: 1.5,
             boxSizing: "border-box",
+            outline: "none",
           }}
         />
       </div>

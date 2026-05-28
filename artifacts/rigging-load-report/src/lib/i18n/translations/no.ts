@@ -147,6 +147,8 @@ export const no: Translations = {
   "project.client": "Kunde",
   "project.schedule": "Tidsplan",
   "project.projectManager": "Prosjektleder",
+  "project.brief": "Prosjektbrief",
+  "project.placeholder.brief": "Fritekst-brief for hele prosjektet — deles med alle frilansere på jobben (innlasting, antrekk, parkering, lunsj osv.)",
   "project.placeholder.venue": "f.eks. Sentrum Scene",
   "project.placeholder.client": "Kundenavn",
   "project.placeholder.manager": "Navn",

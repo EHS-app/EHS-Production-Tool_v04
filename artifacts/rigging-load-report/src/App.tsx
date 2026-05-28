@@ -892,6 +892,12 @@ type PersistedV2 = {
    *  downrig. The show phase is stored in reportDate/reportEndDate. */
   extraSchedule?: ExtraSchedule;
   engineer: string;
+  /** Producer-authored free-text brief for the whole project. Captured on
+   *  the Overview as a textarea next to project/client/schedule/PM and
+   *  passed through to the Freelancer Portal brief as `project.description`
+   *  so every freelancer sees the same context. Optional — empty string
+   *  when not yet filled in. */
+  briefDescription?: string;
   systems: System[];
   activeSystemId: string;
   showFixtures?: ShowFixture[];
@@ -1259,6 +1265,9 @@ function App() {
     persisted?.extraSchedule ?? {},
   );
   const [engineer, setEngineer] = useState(persisted?.engineer ?? "");
+  const [briefDescription, setBriefDescription] = useState(
+    persisted?.briefDescription ?? "",
+  );
   const [systems, setSystems] = useState<System[]>(
     persisted?.systems && persisted.systems.length > 0
       ? persisted.systems
@@ -1695,6 +1704,7 @@ function App() {
     reportEndDate,
     extraSchedule,
     engineer,
+    briefDescription,
     systems,
     activeSystemId,
     showFixtures,
@@ -1713,7 +1723,7 @@ function App() {
     inspection,
   }), [
     themePref, venue, client, reportDate, reportEndDate, extraSchedule,
-    engineer, systems, activeSystemId, showFixtures, mainView, linkedMeta,
+    engineer, briefDescription, systems, activeSystemId, showFixtures, mainView, linkedMeta,
     ledScreens, ledLinkedMeta, ledSettings, ledSystemState, stages, crew, soundItems,
     power, activeBriefId, riggPlan, inspection,
   ]);
@@ -2073,6 +2083,9 @@ function App() {
       reportEndDate,
       schedule: buildProjectSchedule(reportDate, reportEndDate, extraSchedule),
       engineer,
+      // Free-text producer brief captured on the Overview. Surfaced
+      // verbatim on the freelancer brief page as `project.description`.
+      description: briefDescription.trim() ? briefDescription : undefined,
       // The `recipientCrewId` is overridden per-link by ShareBriefModal.
       recipientCrewId: null,
       crew,
@@ -4615,6 +4628,7 @@ function App() {
     setReportEndDate("");
     setExtraSchedule({});
     setEngineer("");
+    setBriefDescription("");
     setSystems([fresh]);
     setActiveSystemId(fresh.id);
     setShowFixtures([]);
@@ -4660,6 +4674,7 @@ function App() {
     setReportEndDate(d.reportEndDate ?? "");
     setExtraSchedule(d.extraSchedule ?? {});
     setEngineer(d.engineer ?? "");
+    setBriefDescription(d.briefDescription ?? "");
     const sysList = d.systems && d.systems.length > 0 ? d.systems : [makeEmptySystem("LX1")];
     setSystems(sysList);
     setActiveSystemId(
@@ -4733,6 +4748,7 @@ function App() {
     setReportEndDate("");
     setExtraSchedule({});
     setEngineer("");
+    setBriefDescription("");
     setSystems([fresh]);
     setActiveSystemId(fresh.id);
     setShowFixtures([]);
@@ -5528,6 +5544,28 @@ function App() {
           value={engineer}
           onChange={(e) => setEngineer(e.target.value)}
           placeholder={tr("project.placeholder.manager")}
+        />
+      </div>
+      <div className="meta-field meta-field--full">
+        <label>{tr("project.brief")}</label>
+        <textarea
+          value={briefDescription}
+          onChange={(e) => setBriefDescription(e.target.value)}
+          placeholder={tr("project.placeholder.brief")}
+          rows={4}
+          style={{
+            width: "100%",
+            resize: "vertical",
+            minHeight: 72,
+            padding: "8px 10px",
+            border: "1px solid var(--border)",
+            borderRadius: 6,
+            background: "var(--input-bg)",
+            color: "var(--ink)",
+            font: "inherit",
+            lineHeight: 1.4,
+            boxSizing: "border-box",
+          }}
         />
       </div>
     </>

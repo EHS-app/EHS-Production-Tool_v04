@@ -135,6 +135,8 @@ export const en = {
   "project.client": "Client",
   "project.schedule": "Schedule",
   "project.projectManager": "Project manager",
+  "project.brief": "Project brief",
+  "project.placeholder.brief": "Free-text brief for the whole project — shared with every freelancer on the call (load-in info, dress code, parking, lunch, etc.)",
   "project.placeholder.venue": "e.g. Sentrum Scene",
   "project.placeholder.client": "Customer name",
   "project.placeholder.manager": "Name",

@@ -1583,7 +1583,10 @@ function statusTone(s: RosterRow["status"]): "ok" | "warn" | "bad" | "muted" {
     case "too_late":
       return "bad";
     case "declined":
-      return "muted";
+      // Producer-facing: a declined crew member should read as "this
+      // slot lost a candidate" — light red, not muted grey, so it
+      // doesn't visually blend with hand-typed in-house crew.
+      return "bad";
     case "manual":
       return "muted";
     default:

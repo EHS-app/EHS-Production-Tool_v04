@@ -97,10 +97,13 @@ function statusBlockStyle(
   }
   switch (status) {
     case "confirmed":
+      // Accepted / confirmed crew read as "locked in" — green pill so
+      // the producer can scan the row and instantly see who has said
+      // yes vs. who is still pending (amber) vs. declined (red).
       return {
-        background: "rgba(248,128,0,0.18)",
-        border: "1px solid rgba(248,128,0,0.32)",
-        color: "#FFA040",
+        background: "rgba(22,163,74,0.16)",
+        border: "1px solid rgba(22,163,74,0.34)",
+        color: "#4ade80",
       };
     case "pending":
       return {
@@ -127,7 +130,7 @@ function statusBlockStyle(
 function statusDotColor(s: OverviewCrewRow["status"]) {
   switch (s) {
     case "confirmed":
-      return "#F88000";
+      return "#22c55e";
     case "pending":
       return "#f59e0b";
     case "declined":
@@ -312,7 +315,7 @@ export function OverviewView({
               )}
               <div className="ehs-overview-crew-foot">
                 <div className="ehs-overview-crew-legend">
-                  <span><span className="ehs-overview-crew-dot" style={{ background: "#F88000" }} /> {t("overview.legend.confirmed")}</span>
+                  <span><span className="ehs-overview-crew-dot" style={{ background: "#22c55e" }} /> {t("overview.legend.confirmed")}</span>
                   <span><span className="ehs-overview-crew-dot" style={{ background: "#f59e0b" }} /> {t("overview.legend.pending")}</span>
                   <span><span className="ehs-overview-crew-dot" style={{ background: "#f43f5e" }} /> {t("overview.legend.cancelled")}</span>
                 </div>

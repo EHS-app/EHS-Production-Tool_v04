@@ -261,6 +261,10 @@ export type ProjectBrief = {
      *  Portal brief detail/list, and persisted into accepted Gigs so
      *  freelancers see who the work is for. */
     client: string;
+    /** Producer-authored client-side contact (name, phone, email — free
+     *  text) entered on the Overview. Shown on the freelancer brief so
+     *  the crew knows who to ask for on site. Optional. */
+    clientContact?: string;
     /** ISO date (YYYY-MM-DD) of the show — start date when a range is set. */
     date: string;
     /** Optional ISO end date (YYYY-MM-DD) for multi-day shows. Omitted /
@@ -415,6 +419,9 @@ export type BuildBriefInput = {
   venue: string;
   /** Client / customer name. Empty string when not yet filled in. */
   client: string;
+  /** Free-text client-side contact (name, phone, email). Empty / undefined
+   *  when not filled in — surfaced verbatim on the freelancer brief. */
+  clientContact?: string;
   reportDate: string;
   /** Optional ISO end date for multi-day shows. */
   reportEndDate?: string;
@@ -709,6 +716,9 @@ export function buildBrief(input: BuildBriefInput): ProjectBrief {
     project: {
       venue: input.venue,
       client: input.client,
+      ...(input.clientContact && input.clientContact.trim()
+        ? { clientContact: input.clientContact.trim() }
+        : {}),
       date: input.reportDate,
       endDate: input.reportEndDate ? input.reportEndDate : undefined,
       schedule: input.schedule ? cleanSchedule(input.schedule) : undefined,
@@ -1113,6 +1123,10 @@ export function normalizeBrief(raw: unknown): ProjectBrief | null {
     project: {
       venue: asString(project.venue),
       client: asString(project.client),
+      ...(typeof project.clientContact === "string" &&
+      project.clientContact.trim()
+        ? { clientContact: project.clientContact.trim() }
+        : {}),
       date: asString(project.date),
       endDate:
         typeof project.endDate === "string" && project.endDate

@@ -898,6 +898,10 @@ type PersistedV2 = {
    *  so every freelancer sees the same context. Optional — empty string
    *  when not yet filled in. */
   briefDescription?: string;
+  /** Client-side contact (name / phone / email — free text) so the crew
+   *  on site knows who to ask for. Shared with the freelancer portal as
+   *  `project.clientContact`. */
+  clientContact?: string;
   systems: System[];
   activeSystemId: string;
   showFixtures?: ShowFixture[];
@@ -1267,6 +1271,9 @@ function App() {
   const [engineer, setEngineer] = useState(persisted?.engineer ?? "");
   const [briefDescription, setBriefDescription] = useState(
     persisted?.briefDescription ?? "",
+  );
+  const [clientContact, setClientContact] = useState(
+    persisted?.clientContact ?? "",
   );
   const [systems, setSystems] = useState<System[]>(
     persisted?.systems && persisted.systems.length > 0
@@ -1705,6 +1712,7 @@ function App() {
     extraSchedule,
     engineer,
     briefDescription,
+    clientContact,
     systems,
     activeSystemId,
     showFixtures,
@@ -1723,7 +1731,7 @@ function App() {
     inspection,
   }), [
     themePref, venue, client, reportDate, reportEndDate, extraSchedule,
-    engineer, briefDescription, systems, activeSystemId, showFixtures, mainView, linkedMeta,
+    engineer, briefDescription, clientContact, systems, activeSystemId, showFixtures, mainView, linkedMeta,
     ledScreens, ledLinkedMeta, ledSettings, ledSystemState, stages, crew, soundItems,
     power, activeBriefId, riggPlan, inspection,
   ]);
@@ -2079,6 +2087,7 @@ function App() {
     return {
       venue,
       client,
+      clientContact: clientContact.trim() ? clientContact : undefined,
       reportDate,
       reportEndDate,
       schedule: buildProjectSchedule(reportDate, reportEndDate, extraSchedule),
@@ -4629,6 +4638,7 @@ function App() {
     setExtraSchedule({});
     setEngineer("");
     setBriefDescription("");
+    setClientContact("");
     setSystems([fresh]);
     setActiveSystemId(fresh.id);
     setShowFixtures([]);
@@ -4675,6 +4685,7 @@ function App() {
     setExtraSchedule(d.extraSchedule ?? {});
     setEngineer(d.engineer ?? "");
     setBriefDescription(d.briefDescription ?? "");
+    setClientContact(d.clientContact ?? "");
     const sysList = d.systems && d.systems.length > 0 ? d.systems : [makeEmptySystem("LX1")];
     setSystems(sysList);
     setActiveSystemId(
@@ -4749,6 +4760,7 @@ function App() {
     setExtraSchedule({});
     setEngineer("");
     setBriefDescription("");
+    setClientContact("");
     setSystems([fresh]);
     setActiveSystemId(fresh.id);
     setShowFixtures([]);
@@ -5524,6 +5536,15 @@ function App() {
           value={client}
           onChange={(e) => setClient(e.target.value)}
           placeholder={tr("project.placeholder.client")}
+        />
+      </div>
+      <div className="meta-field">
+        <label>{tr("project.clientContact")}</label>
+        <input
+          type="text"
+          value={clientContact}
+          onChange={(e) => setClientContact(e.target.value)}
+          placeholder={tr("project.placeholder.clientContact")}
         />
       </div>
       <div className="meta-field">

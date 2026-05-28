@@ -5411,6 +5411,13 @@ function App() {
         title: tr("shell.action.simulateTitle"),
       },
       {
+        id: "reset",
+        label: tr("shell.action.resetProject"),
+        icon: ShellRotateCcw,
+        variant: "secondary",
+        onClick: resetAll,
+      },
+      {
         id: "led-project-pdf",
         label: tr("shell.action.ledProjectPdf"),
         icon: ShellFileDown,
@@ -5454,6 +5461,7 @@ function App() {
     [
       exportClientPackPdf,
       simulateShow,
+      resetAll,
       tr,
       mainView,
       allLedScreens,
@@ -5501,12 +5509,6 @@ function App() {
         label: tr("shell.action.downloadCsv"),
         icon: ShellDownload,
         onClick: downloadCsv,
-      },
-      {
-        id: "reset",
-        label: tr("shell.action.resetProject"),
-        icon: ShellRotateCcw,
-        onClick: resetAll,
       },
       {
         id: "help",

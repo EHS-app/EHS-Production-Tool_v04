@@ -5411,13 +5411,6 @@ function App() {
         title: tr("shell.action.simulateTitle"),
       },
       {
-        id: "reset",
-        label: tr("shell.action.resetProject"),
-        icon: ShellRotateCcw,
-        variant: "secondary",
-        onClick: resetAll,
-      },
-      {
         id: "led-project-pdf",
         label: tr("shell.action.ledProjectPdf"),
         icon: ShellFileDown,
@@ -5461,7 +5454,6 @@ function App() {
     [
       exportClientPackPdf,
       simulateShow,
-      resetAll,
       tr,
       mainView,
       allLedScreens,
@@ -5625,6 +5617,7 @@ function App() {
         onHelp={() => setHelpOpen(true)}
         onOpenProjects={() => setProjectsOpen(true)}
         cloudSavedAt={cloudSavedAt}
+        onResetProject={resetAll}
       >
       {mainView === "oversikt" && (
         <OverviewView

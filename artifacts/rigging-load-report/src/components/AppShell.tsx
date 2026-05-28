@@ -24,6 +24,7 @@ import {
   Zap,
   HelpCircle,
   LayoutGrid,
+  RotateCcw,
 } from "lucide-react";
 import type { ThemePreference } from "../main";
 import { useT, type Translator } from "../lib/i18n/I18nContext";
@@ -105,6 +106,11 @@ interface AppShellProps {
   onHelp?: () => void;
   onOpenProjects?: () => void;
   cloudSavedAt?: string;
+  /** Optional compact reset-project handler. When provided the topbar
+   *  renders a small ghost pill next to the cloud-saved indicator so
+   *  producers can wipe the working project without diving into the
+   *  overflow menu. */
+  onResetProject?: () => void;
   children: ReactNode;
 }
 
@@ -212,6 +218,7 @@ export function AppShell({
   onHelp,
   onOpenProjects,
   cloudSavedAt,
+  onResetProject,
   children,
 }: AppShellProps) {
   const t = useT();
@@ -528,6 +535,33 @@ export function AppShell({
               <span className="ehs-shell-saved" title={t("shell.savedTitle")}>
                 <span className="ehs-shell-saved-dot" /> {t("shell.saved", { time: savedAt })}
               </span>
+            ) : null}
+            {onResetProject ? (
+              <button
+                type="button"
+                onClick={onResetProject}
+                title={t("shell.action.resetProject")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  height: 22,
+                  padding: "0 8px",
+                  marginLeft: 4,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  color: "var(--text-muted)",
+                  background: "transparent",
+                  border: "1px solid var(--border-color)",
+                  borderRadius: 999,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <RotateCcw size={11} />
+                <span>{t("shell.action.resetProject")}</span>
+              </button>
             ) : null}
           </div>
 

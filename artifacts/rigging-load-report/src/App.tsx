@@ -5434,6 +5434,7 @@ function App() {
               screens: allLedScreens,
               panels: ledPanels,
               settings: ledSettings,
+              beamCatalog: ledBeamsCatalog,
               projectName: venue,
               venue,
               client,

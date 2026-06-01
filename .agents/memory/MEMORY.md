@@ -1,0 +1,1 @@
+- [LED PDF vs tab parity](led-pdf-vs-tab-parity.md) — PDF must use computeScreenMetrics(…, beamCatalog)/m.weightKg for weight; power split (raw nameplate vs estimateScreenPower) is intentional.

@@ -18,7 +18,12 @@
  * React state round-trip and keeps export logic decoupled from the
  * paint toolbar's `paintMode` UI state.
  */
-import type { LedPanel, LedScreen, LedSettings } from "./led";
+import type {
+  LedBeamCatalogItem,
+  LedPanel,
+  LedScreen,
+  LedSettings,
+} from "./led";
 import {
   computeScreenMetrics,
   computeScreenCableBOM,
@@ -40,6 +45,10 @@ export type LedProjectPdfInput = {
   venue: string;
   client: string;
   reportDate: string;
+  /** LED Screen inventory beams (name + per-unit weight) used to
+   *  fold the auto-fit + manual rigging accessories into the per-screen
+   *  and total weight, so the PDF matches the on-screen LED tab. */
+  beamCatalog: LedBeamCatalogItem[];
   /** URL or data URI for the EHS logo. The caller passes the
    *  imported asset (e.g. `import ehsLogo from "./assets/ehs-logo.png"`).
    *  The logo is fetched once, converted to a data URL, and reused
@@ -91,6 +100,7 @@ export async function downloadLedProjectPdf(
     input.screens,
     input.panels,
     input.settings,
+    input.beamCatalog,
     margin,
     68,
     pageW - margin * 2,
@@ -103,6 +113,7 @@ export async function downloadLedProjectPdf(
     input.screens,
     input.panels,
     input.settings,
+    input.beamCatalog,
     margin,
     108,
     pageW - margin * 2,
@@ -407,6 +418,7 @@ function drawTotalsBlock(
   screens: LedScreen[],
   panels: LedPanel[],
   settings: LedSettings,
+  beamCatalog: LedBeamCatalogItem[],
   x: number,
   y: number,
   width: number,
@@ -418,13 +430,13 @@ function drawTotalsBlock(
   let totWatts = 0;
   for (const s of screens) {
     const panel = resolveScreenPanel(s, panels);
-    const m = computeScreenMetrics(s, panels);
+    const m = computeScreenMetrics(s, panels, beamCatalog);
     const power = estimateScreenPower(s, panel, settings);
     const enabled = enabledPanelCount(s);
     totPanels += enabled;
     totPixels += m.pixelsX * m.pixelsY;
     totArea += m.widthM * m.heightM;
-    totWeight += enabled * panel.weight;
+    totWeight += m.weightKg;
     totWatts += power.totalWatts;
   }
   const outputs = Math.max(1, Math.ceil(totPixels / PIXELS_PER_OUTPUT));
@@ -608,6 +620,7 @@ function drawTechSummary(
   screens: LedScreen[],
   panels: LedPanel[],
   settings: LedSettings,
+  beamCatalog: LedBeamCatalogItem[],
   x: number,
   y: number,
   width: number,
@@ -636,13 +649,13 @@ function drawTechSummary(
 
   for (const s of screens) {
     const panel = resolveScreenPanel(s, panels);
-    const m = computeScreenMetrics(s, panels);
+    const m = computeScreenMetrics(s, panels, beamCatalog);
     const power = estimateScreenPower(s, panel, settings);
     const enabled = enabledPanelCount(s);
     totPanels += enabled;
     totPixels += m.pixelsX * m.pixelsY;
     totArea += m.widthM * m.heightM;
-    totWeight += enabled * panel.weight;
+    totWeight += m.weightKg;
     totWatts += power.totalWatts;
 
     rows.push([
@@ -651,7 +664,7 @@ function drawTechSummary(
       `${s.panelsWide} × ${s.panelsTall}`,
       `${m.pixelsX} × ${m.pixelsY}`,
       (m.widthM * m.heightM).toFixed(2),
-      (enabled * panel.weight).toFixed(1),
+      m.weightKg.toFixed(1),
       Math.round(power.totalWatts).toString(),
       power.amps.toFixed(1),
     ]);

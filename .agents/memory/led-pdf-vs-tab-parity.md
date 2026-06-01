@@ -32,3 +32,10 @@ They answer different questions, so they legitimately differ.
 token, excludes 90°/corner/angle) longest-first to the screen width, quantized to mm.
 A 5.5m screen with a 0.5m beam in catalog yields 5×1m + 1×0.5m — the 0.5m remainder is
 already handled; no special-casing needed.
+
+## Bracket / hanging-bar count
+`computeScreenCableBOM` bracket count = total auto-fit beam qty (sum of suggestAutoBeams
+qty) when `screen.autoFitBeams` is on AND a beamCatalog is passed, else falls back to
+top-row enabled cabinet count. So a 7m screen on 1m bars = 7 brackets, NOT 14 (one per
+0.5m cabinet column). All callers (PDF cable summary, App brief builder, LedScreenReportView
+CableBracketBomCard) must pass the beam catalog or they silently get the column-count fallback.

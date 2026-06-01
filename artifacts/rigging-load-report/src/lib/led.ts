@@ -1423,6 +1423,7 @@ export type LedScreenCableBOM = {
 export function computeScreenCableBOM(
   screen: LedScreen,
   panels: LedPanel[],
+  beamCatalog?: LedBeamCatalogItem[],
 ): LedScreenCableBOM {
   const enabled = enabledPanelCount(screen);
   const jumpers = Math.max(0, enabled - 1);
@@ -1431,12 +1432,9 @@ export function computeScreenCableBOM(
     (screen.bracketOverride && screen.bracketOverride.trim()) ||
     panel.bracketName ||
     "";
-  // Bracket count = top-row enabled cabinets. Brackets clamp each
-  // cabinet COLUMN to the beam(s) running across the screen width;
-  // cabinets below the top row hang off the cabinet above them via
-  // captive interlocks and don't need their own bracket. This keeps
-  // the count consistent with the auto-fit beams sized to width
-  // (one bracket per cabinet column the beams span).
+  // Top-row enabled cabinets — the cabinet COLUMNS the beams clamp.
+  // Cabinets below the top row hang off the cabinet above them via
+  // captive interlocks and don't need their own bracket.
   const topRowEnabled = (() => {
     if (screen.panelsWide <= 0 || screen.panelsTall <= 0) return 0;
     const disabled = disabledCellSet(screen);
@@ -1447,8 +1445,21 @@ export function computeScreenCableBOM(
     }
     return count;
   })();
-  const brackets = topRowEnabled > 0
-    ? [{ name: bracketName || "(set bracket on inventory)", count: topRowEnabled }]
+  // Bracket count follows the AUTO-FIT BEAM count sized to the screen
+  // width when auto-fit is on and the catalog yields beams — one
+  // hanging bar per beam (e.g. a 7 m screen on 1 m bars → 7, not one
+  // per 0.5 m cabinet column). Falls back to the top-row cabinet count
+  // when auto-fit is off or no beam matches the width.
+  const autoBeamCount =
+    beamCatalog && screen.autoFitBeams
+      ? suggestAutoBeams(screen, panels, beamCatalog).reduce(
+          (sum, b) => sum + b.qty,
+          0,
+        )
+      : 0;
+  const bracketCount = autoBeamCount > 0 ? autoBeamCount : topRowEnabled;
+  const brackets = bracketCount > 0
+    ? [{ name: bracketName || "(set bracket on inventory)", count: bracketCount }]
     : [];
   return {
     signalCables: jumpers,
@@ -1456,7 +1467,7 @@ export function computeScreenCableBOM(
     powerCables: jumpers,
     powerLengthM: jumpers * POWER_TRUE1_CABLE_LENGTH_M,
     brackets,
-    bracketsUnset: topRowEnabled > 0 && !bracketName,
+    bracketsUnset: bracketCount > 0 && !bracketName,
   };
 }
 

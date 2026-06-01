@@ -727,7 +727,7 @@ function drawCableSummary(
   let totPwrM = 0;
 
   for (const s of screens) {
-    const bom = computeScreenCableBOM(s, panels);
+    const bom = computeScreenCableBOM(s, panels, input.beamCatalog);
     totSig += bom.signalCables;
     totSigM += bom.signalLengthM;
     totPwr += bom.powerCables;

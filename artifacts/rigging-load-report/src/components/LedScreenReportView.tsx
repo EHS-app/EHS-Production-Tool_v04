@@ -762,7 +762,11 @@ export function LedScreenReportView(props: Props) {
       )}
 
       {screens.length > 0 && (
-        <CableBracketBomCard screens={screens} panels={panels} />
+        <CableBracketBomCard
+          screens={screens}
+          panels={panels}
+          beamCatalog={beamsCatalog}
+        />
       )}
 
       {screens.length > 0 && (
@@ -3695,12 +3699,14 @@ function ProcessorsStrip({
 function CableBracketBomCard({
   screens,
   panels,
+  beamCatalog,
 }: {
   screens: LedScreen[];
   panels: LedPanel[];
+  beamCatalog: LedRigAccessoryCatalogItem[];
 }) {
   const rows = screens.map((s) => {
-    const bom = computeScreenCableBOM(s, panels);
+    const bom = computeScreenCableBOM(s, panels, beamCatalog);
     return { screen: s, bom };
   });
   const totalSignalCables = rows.reduce(

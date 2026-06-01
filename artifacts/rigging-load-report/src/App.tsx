@@ -2166,7 +2166,7 @@ function App() {
           const enabled = enabledPanelCount(s);
           const bbox = Math.max(0, s.panelsWide) * Math.max(0, s.panelsTall);
           const disabled = Math.max(0, bbox - enabled);
-          const bom = computeScreenCableBOM(s, ledPanels);
+          const bom = computeScreenCableBOM(s, ledPanels, ledBeamsCatalog);
           const cap = computeScreenProcessorCapacity(s.processors);
           const metrics = computeScreenMetrics(s, ledPanels);
           // Resolve the producer's `LedShapeTemplate` choice to a

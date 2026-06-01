@@ -197,7 +197,8 @@ async function loadLogoDataUrl(src: string | undefined): Promise<string> {
   }
 }
 
-/** Logo dimensions in mm for the PDF page header. */
+/** Logo bounding box in mm for the PDF page header. The logo is
+ *  scaled to fit INSIDE this box preserving its aspect ratio. */
 const LOGO_HEADER_W_MM = 24;
 const LOGO_HEADER_H_MM = 10;
 
@@ -322,17 +323,30 @@ function drawHeader(
   let titleX = margin;
   if (logoDataUrl) {
     try {
+      // Fit the logo INSIDE the WxH box while preserving its native
+      // aspect ratio — otherwise a non-2.4:1 asset gets stretched.
+      const props = pdf.getImageProperties(logoDataUrl);
+      const ar =
+        props.width > 0 && props.height > 0
+          ? props.width / props.height
+          : LOGO_HEADER_W_MM / LOGO_HEADER_H_MM;
+      let w = LOGO_HEADER_W_MM;
+      let h = w / ar;
+      if (h > LOGO_HEADER_H_MM) {
+        h = LOGO_HEADER_H_MM;
+        w = h * ar;
+      }
       pdf.addImage(
         logoDataUrl,
         "PNG",
         margin,
         margin - 2,
-        LOGO_HEADER_W_MM,
-        LOGO_HEADER_H_MM,
+        w,
+        h,
         undefined,
         "FAST",
       );
-      titleX = margin + LOGO_HEADER_W_MM + 6;
+      titleX = margin + w + 6;
     } catch {
       // Bad image format — skip and fall through to text-only header.
     }

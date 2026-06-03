@@ -80,6 +80,47 @@ function step(n, title, body) {
   }
   y += 8;
 }
+function table(headers, rows, widths) {
+  const rowH = 20;
+  const totalH = rowH * (rows.length + 1) + 6;
+  ensure(totalH);
+  let x = M;
+  // header
+  doc.setFillColor(...INK);
+  doc.rect(M, y - 4, CW, rowH, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9.5);
+  doc.setTextColor(255, 255, 255);
+  headers.forEach((h, i) => {
+    const align = i === 0 ? "left" : "right";
+    const tx = align === "left" ? x + 8 : x + widths[i] - 8;
+    doc.text(h, tx, y + 9, { align });
+    x += widths[i];
+  });
+  y += rowH;
+  // body
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  rows.forEach((r, ri) => {
+    if (ri % 2 === 1) {
+      doc.setFillColor(...CODEBG);
+      doc.rect(M, y - 4, CW, rowH, "F");
+    }
+    x = M;
+    r.forEach((cell, i) => {
+      const align = i === 0 ? "left" : "right";
+      const tx = align === "left" ? x + 8 : x + widths[i] - 8;
+      doc.setTextColor(...(i === 0 ? INK : SOFT));
+      doc.text(String(cell), tx, y + 9, { align });
+      x += widths[i];
+    });
+    y += rowH;
+  });
+  doc.setDrawColor(...RULE);
+  doc.setLineWidth(0.6);
+  doc.rect(M, y - 4 - rowH * (rows.length + 1), CW, rowH * (rows.length + 1));
+  y += 10;
+}
 function code(t) {
   doc.setFont("courier", "normal");
   doc.setFontSize(10);
@@ -115,6 +156,23 @@ y = 130;
 para(
   "This note explains, end to end, how the tool turns a panel's rated wattage into the power and amperage figures you see on the LED tab and in the project PDF. Every value below can be overridden per screen.",
   { color: SOFT },
+);
+
+h1("Panel wattages (current catalog)");
+para(
+  "These are the rated (peak, full-white) wattages per cabinet in the tool today. The 0.5 x 1 m cabinet exists in two rows — bare and with its captive cable loom — but both pull the same power.",
+  { color: SOFT, size: 10 },
+);
+table(
+  ["Cabinet", "Size (m)", "Pixels", "Rated power"],
+  [
+    ["Uniview UR Pro 0.5x1m", "0.5 x 1.0", "128 x 256", "350 W"],
+    ["Uniview UR Pro 0.5x1m + cable", "0.5 x 1.0", "128 x 256", "350 W"],
+    ["Uniview UR Pro 0.5x0.5m 90 deg", "0.5 x 0.5", "128 x 128", "175 W"],
+    ["Uniview UR Pro 0.5x0.5m 90 deg + cable", "0.5 x 0.5", "128 x 128", "175 W"],
+    ["Custom panel (fallback)", "0.5 x 0.5", "128 x 128", "175 W"],
+  ],
+  [CW * 0.46, CW * 0.16, CW * 0.18, CW * 0.2],
 );
 
 h1("The build-up, step by step");
@@ -155,6 +213,33 @@ step(
   6,
   "Split across power chains",
   "If you set a max-cabinets-per-chain, the tool works out how many chains you need and divides the amps evenly. A chain is flagged as overloaded when it exceeds 80% of the breaker rating (the standard de-rate).",
+);
+
+h1("Worked example — a 5 x 3 wall");
+para(
+  "5 cabinets wide x 3 cabinets tall = 15 cabinets, all powered. Using the Uniview UR Pro 0.5 x 1 m (350 W), at full brightness, 25% PSU overhead, 230 V EU mains, 0.95 power factor. That makes a wall 2.5 m wide x 3.0 m tall.",
+  { color: SOFT, size: 10 },
+);
+table(
+  ["Step", "Calculation", "Result"],
+  [
+    ["Brightness factor", "full (5000 nits) -> 1.0", "1.0"],
+    ["Watts per cabinet", "350 x 1.0 x 1.25", "437.5 W"],
+    ["Total (Max output)", "437.5 x 15", "6,562.5 W"],
+    ["Current", "6562.5 / (230 x 0.95)", "30.0 A"],
+    ["Average output", "6562.5 / 3", "2,187.5 W"],
+    ["Chains (6/chain)", "ceil(15 / 6)", "3 chains"],
+    ["Amps per chain", "30.0 / 3", "10.0 A"],
+  ],
+  [CW * 0.3, CW * 0.45, CW * 0.25],
+);
+para(
+  "Read-out: this wall needs about 30 A total at full white — across 3 power chains that is 10 A each, comfortably under a 16 A breaker's 80% ceiling (12.8 A). For generator and heat planning, expect roughly 2.2 kW average on real content.",
+  { size: 10 },
+);
+para(
+  "Dim the wall and it drops fast: the same 5 x 3 at 2500 nits uses brightness factor 0.65, so watts per cabinet = 350 x 0.65 x 1.25 = 284 W, total = 4,266 W (Max), and current = 19.5 A.",
+  { color: SOFT, size: 10 },
 );
 
 h1("Max output vs Average output");

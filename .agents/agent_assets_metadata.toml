@@ -120,3 +120,9 @@ id = "dgwgw1xxAqptnuxqpdbfg"
 uri = "file://.local/mockups/cable-style-mockup.png"
 type = "image"
 title = "Cable drawing — current vs proposed (PDF style)"
+
+[[outputs]]
+id = "nFX4CfNV9dHAAxOTP1ERS"
+uri = "file://exports/LED-Power-Calculation.pdf"
+type = "pdf"
+title = "LED Power Calculation — Reference"

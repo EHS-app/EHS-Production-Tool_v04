@@ -234,30 +234,31 @@ step(
   "If you set a max-cabinets-per-chain, the tool works out how many chains you need and divides the amps evenly. A chain is flagged as overloaded when it exceeds 80% of the breaker rating (the standard de-rate).",
 );
 
-h1("Worked example — a 5 x 3 wall");
+h1("Worked example — a 5 m x 3 m wall");
 para(
-  "5 cabinets wide x 3 cabinets tall = 15 cabinets, all powered. Using the Uniview UR Pro 0.5 x 1 m (350 W), at full brightness, 25% PSU overhead, 230 V EU mains, 0.95 power factor. That makes a wall 2.5 m wide x 3.0 m tall.",
+  "A wall 5 m wide x 3 m tall (physical size). With the Uniview UR Pro 0.5 x 1 m cabinet (0.5 m wide x 1.0 m tall) that is 10 cabinets wide x 3 tall = 30 cabinets, all powered. At full brightness, 25% PSU overhead, 230 V EU mains, 0.95 power factor.",
   { color: SOFT, size: 10 },
 );
 table(
   ["Step", "Calculation", "Result"],
   [
+    ["Wall -> cabinets", "(5.0 / 0.5) x (3.0 / 1.0)", "10 x 3 = 30"],
     ["Brightness factor", "full (5000 nits) -> 1.0", "1.0"],
     ["Watts per cabinet", "350 x 1.0 x 1.25", "437.5 W"],
-    ["Total (Max output)", "437.5 x 15", "6,562.5 W"],
-    ["Current", "6562.5 / (230 x 0.95)", "30.0 A"],
-    ["Average output", "6562.5 / 3", "2,187.5 W"],
-    ["Chains (6/chain)", "ceil(15 / 6)", "3 chains"],
-    ["Amps per chain", "30.0 / 3", "10.0 A"],
+    ["Total (Max output)", "437.5 x 30", "13,125 W"],
+    ["Current", "13125 / (230 x 0.95)", "60.1 A"],
+    ["Average output", "13125 / 3", "4,375 W"],
+    ["Chains (6/chain)", "ceil(30 / 6)", "5 chains"],
+    ["Amps per chain", "60.1 / 5", "12.0 A"],
   ],
   [CW * 0.3, CW * 0.45, CW * 0.25],
 );
 para(
-  "Read-out: this wall needs about 30 A total at full white — across 3 power chains that is 10 A each, comfortably under a 16 A breaker's 80% ceiling (12.8 A). For generator and heat planning, expect roughly 2.2 kW average on real content.",
+  "Read-out: this 5 x 3 m wall needs about 60 A total at full white — across 5 power chains that is ~12 A each, just inside a 16 A breaker's 80% ceiling (12.8 A). For generator and heat planning, expect roughly 4.4 kW average on real content.",
   { size: 10 },
 );
 para(
-  "Dim the wall and it drops fast: the same 5 x 3 at 2500 nits uses brightness factor 0.65, so watts per cabinet = 350 x 0.65 x 1.25 = 284 W, total = 4,266 W (Max), and current = 19.5 A.",
+  "Dim the wall and it drops fast: the same 5 x 3 m wall at 2500 nits uses brightness factor 0.65, so watts per cabinet = 350 x 0.65 x 1.25 = 284 W, total = 8,531 W (Max), and current = 39.0 A.",
   { color: SOFT, size: 10 },
 );
 

@@ -2906,29 +2906,49 @@ function ScreenSvg({
             const aRow = Math.floor(ai / screen.panelsWide);
             const bCol = bi % screen.panelsWide;
             const bRow = Math.floor(bi / screen.panelsWide);
+            const ax = x + (aCol + 0.5) * cellW;
+            const ay = y + (aRow + 0.5) * cellH;
+            const bx = x + (bCol + 0.5) * cellW;
+            const by = y + (bRow + 0.5) * cellH;
+            // Curved hop arc between consecutive cabinets — matches the
+            // colourspace/Vectorworks cable-drawing style so a row of
+            // hops reads as a row of little rainbows. The bow is
+            // perpendicular to the segment, flipped so it always arcs
+            // toward the top of the wall (negative-y side). Drawn in the
+            // port's own colour so multiple chains stay distinct.
+            const dx = bx - ax;
+            const dy = by - ay;
+            const segLen = Math.hypot(dx, dy) || 1;
+            let nx = -dy / segLen;
+            let ny = dx / segLen;
+            if (ny > 0) {
+              nx = -nx;
+              ny = -ny;
+            }
+            const bow = Math.min(minDim * 0.5, segLen * 0.45);
+            const ctrlX = (ax + bx) / 2 + nx * bow;
+            const ctrlY = (ay + by) / 2 + ny * bow;
             nodes.push(
-              <line
-                key={`${p.id}-arr-${i}`}
-                x1={x + (aCol + 0.5) * cellW}
-                y1={y + (aRow + 0.5) * cellH}
-                x2={x + (bCol + 0.5) * cellW}
-                y2={y + (bRow + 0.5) * cellH}
+              <path
+                key={`${p.id}-arc-${i}`}
+                d={`M ${ax} ${ay} Q ${ctrlX} ${ctrlY} ${bx} ${by}`}
+                fill="none"
                 stroke={p.color}
                 strokeWidth={arrowStrokeW}
                 strokeLinecap="round"
                 pointerEvents="none"
               />,
             );
-            // Manual arrowhead at the destination end so we can colour
-            // each port's arrows individually (a single SVG marker
-            // can't carry per-line fill).
-            const dx = (bCol - aCol) * cellW;
-            const dy = (bRow - aRow) * cellH;
-            const len = Math.hypot(dx, dy) || 1;
-            const ux = dx / len;
-            const uy = dy / len;
-            const tipX = x + (bCol + 0.5) * cellW;
-            const tipY = y + (bRow + 0.5) * cellH;
+            // Manual arrowhead at the destination, aligned to the arc's
+            // tangent there (control point → end) so it sits flush with
+            // the curve. Per-line fill lets each port keep its colour.
+            const tx = bx - ctrlX;
+            const ty = by - ctrlY;
+            const len = Math.hypot(tx, ty) || 1;
+            const ux = tx / len;
+            const uy = ty / len;
+            const tipX = bx;
+            const tipY = by;
             const headLen = Math.max(3, minDim * 0.14);
             const headW = headLen * 0.7;
             const baseX = tipX - ux * headLen;

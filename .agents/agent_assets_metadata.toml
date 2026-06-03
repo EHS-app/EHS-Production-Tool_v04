@@ -114,3 +114,9 @@ id = "Veg63i9miFk_02cm_RZmK"
 uri = "file://backups/IT-email-custom-domain.txt"
 type = "text"
 title = "Email to IT — Custom domain setup"
+
+[[outputs]]
+id = "dgwgw1xxAqptnuxqpdbfg"
+uri = "file://.local/mockups/cable-style-mockup.png"
+type = "image"
+title = "Cable drawing — current vs proposed (PDF style)"

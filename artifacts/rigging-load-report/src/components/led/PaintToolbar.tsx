@@ -27,11 +27,11 @@ const SIGNAL_PALETTE = [
   "#0288D1", "#5C6BC0", "#3949AB",
 ];
 
-function newPortId(): string {
+export function newPortId(): string {
   return `p_${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function nextLabel(existing: LedPortChain[]): string {
+export function nextLabel(existing: LedPortChain[]): string {
   const nums = existing
     .map((p) => Number(p.label))
     .filter((n) => Number.isFinite(n) && n > 0);
@@ -39,7 +39,7 @@ function nextLabel(existing: LedPortChain[]): string {
   return String(next);
 }
 
-function nextColor(mode: PaintMode, existing: LedPortChain[]): string {
+export function nextColor(mode: PaintMode, existing: LedPortChain[]): string {
   const palette = mode === "signal" ? SIGNAL_PALETTE : POWER_PALETTE;
   return palette[existing.length % palette.length];
 }

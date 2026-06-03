@@ -79,7 +79,13 @@ import {
 } from "./led/RigAccessoriesPanel";
 import { AdvancedScreenInspector } from "./led/AdvancedScreenInspector";
 import { ValidationDrawer } from "./led/ValidationDrawer";
-import { PaintToolbar, type PaintMode } from "./led/PaintToolbar";
+import {
+  PaintToolbar,
+  newPortId,
+  nextLabel,
+  nextColor,
+  type PaintMode,
+} from "./led/PaintToolbar";
 
 type Props = {
   screens: LedScreen[];
@@ -259,19 +265,9 @@ export function LedScreenReportView(props: Props) {
    *  screen. */
   const onPaintCell = useCallback(
     (screenId: string, col: number, row: number) => {
-      if (
-        !paintScreen ||
-        paintScreen.id !== screenId ||
-        paintMode === "off" ||
-        !activePortId
-      ) {
+      if (!paintScreen || paintScreen.id !== screenId || paintMode === "off") {
         return;
       }
-      const map =
-        paintMode === "power" ? paintScreen.powerMap : paintScreen.signalMap;
-      const ports = map?.ports ?? [];
-      const active = ports.find((p) => p.id === activePortId);
-      if (!active) return;
       // Don't allow painting onto void cabinets — a chain referencing
       // a disabled cell would inflate the cable count and render a
       // visually broken overlay on shaped (non-rectangular) screens.
@@ -285,17 +281,42 @@ export function LedScreenReportView(props: Props) {
       ) {
         return;
       }
+      const map =
+        paintMode === "power" ? paintScreen.powerMap : paintScreen.signalMap;
+      const ports = map?.ports ?? [];
       const cellIdx = row * paintScreen.panelsWide + col;
+      const active = activePortId
+        ? ports.find((p) => p.id === activePortId)
+        : undefined;
+      // No active port yet → seed a fresh chain with this cell so the
+      // producer can just click the first panel without first pressing
+      // "+ Add" in the toolbar.
+      if (!active) {
+        const port: LedPortChain = {
+          id: newPortId(),
+          label: nextLabel(ports),
+          color: nextColor(paintMode, ports),
+          cells: [cellIdx],
+        };
+        const seeded = ports.map((p) =>
+          p.cells.includes(cellIdx)
+            ? { ...p, cells: p.cells.filter((c) => c !== cellIdx) }
+            : p,
+        );
+        setActivePortId(port.id);
+        setPaintMap({ ports: [...seeded, port] });
+        return;
+      }
       let nextPorts: LedPortChain[];
       if (active.cells.includes(cellIdx)) {
         nextPorts = ports.map((p) =>
-          p.id === activePortId
+          p.id === active.id
             ? { ...p, cells: p.cells.filter((c) => c !== cellIdx) }
             : p,
         );
       } else {
         nextPorts = ports.map((p) => {
-          if (p.id === activePortId) {
+          if (p.id === active.id) {
             return { ...p, cells: [...p.cells, cellIdx] };
           }
           if (p.cells.includes(cellIdx)) {
@@ -306,7 +327,110 @@ export function LedScreenReportView(props: Props) {
       }
       setPaintMap(nextPorts.length === 0 ? undefined : { ports: nextPorts });
     },
-    [paintScreen, paintMode, activePortId, setPaintMap],
+    [paintScreen, paintMode, activePortId, setPaintMap, setActivePortId],
+  );
+
+  // ── Drag-to-draw ─────────────────────────────────────────────────
+  // Press a panel and drag to auto-link a whole chain that follows the
+  // cursor. Each drag starts a NEW chain at the press point and appends
+  // every cell the cursor passes over, capped at the per-mode max
+  // (power 9, signal 18 — overridable per screen via
+  // maxCabinetsPerPowerChain / maxCabinetsPerDataChain).
+  //
+  // `paintDragRef` is the single source of truth for the in-progress
+  // chain: it snapshots the *other* ports at drag start (`basePorts`)
+  // plus the growing `cells` list. Each move recomposes the full port
+  // set deterministically from those two — never from React state —
+  // so back-to-back start+move writes in the same tick can't clobber
+  // each other (the stale-snapshot bug that would otherwise drop the
+  // freshly created chain on the first move).
+  const paintDragRef = useRef<{
+    port: { id: string; label: string; color: string };
+    cells: number[];
+    basePorts: LedPortChain[];
+  } | null>(null);
+  const onPaintDrag = useCallback(
+    (
+      screenId: string,
+      col: number,
+      row: number,
+      phase: "start" | "move" | "end",
+    ) => {
+      if (phase === "end") {
+        paintDragRef.current = null;
+        return;
+      }
+      if (!paintScreen || paintScreen.id !== screenId || paintMode === "off") {
+        return;
+      }
+      if (
+        isCellDisabled(
+          disabledCellSet(paintScreen),
+          col,
+          row,
+          paintScreen.panelsWide,
+        )
+      ) {
+        return;
+      }
+      const cellIdx = row * paintScreen.panelsWide + col;
+      const cap =
+        paintMode === "power"
+          ? paintScreen.maxCabinetsPerPowerChain &&
+            paintScreen.maxCabinetsPerPowerChain > 0
+            ? paintScreen.maxCabinetsPerPowerChain
+            : 9
+          : paintScreen.maxCabinetsPerDataChain &&
+              paintScreen.maxCabinetsPerDataChain > 0
+            ? paintScreen.maxCabinetsPerDataChain
+            : 18;
+      // Rebuild the whole port set from the drag snapshot: strip the
+      // chain's cells from every other port (a cell belongs to at most
+      // one port per map), then append the drag port itself.
+      const compose = (drag: NonNullable<typeof paintDragRef.current>) => {
+        const owned = new Set(drag.cells);
+        const stripped = drag.basePorts.map((p) => ({
+          ...p,
+          cells: p.cells.filter((c) => !owned.has(c)),
+        }));
+        return [
+          ...stripped,
+          {
+            id: drag.port.id,
+            label: drag.port.label,
+            color: drag.port.color,
+            cells: drag.cells,
+          },
+        ];
+      };
+      if (phase === "start") {
+        const map =
+          paintMode === "power" ? paintScreen.powerMap : paintScreen.signalMap;
+        const ports = map?.ports ?? [];
+        const drag = {
+          port: {
+            id: newPortId(),
+            label: nextLabel(ports),
+            color: nextColor(paintMode, ports),
+          },
+          cells: [cellIdx],
+          basePorts: ports,
+        };
+        paintDragRef.current = drag;
+        setActivePortId(drag.port.id);
+        setPaintMap({ ports: compose(drag) });
+        return;
+      }
+      // phase === "move" — extend the in-progress chain.
+      const drag = paintDragRef.current;
+      if (!drag) return;
+      if (drag.cells[drag.cells.length - 1] === cellIdx) return;
+      if (drag.cells.includes(cellIdx)) return;
+      if (drag.cells.length >= cap) return;
+      drag.cells = [...drag.cells, cellIdx];
+      setPaintMap({ ports: compose(drag) });
+    },
+    [paintScreen, paintMode, setPaintMap, setActivePortId],
   );
   // When the selected screen changes (or paint mode flips off), reset
   // the active port — the new screen has its own port set.
@@ -759,6 +883,7 @@ export function LedScreenReportView(props: Props) {
             activePortId={activePortId}
             onActivePortChange={setActivePortId}
             onPaintCell={onPaintCell}
+            onPaintDrag={onPaintDrag}
             onUpdateSettings={onUpdateSettings}
           />
         </section>
@@ -1750,6 +1875,7 @@ function PixelMapCanvas({
   activePortId,
   onActivePortChange,
   onPaintCell,
+  onPaintDrag,
   onUpdateSettings,
 }: {
   screens: LedScreen[];
@@ -1779,6 +1905,12 @@ function PixelMapCanvas({
   activePortId: string | null;
   onActivePortChange: (id: string | null) => void;
   onPaintCell: (screenId: string, col: number, row: number) => void;
+  onPaintDrag: (
+    screenId: string,
+    col: number,
+    row: number,
+    phase: "start" | "move" | "end",
+  ) => void;
 }) {
   /** Outer SVG ref — used by the drag handler to translate client-pixel
    *  pointer movement into the SVG's user-space units (which is what
@@ -2016,6 +2148,7 @@ function PixelMapCanvas({
               paintMode !== "off" && selectedScreenId === item.screen.id
             }
             onPaintCell={onPaintCell}
+            onPaintDrag={onPaintDrag}
             onUpdateSettings={onUpdateSettings}
           />
         ))}
@@ -2072,6 +2205,7 @@ function ScreenSvg({
   paintMode,
   isPaintTarget,
   onPaintCell,
+  onPaintDrag,
   onUpdateSettings,
 }: {
   item: SvgItem;
@@ -2099,6 +2233,12 @@ function ScreenSvg({
    *  every map at a glance, but clicks only paint the selected one. */
   isPaintTarget: boolean;
   onPaintCell: (screenId: string, col: number, row: number) => void;
+  onPaintDrag: (
+    screenId: string,
+    col: number,
+    row: number,
+    phase: "start" | "move" | "end",
+  ) => void;
   /** Patch global LedSettings — used by the draggable logo overlay
    *  to persist `logoX/Y` after the user repositions it. */
   onUpdateSettings: (patch: Partial<LedSettings>) => void;
@@ -2117,6 +2257,16 @@ function ScreenSvg({
    *  also handles the SVG's `preserveAspectRatio` scaling correctly,
    *  whereas a viewBox-based math conversion would need extra work. */
   const overlayRectRef = useRef<SVGRectElement | null>(null);
+  /** In-flight paint gesture on the overlay rect. We can't tell a tap
+   *  from a drag until the pointer either moves (→ drag a chain) or
+   *  lifts without moving (→ tap-toggle a single cell), so we stash the
+   *  press point and a `moved` flag here. */
+  const paintGestureRef = useRef<{
+    pointerId: number;
+    moved: boolean;
+    startCol: number;
+    startRow: number;
+  } | null>(null);
   const [draggingMarkerId, setDraggingMarkerId] = useState<string | null>(
     null,
   );
@@ -2205,14 +2355,11 @@ function ScreenSvg({
 
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent<SVGRectElement>) => {
-      // Paint mode wins when the screen is the active paint target —
-      // the toolbar above the canvas is in Power / Signal mode and
-      // this is the selected screen.
-      if (isPaintTarget) {
-        const cell = eventToCell(e);
-        if (cell) onPaintCell(screenId, cell.col, cell.row);
-        return;
-      }
+      // When this screen is the active paint target, painting is driven
+      // by the pointer down/move/up handlers below (tap = toggle a cell,
+      // drag = auto-link a whole chain that follows the cursor), so the
+      // click event is a no-op here.
+      if (isPaintTarget) return;
       if (!armed) return;
       const cell = eventToCell(e);
       if (!cell) return;
@@ -2230,10 +2377,79 @@ function ScreenSvg({
       eventToCell,
       isPaintTarget,
       onAddPanelMarker,
-      onPaintCell,
       onToggleCell,
       screenId,
     ],
+  );
+
+  // ── Paint pointer gesture (tap vs drag) ──────────────────────────
+  const handleOverlayPointerDown = useCallback(
+    (e: React.PointerEvent<SVGRectElement>) => {
+      if (!isPaintTarget || e.button !== 0) return;
+      const cell = eventToCell(e);
+      if (!cell) return;
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        /* pointer capture is best-effort */
+      }
+      paintGestureRef.current = {
+        pointerId: e.pointerId,
+        moved: false,
+        startCol: cell.col,
+        startRow: cell.row,
+      };
+    },
+    [isPaintTarget, eventToCell],
+  );
+
+  const handleOverlayPointerMove = useCallback(
+    (e: React.PointerEvent<SVGRectElement>) => {
+      const g = paintGestureRef.current;
+      if (!g || e.pointerId !== g.pointerId) return;
+      const cell = eventToCell(e);
+      if (!cell) return;
+      if (!g.moved) {
+        // Ignore micro-jitter inside the press cell — only promote to a
+        // drag once the cursor actually crosses into another panel.
+        if (cell.col === g.startCol && cell.row === g.startRow) return;
+        g.moved = true;
+        onPaintDrag(screenId, g.startCol, g.startRow, "start");
+      }
+      onPaintDrag(screenId, cell.col, cell.row, "move");
+    },
+    [eventToCell, onPaintDrag, screenId],
+  );
+
+  const handleOverlayPointerUp = useCallback(
+    (e: React.PointerEvent<SVGRectElement>) => {
+      const g = paintGestureRef.current;
+      if (!g || e.pointerId !== g.pointerId) return;
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+      if (g.moved) {
+        onPaintDrag(screenId, g.startCol, g.startRow, "end");
+      } else {
+        // A plain tap toggles the cell on the active chain (or seeds a
+        // brand-new chain when none is active).
+        onPaintCell(screenId, g.startCol, g.startRow);
+      }
+      paintGestureRef.current = null;
+    },
+    [onPaintDrag, onPaintCell, screenId],
+  );
+
+  const handleOverlayPointerCancel = useCallback(
+    (e: React.PointerEvent<SVGRectElement>) => {
+      const g = paintGestureRef.current;
+      if (!g || e.pointerId !== g.pointerId) return;
+      if (g.moved) onPaintDrag(screenId, g.startCol, g.startRow, "end");
+      paintGestureRef.current = null;
+    },
+    [onPaintDrag, screenId],
   );
 
   /** Marker pointer-down: alt or right-button = delete, otherwise begin
@@ -2864,6 +3080,10 @@ function ScreenSvg({
           armed || isPaintTarget ? { cursor: "crosshair" } : undefined
         }
         onClick={handleOverlayClick}
+        onPointerDown={handleOverlayPointerDown}
+        onPointerMove={handleOverlayPointerMove}
+        onPointerUp={handleOverlayPointerUp}
+        onPointerCancel={handleOverlayPointerCancel}
       />
       {/* ── Power / Signal port-chain overlays ─────────────────────
           BOTH overlays are rendered for every screen and tagged with

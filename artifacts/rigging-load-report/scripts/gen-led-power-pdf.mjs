@@ -1,5 +1,13 @@
 import { jsPDF } from "jspdf";
-import { writeFileSync } from "node:fs";
+import { writeFileSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const __dir = dirname(fileURLToPath(import.meta.url));
+const logoB64 = readFileSync(
+  join(__dir, "../src/assets/ehs-logo.png"),
+).toString("base64");
+const LOGO_AR = 452 / 116;
 
 const ORANGE = [248, 128, 0];
 const INK = [28, 28, 36];
@@ -151,6 +159,17 @@ doc.setFont("helvetica", "normal");
 doc.setFontSize(11);
 doc.setTextColor(210, 214, 222);
 doc.text("How the EHS Production Tool calculates LED wall power & current", M, 68);
+// EHS logo, top-right of the header band
+const logoH = 30;
+const logoW = logoH * LOGO_AR;
+doc.addImage(
+  `data:image/png;base64,${logoB64}`,
+  "PNG",
+  PW - M - logoW,
+  30,
+  logoW,
+  logoH,
+);
 y = 130;
 
 para(

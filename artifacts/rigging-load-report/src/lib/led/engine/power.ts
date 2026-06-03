@@ -33,6 +33,12 @@ export const VOLTAGE_BY_REGION: Record<LedVoltageRegion, number> = {
  *  Anything above this triggers the AMPERAGE_OVER_CIRCUIT warning. */
 export const CIRCUIT_LOAD_CEILING = 0.8;
 
+/** Average real-content power as a fraction of peak (all-white) draw.
+ *  LED datasheets quote average consumption at roughly one third of
+ *  the max — typical for normal video content. "Max output" is the
+ *  peak white nameplate; "Average output" = max × this fraction. */
+export const AVERAGE_POWER_FRACTION = 1 / 3;
+
 /** Brightness floor — even at 0 nits a panel still draws ~30 % of
  *  its rated power for receiving cards, fans, processor I/O. Above
  *  the floor the draw scales linearly with brightness up to the

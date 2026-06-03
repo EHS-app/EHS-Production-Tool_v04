@@ -18,14 +18,23 @@ because they used different calculation paths.
 `computeScreenMetrics(s, panels, beamCatalog)`, not `enabled * panel.weight`.
 The PDF input must carry the beam catalog (`ledBeamsCatalog` from App.tsx).
 
-## Power (intentional, not a bug)
-- Tab headline "Power" stat + dashboard show RAW nameplate: `enabled * panel.power`.
-- PDF + the tab's Advanced per-screen gauge use `estimateScreenPower` (brightness
-  derating, default +25% PSU overhead). So PDF ≈ tab×1.25 at full brightness, less at
-  low brightness. User confirmed (2026-06) to leave both as-is.
+## Power — Max output / Average output
+Headline power is shown as TWO figures in both the tab dashboard and the PDF
+(totals tiles + per-screen Technical-summary table):
+- **Max output** = peak white nameplate = `enabled * panel.power` (= `m.powerW` from
+  `computeScreenMetrics`). Same basis in tab AND PDF now — the old mismatch where the
+  PDF used `estimateScreenPower` (brightness derating + ~25% PSU overhead) for the
+  single "Power" figure is gone for these display numbers.
+- **Average output** = Max × `AVERAGE_POWER_FRACTION` (= 1/3), exported from
+  `lib/led/engine/power.ts`. Industry rule of thumb for normal video content. User
+  picked 1/3 (2026-06).
+- PDF per-screen Amps column is derived from the MAX watts (`maxW/(V·PF)`, V/PF still
+  come from `estimateScreenPower`) so each row reconciles W = V·A·PF.
 
-**Why:** raw nameplate is the theoretical max; the engine is the engineered estimate.
-They answer different questions, so they legitimately differ.
+**Still engineered (unchanged):** the tab's Advanced per-screen PowerGauge + the
+validation runner (POWER_* rules, breaker checks) keep using `estimateScreenPower`
+(derating + overhead) — that's the engineered draw for circuit sizing, a different
+question from the headline Max/Avg output figures.
 
 ## Auto-fit beams
 `suggestAutoBeams` greedily packs straight beams (name has beam/hang/stack + a length

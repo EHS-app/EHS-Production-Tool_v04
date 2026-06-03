@@ -32,7 +32,10 @@ import {
   SIGNAL_CABLE_LENGTH_M,
   POWER_TRUE1_CABLE_LENGTH_M,
 } from "./led";
-import { estimateScreenPower } from "./led/engine/power";
+import {
+  estimateScreenPower,
+  AVERAGE_POWER_FRACTION,
+} from "./led/engine/power";
 import { rasterizeSvgToPng, safeFilename } from "./ledExport";
 
 type Mode = "power" | "signal";
@@ -441,18 +444,17 @@ function drawTotalsBlock(
   let totPixels = 0;
   let totArea = 0;
   let totWeight = 0;
-  let totWatts = 0;
+  let totMaxWatts = 0;
   for (const s of screens) {
-    const panel = resolveScreenPanel(s, panels);
     const m = computeScreenMetrics(s, panels, beamCatalog);
-    const power = estimateScreenPower(s, panel, settings);
     const enabled = enabledPanelCount(s);
     totPanels += enabled;
     totPixels += m.pixelsX * m.pixelsY;
     totArea += m.widthM * m.heightM;
     totWeight += m.weightKg;
-    totWatts += power.totalWatts;
+    totMaxWatts += m.powerW;
   }
+  const totAvgWatts = totMaxWatts * AVERAGE_POWER_FRACTION;
   const outputs = Math.max(1, Math.ceil(totPixels / PIXELS_PER_OUTPUT));
 
   const stats: Array<{ label: string; value: string; note?: string }> = [
@@ -461,7 +463,16 @@ function drawTotalsBlock(
     { label: "TOTAL PIXELS", value: totPixels.toLocaleString() },
     { label: "AREA", value: `${totArea.toFixed(1)} m²` },
     { label: "WEIGHT", value: `${totWeight.toFixed(1)} kg` },
-    { label: "POWER", value: `${(totWatts / 1000).toFixed(1)} kW` },
+    {
+      label: "MAX OUTPUT",
+      value: `${(totMaxWatts / 1000).toFixed(1)} kW`,
+      note: "peak white",
+    },
+    {
+      label: "AVG OUTPUT",
+      value: `${(totAvgWatts / 1000).toFixed(1)} kW`,
+      note: "~⅓ of max",
+    },
     {
       label: "OUTPUTS NEEDED",
       value: String(outputs),
@@ -651,7 +662,8 @@ function drawTechSummary(
     "Pixels",
     "Area m²",
     "Weight kg",
-    "Power W",
+    "Max W",
+    "Avg W",
     "Amps",
   ];
   const rows: string[][] = [];
@@ -659,18 +671,26 @@ function drawTechSummary(
   let totPixels = 0;
   let totArea = 0;
   let totWeight = 0;
-  let totWatts = 0;
+  let totMaxWatts = 0;
 
   for (const s of screens) {
     const panel = resolveScreenPanel(s, panels);
     const m = computeScreenMetrics(s, panels, beamCatalog);
     const power = estimateScreenPower(s, panel, settings);
     const enabled = enabledPanelCount(s);
+    // Max output = peak white nameplate; average = a third of it.
+    // Amps follow the peak so the row reconciles (W = V × A × PF).
+    const maxWatts = m.powerW;
+    const avgWatts = maxWatts * AVERAGE_POWER_FRACTION;
+    const maxAmps =
+      power.voltage > 0 && power.powerFactor > 0
+        ? maxWatts / (power.voltage * power.powerFactor)
+        : 0;
     totPanels += enabled;
     totPixels += m.pixelsX * m.pixelsY;
     totArea += m.widthM * m.heightM;
     totWeight += m.weightKg;
-    totWatts += power.totalWatts;
+    totMaxWatts += maxWatts;
 
     rows.push([
       s.name || "(unnamed)",
@@ -679,8 +699,9 @@ function drawTechSummary(
       `${m.pixelsX} × ${m.pixelsY}`,
       (m.widthM * m.heightM).toFixed(2),
       m.weightKg.toFixed(1),
-      Math.round(power.totalWatts).toString(),
-      power.amps.toFixed(1),
+      Math.round(maxWatts).toString(),
+      Math.round(avgWatts).toString(),
+      maxAmps.toFixed(1),
     ]);
   }
 
@@ -691,7 +712,8 @@ function drawTechSummary(
     `${totPixels.toLocaleString()} px`,
     totArea.toFixed(2),
     totWeight.toFixed(1),
-    Math.round(totWatts).toString(),
+    Math.round(totMaxWatts).toString(),
+    Math.round(totMaxWatts * AVERAGE_POWER_FRACTION).toString(),
     "",
   ]);
 
@@ -702,7 +724,7 @@ function drawTechSummary(
     width,
     headers,
     rows,
-    [3, 3, 2, 2.5, 1.5, 1.8, 1.8, 1.5],
+    [3, 2.6, 1.9, 2.3, 1.4, 1.6, 1.5, 1.5, 1.3],
     "Technical summary",
     pageH - margin,
     (p, px) => {

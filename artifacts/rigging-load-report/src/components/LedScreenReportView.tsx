@@ -63,7 +63,10 @@ import {
   type ProcessorCheckResult,
 } from "../lib/ledProcessors";
 import { runValidation } from "../lib/led/validation/runValidation";
-import type { PowerEstimate } from "../lib/led/engine/power";
+import {
+  AVERAGE_POWER_FRACTION,
+  type PowerEstimate,
+} from "../lib/led/engine/power";
 import {
   buildPatchSheetCsv,
   buildCabinetIdCsv,
@@ -966,7 +969,11 @@ function LedDashboard({
       <Stat label="Total pixels" value={PIXEL_FMT.format(totals.pixels)} />
       <Stat label="Area" value={`${fmt(totals.areaM2, 1)} m²`} />
       <Stat label="Weight" value={`${fmt(totals.weightKg, 1)} kg`} />
-      <Stat label="Power" value={`${fmt(totals.powerW / 1000, 2)} kW`} />
+      <Stat label="Max output" value={`${fmt(totals.powerW / 1000, 2)} kW`} />
+      <Stat
+        label="Avg output"
+        value={`${fmt((totals.powerW * AVERAGE_POWER_FRACTION) / 1000, 2)} kW`}
+      />
       <Stat
         label="Outputs needed"
         value={fmt(totals.portsNeeded, 0)}

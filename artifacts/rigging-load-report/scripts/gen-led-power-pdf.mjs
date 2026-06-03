@@ -219,6 +219,16 @@ function generate(S, outPath) {
   para(S.maxLine, { bold: true });
   para(S.avgLine);
 
+  h1(S.chainTitle);
+  para(S.chainIntro, { color: SOFT, size: 10 });
+  para(S.chainSignalLabel, { bold: true, size: 10.5 });
+  table(S.chainSignalHeaders, S.chainSignalRows, [CW * 0.55, CW * 0.45]);
+  para(S.chainSignalNote, { color: SOFT, size: 10 });
+  para(S.chainPowerLabel, { bold: true, size: 10.5 });
+  table(S.chainPowerHeaders, S.chainPowerRows, [CW * 0.5, CW * 0.25, CW * 0.25]);
+  para(S.chainPowerNote, { color: SOFT, size: 10 });
+  para(S.chainToolNote, { color: SOFT, size: 10 });
+
   h1(S.overrideTitle);
   para(S.overrideLine, { color: SOFT });
 
@@ -297,6 +307,27 @@ const EN = {
     "Max output  =  totalWatts above — peak draw, full white. Size your cable, distro and breakers off THIS number.",
   avgLine:
     "Average output  =  Max x 1/3. Real content (video, text, logos) almost never lights every pixel white, so realistic running draw is roughly a third of peak. Use it for generator fuel and heat planning — never for sizing power infrastructure.",
+  chainTitle: "Signal & power chaining (rigging limits)",
+  chainIntro:
+    "Beyond raw load, two practical limits decide how you cable a wall: how many cabinets you can daisy-chain on one data link, and how many on one power feed. The figures below are for the Uniview UR Pro 0.5 x 1 m cabinet at 50 Hz refresh, fed by a 16 A powerCON TRUE1 via a Soca breakout mounted at the top of the screen.",
+  chainSignalLabel: "Signal — panels per data link",
+  chainSignalHeaders: ["Colour depth", "Panels per data link (50 Hz)"],
+  chainSignalRows: [
+    ["10-bit", "up to 18"],
+    ["8-bit", "up to 24"],
+  ],
+  chainSignalNote:
+    "Lower colour depth carries more panels per port because each pixel costs fewer bits of the port's fixed bandwidth budget. These are 50 Hz figures (standard in Norway); at 60 Hz the counts drop by roughly a sixth.",
+  chainPowerLabel: "Power — panels per TRUE1 chain (top-fed)",
+  chainPowerHeaders: ["Daisy-chain on one 16 A TRUE1", "Panels", "Approx. current"],
+  chainPowerRows: [
+    ["Comfortable design link", "9", "~14.4 A"],
+    ["Hard maximum", "10", "~16.0 A"],
+  ],
+  chainPowerNote:
+    "At nameplate 350 W per cabinet, each draws ~1.6 A (230 V, 0.95 PF). Nine leaves headroom; ten sits right at the 16 A connector limit at full white. Feeding from the top means the top cabinet's connector carries the whole chain's current, so it sets the ceiling.",
+  chainToolNote:
+    "Note: the LED tab is deliberately more cautious — about 6 cabinets per chain — because it adds 25% PSU overhead and an 80% breaker de-rate on top of the nameplate. That is the safe continuous design target; 9-10 is the physical hardware ceiling.",
   overrideTitle: "What you can override per screen",
   overrideLine:
     "Voltage region  -  Power factor (default 0.95)  -  PSU overhead % (default 25%)  -  Brightness in nits  -  Cabinets per power chain. Each has a sensible default but can be set per screen.",
@@ -367,6 +398,27 @@ const NO = {
     "Maks effekt  =  totalWatt over — topptrekk, helhvitt. Dimensjonér kabel, distro og sikringer etter DETTE tallet.",
   avgLine:
     "Gjennomsnitt  =  Maks x 1/3. Reelt innhold (video, tekst, logoer) lyser nesten aldri hver piksel hvit, så realistisk driftstrekk er omtrent en tredel av topp. Bruk det til aggregatdrivstoff og varmeplanlegging — aldri til å dimensjonere strøminfrastruktur.",
+  chainTitle: "Signal- og strømkjeding (riggegrenser)",
+  chainIntro:
+    "Utover ren last er det to praktiske grenser som avgjør hvordan du kabler en vegg: hvor mange kabinetter du kan kjede på én signallinje, og hvor mange på én strømtilførsel. Tallene under gjelder Uniview UR Pro 0,5 x 1 m-kabinettet ved 50 Hz oppdatering, matet av en 16 A powerCON TRUE1 via et Soca-utlegg montert på toppen av skjermen.",
+  chainSignalLabel: "Signal — paneler per signallinje",
+  chainSignalHeaders: ["Fargedybde", "Paneler per signallinje (50 Hz)"],
+  chainSignalRows: [
+    ["10-bit", "opptil 18"],
+    ["8-bit", "opptil 24"],
+  ],
+  chainSignalNote:
+    "Lavere fargedybde bærer flere paneler per port fordi hver piksel koster færre bits av portens faste båndbredde. Dette er 50 Hz-tall (standard i Norge); ved 60 Hz faller antallet med omtrent en sjettedel.",
+  chainPowerLabel: "Strøm — paneler per TRUE1-kjede (matet fra toppen)",
+  chainPowerHeaders: ["Kjede på én 16 A TRUE1", "Paneler", "Ca. strøm"],
+  chainPowerRows: [
+    ["Komfortabel designkjede", "9", "~14,4 A"],
+    ["Absolutt maks", "10", "~16,0 A"],
+  ],
+  chainPowerNote:
+    "Ved nominelle 350 W per kabinett trekker hvert ~1,6 A (230 V, 0,95 effektfaktor). Ni gir margin; ti ligger rett på 16 A-koblingens grense ved helhvitt. Mating fra toppen betyr at det øverste kabinettets kobling fører hele kjedens strøm, så det setter taket.",
+  chainToolNote:
+    "Merk: LED-fanen er bevisst mer forsiktig — omtrent 6 kabinetter per kjede — fordi den legger til 25 % PSU-overhead og en 80 % nedjustering av sikringen oppå det nominelle. Det er det trygge kontinuerlige designmålet; 9-10 er den fysiske maskinvaregrensen.",
   overrideTitle: "Hva du kan overstyre per skjerm",
   overrideLine:
     "Spenningsregion  -  Effektfaktor (standard 0,95)  -  PSU-overhead % (standard 25 %)  -  Lysstyrke i nits  -  Kabinetter per strømkjede. Hver har en fornuftig standard, men kan settes per skjerm.",

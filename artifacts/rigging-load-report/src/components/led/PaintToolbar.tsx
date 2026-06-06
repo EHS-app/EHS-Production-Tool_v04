@@ -15,6 +15,7 @@
 import { useRef, type RefObject } from "react";
 import { jsPDF } from "jspdf";
 import type { LedPortChain, LedPortMap, LedScreen } from "../../lib/led";
+import { pngRasterScale } from "../../lib/ledExport";
 
 export type PaintMode = "off" | "power" | "signal";
 
@@ -144,7 +145,11 @@ export function PaintToolbar({
       });
       img.src = url;
       const loadedImg = await loaded;
-      const scale = 2;
+      // Supersample so the exported plan is high-resolution (the live
+      // viewBox is in native LED-pixel units, which for a single small
+      // screen would otherwise rasterize tiny). Caps at the browser
+      // canvas limit so large multi-screen layouts still export.
+      const scale = pngRasterScale(width, height);
       const canvas = document.createElement("canvas");
       canvas.width = Math.round(width * scale);
       canvas.height = Math.round(height * scale);

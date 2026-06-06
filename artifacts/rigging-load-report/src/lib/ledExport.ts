@@ -31,7 +31,25 @@ const escXml = (s: string) => s.replace(ESC_RE, (c) => ESC_MAP[c]);
 /** Browsers cap canvas dimensions; clamp the rasterized output so we never
  *  silently produce a blank blob on huge screens. The user still gets the
  *  full SVG download path; only the PNG is scaled. */
-const MAX_PNG_DIM = 8192;
+export const MAX_PNG_DIM = 8192;
+
+/** Small screens (few panels / low pixel pitch) have a tiny native pixel
+ *  resolution, so a 1:1 raster comes out small and pixelated — the vector
+ *  overlays (labels, arrows, markers, logo, info bar) look especially
+ *  rough. We supersample so the longest edge reaches this target, which
+ *  renders those vectors crisp. Big screens already exceed it and are left
+ *  as-is (or downscaled to MAX_PNG_DIM). */
+export const PNG_TARGET_LONG_EDGE = 4000;
+
+/** Scale factor to rasterize a source of size (w × h) px: upscales small
+ *  sources toward PNG_TARGET_LONG_EDGE for crisp output, and never lets
+ *  either edge exceed MAX_PNG_DIM (so huge screens still produce a valid
+ *  blob instead of a silent null from an over-sized canvas). */
+export function pngRasterScale(w: number, h: number): number {
+  const longEdge = Math.max(1, w, h);
+  const up = longEdge < PNG_TARGET_LONG_EDGE ? PNG_TARGET_LONG_EDGE / longEdge : 1;
+  return Math.min(up, MAX_PNG_DIM / longEdge);
+}
 
 const FONT_FAMILY =
   "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
@@ -535,11 +553,9 @@ export async function rasterizeSvgToPng(
   pixelW: number,
   pixelH: number,
 ): Promise<Blob> {
-  // Cap output size while preserving aspect ratio.
-  const scale = Math.min(
-    1,
-    MAX_PNG_DIM / Math.max(pixelW, pixelH),
-  );
+  // Supersample small screens for crisp overlays, clamp huge ones to the
+  // browser canvas cap — all while preserving aspect ratio.
+  const scale = pngRasterScale(pixelW, pixelH);
   const outW = Math.max(1, Math.round(pixelW * scale));
   const outH = Math.max(1, Math.round(pixelH * scale));
 

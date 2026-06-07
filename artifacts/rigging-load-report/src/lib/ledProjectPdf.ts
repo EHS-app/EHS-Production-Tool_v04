@@ -253,9 +253,11 @@ async function snapshotCanvas(
   const viewW = vb && vb.width > 0 ? vb.width : 1920;
   const viewH = vb && vb.height > 0 ? vb.height : 1080;
   const aspect = viewW / viewH;
-  // Target ~3200 px on the long edge — comfortable for A4 landscape
-  // print at 300 DPI without blowing past the canvas cap.
-  const targetLong = 3200;
+  // Target a high pixel count on the long edge so the embedded pixel
+  // map stays crisp in the printed PDF (≈3200 px was only ~270 DPI on
+  // A4 landscape; 6400 px is ~550 DPI). Kept under MAX_PNG_DIM (8192)
+  // so rasterizeSvgToPng won't have to downscale it.
+  const targetLong = 6400;
   const pixelW = aspect >= 1 ? targetLong : Math.round(targetLong * aspect);
   const pixelH = aspect >= 1 ? Math.round(targetLong / aspect) : targetLong;
 

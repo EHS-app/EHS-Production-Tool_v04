@@ -230,6 +230,19 @@ const inventory: Record<Category, InventoryItem[]> = {
         { name: "Full / 9 Channel", channels: 9 },
       ],
     },
+    {
+      name: "Chauvet COLORado PXL Curve 12 (34.5kg)",
+      weight: 34.5,
+      wattage: 768,
+      area: 0,
+      dmxModes: [
+        { name: "Single Control (20ch)", channels: 20 },
+        { name: "Extended (53ch)", channels: 53 },
+        { name: "Full Movement + Pixel (101ch)", channels: 101 },
+        { name: "Per-Head Control (155ch)", channels: 155 },
+        { name: "Max Pixel-Mapped (179ch)", channels: 179 },
+      ],
+    },
     { name: "Martin PowerPort 1500", weight: 0, wattage: 1100, area: 0 },
     {
       name: "MDG ATMe Haze",

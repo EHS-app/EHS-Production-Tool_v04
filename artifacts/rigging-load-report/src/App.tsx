@@ -243,6 +243,18 @@ const inventory: Record<Category, InventoryItem[]> = {
         { name: "Max Pixel-Mapped (179ch)", channels: 179 },
       ],
     },
+    {
+      name: "Snow SnowPAR Pro Tri 18 (3.0kg)",
+      weight: 3.0,
+      wattage: 62,
+      area: 0,
+      dmxModes: [
+        { name: "1 Channel", channels: 1 },
+        { name: "3 Channel", channels: 3 },
+        { name: "4 Channel", channels: 4 },
+        { name: "6 Channel", channels: 6 },
+      ],
+    },
     { name: "Martin PowerPort 1500", weight: 0, wattage: 1100, area: 0 },
     {
       name: "MDG ATMe Haze",

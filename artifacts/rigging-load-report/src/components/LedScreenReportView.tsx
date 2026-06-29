@@ -34,6 +34,7 @@ import {
   // Shape / cable / processor — new in this build
   cellIndex,
   disabledCellSet,
+  hasHalfLastRow,
   isCellDisabled,
   enabledPanelCount,
   computeShapeTemplate,
@@ -567,13 +568,20 @@ export function LedScreenReportView(props: Props) {
         1,
         Math.round(targetWidthM / panel.physicalWidth),
       );
-      const panelsTall = Math.max(
-        1,
-        Math.round(targetHeightM / panel.physicalHeight),
-      );
+      // Fit the height in HALF-panel units so a non-whole-multiple target
+      // (e.g. 4.5 m with 1.0 m cabinets) can finish with a single
+      // half-height bottom row instead of rounding to a whole panel.
+      // An odd number of half-rows ⇒ the last row is the half-height one.
+      const halfPanelH = panel.physicalHeight / 2;
+      const totalHalfRows = Math.max(1, Math.round(targetHeightM / halfPanelH));
+      const fullRows = Math.floor(totalHalfRows / 2);
+      const wantsHalf = totalHalfRows % 2 === 1;
+      const panelsTall = wantsHalf ? fullRows + 1 : Math.max(1, fullRows);
+      const lastRowHalf = wantsHalf;
       onUpdateScreen(screenId, {
         panelsWide,
         panelsTall,
+        lastRowHalf,
         ...(clearShape ? { disabledCells: [] } : {}),
       });
     },
@@ -1237,7 +1245,9 @@ function ScreenRow({
   // physical width/height so the producer can tweak rather than
   // re-type from scratch on every open.
   const currentWidthM = screen.panelsWide * panel.physicalWidth;
-  const currentHeightM = screen.panelsTall * panel.physicalHeight;
+  const currentHeightM =
+    screen.panelsTall * panel.physicalHeight -
+    (hasHalfLastRow(screen) ? panel.physicalHeight / 2 : 0);
   const [targetW, setTargetW] = useState<string>(currentWidthM.toFixed(2));
   const [targetH, setTargetH] = useState<string>(currentHeightM.toFixed(2));
   const [clearShapeOnApply, setClearShapeOnApply] = useState(true);
@@ -1937,7 +1947,10 @@ function PixelMapCanvas({
     const items = screens.map((s) => {
       const panel = resolveScreenPanel(s, panels);
       const screenWidthPx = s.panelsWide * panel.physicalWidth * SCALE;
-      const screenHeightPx = s.panelsTall * panel.physicalHeight * SCALE;
+      const screenHeightPx =
+        (s.panelsTall * panel.physicalHeight -
+          (hasHalfLastRow(s) ? panel.physicalHeight / 2 : 0)) *
+        SCALE;
       const cellW = panel.physicalWidth * SCALE;
       const cellH = panel.physicalHeight * SCALE;
 
@@ -2344,13 +2357,19 @@ function ScreenSvg({
         screen.panelsWide - 1,
         Math.max(0, Math.floor(norm.x * screen.panelsWide)),
       );
+      // The overlay rect is sized to the actual (possibly half-row)
+      // height, so norm.y spans `panelsTall - 0.5` full-cell units when
+      // the bottom row is half height. Scaling by that keeps every full
+      // row exactly one unit tall and the half row the trailing 0.5.
+      const tallUnits =
+        screen.panelsTall - (hasHalfLastRow(screen) ? 0.5 : 0);
       const row = Math.min(
         screen.panelsTall - 1,
-        Math.max(0, Math.floor(norm.y * screen.panelsTall)),
+        Math.max(0, Math.floor(norm.y * tallUnits)),
       );
       return { col, row };
     },
-    [eventToNorm, screen.panelsWide, screen.panelsTall],
+    [eventToNorm, screen],
   );
 
   const handleOverlayClick = useCallback(
@@ -2635,7 +2654,13 @@ function ScreenSvg({
   wireOrder.forEach(({ col, row }, i) => {
     cabinetIdByCell.set(row * screen.panelsWide + col, i + 1);
   });
+  // The bottom row renders at half the cabinet height when this screen
+  // uses a half-height finishing row. Only the last row shrinks, so the
+  // `cy = y + row * cellH` top-edge of every row above it stays exact.
+  const rowH = (r: number) =>
+    hasHalfLastRow(screen) && r === screen.panelsTall - 1 ? cellH / 2 : cellH;
   for (let row = 0; row < screen.panelsTall; row++) {
+    const thisRowH = rowH(row);
     for (let col = 0; col < screen.panelsWide; col++) {
       const cx = x + col * cellW;
       const cy = y + row * cellH;
@@ -2651,7 +2676,7 @@ function ScreenSvg({
               x={cx}
               y={cy}
               width={cellW}
-              height={cellH}
+              height={thisRowH}
               fill="#e5e7eb"
               fillOpacity={0.35}
               stroke="#94a3b8"
@@ -2663,7 +2688,7 @@ function ScreenSvg({
               x1={cx}
               y1={cy}
               x2={cx + cellW}
-              y2={cy + cellH}
+              y2={cy + thisRowH}
               stroke="#94a3b8"
               strokeOpacity={0.5}
               strokeWidth={1}
@@ -2721,7 +2746,7 @@ function ScreenSvg({
             x={cx}
             y={cy}
             width={cellW}
-            height={cellH}
+            height={thisRowH}
             fill={cellFill}
             stroke="#0f172a"
             strokeOpacity={0.5}
@@ -2732,7 +2757,7 @@ function ScreenSvg({
             // data-flow arrows. Mirrors the PNG export.
             <text
               x={cx + Math.max(2, cellW * 0.06)}
-              y={cy + Math.max(2, cellH * 0.06) + labelFont * 0.85}
+              y={cy + Math.max(2, thisRowH * 0.06) + labelFont * 0.85}
               fontSize={labelFont}
               fill={screen.labelColor || "#0f172a"}
               fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
@@ -2748,7 +2773,7 @@ function ScreenSvg({
             <g>
               <rect
                 x={cx + cellW - idFont * 1.7 - 2}
-                y={cy + cellH - idFont * 1.3 - 2}
+                y={cy + thisRowH - idFont * 1.3 - 2}
                 width={idFont * 1.7}
                 height={idFont * 1.3}
                 rx={Math.max(2, idFont * 0.25)}
@@ -2761,7 +2786,7 @@ function ScreenSvg({
               />
               <text
                 x={cx + cellW - idFont * 0.85 - 2}
-                y={cy + cellH - idFont * 0.5 - 2}
+                y={cy + thisRowH - idFont * 0.5 - 2}
                 fontSize={idFont}
                 fill="#0f172a"
                 fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
@@ -2776,7 +2801,7 @@ function ScreenSvg({
           {arrowDir && (
             <CellArrow
               cx={cx + cellW / 2}
-              cy={cy + cellH / 2}
+              cy={cy + thisRowH / 2}
               size={arrowSize}
               stroke={arrowStroke}
               dir={arrowDir}
@@ -2800,7 +2825,7 @@ function ScreenSvg({
     if (!settings.showDataFlowPath || wireOrder.length < 2) return null;
     const centerOf = (c: { col: number; row: number }) => ({
       x: x + c.col * cellW + cellW / 2,
-      y: y + c.row * cellH + cellH / 2,
+      y: y + c.row * cellH + rowH(c.row) / 2,
     });
     const points: { x: number; y: number }[] = [];
     points.push(centerOf(wireOrder[0]));
@@ -2821,7 +2846,7 @@ function ScreenSvg({
       // next row in the direction of travel.
       const midY =
         a.row < b.row
-          ? y + (a.row + 1) * cellH
+          ? y + a.row * cellH + rowH(a.row)
           : y + a.row * cellH;
       points.push({ x: pa.x, y: midY });
       points.push({ x: pb.x, y: midY });
@@ -3127,9 +3152,9 @@ function ScreenSvg({
             const bCol = bi % screen.panelsWide;
             const bRow = Math.floor(bi / screen.panelsWide);
             const ax = x + (aCol + 0.5) * cellW;
-            const ay = y + (aRow + 0.5) * cellH;
+            const ay = y + aRow * cellH + rowH(aRow) / 2;
             const bx = x + (bCol + 0.5) * cellW;
-            const by = y + (bRow + 0.5) * cellH;
+            const by = y + bRow * cellH + rowH(bRow) / 2;
             // Curved hop arc between consecutive cabinets — matches the
             // colourspace/Vectorworks cable-drawing style so a row of
             // hops reads as a row of little rainbows. The bow is
@@ -3196,7 +3221,7 @@ function ScreenSvg({
             const sCol = sIdx % screen.panelsWide;
             const sRow = Math.floor(sIdx / screen.panelsWide);
             const cx = x + (sCol + 0.5) * cellW;
-            const cy = y + (sRow + 0.5) * cellH;
+            const cy = y + sRow * cellH + rowH(sRow) / 2;
             const labelInk = pickContrastInk(p.color);
             nodes.push(
               <g key={`${p.id}-circle`} pointerEvents="none">

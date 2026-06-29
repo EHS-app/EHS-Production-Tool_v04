@@ -9,6 +9,7 @@ import {
   panelCellColor,
   cellArrowDirection,
   disabledCellSet,
+  hasHalfLastRow,
   isCellDisabled,
   resolveScreenPanel,
   type LedPanel,
@@ -146,7 +147,14 @@ export function buildScreenSvg(input: BuildSvgInput): string {
   const dark = settings.panelColorDark || COLOR_PANEL_DARK;
   const light = settings.panelColorLight || COLOR_PANEL_LIGHT;
   const offCells = disabledCellSet(screen);
+  // The bottom row renders at half the cabinet height when this screen
+  // uses a half-height finishing row. Only the last row shrinks, so the
+  // `y = cy * cellH` top-edge of every row stays correct.
+  const half = hasHalfLastRow(screen);
+  const rowHeight = (cy: number) =>
+    half && cy === screen.panelsTall - 1 ? cellH / 2 : cellH;
   for (let cy = 0; cy < screen.panelsTall; cy++) {
+    const rh = rowHeight(cy);
     for (let cx = 0; cx < screen.panelsWide; cx++) {
       const x = cx * cellW;
       const y = cy * cellH;
@@ -155,13 +163,13 @@ export function buildScreenSvg(input: BuildSvgInput): string {
         // here" — the gridlines below still draw on top so the cell
         // outline is visible.
         parts.push(
-          `<rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" fill="${COLOR_BG}"/>`,
+          `<rect x="${x}" y="${y}" width="${cellW}" height="${rh}" fill="${COLOR_BG}"/>`,
         );
         continue;
       }
       const fill = panelCellColor(cx, cy, settings.panelPattern, dark, light);
       parts.push(
-        `<rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" fill="${fill}"/>`,
+        `<rect x="${x}" y="${y}" width="${cellW}" height="${rh}" fill="${fill}"/>`,
       );
     }
   }
@@ -182,7 +190,9 @@ export function buildScreenSvg(input: BuildSvgInput): string {
     );
   }
   for (let i = 0; i <= screen.panelsTall; i++) {
-    const y = i * cellH;
+    // The bottom edge sits at the (possibly half-height) total H rather
+    // than panelsTall * cellH so the half finishing row closes cleanly.
+    const y = i === screen.panelsTall ? H : i * cellH;
     parts.push(
       `<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="${gridColor}" stroke-width="${panelStroke}" stroke-opacity="${gridOpacity}"/>`,
     );
@@ -243,7 +253,7 @@ export function buildScreenSvg(input: BuildSvgInput): string {
           continue;
         }
         const midX = cx * cellW + cellW / 2;
-        const midY = cy * cellH + cellH / 2;
+        const midY = cy * cellH + rowHeight(cy) / 2;
         parts.push(cellArrowSvg(midX, midY, arrowSize, stroke, dir));
       }
     }
@@ -296,7 +306,7 @@ export function buildScreenSvg(input: BuildSvgInput): string {
     const r = Math.min(cellH * 0.32, minDim * 0.035);
     const margin = Math.max(r * 0.6, minDim * 0.012);
     for (let cy = 0; cy < screen.panelsTall; cy++) {
-      const cyPx = cy * cellH + cellH / 2;
+      const cyPx = cy * cellH + rowHeight(cy) / 2;
       const cxPx = margin + r;
       parts.push(
         outputBadgeSvg(cxPx, cyPx, r, String(cy + 1), Math.min(outputFont, r * 1.1)),

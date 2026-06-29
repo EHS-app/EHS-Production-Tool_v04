@@ -100,6 +100,14 @@ export type LedScreen = {
    *  Optional + sparse so older persisted blobs and rectangle screens
    *  carry zero overhead. */
   disabledCells?: number[];
+  /** When true the BOTTOM row of cabinets is a half-height "finishing"
+   *  row (half the panel's physical height) — used by build-by-size so a
+   *  drawn screen can hit a target height that isn't a whole multiple of
+   *  the cabinet height (e.g. 4.5 m with 1.0 m cabinets = 4 full rows +
+   *  one 0.5 m row). The grid is still `panelsWide × panelsTall`; only
+   *  the last row renders / counts at half height. Optional so older
+   *  blobs and normal screens read as `undefined` = false. */
+  lastRowHalf?: boolean;
   /** Last `LedShapeTemplate` the producer applied. Used by the brief
    *  to label non-rectangular screens with their template name (e.g.
    *  "L-shape" instead of a generic "Custom shape"). Optional — direct
@@ -1206,6 +1214,25 @@ export function enabledPanelCount(screen: LedScreen): number {
   return Math.max(0, total - Math.min(disabled, total));
 }
 
+/** True when this screen's bottom row is a half-height finishing row. */
+export function hasHalfLastRow(screen: LedScreen): boolean {
+  return !!screen.lastRowHalf && screen.panelsTall >= 1 && screen.panelsWide >= 1;
+}
+
+/** Count of ENABLED cabinets sitting in the bottom row — these are the
+ *  half-height cabinets when `lastRowHalf` is set, so callers can weight
+ *  area / weight / power / pixels at 0.5× for just those cells. */
+export function enabledLastRowCount(screen: LedScreen): number {
+  if (screen.panelsTall < 1 || screen.panelsWide < 1) return 0;
+  const off = disabledCellSet(screen);
+  const lastRow = screen.panelsTall - 1;
+  let n = 0;
+  for (let col = 0; col < screen.panelsWide; col++) {
+    if (!off.has(lastRow * screen.panelsWide + col)) n++;
+  }
+  return n;
+}
+
 export type LedScreenMetrics = {
   panels: number;
   pixelsX: number;
@@ -1236,8 +1263,16 @@ export function computeScreenMetrics(
 ): LedScreenMetrics {
   const panel = resolveScreenPanel(screen, panels);
   const enabled = enabledPanelCount(screen);
+  // A half-height finishing row contributes half a cabinet's area /
+  // weight / power / pixels per enabled cell in that row, and shaves
+  // half a panel off the bounding-box height + vertical resolution.
+  const half = hasHalfLastRow(screen);
+  const lastRowEnabled = half ? enabledLastRowCount(screen) : 0;
+  const effective = enabled - 0.5 * lastRowEnabled;
   const pixelsX = screen.panelsWide * panel.pixelWidth;
-  const pixelsY = screen.panelsTall * panel.pixelHeight;
+  const pixelsY = Math.round(
+    screen.panelsTall * panel.pixelHeight - (half ? panel.pixelHeight / 2 : 0),
+  );
   const onePanelPixels = panel.pixelWidth * panel.pixelHeight;
   const accessoryKg = beamCatalog
     ? accessoriesWeightKg(
@@ -1249,12 +1284,14 @@ export function computeScreenMetrics(
     panels: enabled,
     pixelsX,
     pixelsY,
-    pixels: enabled * onePanelPixels,
+    pixels: Math.round(effective * onePanelPixels),
     widthM: screen.panelsWide * panel.physicalWidth,
-    heightM: screen.panelsTall * panel.physicalHeight,
-    areaM2: enabled * (panel.physicalWidth * panel.physicalHeight),
-    weightKg: enabled * panel.weight + accessoryKg,
-    powerW: enabled * panel.power,
+    heightM:
+      screen.panelsTall * panel.physicalHeight -
+      (half ? panel.physicalHeight / 2 : 0),
+    areaM2: effective * (panel.physicalWidth * panel.physicalHeight),
+    weightKg: effective * panel.weight + accessoryKg,
+    powerW: effective * panel.power,
   };
 }
 

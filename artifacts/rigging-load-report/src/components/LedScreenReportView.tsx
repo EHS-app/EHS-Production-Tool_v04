@@ -34,7 +34,10 @@ import {
   // Shape / cable / processor — new in this build
   cellIndex,
   disabledCellSet,
-  hasHalfLastRow,
+  lastRowHeightFraction,
+  resolveFinishingPanel,
+  hasFinishingRow,
+  enabledLastRowCount,
   isCellDisabled,
   enabledPanelCount,
   computeShapeTemplate,
@@ -568,20 +571,47 @@ export function LedScreenReportView(props: Props) {
         1,
         Math.round(targetWidthM / panel.physicalWidth),
       );
-      // Fit the height in HALF-panel units so a non-whole-multiple target
-      // (e.g. 4.5 m with 1.0 m cabinets) can finish with a single
-      // half-height bottom row instead of rounding to a whole panel.
-      // An odd number of half-rows ⇒ the last row is the half-height one.
-      const halfPanelH = panel.physicalHeight / 2;
-      const totalHalfRows = Math.max(1, Math.round(targetHeightM / halfPanelH));
-      const fullRows = Math.floor(totalHalfRows / 2);
-      const wantsHalf = totalHalfRows % 2 === 1;
-      const panelsTall = wantsHalf ? fullRows + 1 : Math.max(1, fullRows);
-      const lastRowHalf = wantsHalf;
+      // Fit the height with whole MAIN rows, then finish any leftover gap
+      // with a real, smaller inventory panel (same physical width so its
+      // columns line up with the body) whose height closely matches the
+      // remainder. E.g. 4.5 m from 1.0 m cabinets = 4 full rows + one
+      // 0.5 m finishing row of a 0.5 m panel. When no inventory panel
+      // matches the leftover closely, fall back to rounding to a whole
+      // main panel so the height is at least sensible.
+      const mainH = panel.physicalHeight;
+      const fullRows = Math.max(0, Math.floor(targetHeightM / mainH + 1e-6));
+      const remainder = targetHeightM - fullRows * mainH;
+      const EPS = 0.02;
+      let finishingPanelKey: LedPanelKey | undefined;
+      let panelsTall: number;
+      if (remainder > EPS) {
+        let best: LedPanel | null = null;
+        let bestErr = Infinity;
+        for (const p of panels) {
+          if (p.key === CUSTOM_PANEL_KEY) continue;
+          if (Math.abs(p.physicalWidth - panel.physicalWidth) > EPS) continue;
+          if (!(p.physicalHeight > 0) || p.physicalHeight >= mainH - EPS) continue;
+          const err = Math.abs(p.physicalHeight - remainder);
+          if (err < bestErr) {
+            best = p;
+            bestErr = err;
+          }
+        }
+        if (best && bestErr <= 0.05) {
+          finishingPanelKey = best.key;
+          panelsTall = fullRows + 1;
+        } else {
+          panelsTall = Math.max(1, Math.round(targetHeightM / mainH));
+        }
+      } else {
+        panelsTall = Math.max(1, fullRows);
+      }
       onUpdateScreen(screenId, {
         panelsWide,
         panelsTall,
-        lastRowHalf,
+        finishingPanelKey,
+        // Clear the legacy half-row flag — superseded by finishingPanelKey.
+        lastRowHalf: false,
         ...(clearShape ? { disabledCells: [] } : {}),
       });
     },
@@ -1246,8 +1276,8 @@ function ScreenRow({
   // re-type from scratch on every open.
   const currentWidthM = screen.panelsWide * panel.physicalWidth;
   const currentHeightM =
-    screen.panelsTall * panel.physicalHeight -
-    (hasHalfLastRow(screen) ? panel.physicalHeight / 2 : 0);
+    (screen.panelsTall - 1) * panel.physicalHeight +
+    panel.physicalHeight * lastRowHeightFraction(screen, panels);
   const [targetW, setTargetW] = useState<string>(currentWidthM.toFixed(2));
   const [targetH, setTargetH] = useState<string>(currentHeightM.toFixed(2));
   const [clearShapeOnApply, setClearShapeOnApply] = useState(true);
@@ -1366,6 +1396,43 @@ function ScreenRow({
               </option>
             ))}
           </select>
+          {/* Finishing (bottom) row panel — shown only when the screen
+              carries a finishing row (auto-picked by build-by-size, or a
+              legacy half-row). Lets the producer swap to a different real
+              inventory panel, or clear it back to a full-height row. */}
+          {hasFinishingRow(screen, panels) && (
+            <select
+              className="led-input"
+              style={{ marginTop: 4 }}
+              value={resolveFinishingPanel(screen, panels)?.key ?? ""}
+              title="Finishing (bottom) row panel — the smaller panel that completes a non-whole-multiple height"
+              onChange={(e) =>
+                onUpdate({
+                  finishingPanelKey: e.target.value
+                    ? (e.target.value as LedPanelKey)
+                    : undefined,
+                  lastRowHalf: false,
+                })
+              }
+            >
+              <option value="">↳ finishing row: none</option>
+              {panels
+                .filter(
+                  (p) =>
+                    p.key !== CUSTOM_PANEL_KEY &&
+                    p.physicalHeight > 0 &&
+                    p.physicalHeight < panel.physicalHeight - 0.02 &&
+                    // Same column width as the body — a mismatched width
+                    // would break the grid geometry + per-cabinet metrics.
+                    Math.abs(p.physicalWidth - panel.physicalWidth) <= 0.02,
+                )
+                .map((p) => (
+                  <option key={p.key} value={p.key}>
+                    ↳ {p.name}
+                  </option>
+                ))}
+            </select>
+          )}
         </td>
         <td>
           <NumberField
@@ -1453,6 +1520,15 @@ function ScreenRow({
           <div className="led-sub">
             {PIXEL_FMT.format(m.pixels)} px · {m.panels} panels
           </div>
+          {resolveFinishingPanel(screen, panels) && (
+            <div
+              className="led-sub"
+              title="Bottom finishing row built from a smaller inventory panel"
+            >
+              incl. {enabledLastRowCount(screen)}×{" "}
+              {resolveFinishingPanel(screen, panels)!.name} finishing row
+            </div>
+          )}
         </td>
         <td className="led-num">
           {fmt(m.widthM, 2)} × {fmt(m.heightM, 2)}
@@ -1948,8 +2024,8 @@ function PixelMapCanvas({
       const panel = resolveScreenPanel(s, panels);
       const screenWidthPx = s.panelsWide * panel.physicalWidth * SCALE;
       const screenHeightPx =
-        (s.panelsTall * panel.physicalHeight -
-          (hasHalfLastRow(s) ? panel.physicalHeight / 2 : 0)) *
+        ((s.panelsTall - 1) * panel.physicalHeight +
+          panel.physicalHeight * lastRowHeightFraction(s, panels)) *
         SCALE;
       const cellW = panel.physicalWidth * SCALE;
       const cellH = panel.physicalHeight * SCALE;
@@ -2362,14 +2438,14 @@ function ScreenSvg({
       // the bottom row is half height. Scaling by that keeps every full
       // row exactly one unit tall and the half row the trailing 0.5.
       const tallUnits =
-        screen.panelsTall - (hasHalfLastRow(screen) ? 0.5 : 0);
+        screen.panelsTall - 1 + lastRowHeightFraction(screen, panels);
       const row = Math.min(
         screen.panelsTall - 1,
         Math.max(0, Math.floor(norm.y * tallUnits)),
       );
       return { col, row };
     },
-    [eventToNorm, screen],
+    [eventToNorm, screen, panels],
   );
 
   const handleOverlayClick = useCallback(
@@ -2658,7 +2734,9 @@ function ScreenSvg({
   // uses a half-height finishing row. Only the last row shrinks, so the
   // `cy = y + row * cellH` top-edge of every row above it stays exact.
   const rowH = (r: number) =>
-    hasHalfLastRow(screen) && r === screen.panelsTall - 1 ? cellH / 2 : cellH;
+    r === screen.panelsTall - 1
+      ? cellH * lastRowHeightFraction(screen, panels)
+      : cellH;
   for (let row = 0; row < screen.panelsTall; row++) {
     const thisRowH = rowH(row);
     for (let col = 0; col < screen.panelsWide; col++) {

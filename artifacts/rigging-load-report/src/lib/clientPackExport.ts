@@ -22,7 +22,7 @@ import {
 } from "./stage";
 import {
   computeLedTotals,
-  hasHalfLastRow,
+  computeScreenMetrics,
   NOVASTAR_PROCESSOR_CATALOG,
   type LedPanel,
   type LedScreen,
@@ -689,12 +689,10 @@ function renderLed(input: ClientPackInput): string {
       const panelLabel = panel?.name ?? s.panelKey ?? NS;
       const grid = `${s.panelsWide} × ${s.panelsTall}`;
       const panelCount = s.panelsWide * s.panelsTall;
+      const m = computeScreenMetrics(s, input.ledPanels);
       const px =
         panel && panel.pixelWidth && panel.pixelHeight
-          ? `${s.panelsWide * panel.pixelWidth} × ${Math.round(
-              s.panelsTall * panel.pixelHeight -
-                (hasHalfLastRow(s) ? panel.pixelHeight / 2 : 0),
-            )} px`
+          ? `${m.pixelsX} × ${m.pixelsY} px`
           : NS;
       const procLabels = procLabelsFor(s);
       return `<tr>

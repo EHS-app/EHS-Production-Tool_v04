@@ -10,6 +10,7 @@ import {
   cellArrowDirection,
   disabledCellSet,
   hasHalfLastRow,
+  resolveFinishingPanel,
   isCellDisabled,
   resolveScreenPanel,
   type LedPanel,
@@ -147,12 +148,19 @@ export function buildScreenSvg(input: BuildSvgInput): string {
   const dark = settings.panelColorDark || COLOR_PANEL_DARK;
   const light = settings.panelColorLight || COLOR_PANEL_LIGHT;
   const offCells = disabledCellSet(screen);
-  // The bottom row renders at half the cabinet height when this screen
-  // uses a half-height finishing row. Only the last row shrinks, so the
-  // `y = cy * cellH` top-edge of every row stays correct.
-  const half = hasHalfLastRow(screen);
+  // The bottom row may be a shorter finishing row. Preferred: a real
+  // smaller inventory panel — its own PIXEL height is used (this SVG is
+  // in native pixel space). Legacy: the half-row flag = half the main
+  // cabinet. Only the last row shrinks, so the `y = cy * cellH` top-edge
+  // of every row above it stays correct.
+  const finPanel = resolveFinishingPanel(screen, panels);
+  const lastRowPx = finPanel
+    ? finPanel.pixelHeight
+    : hasHalfLastRow(screen)
+      ? cellH / 2
+      : cellH;
   const rowHeight = (cy: number) =>
-    half && cy === screen.panelsTall - 1 ? cellH / 2 : cellH;
+    cy === screen.panelsTall - 1 ? lastRowPx : cellH;
   for (let cy = 0; cy < screen.panelsTall; cy++) {
     const rh = rowHeight(cy);
     for (let cx = 0; cx < screen.panelsWide; cx++) {

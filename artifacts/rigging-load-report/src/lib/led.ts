@@ -106,8 +106,22 @@ export type LedScreen = {
    *  the cabinet height (e.g. 4.5 m with 1.0 m cabinets = 4 full rows +
    *  one 0.5 m row). The grid is still `panelsWide × panelsTall`; only
    *  the last row renders / counts at half height. Optional so older
-   *  blobs and normal screens read as `undefined` = false. */
+   *  blobs and normal screens read as `undefined` = false.
+   *  @deprecated Superseded by `finishingPanelKey` (a real smaller panel
+   *  for the bottom row). Still read for back-compat on older blobs. */
   lastRowHalf?: boolean;
+  /** When set, the BOTTOM row is built from a DIFFERENT (smaller) real
+   *  inventory panel — a "finishing" row — so build-by-size can hit a
+   *  target height that isn't a whole multiple of the main cabinet
+   *  height (e.g. 4.5 m from 1.0 m cabinets = 4 full rows of the main
+   *  panel + one 0.5 m row of this finishing panel). The grid stays
+   *  `panelsWide × panelsTall` and the finishing row keeps the same
+   *  column count (auto-pick requires the same physical width); only the
+   *  bottom row's height, weight, power and pixels come from THIS panel.
+   *  References an inventory panel by key. Optional + back-compat: when
+   *  undefined the screen falls back to `lastRowHalf` (legacy) or a plain
+   *  uniform grid. */
+  finishingPanelKey?: LedPanelKey;
   /** Last `LedShapeTemplate` the producer applied. Used by the brief
    *  to label non-rectangular screens with their template name (e.g.
    *  "L-shape" instead of a generic "Custom shape"). Optional — direct
@@ -1233,6 +1247,55 @@ export function enabledLastRowCount(screen: LedScreen): number {
   return n;
 }
 
+/** Resolve the real inventory panel used for this screen's bottom
+ *  "finishing" row, or null when the screen has no finishing panel set
+ *  (or its key no longer maps to an inventory item — in which case the
+ *  bottom row degrades to a normal full-height row). */
+export function resolveFinishingPanel(
+  screen: LedScreen,
+  panels: LedPanel[],
+): LedPanel | null {
+  if (!screen.finishingPanelKey) return null;
+  const fin = panels.find((p) => p.key === screen.finishingPanelKey);
+  if (!fin) return null;
+  // Guard: the finishing row tiles the SAME columns as the body, so its
+  // physical width must match the main panel. A width-mismatched panel
+  // (stale/imported data or a manual mis-pick) would corrupt both the
+  // geometry and the per-cabinet metrics — degrade safely to a normal
+  // full-height bottom row instead.
+  const main = resolveScreenPanel(screen, panels);
+  if (Math.abs(fin.physicalWidth - main.physicalWidth) > 0.02) return null;
+  return fin;
+}
+
+/** True when the bottom row is a distinct finishing row — either a real
+ *  finishing panel (preferred) or the legacy `lastRowHalf` flag. */
+export function hasFinishingRow(screen: LedScreen, panels: LedPanel[]): boolean {
+  if (screen.panelsTall < 1 || screen.panelsWide < 1) return false;
+  return resolveFinishingPanel(screen, panels) != null || hasHalfLastRow(screen);
+}
+
+/** Height of the bottom row as a fraction of the main cabinet height
+ *  (0–1]. Driven by the finishing panel's physical height relative to
+ *  the main panel; falls back to 0.5 for the legacy `lastRowHalf` flag,
+ *  or 1 (= a normal uniform grid) when there's no finishing row. Used by
+ *  every render path so the live canvas, PNG and PDF agree. */
+export function lastRowHeightFraction(
+  screen: LedScreen,
+  panels: LedPanel[],
+): number {
+  const fin = resolveFinishingPanel(screen, panels);
+  if (fin) {
+    const main = resolveScreenPanel(screen, panels);
+    if (main.physicalHeight > 0 && fin.physicalHeight > 0) {
+      const f = fin.physicalHeight / main.physicalHeight;
+      return Math.min(1, Math.max(0.05, f));
+    }
+  }
+  if (hasHalfLastRow(screen)) return 0.5;
+  return 1;
+}
+
 export type LedScreenMetrics = {
   panels: number;
   pixelsX: number;
@@ -1263,35 +1326,80 @@ export function computeScreenMetrics(
 ): LedScreenMetrics {
   const panel = resolveScreenPanel(screen, panels);
   const enabled = enabledPanelCount(screen);
-  // A half-height finishing row contributes half a cabinet's area /
-  // weight / power / pixels per enabled cell in that row, and shaves
-  // half a panel off the bounding-box height + vertical resolution.
-  const half = hasHalfLastRow(screen);
-  const lastRowEnabled = half ? enabledLastRowCount(screen) : 0;
-  const effective = enabled - 0.5 * lastRowEnabled;
+  // The bottom row may be a distinct "finishing" row. Preferred: a real
+  // smaller inventory panel (`finishingPanelKey`) — its own pixels /
+  // weight / power / physical size are counted for the enabled cabinets
+  // in that row. Legacy: the `lastRowHalf` flag = half the MAIN panel.
+  const fin = resolveFinishingPanel(screen, panels);
+  const legacyHalf = !fin && hasHalfLastRow(screen);
+  const hasFin = fin != null || legacyHalf;
+  const lastRowEnabled = hasFin ? enabledLastRowCount(screen) : 0;
+  const bodyEnabled = enabled - lastRowEnabled;
+  // The finishing panel tiles the same columns as the main panel, so the
+  // horizontal resolution comes from the main panel either way.
   const pixelsX = screen.panelsWide * panel.pixelWidth;
-  const pixelsY = Math.round(
-    screen.panelsTall * panel.pixelHeight - (half ? panel.pixelHeight / 2 : 0),
-  );
-  const onePanelPixels = panel.pixelWidth * panel.pixelHeight;
+  // Effective full-size-panel-equivalents for the legacy half-row path.
+  const legacyEffective = enabled - 0.5 * lastRowEnabled;
+  const finPixelH = fin ? fin.pixelHeight : panel.pixelHeight / 2;
+  const finPhysH = fin ? fin.physicalHeight : panel.physicalHeight / 2;
+  const pixelsY = hasFin
+    ? Math.round((screen.panelsTall - 1) * panel.pixelHeight + finPixelH)
+    : screen.panelsTall * panel.pixelHeight;
+  const mainPanelPixels = panel.pixelWidth * panel.pixelHeight;
+  const finPanelPixels = fin
+    ? fin.pixelWidth * fin.pixelHeight
+    : mainPanelPixels / 2;
   const accessoryKg = beamCatalog
     ? accessoriesWeightKg(
         effectiveRigAccessories(screen, panels, beamCatalog),
         beamCatalog,
       )
     : 0;
+  if (!hasFin) {
+    return {
+      panels: enabled,
+      pixelsX,
+      pixelsY,
+      pixels: Math.round(enabled * mainPanelPixels),
+      widthM: screen.panelsWide * panel.physicalWidth,
+      heightM: screen.panelsTall * panel.physicalHeight,
+      areaM2: enabled * (panel.physicalWidth * panel.physicalHeight),
+      weightKg: enabled * panel.weight + accessoryKg,
+      powerW: enabled * panel.power,
+    };
+  }
+  // Real finishing panel: count body + finishing cabinets separately so
+  // weight / power / pixels reflect the actual two-panel mix. Legacy
+  // half-row: keep the original 0.5×-of-the-main-panel maths.
+  if (legacyHalf) {
+    return {
+      panels: enabled,
+      pixelsX,
+      pixelsY,
+      pixels: Math.round(legacyEffective * mainPanelPixels),
+      widthM: screen.panelsWide * panel.physicalWidth,
+      heightM: screen.panelsTall * panel.physicalHeight - panel.physicalHeight / 2,
+      areaM2: legacyEffective * (panel.physicalWidth * panel.physicalHeight),
+      weightKg: legacyEffective * panel.weight + accessoryKg,
+      powerW: legacyEffective * panel.power,
+    };
+  }
+  const finPanel = fin!;
   return {
     panels: enabled,
     pixelsX,
     pixelsY,
-    pixels: Math.round(effective * onePanelPixels),
+    pixels: Math.round(
+      bodyEnabled * mainPanelPixels + lastRowEnabled * finPanelPixels,
+    ),
     widthM: screen.panelsWide * panel.physicalWidth,
-    heightM:
-      screen.panelsTall * panel.physicalHeight -
-      (half ? panel.physicalHeight / 2 : 0),
-    areaM2: effective * (panel.physicalWidth * panel.physicalHeight),
-    weightKg: effective * panel.weight + accessoryKg,
-    powerW: effective * panel.power,
+    heightM: (screen.panelsTall - 1) * panel.physicalHeight + finPhysH,
+    areaM2:
+      bodyEnabled * (panel.physicalWidth * panel.physicalHeight) +
+      lastRowEnabled * (finPanel.physicalWidth * finPanel.physicalHeight),
+    weightKg:
+      bodyEnabled * panel.weight + lastRowEnabled * finPanel.weight + accessoryKg,
+    powerW: bodyEnabled * panel.power + lastRowEnabled * finPanel.power,
   };
 }
 

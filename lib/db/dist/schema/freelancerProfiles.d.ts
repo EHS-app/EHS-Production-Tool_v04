@@ -114,6 +114,23 @@ export declare const freelancerProfilesTable: import("drizzle-orm/pg-core").PgTa
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        photoObjectPath: import("drizzle-orm/pg-core").PgColumn<{
+            name: "photo_object_path";
+            tableName: "freelancer_profiles";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         insurance: import("drizzle-orm/pg-core").PgColumn<{
             name: "insurance";
             tableName: "freelancer_profiles";
@@ -502,6 +519,84 @@ export declare const freelancerProfilesTable: import("drizzle-orm/pg-core").PgTa
     };
     dialect: "pg";
 }>;
+/** Upload permits for profile photos. A presigned object path is bound to the
+ *  authenticated user before it leaves the API, preventing users from
+ *  attaching another user's arbitrary private upload to their profile. */
+export declare const profilePhotoUploadsTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "profile_photo_uploads";
+    schema: undefined;
+    columns: {
+        objectPath: import("drizzle-orm/pg-core").PgColumn<{
+            name: "object_path";
+            tableName: "profile_photo_uploads";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: true;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        userId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "user_id";
+            tableName: "profile_photo_uploads";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        contentType: import("drizzle-orm/pg-core").PgColumn<{
+            name: "content_type";
+            tableName: "profile_photo_uploads";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        createdAt: import("drizzle-orm/pg-core").PgColumn<{
+            name: "created_at";
+            tableName: "profile_photo_uploads";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "pg";
+}>;
 export declare const insertFreelancerProfileSchema: z.ZodObject<{
     userId: z.ZodString;
     fullName: z.ZodOptional<z.ZodString>;
@@ -509,6 +604,7 @@ export declare const insertFreelancerProfileSchema: z.ZodObject<{
     primaryRole: z.ZodOptional<z.ZodString>;
     city: z.ZodOptional<z.ZodString>;
     bio: z.ZodOptional<z.ZodString>;
+    photoObjectPath: z.ZodOptional<z.ZodString>;
     insurance: z.ZodOptional<z.ZodString>;
     email: z.ZodOptional<z.ZodString>;
     dietary: z.ZodOptional<z.ZodString>;

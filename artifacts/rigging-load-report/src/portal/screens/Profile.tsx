@@ -30,6 +30,7 @@ export function Profile({
   const [draft, setDraft] = useState<ProfileType>(data.profile);
   const [savedFlash, setSavedFlash] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const dirty = useMemo(
@@ -59,7 +60,7 @@ export function Profile({
     setDraft((d) => ({ ...d, [key]: value }));
   }
 
-  async function save() {
+  async function saveProfile(nextDraft: ProfileType) {
     if (saving) return;
     setSaving(true);
     setSaveError(null);
@@ -81,18 +82,18 @@ export function Profile({
         },
         body: JSON.stringify({
           fullName: draft.fullName,
-          phone: draft.phone,
-          email: draft.email,
-          primaryRole: draft.primaryRole,
-          insurance: draft.insurance,
-          languages: draft.languages,
-          dietaryRequirements: draft.dietary,
-          allergies: draft.allergies,
-          skills: draft.skills,
-          bankAccount: draft.bankAccount,
-          orgNumber: draft.orgNumber,
-          roomShare: draft.roomShare,
-          gender: draft.gender,
+          phone: nextDraft.phone,
+          email: nextDraft.email,
+          primaryRole: nextDraft.primaryRole,
+          insurance: nextDraft.insurance,
+          languages: nextDraft.languages,
+          dietaryRequirements: nextDraft.dietary,
+          allergies: nextDraft.allergies,
+          skills: nextDraft.skills,
+          bankAccount: nextDraft.bankAccount,
+          orgNumber: nextDraft.orgNumber,
+          roomShare: nextDraft.roomShare,
+          gender: nextDraft.gender,
         }),
       });
       if (!res.ok) {
@@ -101,7 +102,8 @@ export function Profile({
       // Commit to local state only on success so the button only
       // returns to its non-dirty resting state when the server
       // confirmed the write.
-      setData((prev) => ({ ...prev, profile: draft }));
+      setDraft(nextDraft);
+      setData((prev) => ({ ...prev, profile: nextDraft }));
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 1800);
     } catch (err) {
@@ -110,6 +112,103 @@ export function Profile({
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function save() {
+    await saveProfile(draft);
+  }
+
+  async function preparePhoto(file: File): Promise<File> {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 512 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Could not process image.");
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (value) => (value ? resolve(value) : reject(new Error("Could not process image."))),
+        "image/jpeg",
+        0.86,
+      ),
+    );
+    return new File([blob], "profile-photo.jpg", { type: "image/jpeg" });
+  }
+
+  async function savePhotoReference(photoObjectPath: string) {
+    const baseUrl =
+      (typeof import.meta !== "undefined" &&
+        (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+      "/";
+    const token = await getToken();
+    const response = await fetch(`${baseUrl}api/portal/profile/photo`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ photoObjectPath }),
+    });
+    const payload = (await response.json()) as { error?: string };
+    if (!response.ok) {
+      throw new Error(payload.error || "Could not save profile photo.");
+    }
+    const next = { ...draft, photoObjectPath };
+    setDraft(next);
+    setData((prev) => ({
+      ...prev,
+      profile: { ...prev.profile, photoObjectPath },
+    }));
+    setSavedFlash(true);
+    setTimeout(() => setSavedFlash(false), 1800);
+  }
+
+  async function uploadPhoto(file: File) {
+    if (photoBusy) return;
+    setPhotoBusy(true);
+    setSaveError(null);
+    const baseUrl =
+      (typeof import.meta !== "undefined" &&
+        (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+      "/";
+    try {
+      const prepared = await preparePhoto(file);
+      const token = await getToken();
+      const request = await fetch(`${baseUrl}api/portal/profile/photo/upload-url`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          name: prepared.name,
+          size: prepared.size,
+          contentType: prepared.type,
+        }),
+      });
+      const payload = (await request.json()) as {
+        uploadURL?: string;
+        objectPath?: string;
+        error?: string;
+      };
+      if (!request.ok || !payload.uploadURL || !payload.objectPath) {
+        throw new Error(payload.error || "Could not start photo upload.");
+      }
+      const upload = await fetch(payload.uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": prepared.type },
+        body: prepared,
+      });
+      if (!upload.ok) throw new Error("Photo upload failed.");
+      await savePhotoReference(payload.objectPath);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Photo upload failed.");
+    } finally {
+      setPhotoBusy(false);
     }
   }
 
@@ -159,6 +258,68 @@ export function Profile({
       </header>
 
       <Section theme={theme} title={t("portal.profile.section.personal")}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 18 }}>
+          <ProfileAvatar
+            name={draft.fullName}
+            photoObjectPath={draft.photoObjectPath}
+            size={88}
+          />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <label
+              style={{
+                padding: "9px 13px",
+                borderRadius: 9,
+                background: c.accent,
+                color: "#0b0b0b",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: photoBusy ? "wait" : "pointer",
+              }}
+            >
+              {photoBusy ? "Uploading…" : draft.photoObjectPath ? "Change photo" : "Add photo"}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                disabled={photoBusy}
+                style={{ display: "none" }}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) void uploadPhoto(file);
+                }}
+              />
+            </label>
+            {draft.photoObjectPath ? (
+              <button
+                type="button"
+                disabled={photoBusy}
+                onClick={() => {
+                  setPhotoBusy(true);
+                  setSaveError(null);
+                  void savePhotoReference("")
+                    .catch((err: unknown) =>
+                      setSaveError(
+                        err instanceof Error ? err.message : "Could not remove photo.",
+                      ),
+                    )
+                    .finally(() => setPhotoBusy(false));
+                }}
+                style={{
+                  padding: "9px 13px",
+                  borderRadius: 9,
+                  border: `1px solid ${c.border}`,
+                  background: "transparent",
+                  color: c.text,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Remove
+              </button>
+            ) : null}
+          </div>
+        </div>
         <Grid2>
           <Field theme={theme} label={t("portal.profile.field.fullName")}>
             <input
@@ -399,6 +560,59 @@ export function Profile({
           {t("portal.profile.save")}
         </button>
       </div>
+    </div>
+  );
+}
+
+function ProfileAvatar({
+  name,
+  photoObjectPath,
+  size,
+}: {
+  name: string;
+  photoObjectPath: string;
+  size: number;
+}) {
+  const baseUrl =
+    (typeof import.meta !== "undefined" &&
+      (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+    "/";
+  const initials =
+    name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "?";
+  return photoObjectPath ? (
+    <img
+      src={`${baseUrl}api/portal/freelancers/me/photo`}
+      alt={`${name || "User"} profile`}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        objectFit: "cover",
+        flex: "0 0 auto",
+      }}
+    />
+  ) : (
+    <div
+      aria-label={`${name || "User"} initials`}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        display: "grid",
+        placeItems: "center",
+        background: "rgba(248,128,0,0.18)",
+        color: "#f88000",
+        fontSize: 26,
+        fontWeight: 800,
+        flex: "0 0 auto",
+      }}
+    >
+      {initials}
     </div>
   );
 }

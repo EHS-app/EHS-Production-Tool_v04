@@ -25,6 +25,9 @@ export const freelancerProfilesTable = pgTable("freelancer_profiles", {
   primaryRole: text("primary_role").notNull().default(""),
   city: text("city").notNull().default(""),
   bio: text("bio").notNull().default(""),
+  /** Canonical App Storage object path for the user's profile photo.
+   *  Bytes remain in object storage; only this opaque reference is persisted. */
+  photoObjectPath: text("photo_object_path").notNull().default(""),
   insurance: text("insurance").notNull().default(""),
   /** Contact email — distinct from Clerk's identity email so freelancers
    *  can route booking enquiries to a different inbox if they like. */
@@ -72,6 +75,18 @@ export const freelancerProfilesTable = pgTable("freelancer_profiles", {
     .notNull()
     .defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/** Upload permits for profile photos. A presigned object path is bound to the
+ *  authenticated user before it leaves the API, preventing users from
+ *  attaching another user's arbitrary private upload to their profile. */
+export const profilePhotoUploadsTable = pgTable("profile_photo_uploads", {
+  objectPath: text("object_path").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentType: text("content_type").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });

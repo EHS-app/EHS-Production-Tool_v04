@@ -23,11 +23,19 @@ router.use(devAutoSignInRouter);
 // Clerk user calling these endpoints gets a 403 before the route
 // handler ever runs, so even a tampered frontend can't reach them.
 // The middleware also sets `req._userId` for downstream handlers.
-router.use(requireEmployee, rigplanAnalyzeRouter);
-router.use(requireEmployee, venueMemoryRouter);
-router.use(requireEmployee, storageRouter);
-router.use(requireEmployee, projectsRouter);
-router.use(requireEmployee, inspectionExtractRouter);
+// Scope each employee gate to its URL namespace. Passing requireEmployee and
+// a router in one unscoped router.use(...) call makes the middleware run even
+// when that child router has no matching route, which can incorrectly block
+// the /portal surface mounted below.
+router.use("/rigplan", requireEmployee);
+router.use(rigplanAnalyzeRouter);
+router.use(venueMemoryRouter);
+router.use("/storage", requireEmployee);
+router.use(storageRouter);
+router.use("/projects", requireEmployee);
+router.use(projectsRouter);
+router.use("/inspection", requireEmployee);
+router.use(inspectionExtractRouter);
 
 // Admin tools — gated internally to @ehs.no callers via its own
 // `requireAdmin` middleware. Mounted outside `requireEmployee` so we

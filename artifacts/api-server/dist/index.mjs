@@ -62745,6 +62745,7 @@ __export(schema_exports, {
   insertProjectSchema: () => insertProjectSchema,
   insertTimeEntrySchema: () => insertTimeEntrySchema,
   insertVenueMemorySchema: () => insertVenueMemorySchema,
+  profilePhotoUploadsTable: () => profilePhotoUploadsTable,
   projectBriefsTable: () => projectBriefsTable,
   projectsTable: () => projectsTable,
   timeEntriesTable: () => timeEntriesTable,
@@ -74176,6 +74177,9 @@ var freelancerProfilesTable = pgTable("freelancer_profiles", {
   primaryRole: text("primary_role").notNull().default(""),
   city: text("city").notNull().default(""),
   bio: text("bio").notNull().default(""),
+  /** Canonical App Storage object path for the user's profile photo.
+   *  Bytes remain in object storage; only this opaque reference is persisted. */
+  photoObjectPath: text("photo_object_path").notNull().default(""),
   insurance: text("insurance").notNull().default(""),
   /** Contact email — distinct from Clerk's identity email so freelancers
    *  can route booking enquiries to a different inbox if they like. */
@@ -74221,6 +74225,12 @@ var freelancerProfilesTable = pgTable("freelancer_profiles", {
   certs: text("certs").array().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+});
+var profilePhotoUploadsTable = pgTable("profile_photo_uploads", {
+  objectPath: text("object_path").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentType: text("content_type").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 });
 var insertFreelancerProfileSchema = createInsertSchema(
   freelancerProfilesTable
@@ -75813,6 +75823,7 @@ var storage_default = router5;
 
 // src/routes/portalProfile.ts
 var import_express7 = __toESM(require_express2(), 1);
+import { Readable as Readable5 } from "stream";
 
 // ../../lib/skills/src/index.ts
 var SKILL_LIBRARY = [
@@ -76203,6 +76214,10 @@ function pickSkills(raw) {
   return out;
 }
 var router6 = (0, import_express7.Router)();
+var objectStorageService2 = new ObjectStorageService();
+var PROFILE_PHOTO_TYPES = /* @__PURE__ */ new Set(["image/jpeg", "image/png", "image/webp"]);
+var PROFILE_PHOTO_MAX_BYTES = 5e6;
+var PROFILE_OBJECT_PATH = /^\/objects\/uploads\/[A-Za-z0-9_-]{8,128}$/;
 var requireSignedIn4 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
@@ -76315,6 +76330,126 @@ router6.put("/portal/profile/me", requireSignedIn4, async (req, res) => {
     res.status(500).json({ ok: false, error: "Could not save profile." });
   }
 });
+router6.post(
+  "/portal/profile/photo/upload-url",
+  requireSignedIn4,
+  async (req, res) => {
+    const body = req.body ?? {};
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const size = typeof body.size === "number" ? body.size : NaN;
+    const contentType = typeof body.contentType === "string" ? body.contentType.toLowerCase() : "";
+    if (!name || name.length > 200 || !Number.isFinite(size) || size <= 0 || size > PROFILE_PHOTO_MAX_BYTES || !PROFILE_PHOTO_TYPES.has(contentType)) {
+      res.status(400).json({
+        ok: false,
+        error: "Choose a JPEG, PNG or WebP image smaller than 5 MB."
+      });
+      return;
+    }
+    try {
+      const uploadURL = await objectStorageService2.getObjectEntityUploadURL();
+      const objectPath = objectStorageService2.normalizeObjectEntityPath(uploadURL);
+      await db.insert(profilePhotoUploadsTable).values({
+        objectPath,
+        userId: req._userId,
+        contentType
+      });
+      res.json({
+        ok: true,
+        uploadURL,
+        objectPath
+      });
+    } catch (err) {
+      req.log.error({ err }, "profile photo upload URL failed");
+      res.status(500).json({ ok: false, error: "Could not start photo upload." });
+    }
+  }
+);
+router6.patch(
+  "/portal/profile/photo",
+  requireSignedIn4,
+  async (req, res) => {
+    const userId = req._userId;
+    const body = req.body ?? {};
+    const photoObjectPath = body.photoObjectPath === "" ? "" : typeof body.photoObjectPath === "string" && PROFILE_OBJECT_PATH.test(body.photoObjectPath) ? body.photoObjectPath : null;
+    if (photoObjectPath === null) {
+      res.status(400).json({ ok: false, error: "Invalid photo reference." });
+      return;
+    }
+    try {
+      if (photoObjectPath) {
+        const [permit] = await db.select({ objectPath: profilePhotoUploadsTable.objectPath }).from(profilePhotoUploadsTable).where(
+          and(
+            eq(profilePhotoUploadsTable.objectPath, photoObjectPath),
+            eq(profilePhotoUploadsTable.userId, userId)
+          )
+        ).limit(1);
+        if (!permit) {
+          res.status(403).json({
+            ok: false,
+            error: "This photo upload does not belong to your account."
+          });
+          return;
+        }
+      }
+      const [saved] = await db.insert(freelancerProfilesTable).values({ userId, photoObjectPath }).onConflictDoUpdate({
+        target: freelancerProfilesTable.userId,
+        set: { photoObjectPath, updatedAt: sql`now()` }
+      }).returning();
+      res.json({ ok: true, profile: saved ? projectProfile(saved) : null });
+    } catch (err) {
+      req.log.error({ err }, "profile photo reference update failed");
+      res.status(500).json({ ok: false, error: "Could not save profile photo." });
+    }
+  }
+);
+router6.get(
+  "/portal/freelancers/:userId/photo",
+  requireSignedIn4,
+  async (req, res) => {
+    const rawUserId = req.params.userId;
+    const requestedUserId = Array.isArray(rawUserId) ? rawUserId[0] : rawUserId;
+    const userId = requestedUserId === "me" ? req._userId : requestedUserId;
+    if (!userId) {
+      res.status(404).end();
+      return;
+    }
+    try {
+      const [profile] = await db.select({ photoObjectPath: freelancerProfilesTable.photoObjectPath }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId)).limit(1);
+      if (!profile?.photoObjectPath || !PROFILE_OBJECT_PATH.test(profile.photoObjectPath)) {
+        res.status(404).end();
+        return;
+      }
+      const file2 = await objectStorageService2.getObjectEntityFile(
+        profile.photoObjectPath
+      );
+      const response = await objectStorageService2.downloadObject(file2, 300);
+      const contentType = (response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+      if (!PROFILE_PHOTO_TYPES.has(contentType)) {
+        res.status(415).end();
+        return;
+      }
+      res.status(response.status);
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Content-Disposition", "inline");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Cache-Control", "private, max-age=300");
+      if (response.body) {
+        Readable5.fromWeb(
+          response.body
+        ).pipe(res);
+      } else {
+        res.end();
+      }
+    } catch (err) {
+      if (err instanceof ObjectNotFoundError) {
+        res.status(404).end();
+        return;
+      }
+      req.log.error({ err, userId }, "profile photo read failed");
+      res.status(500).end();
+    }
+  }
+);
 router6.get("/portal/freelancers", requireSignedIn4, async (req, res) => {
   const callerUserId = req._userId;
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
@@ -76370,6 +76505,8 @@ router6.get("/portal/freelancers", requireSignedIn4, async (req, res) => {
       fullName: freelancerProfilesTable.fullName,
       primaryRole: freelancerProfilesTable.primaryRole,
       city: freelancerProfilesTable.city,
+      bio: freelancerProfilesTable.bio,
+      photoObjectPath: freelancerProfilesTable.photoObjectPath,
       skills: freelancerProfilesTable.skills,
       languages: freelancerProfilesTable.languages,
       phone: freelancerProfilesTable.phone,
@@ -79673,11 +79810,15 @@ var admin_default = router12;
 var router13 = (0, import_express16.Router)();
 router13.use(health_default);
 router13.use(devAutoSignIn_default);
-router13.use(requireEmployee, rigplanAnalyze_default);
-router13.use(requireEmployee, venueMemory_default);
-router13.use(requireEmployee, storage_default);
-router13.use(requireEmployee, projects_default);
-router13.use(requireEmployee, inspectionExtract_default);
+router13.use("/rigplan", requireEmployee);
+router13.use(rigplanAnalyze_default);
+router13.use(venueMemory_default);
+router13.use("/storage", requireEmployee);
+router13.use(storage_default);
+router13.use("/projects", requireEmployee);
+router13.use(projects_default);
+router13.use("/inspection", requireEmployee);
+router13.use(inspectionExtract_default);
 router13.use(admin_default);
 router13.use(portalProfile_default);
 router13.use(portalBriefs_default);

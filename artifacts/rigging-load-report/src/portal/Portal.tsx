@@ -216,6 +216,10 @@ export function Portal({ theme, pref, setPref }: PortalProps) {
           return {
           ...prev,
           profile: {
+            photoObjectPath:
+              typeof sp.photoObjectPath === "string"
+                ? sp.photoObjectPath
+                : prev.profile.photoObjectPath,
             fullName: typeof sp.fullName === "string" ? sp.fullName : prev.profile.fullName,
             phone: typeof sp.phone === "string" ? sp.phone : prev.profile.phone,
             email: typeof sp.email === "string" ? sp.email : prev.profile.email,
@@ -415,6 +419,7 @@ function isFresh(ts: number | undefined): boolean {
  *  the server side; this client treats them as optional anyway because
  *  legacy rows or schema drift shouldn't break hydration. */
 type ServerProfileRow = {
+  photoObjectPath?: unknown;
   fullName?: unknown;
   phone?: unknown;
   email?: unknown;

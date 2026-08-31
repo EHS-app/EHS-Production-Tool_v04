@@ -51,6 +51,8 @@ type DirectoryRow = {
   fullName: string;
   primaryRole: string | null;
   city: string | null;
+  bio?: string;
+  photoObjectPath?: string;
   skills: string[];
   languages: string[];
   /** Phone copied from the freelancer's profile so the producer can
@@ -171,6 +173,7 @@ export function AvailableCrewSidebar({
   const [rows, setRows] = useState<DirectoryRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [profileRow, setProfileRow] = useState<DirectoryRow | null>(null);
 
   // Multi-select: the userIds the producer has currently ticked. A
   // booked freelancer can't be ticked (the checkbox is disabled), and
@@ -357,7 +360,21 @@ export function AvailableCrewSidebar({
               const short = shortName(r.fullName);
               return (
                 <li key={r.userId} className="acs-compact-row">
-                  <div className="acs-compact-row-main">
+                  <button
+                    type="button"
+                    className="acs-compact-row-main"
+                    onClick={() => setProfileRow(r)}
+                    title={`View ${r.fullName || "freelancer"} profile`}
+                    style={{
+                      border: 0,
+                      padding: 0,
+                      background: "transparent",
+                      color: "inherit",
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    <FreelancerAvatar row={r} size={30} />
                     <span className="acs-compact-name">{short}</span>
                     {r.primaryRole ? (
                       <span className="acs-compact-role">
@@ -365,7 +382,7 @@ export function AvailableCrewSidebar({
                         — {r.primaryRole}
                       </span>
                     ) : null}
-                  </div>
+                  </button>
                   {already ? (
                     <span className="acs-compact-tag">Requested</span>
                   ) : (
@@ -397,6 +414,12 @@ export function AvailableCrewSidebar({
         )}
         {sendError ? (
           <div className="acs-compact-error">{sendError}</div>
+        ) : null}
+        {profileRow ? (
+          <FreelancerProfileDialog
+            row={profileRow}
+            onClose={() => setProfileRow(null)}
+          />
         ) : null}
       </aside>
     );
@@ -495,6 +518,7 @@ export function AvailableCrewSidebar({
               isSelected={picks.has(r.userId)}
               isAlreadyRequested={requestedUserIds.has(r.userId)}
               onToggle={() => togglePick(r.userId)}
+              onOpenProfile={() => setProfileRow(r)}
             />
           ))
         )}
@@ -519,6 +543,12 @@ export function AvailableCrewSidebar({
           </button>
         </div>
       ) : null}
+      {profileRow ? (
+        <FreelancerProfileDialog
+          row={profileRow}
+          onClose={() => setProfileRow(null)}
+        />
+      ) : null}
     </aside>
   );
 }
@@ -528,11 +558,13 @@ function FreelancerCard({
   isSelected,
   isAlreadyRequested,
   onToggle,
+  onOpenProfile,
 }: {
   row: DirectoryRow;
   isSelected: boolean;
   isAlreadyRequested: boolean;
   onToggle: () => void;
+  onOpenProfile: () => void;
 }) {
   // Pull up to three certifications (in the order the freelancer
   // entered them) so the producer can scan rigging-relevant tickets at
@@ -596,7 +628,28 @@ function FreelancerCard({
         />
       )}
       <div className="acs-card-head">
-        <div className="acs-card-name">{row.fullName || "Unnamed"}</div>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpenProfile();
+          }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 9,
+            padding: 0,
+            border: 0,
+            background: "transparent",
+            color: "inherit",
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+          title={`View ${row.fullName || "freelancer"} profile`}
+        >
+          <FreelancerAvatar row={row} size={38} />
+          <div className="acs-card-name">{row.fullName || "Unnamed"}</div>
+        </button>
         <span
           className={`acs-status acs-status-${meta.tone}`}
           title={meta.label}
@@ -623,5 +676,135 @@ function FreelancerCard({
         </div>
       ) : null}
     </article>
+  );
+}
+
+function photoUrl(userId: string): string {
+  const baseUrl =
+    (typeof import.meta !== "undefined" &&
+      (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+    "/";
+  return `${baseUrl}api/portal/freelancers/${encodeURIComponent(userId)}/photo`;
+}
+
+function FreelancerAvatar({ row, size }: { row: DirectoryRow; size: number }) {
+  const initials =
+    row.fullName
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "?";
+  return row.photoObjectPath ? (
+    <img
+      src={photoUrl(row.userId)}
+      alt=""
+      style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover" }}
+    />
+  ) : (
+    <span
+      aria-hidden
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        display: "inline-grid",
+        placeItems: "center",
+        flex: "0 0 auto",
+        background: "rgba(248,128,0,.18)",
+        color: "#f88000",
+        fontSize: Math.max(11, size * 0.34),
+        fontWeight: 800,
+      }}
+    >
+      {initials}
+    </span>
+  );
+}
+
+function FreelancerProfileDialog({
+  row,
+  onClose,
+}: {
+  row: DirectoryRow;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div
+      role="presentation"
+      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 1000,
+        display: "grid",
+        placeItems: "center",
+        padding: 20,
+        background: "rgba(5,8,14,.64)",
+      }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${row.fullName || "Freelancer"} profile`}
+        style={{
+          width: "min(520px, 100%)",
+          maxHeight: "min(720px, 90vh)",
+          overflowY: "auto",
+          borderRadius: 18,
+          padding: 24,
+          background: "var(--card-bg)",
+          color: "var(--ink)",
+          border: "1px solid var(--border)",
+          boxShadow: "0 24px 80px rgba(0,0,0,.35)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button type="button" className="btn btn-soft btn-sm" onClick={onClose}>
+            Close
+          </button>
+        </div>
+        <div style={{ display: "grid", justifyItems: "center", textAlign: "center", gap: 9 }}>
+          <FreelancerAvatar row={row} size={112} />
+          <h2 style={{ margin: "5px 0 0" }}>{row.fullName || "Unnamed"}</h2>
+          <div style={{ color: "var(--ink-soft)" }}>
+            {[row.primaryRole, row.city].filter(Boolean).join(" · ")}
+          </div>
+          <span className={`acs-status acs-status-${STATUS_META[row.status].tone}`}>
+            <span
+              className="acs-status-dot"
+              style={{ background: STATUS_META[row.status].dot }}
+            />
+            {STATUS_META[row.status].label}
+          </span>
+        </div>
+        {row.bio ? (
+          <p style={{ lineHeight: 1.6, margin: "22px 0 0", whiteSpace: "pre-wrap" }}>
+            {row.bio}
+          </p>
+        ) : null}
+        {row.skills.length ? (
+          <div style={{ marginTop: 22 }}>
+            <strong style={{ display: "block", marginBottom: 9 }}>Skills & competence</strong>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+              {row.skills.map((skill) => (
+                <span key={skill} className="acs-cert">{skill}</span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {row.languages.length ? (
+          <p style={{ margin: "20px 0 0", color: "var(--ink-soft)" }}>
+            <strong style={{ color: "var(--ink)" }}>Languages:</strong>{" "}
+            {row.languages.join(", ")}
+          </p>
+        ) : null}
+      </section>
+    </div>
   );
 }

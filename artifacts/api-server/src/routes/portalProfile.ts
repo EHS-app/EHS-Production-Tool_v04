@@ -1,14 +1,17 @@
 import { Router, type IRouter, type RequestHandler } from "express";
 import { and, eq, ilike, or, sql } from "drizzle-orm";
+import { Readable } from "stream";
 import {
   db,
   freelancerProfilesTable,
+  profilePhotoUploadsTable,
   type FreelancerProfileRow,
 } from "@workspace/db";
 import { sanitizeSkills, isValidSkill, groupSkills } from "@workspace/skills";
 import { logger } from "../lib/logger";
 import { classifyDietary, splitAllergens } from "../lib/dietaryTags";
 import { tagAsFreelancer } from "../middleware/userType";
+import { ObjectNotFoundError, ObjectStorageService } from "../lib/objectStorage";
 
 /** Pull a YYYY-MM-DD string off a query param, or null. */
 function pickDate(raw: unknown): string | null {
@@ -39,6 +42,10 @@ function pickSkills(raw: unknown): string[] {
 }
 
 const router: IRouter = Router();
+const objectStorageService = new ObjectStorageService();
+const PROFILE_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const PROFILE_PHOTO_MAX_BYTES = 5_000_000;
+const PROFILE_OBJECT_PATH = /^\/objects\/uploads\/[A-Za-z0-9_-]{8,128}$/;
 
 /** Same Clerk gate the venue memory route uses — every read and write
  *  on the portal/profile namespace requires a signed-in user. */
@@ -76,7 +83,10 @@ function clampStr(raw: unknown, cap: number = MAX_TEXT): string {
  *  defence). */
 function normaliseProfile(
   body: Record<string, unknown>,
-): Omit<FreelancerProfileRow, "userId" | "createdAt" | "updatedAt"> {
+): Omit<
+  FreelancerProfileRow,
+  "userId" | "createdAt" | "updatedAt" | "photoObjectPath"
+> {
   // Primary role is free-text. The Profile UI ships a text input
   // (placeholder "Lystekniker") and freelancers legitimately type
   // localised role labels that don't appear in the strict skill
@@ -234,6 +244,172 @@ router.put("/portal/profile/me", requireSignedIn, async (req, res) => {
   }
 });
 
+/** POST /api/portal/profile/photo/upload-url
+ *  Gives any signed-in user a tightly-scoped image upload URL. The browser
+ *  uploads directly to App Storage, then saves the returned objectPath on its
+ *  own profile through PUT /portal/profile/me. */
+router.post(
+  "/portal/profile/photo/upload-url",
+  requireSignedIn,
+  async (req, res): Promise<void> => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const size = typeof body.size === "number" ? body.size : NaN;
+    const contentType =
+      typeof body.contentType === "string" ? body.contentType.toLowerCase() : "";
+    if (
+      !name ||
+      name.length > 200 ||
+      !Number.isFinite(size) ||
+      size <= 0 ||
+      size > PROFILE_PHOTO_MAX_BYTES ||
+      !PROFILE_PHOTO_TYPES.has(contentType)
+    ) {
+      res.status(400).json({
+        ok: false,
+        error: "Choose a JPEG, PNG or WebP image smaller than 5 MB.",
+      });
+      return;
+    }
+    try {
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+      await db.insert(profilePhotoUploadsTable).values({
+        objectPath,
+        userId: (req as unknown as { _userId: string })._userId,
+        contentType,
+      });
+      res.json({
+        ok: true,
+        uploadURL,
+        objectPath,
+      });
+    } catch (err) {
+      req.log.error({ err }, "profile photo upload URL failed");
+      res.status(500).json({ ok: false, error: "Could not start photo upload." });
+    }
+  },
+);
+
+/** PATCH /api/portal/profile/photo
+ *  Updates only the signed-in user's photo reference. Keeping this separate
+ *  from the full profile PUT avoids overwriting text edits that may still be
+ *  in progress in another tab or device. */
+router.patch(
+  "/portal/profile/photo",
+  requireSignedIn,
+  async (req, res): Promise<void> => {
+    const userId = (req as unknown as { _userId: string })._userId;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const photoObjectPath =
+      body.photoObjectPath === ""
+        ? ""
+        : typeof body.photoObjectPath === "string" &&
+            PROFILE_OBJECT_PATH.test(body.photoObjectPath)
+          ? body.photoObjectPath
+          : null;
+    if (photoObjectPath === null) {
+      res.status(400).json({ ok: false, error: "Invalid photo reference." });
+      return;
+    }
+    try {
+      if (photoObjectPath) {
+        const [permit] = await db
+          .select({ objectPath: profilePhotoUploadsTable.objectPath })
+          .from(profilePhotoUploadsTable)
+          .where(
+            and(
+              eq(profilePhotoUploadsTable.objectPath, photoObjectPath),
+              eq(profilePhotoUploadsTable.userId, userId),
+            ),
+          )
+          .limit(1);
+        if (!permit) {
+          res.status(403).json({
+            ok: false,
+            error: "This photo upload does not belong to your account.",
+          });
+          return;
+        }
+      }
+      const [saved] = await db
+        .insert(freelancerProfilesTable)
+        .values({ userId, photoObjectPath })
+        .onConflictDoUpdate({
+          target: freelancerProfilesTable.userId,
+          set: { photoObjectPath, updatedAt: sql`now()` },
+        })
+        .returning();
+      res.json({ ok: true, profile: saved ? projectProfile(saved) : null });
+    } catch (err) {
+      req.log.error({ err }, "profile photo reference update failed");
+      res.status(500).json({ ok: false, error: "Could not save profile photo." });
+    }
+  },
+);
+
+/** GET /api/portal/freelancers/:userId/photo
+ *  Authenticated inline image route. Only object paths currently attached to
+ *  the requested freelancer profile can be read through this endpoint. */
+router.get(
+  "/portal/freelancers/:userId/photo",
+  requireSignedIn,
+  async (req, res): Promise<void> => {
+    const rawUserId = req.params.userId;
+    const requestedUserId = Array.isArray(rawUserId) ? rawUserId[0] : rawUserId;
+    const userId =
+      requestedUserId === "me"
+        ? (req as unknown as { _userId: string })._userId
+        : requestedUserId;
+    if (!userId) {
+      res.status(404).end();
+      return;
+    }
+    try {
+      const [profile] = await db
+        .select({ photoObjectPath: freelancerProfilesTable.photoObjectPath })
+        .from(freelancerProfilesTable)
+        .where(eq(freelancerProfilesTable.userId, userId))
+        .limit(1);
+      if (!profile?.photoObjectPath || !PROFILE_OBJECT_PATH.test(profile.photoObjectPath)) {
+        res.status(404).end();
+        return;
+      }
+      const file = await objectStorageService.getObjectEntityFile(
+        profile.photoObjectPath,
+      );
+      const response = await objectStorageService.downloadObject(file, 300);
+      const contentType = (response.headers.get("content-type") || "")
+        .split(";")[0]
+        .trim()
+        .toLowerCase();
+      if (!PROFILE_PHOTO_TYPES.has(contentType)) {
+        res.status(415).end();
+        return;
+      }
+      res.status(response.status);
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Content-Disposition", "inline");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Cache-Control", "private, max-age=300");
+      if (response.body) {
+        Readable.fromWeb(
+          response.body as unknown as import("stream/web").ReadableStream<Uint8Array>,
+        ).pipe(res);
+      } else {
+        res.end();
+      }
+    } catch (err) {
+      if (err instanceof ObjectNotFoundError) {
+        res.status(404).end();
+        return;
+      }
+      req.log.error({ err, userId }, "profile photo read failed");
+      res.status(500).end();
+    }
+  },
+);
+
 /** GET /api/portal/freelancers?q=&skill=&startDate=&endDate=
  *  Producer-facing directory used by the Production Tool's Crew
  *  Report. Supports multi-layered filtering for high-pressure booking:
@@ -340,6 +516,8 @@ router.get("/portal/freelancers", requireSignedIn, async (req, res) => {
         fullName: freelancerProfilesTable.fullName,
         primaryRole: freelancerProfilesTable.primaryRole,
         city: freelancerProfilesTable.city,
+        bio: freelancerProfilesTable.bio,
+        photoObjectPath: freelancerProfilesTable.photoObjectPath,
         skills: freelancerProfilesTable.skills,
         languages: freelancerProfilesTable.languages,
         phone: freelancerProfilesTable.phone,

@@ -129,6 +129,7 @@ export function buildAcceptedSnapshot(brief: ProjectBrief): AcceptedSnapshot {
 export type { BriefSchedule };
 
 export type Profile = {
+  photoObjectPath: string;
   fullName: string;
   phone: string;
   /** Contact email — distinct from the Clerk identity email so the
@@ -175,6 +176,7 @@ export type PortalData = {
 };
 
 export const EMPTY_PROFILE: Profile = {
+  photoObjectPath: "",
   fullName: "",
   phone: "",
   email: "",
@@ -217,6 +219,8 @@ function normalizeProfile(input: unknown): Profile {
   if (!isProfile(input)) return { ...EMPTY_PROFILE };
   const p = input as Partial<Profile>;
   return {
+    photoObjectPath:
+      typeof p.photoObjectPath === "string" ? p.photoObjectPath : "",
     fullName: typeof p.fullName === "string" ? p.fullName : "",
     phone: typeof p.phone === "string" ? p.phone : "",
     email: typeof p.email === "string" ? p.email : "",

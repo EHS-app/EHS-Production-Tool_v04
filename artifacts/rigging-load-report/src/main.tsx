@@ -905,7 +905,8 @@ function PostLoginRedirect() {
     if (!effective) return;
     saveUserRole(effective);
     const inPortal = location === "/portal" || location.startsWith("/portal/");
-    if (effective === "freelancer" && !inPortal) {
+    const inStaffRecovery = location === "/admin/users";
+    if (effective === "freelancer" && !inPortal && !inStaffRecovery) {
       setLocation("/portal");
     } else if (effective === "employee" && inPortal) {
       setLocation("/");
@@ -947,7 +948,8 @@ function FreelancerGuard() {
   useEffect(() => {
     if (!isFreelancer) return;
     const inPortal = location === "/portal" || location.startsWith("/portal/");
-    if (!inPortal) {
+    const inStaffRecovery = location === "/admin/users";
+    if (!inPortal && !inStaffRecovery) {
       setLocation("/portal");
     }
   }, [isFreelancer, location, setLocation]);

@@ -6713,6 +6713,7 @@ function App() {
           phaseDays={phaseDays}
           directorySidebar={
             <AvailableCrewSidebar
+              briefId={activeBriefId || undefined}
               projectStartDate={reportDate}
               projectEndDate={reportEndDate}
               requestedUserIds={requestedUserIds}

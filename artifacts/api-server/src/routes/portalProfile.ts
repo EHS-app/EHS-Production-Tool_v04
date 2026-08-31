@@ -1,17 +1,22 @@
 import { Router, type IRouter, type RequestHandler } from "express";
-import { and, eq, ilike, or, sql } from "drizzle-orm";
+import { and, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
 import { Readable } from "stream";
 import {
   db,
   freelancerProfilesTable,
+  calendarAvailabilityRulesTable,
   profilePhotoUploadsTable,
   type FreelancerProfileRow,
 } from "@workspace/db";
 import { sanitizeSkills, isValidSkill, groupSkills } from "@workspace/skills";
 import { logger } from "../lib/logger";
 import { classifyDietary, splitAllergens } from "../lib/dietaryTags";
-import { tagAsFreelancer } from "../middleware/userType";
+import { requireEmployee, tagAsFreelancer } from "../middleware/userType";
 import { ObjectNotFoundError, ObjectStorageService } from "../lib/objectStorage";
+import {
+  localDateRangeToInstants,
+  weeklyRuleMatchesDateRange,
+} from "../lib/calendarTime";
 
 /** Pull a YYYY-MM-DD string off a query param, or null. */
 function pickDate(raw: unknown): string | null {
@@ -447,12 +452,52 @@ router.get(
  *  freelancers to scrape contact info on each other. The producer
  *  reaches a freelancer through the brief / gig flow (which the
  *  recipient explicitly accepts), where full contact info surfaces. */
-router.get("/portal/freelancers", requireSignedIn, async (req, res) => {
+router.get("/portal/freelancers", requireEmployee, async (req, res) => {
   const callerUserId = (req as unknown as { _userId: string })._userId;
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const availabilityFilter =
+    req.query.availability === "free" ||
+    req.query.availability === "free-unknown"
+      ? req.query.availability
+      : null;
+  const briefId =
+    typeof req.query.briefId === "string" && req.query.briefId.length <= 200
+      ? req.query.briefId
+      : null;
   const skills = pickSkills(req.query.skill);
   const startDate = pickDate(req.query.startDate);
   const endDate = pickDate(req.query.endDate) ?? startDate;
+  const timezone =
+    typeof req.query.timezone === "string" && req.query.timezone.length < 80
+      ? req.query.timezone
+      : "UTC";
+  if (
+    startDate &&
+    endDate &&
+    (endDate < startDate ||
+      new Date(`${endDate}T00:00:00Z`).getTime() -
+        new Date(`${startDate}T00:00:00Z`).getTime() >
+        62 * 86_400_000)
+  ) {
+    res.status(400).json({
+      ok: false,
+      error: "Availability range must be between 0 and 62 days.",
+    });
+    return;
+  }
+  let requestedBounds: { from: Date; to: Date } | null = null;
+  if (startDate && endDate) {
+    try {
+      requestedBounds = localDateRangeToInstants(
+        startDate,
+        endDate,
+        timezone,
+      );
+    } catch {
+      res.status(400).json({ ok: false, error: "Invalid calendar timezone." });
+      return;
+    }
+  }
   try {
     const conditions = [];
     if (q) {
@@ -524,21 +569,100 @@ router.get("/portal/freelancers", requireSignedIn, async (req, res) => {
         dietary: freelancerProfilesTable.dietary,
         allergies: freelancerProfilesTable.allergies,
         status: statusExpr.as("status"),
+        // Privacy-safe booking signal for producers. Notes and external
+        // calendar metadata never leave the calendar tables.
+        availabilityStatus: startDate
+          ? sql<string>`CASE
+              WHEN EXISTS (SELECT 1 FROM gigs cg WHERE cg.freelancer_user_id = ${freelancerProfilesTable.userId} AND cg.status IN ('confirmed','done','invoiced','paid') AND cg.start_date <= ${endDate}::date AND COALESCE(cg.end_date,cg.start_date) >= ${startDate}::date) THEN 'unavailable'
+              WHEN EXISTS (SELECT 1 FROM calendar_busy_intervals cbi JOIN calendar_connections cc ON cc.id=cbi.connection_id WHERE cc.user_id=${freelancerProfilesTable.userId} AND cbi.starts_at < ${requestedBounds!.to} AND cbi.ends_at > ${requestedBounds!.from}) THEN 'unavailable'
+              WHEN EXISTS (SELECT 1 FROM calendar_holds ch WHERE ch.freelancer_user_id=${freelancerProfilesTable.userId} AND ch.expires_at > now() AND ch.starts_at < ${requestedBounds!.to} AND ch.ends_at > ${requestedBounds!.from}) THEN 'tentative'
+              WHEN EXISTS (SELECT 1 FROM calendar_availability ca WHERE ca.user_id=${freelancerProfilesTable.userId} AND ca.status='unavailable' AND ca.starts_at < ${requestedBounds!.to} AND ca.ends_at > ${requestedBounds!.from}) THEN 'unavailable'
+              WHEN EXISTS (SELECT 1 FROM calendar_availability ca WHERE ca.user_id=${freelancerProfilesTable.userId} AND ca.status='tentative' AND ca.starts_at < ${requestedBounds!.to} AND ca.ends_at > ${requestedBounds!.from}) THEN 'tentative'
+              WHEN EXISTS (SELECT 1 FROM calendar_availability ca WHERE ca.user_id=${freelancerProfilesTable.userId} AND ca.status='available' AND ca.starts_at <= ${requestedBounds!.from} AND ca.ends_at >= ${requestedBounds!.to}) THEN 'full'
+              WHEN EXISTS (SELECT 1 FROM calendar_availability ca WHERE ca.user_id=${freelancerProfilesTable.userId} AND ca.status='available' AND ca.starts_at < ${requestedBounds!.to} AND ca.ends_at > ${requestedBounds!.from}) THEN 'partial'
+              ELSE 'unknown' END`.as("availability_status")
+          : sql<string>`'unknown'`.as("availability_status"),
+        availabilityReason: startDate ? sql<string>`CASE WHEN EXISTS (SELECT 1 FROM gigs cg WHERE cg.freelancer_user_id=${freelancerProfilesTable.userId} AND cg.status IN ('confirmed','done','invoiced','paid') AND cg.start_date <= ${endDate}::date AND COALESCE(cg.end_date,cg.start_date)>=${startDate}::date) THEN 'gig' WHEN EXISTS (SELECT 1 FROM calendar_busy_intervals cbi JOIN calendar_connections cc ON cc.id=cbi.connection_id WHERE cc.user_id=${freelancerProfilesTable.userId} AND cbi.starts_at < ${requestedBounds!.to} AND cbi.ends_at > ${requestedBounds!.from}) THEN 'external_busy' WHEN EXISTS (SELECT 1 FROM calendar_holds ch WHERE ch.freelancer_user_id=${freelancerProfilesTable.userId} AND ch.expires_at>now() AND ch.starts_at < ${requestedBounds!.to} AND ch.ends_at > ${requestedBounds!.from}) THEN 'hold' ELSE NULL END`.as("availability_reason") : sql<string | null>`NULL`.as("availability_reason"),
+        availabilityUpdatedAt: sql<Date | null>`(SELECT max(x.updated_at) FROM calendar_availability x WHERE x.user_id=${freelancerProfilesTable.userId})`.as("availability_updated_at"),
+        conflicts: startDate ? sql<number>`(SELECT count(*)::int FROM calendar_busy_intervals cbi JOIN calendar_connections cc ON cc.id=cbi.connection_id WHERE cc.user_id=${freelancerProfilesTable.userId} AND cbi.starts_at < ${requestedBounds!.to} AND cbi.ends_at > ${requestedBounds!.from})`.as("conflicts") : sql<number>`0`.as("conflicts"),
+        holdId: startDate && briefId ? sql<string | null>`(SELECT ch.id FROM calendar_holds ch WHERE ch.freelancer_user_id=${freelancerProfilesTable.userId} AND ch.owner_user_id=${callerUserId} AND ch.brief_id=${briefId} AND ch.expires_at>now() AND ch.starts_at < ${requestedBounds!.to} AND ch.ends_at > ${requestedBounds!.from} ORDER BY ch.expires_at LIMIT 1)`.as("hold_id") : sql<string | null>`NULL`.as("hold_id"),
+        holdExpiresAt: startDate && briefId ? sql<Date | null>`(SELECT ch.expires_at FROM calendar_holds ch WHERE ch.freelancer_user_id=${freelancerProfilesTable.userId} AND ch.owner_user_id=${callerUserId} AND ch.brief_id=${briefId} AND ch.expires_at>now() AND ch.starts_at < ${requestedBounds!.to} AND ch.ends_at > ${requestedBounds!.from} ORDER BY ch.expires_at LIMIT 1)`.as("hold_expires_at") : sql<Date | null>`NULL`.as("hold_expires_at"),
       })
       .from(freelancerProfilesTable)
       .where(where)
       .orderBy(freelancerProfilesTable.fullName)
       .limit(100);
+    // Resolve recurring availability in one bounded query for the complete
+    // directory page; never query once per freelancer or return rule notes.
+    const recurringRules = startDate
+      ? await db
+          .select({
+            userId: calendarAvailabilityRulesTable.userId,
+            status: calendarAvailabilityRulesTable.status,
+            weekday: calendarAvailabilityRulesTable.weekday,
+            startMinute: calendarAvailabilityRulesTable.startMinute,
+            endMinute: calendarAvailabilityRulesTable.endMinute,
+            timezone: calendarAvailabilityRulesTable.timezone,
+            startsOn: calendarAvailabilityRulesTable.startsOn,
+            until: calendarAvailabilityRulesTable.until,
+          })
+          .from(calendarAvailabilityRulesTable)
+          .where(
+            and(
+              lte(calendarAvailabilityRulesTable.startsOn, new Date(`${endDate}T23:59:59.999Z`)),
+              gte(calendarAvailabilityRulesTable.until, new Date(`${startDate}T00:00:00.000Z`)),
+            ),
+          )
+      : [];
+    const rulesByUser = new Map<string, typeof recurringRules>();
+    for (const rule of recurringRules) {
+      const current = rulesByUser.get(rule.userId) ?? [];
+      current.push(rule);
+      rulesByUser.set(rule.userId, current);
+    }
+    const appliesRule = (
+      rule: (typeof recurringRules)[number],
+    ): { matches: boolean; fullDay: boolean } => {
+      if (!startDate || !endDate) return { matches: false, fullDay: false };
+      try {
+        return weeklyRuleMatchesDateRange(rule, startDate, endDate);
+      } catch {
+        return { matches: false, fullDay: false };
+      }
+    };
     // Pre-classify dietary / allergens server-side so the Production
     // Tool can drop the raw fields straight onto a CrewMember without
     // re-implementing the keyword classifier on the client.
-    const enriched = rows.map((r) => ({
+    const enriched = rows.map((r) => {
+      const matching = (rulesByUser.get(r.userId) ?? []).map(appliesRule).filter((x) => x.matches);
+      let availabilityStatus = r.availabilityStatus;
+      // Hard conflicts have already won in SQL. Rules only resolve an
+      // otherwise unknown/manual-available window.
+      if ((availabilityStatus === "unknown" || availabilityStatus === "full" || availabilityStatus === "partial") && matching.length) {
+        const userRules = rulesByUser.get(r.userId) ?? [];
+        if (userRules.some((rule) => appliesRule(rule).fullDay && rule.status === "unavailable")) availabilityStatus = "unavailable";
+        else if (userRules.some((rule) => appliesRule(rule).matches && rule.status === "unavailable")) availabilityStatus = "partial";
+        else if (userRules.some((rule) => appliesRule(rule).matches && rule.status === "tentative")) availabilityStatus = "tentative";
+        else if (userRules.some((rule) => appliesRule(rule).fullDay && rule.status === "available")) availabilityStatus = "full";
+        else if (userRules.some((rule) => appliesRule(rule).matches && rule.status === "available")) availabilityStatus = "partial";
+      }
+      return ({
       ...r,
+        availabilityStatus,
       phone: typeof r.phone === "string" ? r.phone : "",
       dietaryTags: classifyDietary(r.dietary),
       allergens: splitAllergens(r.allergies),
-    }));
-    res.json({ ok: true, freelancers: enriched });
+      });
+    });
+    const filtered =
+      availabilityFilter === "free"
+        ? enriched.filter((row) => row.availabilityStatus === "full")
+        : availabilityFilter === "free-unknown"
+          ? enriched.filter((row) =>
+              ["full", "partial", "unknown"].includes(row.availabilityStatus),
+            )
+          : enriched;
+    res.json({ ok: true, freelancers: filtered });
   } catch (err) {
     logger.error(
       { err: err instanceof Error ? err.message : String(err) },

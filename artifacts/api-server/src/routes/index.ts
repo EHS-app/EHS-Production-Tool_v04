@@ -8,6 +8,7 @@ import portalProfileRouter from "./portalProfile";
 import portalBriefsRouter from "./portalBriefs";
 import portalGigsRouter from "./portalGigs";
 import portalTimeEntriesRouter from "./portalTimeEntries";
+import portalCalendarRouter from "./portalCalendar";
 import projectsRouter from "./projects";
 import inspectionExtractRouter from "./inspectionExtract";
 import adminRouter from "./admin";
@@ -50,5 +51,6 @@ router.use(portalProfileRouter);
 router.use(portalBriefsRouter);
 router.use(portalGigsRouter);
 router.use(portalTimeEntriesRouter);
+router.use(portalCalendarRouter);
 
 export default router;

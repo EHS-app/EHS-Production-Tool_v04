@@ -27,6 +27,7 @@ This project is a pnpm workspace monorepo designed as an internal stage-tech too
 ## Build and Deployment
 - **Build Tool**: esbuild for CJS bundles
 - **Deployment**: Supports GitHub Pages via `BASE_PATH` environment variable
+- **Database schema release**: Replit-managed Publish automatically diffs the development and production PostgreSQL schemas and applies the approved diff. The post-merge hook pushes Drizzle schema changes to development; do not add deployment-time or startup-time DDL.
 
 ## Authentication
 - **Provider**: Clerk for sign-in, user management, and role-based access control.

@@ -39,12 +39,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@clerk/react";
+import { toast } from "sonner";
 import {
   SKILL_LIBRARY,
   type SkillSuggestion,
 } from "@workspace/skills";
 
-type Status = "available" | "pending" | "booked";
+type Status = "available" | "pending" | "booked" | "unknown" | "partial" | "unavailable" | "tentative";
 
 type DirectoryRow = {
   userId: string;
@@ -63,6 +64,13 @@ type DirectoryRow = {
   /** Server-split free-text allergens. */
   allergens?: string[];
   status: Status;
+  availabilityStatus?: "full" | "partial" | "tentative" | "unavailable" | "unknown";
+  availabilityReason?: string;
+  availabilityUpdatedAt?: string;
+  conflicts?: string[];
+  holdId?: string;
+  holdExpiresAt?: string;
+  effectiveStatus?: Status;
 };
 
 export type SendRequestsRow = {
@@ -75,6 +83,7 @@ export type SendRequestsRow = {
 };
 
 type Props = {
+  briefId?: string;
   /** Project window. When both are blank the status column degrades
    *  gracefully — every freelancer reads "available" since there is
    *  nothing to compare against. */
@@ -147,11 +156,16 @@ function shortName(full: string | null | undefined): string {
 
 const STATUS_META: Record<Status, { label: string; dot: string; tone: string }> = {
   available: { label: "Available", dot: "#16a34a", tone: "ok" },
+  partial: { label: "Partial", dot: "#eab308", tone: "warn" },
+  tentative: { label: "Tentative", dot: "#eab308", tone: "warn" },
+  unknown: { label: "Unknown", dot: "#94a3b8", tone: "neutral" },
   pending: { label: "Pending Brief", dot: "#d97706", tone: "warn" },
   booked: { label: "Booked", dot: "#dc2626", tone: "bad" },
+  unavailable: { label: "Unavailable", dot: "#dc2626", tone: "bad" },
 };
 
 export function AvailableCrewSidebar({
+  briefId,
   projectStartDate,
   projectEndDate,
   onSendRequests,
@@ -170,6 +184,7 @@ export function AvailableCrewSidebar({
     new Set(),
   );
   const [query, setQuery] = useState("");
+  const [availabilityFilter, setAvailabilityFilter] = useState<"all" | "free" | "free-unknown">("all");
   const [rows, setRows] = useState<DirectoryRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -181,6 +196,63 @@ export function AvailableCrewSidebar({
   // (replaced by the "Requested" mark) — so we don't have to worry
   // about validating the ticks at send time.
   const [picks, setPicks] = useState<Set<string>>(new Set());
+
+
+  async function toggleHold(userId: string, isHold: boolean, holdId?: string) {
+    if (!projectStartDate || !briefId) return;
+    try {
+      const token = await getToken();
+      const baseUrl = (typeof import.meta !== "undefined" && (import.meta as any).env?.BASE_URL) || "/";
+      if (isHold) {
+        // Use true local day boundaries in ISO
+        const startIso = new Date(`${projectStartDate}T00:00:00`).toISOString();
+        const endDay = new Date(`${projectEndDate || projectStartDate}T00:00:00`);
+        endDay.setDate(endDay.getDate() + 1);
+        const endIso = endDay.toISOString();
+        const startMs = new Date(startIso).getTime();
+
+        let expMs = Date.now() + 48 * 3600 * 1000;
+        if (expMs > startMs) expMs = startMs;
+        const expiresAt = new Date(expMs).toISOString();
+
+        const res = await fetch(`${baseUrl}api/portal/calendar/holds`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            freelancerUserId: userId,
+            briefId,
+            startsAt: startIso,
+            endsAt: endIso,
+            expiresAt,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+          })
+        });
+        if (!res.ok) {
+           const text = await res.text();
+           throw new Error(text);
+        }
+        toast.success("Hold placed");
+      } else {
+        if (!holdId) throw new Error("Missing hold ID");
+        const res = await fetch(`${baseUrl}api/portal/calendar/holds/${holdId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) {
+           const text = await res.text();
+           throw new Error(text);
+        }
+        toast.success("Hold released");
+      }
+      // re-fetch
+      const controller = new AbortController();
+      await load(controller.signal);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed to toggle hold");
+    }
+  }
+
 
   // Re-fetch on filter / date / search change, debounced so a quick
   // chip-toggle storm collapses to a single round-trip. The cleanup
@@ -202,6 +274,7 @@ export function AvailableCrewSidebar({
     query,
     projectStartDate,
     projectEndDate,
+    availabilityFilter,
     // Sets are reference-stable across renders even when contents
     // change, so we serialise the selection to drive the effect.
     Array.from(selectedSkills).sort().join("\u0001"),
@@ -226,6 +299,9 @@ export function AvailableCrewSidebar({
       if (query.trim()) params.set("q", query.trim());
       if (projectStartDate) params.set("startDate", projectStartDate);
       if (projectEndDate) params.set("endDate", projectEndDate);
+      if (briefId) params.set("briefId", briefId);
+      params.set("timezone", Intl.DateTimeFormat().resolvedOptions().timeZone);
+      if (availabilityFilter !== "all") params.set("availability", availabilityFilter);
       for (const s of selectedSkills) params.append("skill", s);
       const res = await fetch(
         `${baseUrl}api/portal/freelancers?${params.toString()}`,
@@ -247,7 +323,19 @@ export function AvailableCrewSidebar({
       if (!body.ok || !Array.isArray(body.freelancers)) {
         throw new Error(body.error || "Bad response from server");
       }
-      setRows(body.freelancers);
+      // Rank logic: available > partial > unknown > pending > booked > unavailable
+      const rank: Record<string, number> = { available: 0, partial: 1, tentative: 2, unknown: 3, pending: 4, booked: 5, unavailable: 6 };
+      const sorted = body.freelancers.map(r => {
+        // synthesize effective status
+        let eff: Status = r.status;
+        if (r.availabilityStatus === "full" && eff === "available") eff = "available";
+        else if (r.availabilityStatus === "partial" && eff === "available") eff = "partial";
+        else if (r.availabilityStatus === "tentative" && eff === "available") eff = "tentative";
+        else if (r.availabilityStatus === "unknown" && eff === "available") eff = "unknown";
+        else if (r.availabilityStatus === "unavailable") eff = "unavailable";
+        return { ...r, effectiveStatus: eff };
+      }).sort((a, b) => rank[a.effectiveStatus || a.status] - rank[b.effectiveStatus || b.status]);
+      setRows(sorted);
     } catch (e) {
       if (signal.aborted) return;
       if (myReq !== reqIdRef.current) return;
@@ -273,6 +361,7 @@ export function AvailableCrewSidebar({
   function clearAll() {
     setSelectedSkills(new Set());
     setQuery("");
+    setAvailabilityFilter("all");
   }
 
   function togglePick(userId: string) {
@@ -309,8 +398,8 @@ export function AvailableCrewSidebar({
 
   // Bucket counts so the producer sees how the filter narrows the pool.
   const counts = useMemo(() => {
-    const c = { available: 0, pending: 0, booked: 0 };
-    for (const r of rows) c[r.status]++;
+    const c: Record<string, number> = { available: 0, pending: 0, booked: 0, unknown: 0, partial: 0, unavailable: 0 };
+    for (const r of rows) c[(r as any).effectiveStatus || r.status]++;
     return c;
   }, [rows]);
 
@@ -446,6 +535,20 @@ export function AvailableCrewSidebar({
         </p>
       </header>
 
+
+      <div style={{ padding: "0 14px", marginBottom: "12px", display: "flex", gap: "8px", alignItems: "center" }}>
+        <label style={{ fontSize: "12px", fontWeight: "bold", color: "var(--text-muted)" }}>Availability:</label>
+        <select
+          value={availabilityFilter}
+          onChange={e => setAvailabilityFilter(e.target.value as any)}
+          style={{ flex: 1, padding: "6px", fontSize: "13px", borderRadius: "6px", border: "1px solid var(--border-color)", background: "var(--input-bg)", color: "var(--text-main)" }}
+        >
+          <option value="all">Any Status</option>
+          <option value="free">Available Only</option>
+          <option value="free-unknown">Available & Unknown</option>
+        </select>
+      </div>
+
       <div className="acs-search">
         <input
           className="led-input"
@@ -488,16 +591,11 @@ export function AvailableCrewSidebar({
         </button>
       ) : null}
 
-      <div className="acs-summary">
-        <span className="acs-tag acs-tag-ok">
-          <strong>{counts.available}</strong> available
-        </span>
-        <span className="acs-tag acs-tag-warn">
-          <strong>{counts.pending}</strong> pending
-        </span>
-        <span className="acs-tag acs-tag-bad">
-          <strong>{counts.booked}</strong> booked
-        </span>
+      <div className="acs-summary" style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "14px" }}>
+        <span className="acs-tag acs-tag-ok"><strong>{counts.available}</strong> full</span>
+        <span className="acs-tag acs-tag-warn" style={{ background: "rgba(234,179,8,0.15)", color: "#ca8a04" }}><strong>{counts.partial}</strong> partial</span>
+        <span className="acs-tag" style={{ background: "rgba(148,163,184,0.15)", color: "#64748b" }}><strong>{counts.unknown}</strong> unknown</span>
+        <span className="acs-tag acs-tag-bad"><strong>{counts.booked + counts.unavailable}</strong> busy</span>
       </div>
 
       <div className="acs-results">
@@ -519,6 +617,9 @@ export function AvailableCrewSidebar({
               isAlreadyRequested={requestedUserIds.has(r.userId)}
               onToggle={() => togglePick(r.userId)}
               onOpenProfile={() => setProfileRow(r)}
+              onToggleHold={(isHold) => toggleHold(r.userId, isHold, r.holdId)}
+              briefId={briefId}
+              projectStartDate={projectStartDate}
             />
           ))
         )}
@@ -559,12 +660,18 @@ function FreelancerCard({
   isAlreadyRequested,
   onToggle,
   onOpenProfile,
+  onToggleHold,
+  briefId,
+  projectStartDate,
 }: {
   row: DirectoryRow;
   isSelected: boolean;
   isAlreadyRequested: boolean;
   onToggle: () => void;
   onOpenProfile: () => void;
+  onToggleHold: (isHold: boolean, holdId?: string) => void;
+  briefId?: string;
+  projectStartDate?: string;
 }) {
   // Pull up to three certifications (in the order the freelancer
   // entered them) so the producer can scan rigging-relevant tickets at
@@ -577,12 +684,16 @@ function FreelancerCard({
     );
     return row.skills.filter((s) => certSet.has(s)).slice(0, 3);
   }, [row.skills]);
-  const meta = STATUS_META[row.status];
-  const isBooked = row.status === "booked";
-  // Disabled means "can't be ticked right now". Booked freelancers are
-  // visible but not selectable (no double-bookings); already-requested
-  // freelancers don't get a checkbox at all (no double-requests).
+  const effStatus = row.effectiveStatus || row.status;
+  const meta = STATUS_META[effStatus] || STATUS_META.unknown;
+  const isBooked = effStatus === "booked" || effStatus === "unavailable";
+  // Do not block producer selection on unknown; warn instead.
+  const isUnknown = effStatus === "unknown";
+
+  // Disabled means "can't be ticked right now".
   const isDisabled = isBooked || isAlreadyRequested;
+
+  const isStale = row.availabilityUpdatedAt && (Date.now() - new Date(row.availabilityUpdatedAt).getTime() > 14 * 24 * 60 * 60 * 1000);
 
   // Click on the card body toggles the pick — easier on tablet than
   // pinpointing the 18px checkbox. We swallow the inner-input click so
@@ -652,6 +763,7 @@ function FreelancerCard({
         </button>
         <span
           className={`acs-status acs-status-${meta.tone}`}
+          style={isUnknown ? { border: "1px dashed #94a3b8", background: "transparent" } : undefined}
           title={meta.label}
         >
           <span
@@ -665,7 +777,47 @@ function FreelancerCard({
       <div className="acs-card-meta">
         {row.primaryRole ? <span>{row.primaryRole}</span> : null}
         {row.city ? <span>· {row.city}</span> : null}
+        {isStale ? <span style={{ color: "#d97706", fontWeight: 700 }}>· Stale info</span> : null}
+        {row.conflicts && row.conflicts.length > 0 ? (
+          <span style={{ color: "#dc2626", fontWeight: 700 }} title={row.conflicts.join(", ")}>
+            · {row.conflicts.length} conflict(s)
+          </span>
+        ) : null}
       </div>
+
+      {briefId && (
+        row.holdId && row.holdExpiresAt ? (
+          <div style={{ marginTop: "8px", fontSize: "12px", background: "rgba(234,179,8,0.15)", color: "#ca8a04", padding: "4px 8px", borderRadius: "4px", display: "flex", justifyContent: "space-between" }}>
+            <span>Hold until {new Date(row.holdExpiresAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+            <button type="button" onClick={(e) => { e.stopPropagation(); onToggleHold(false); }} style={{ background: "transparent", border: "none", color: "inherit", cursor: "pointer", fontWeight: "bold" }}>Release</button>
+          </div>
+        ) : row.effectiveStatus === "tentative" ? (
+          <div style={{ marginTop: "8px", fontSize: "12px", color: "#ca8a04", textAlign: "right" }}>
+            Tentatively held
+          </div>
+        ) : (() => {
+          const startMs = projectStartDate ? new Date(`${projectStartDate}T00:00:00`).getTime() : 0;
+          const hasStarted = startMs > 0 && Date.now() >= startMs;
+
+          if (hasStarted) {
+            return (
+              <div style={{ marginTop: "4px", textAlign: "right" }}>
+                <span style={{ fontSize: "11px", color: "var(--text-muted)", border: "1px dashed var(--border-color)", borderRadius: "4px", padding: "2px 6px", cursor: "not-allowed" }} title="Cannot hold: project has already started">
+                  Cannot Hold (Started)
+                </span>
+              </div>
+            );
+          }
+
+          return (
+            <div style={{ marginTop: "4px", textAlign: "right" }}>
+              <button type="button" onClick={(e) => { e.stopPropagation(); onToggleHold(true); }} style={{ fontSize: "11px", background: "transparent", border: "1px solid #cbd5e1", borderRadius: "4px", padding: "2px 6px", cursor: "pointer", color: "#64748b" }}>
+                Tentative Hold
+              </button>
+            </div>
+          );
+        })()
+      )}
       {certs.length > 0 ? (
         <div className="acs-card-certs">
           {certs.map((c) => (

@@ -282,6 +282,8 @@ export function PortalLayout({
                     setMenuOpen(false);
                     try {
                       sessionStorage.setItem("ehs-skip-dev-auto-signin", "1");
+                      sessionStorage.removeItem("ehs-login-intent");
+                      sessionStorage.removeItem("ehs-auth-mode");
                     } catch {
                       /* sessionStorage may be unavailable */
                     }
@@ -327,6 +329,8 @@ export function PortalLayout({
               onClick={() => {
                 try {
                   sessionStorage.setItem("ehs-skip-dev-auto-signin", "1");
+                  sessionStorage.removeItem("ehs-login-intent");
+                  sessionStorage.removeItem("ehs-auth-mode");
                 } catch {
                   /* sessionStorage may be unavailable */
                 }

@@ -1113,6 +1113,8 @@ function SignOutButton() {
   const handleSignOut = () => {
     try {
       sessionStorage.setItem("ehs-skip-dev-auto-signin", "1");
+      sessionStorage.removeItem("ehs-login-intent");
+      sessionStorage.removeItem("ehs-auth-mode");
     } catch {
       /* sessionStorage may be unavailable */
     }

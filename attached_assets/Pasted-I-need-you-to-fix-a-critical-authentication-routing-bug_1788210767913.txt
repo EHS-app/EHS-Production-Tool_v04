@@ -1,0 +1,69 @@
+I need you to fix a critical authentication/routing bug in my application.
+
+### Problem
+
+When I log in as an **Employee**, the application incorrectly takes me to the **Freelancer** area/dashboard.
+
+The correct behavior should be:
+
+* Employee login → Employee dashboard/area
+* Freelancer login → Freelancer dashboard/area
+* Each user type must remain completely separate.
+* Logging in as one user type must NEVER redirect to another user type.
+
+### Important instructions
+
+Before changing any code:
+
+1. Inspect the entire authentication and authorization flow.
+2. Find exactly where the user's role/type is determined after login.
+3. Check the login form, authentication logic, database/user model, session or token handling, role detection, redirects, protected routes, and dashboard routing.
+4. Determine why an Employee is being identified or redirected as a Freelancer.
+5. Do NOT guess at the cause.
+6. Do NOT rewrite unrelated parts of the application.
+
+### Fix
+
+Once you identify the root cause, make the smallest safe changes necessary to fix it.
+
+Make sure that:
+
+* The user's actual role is stored and retrieved correctly.
+* Employee accounts are correctly identified as `employee`.
+* Freelancer accounts are correctly identified as `freelancer`.
+* The login process preserves the user's role.
+* The redirect after login is based on the authenticated user's actual role.
+* Protected routes also verify the user's role rather than relying only on the frontend.
+* Refreshing the page does not change the user's role.
+* Logging out and logging in as a different user does not retain the previous user's role.
+* A Freelancer can never accidentally access the Employee area.
+* An Employee can never accidentally be sent to the Freelancer area.
+
+### Testing
+
+After making the fix, test the complete login flow.
+
+Test at minimum:
+
+1. Log in with an Employee account → verify it goes to Employee.
+2. Log out.
+3. Log in with a Freelancer account → verify it goes to Freelancer.
+4. Log out.
+5. Log in as Employee again → verify it still goes to Employee.
+6. Refresh the page after login.
+7. Check that the correct role remains after refresh.
+8. Check direct navigation to the other role's dashboard.
+9. Check that unauthorized users are blocked from the wrong dashboard.
+10. Check the browser console and server logs for authentication or routing errors.
+
+Do not tell me the bug is fixed until you have actually tested these cases.
+
+When finished, tell me:
+
+* The root cause of the bug
+* Exactly what you changed
+* Which files you changed
+* How you tested it
+* Whether any issues remain
+
+Do not make changes unrelated to this login/role-routing problem.

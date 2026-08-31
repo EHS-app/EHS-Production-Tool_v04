@@ -17,7 +17,9 @@
  *    and lazily write that back into Clerk so the lookup is correct
  *    on subsequent requests.
  *
- *  - Anything else (no profile row) defaults to "employee".
+ *  - Untagged @ehs.no accounts are trusted staff and become "employee".
+ *
+ *  - Any other untagged account defaults to "freelancer", never employee.
  *
  *  - Results are cached for 60 seconds per userId to avoid hammering
  *    Clerk on every request from the same active user.
@@ -42,13 +44,21 @@ const clerk = process.env.CLERK_SECRET_KEY
 if (!clerk) {
   logger.warn(
     { scope: "userType" },
-    "CLERK_SECRET_KEY missing — userType gating is disabled (treating all users as employee).",
+    "CLERK_SECRET_KEY missing — employee authorization will be denied.",
   );
 }
 
 const TTL_MS = 60_000;
 type CacheEntry = { type: UserType; at: number };
 const cache = new Map<string, CacheEntry>();
+
+function hasEhsStaffEmail(user: {
+  emailAddresses?: Array<{ emailAddress?: string | null }> | null;
+}): boolean {
+  return (user.emailAddresses ?? []).some((entry) =>
+    entry.emailAddress?.trim().toLowerCase().endsWith("@ehs.no"),
+  );
+}
 
 function readCache(userId: string): UserType | null {
   const hit = cache.get(userId);
@@ -121,24 +131,34 @@ export async function tagAsFreelancer(userId: string): Promise<void> {
 }
 
 /** Resolve a user's type with fallback inference for legacy accounts.
- *  Safe to call from any signed-in route — never throws; on transient
- *  Clerk/DB failures it returns "employee" so a single hiccup never
- *  locks an employee out of the Production Tool. The freelancer gate
- *  is therefore "fail open" for known-employees and "fail closed"
- *  (returns "freelancer") only when we have positive evidence. */
+ * Throws when identity or legacy-profile lookups fail and no cached or
+ * explicit classification is available, so authorization uncertainty
+ * cannot become employee access. */
 export async function getUserType(userId: string): Promise<UserType> {
   const cached = readCache(userId);
   if (cached) return cached;
 
   // Clerk lookup is the canonical source.
+  let clerkLookupFailed = !clerk;
   if (clerk) {
     try {
       const user = await clerk.users.getUser(userId);
+      clerkLookupFailed = false;
       const raw = (user.publicMetadata as Record<string, unknown> | null)
         ?.userType;
       if (raw === "freelancer" || raw === "employee") {
         writeCache(userId, raw);
         return raw;
+      }
+      if (hasEhsStaffEmail(user)) {
+        await clerk.users.updateUserMetadata(userId, {
+          publicMetadata: {
+            ...(user.publicMetadata as Record<string, unknown> | null),
+            userType: "employee",
+          },
+        });
+        writeCache(userId, "employee");
+        return "employee";
       }
     } catch (err) {
       logger.warn(
@@ -155,6 +175,7 @@ export async function getUserType(userId: string): Promise<UserType> {
   // Legacy inference: any row in freelancer_profiles means this user
   // signed up via the Frilanser tab before we started tagging. Tag
   // them now so the lookup is fast and correct from the next request.
+  let dbLookupFailed = false;
   try {
     const rows = await db
       .select({ userId: freelancerProfilesTable.userId })
@@ -169,6 +190,7 @@ export async function getUserType(userId: string): Promise<UserType> {
       return "freelancer";
     }
   } catch (err) {
+    dbLookupFailed = true;
     logger.warn(
       {
         scope: "userType",
@@ -179,8 +201,18 @@ export async function getUserType(userId: string): Promise<UserType> {
     );
   }
 
-  writeCache(userId, "employee");
-  return "employee";
+  // An unclassified user is an employee only when both identity and legacy
+  // profile lookups completed successfully. Authorization uncertainty must
+  // never become employee access.
+  if (clerkLookupFailed || dbLookupFailed) {
+    throw new Error("Unable to resolve user type safely.");
+  }
+  // External accounts need positive employee metadata to enter the
+  // Production Tool. Persist the safe freelancer default so subsequent
+  // browser sessions and server requests agree immediately.
+  await tagAsFreelancer(userId);
+  writeCache(userId, "freelancer");
+  return "freelancer";
 }
 
 /** Middleware: 401 if not signed in, 403 if the signed-in user is a
@@ -214,8 +246,13 @@ export const requireEmployee: RequestHandler = async (req, res, next) => {
         userId,
         err: err instanceof Error ? err.message : String(err),
       },
-      "requireEmployee middleware threw — failing open as employee",
+      "requireEmployee middleware threw — denying access",
     );
+    res.status(503).json({
+      ok: false,
+      error: "Employee authorization is temporarily unavailable.",
+    });
+    return;
   }
   (req as unknown as { _userId: string })._userId = userId;
   next();

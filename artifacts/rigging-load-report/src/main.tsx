@@ -841,18 +841,21 @@ function useClerkUserType(): "employee" | "freelancer" | null {
   const raw = (user?.publicMetadata as Record<string, unknown> | undefined)
     ?.userType;
   if (raw === "freelancer") return "freelancer";
-  // Default everyone else to "employee". The server lazily backfills
-  // legacy freelancer accounts on their next API call, so within one
-  // page interaction the metadata catches up — and the Production
-  // Tool API endpoints themselves return 403 to freelancers as a
-  // belt-and-suspenders backstop.
-  return "employee";
+  if (raw === "employee") return "employee";
+  // Untagged EHS-domain accounts are trusted staff; all other untagged
+  // accounts are treated as freelancers until an administrator assigns
+  // explicit employee metadata. This mirrors the server and prevents a new
+  // external signup from briefly entering the Production Tool while its
+  // freelancer tag is still being written.
+  const email = user?.primaryEmailAddress?.emailAddress?.trim().toLowerCase();
+  return email?.endsWith("@ehs.no") ? "employee" : "freelancer";
 }
 
 function PostLoginRedirect() {
   const [location, setLocation] = useLocation();
   const serverRole = useClerkUserType();
   const { getToken } = useAuth();
+  const { user } = useUser();
   // Capture the sign-in vs sign-up mode synchronously at render time.
   // The sibling `ClearAuthMode` component also runs in a useEffect on
   // signed-in mount and removes this key — without capturing it
@@ -861,6 +864,7 @@ function PostLoginRedirect() {
   // opposed to merely signed in).
   const authModeAtMount = useRef<AuthMode>(loadInitialAuthMode());
   useEffect(() => {
+    let cancelled = false;
     const intent = loadInitialLoginIntent();
     // Trust Clerk metadata over the user's sign-in tab choice: a
     // freelancer who picked "Ansatt" on the role toggle is still a
@@ -902,19 +906,53 @@ function PostLoginRedirect() {
       })();
     }
 
-    if (!effective) return;
-    saveUserRole(effective);
-    const inPortal = location === "/portal" || location.startsWith("/portal/");
-    const inStaffRecovery = location === "/admin/users";
-    if (effective === "freelancer" && !inPortal && !inStaffRecovery) {
-      setLocation("/portal");
-    } else if (effective === "employee" && inPortal) {
-      setLocation("/");
-    }
-    saveLoginIntent(null);
+    void (async () => {
+      // An @ehs.no staff member can safely repair their own stale legacy
+      // freelancer tag. The server validates the signed-in email domain and
+      // only changes the caller's own account; ordinary freelancers receive
+      // 403 and remain isolated in the portal.
+      if (serverRole === "freelancer" && intent === "employee") {
+        try {
+          const token = await getToken();
+          const baseUrl =
+            (typeof import.meta !== "undefined" &&
+              (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+            "/";
+          const response = await fetch(`${baseUrl}api/admin/claim-employee`, {
+            method: "POST",
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          if (response.ok) {
+            await user?.reload();
+            if (cancelled) return;
+            saveUserRole("employee");
+            saveLoginIntent(null);
+            setLocation("/");
+            return;
+          }
+        } catch {
+          // A failed recovery must never grant employee access. Continue with
+          // the authoritative freelancer role and route to the portal.
+        }
+      }
+
+      if (!effective || cancelled) return;
+      saveUserRole(effective);
+      const inPortal =
+        location === "/portal" || location.startsWith("/portal/");
+      if (effective === "freelancer" && !inPortal) {
+        setLocation("/portal");
+      } else if (effective === "employee" && inPortal) {
+        setLocation("/");
+      }
+      saveLoginIntent(null);
+    })();
     // We only want this to run once after mount (post sign-in landing),
     // re-running if `serverRole` flips from null → resolved.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      cancelled = true;
+    };
   }, [serverRole]);
   return null;
 }
@@ -946,13 +984,13 @@ function FreelancerGuard() {
     serverRole === "freelancer" ||
     (serverRole === null && localRole === "freelancer");
   useEffect(() => {
-    if (!isFreelancer) return;
     const inPortal = location === "/portal" || location.startsWith("/portal/");
-    const inStaffRecovery = location === "/admin/users";
-    if (!inPortal && !inStaffRecovery) {
+    if (serverRole === "employee" && inPortal) {
+      setLocation("/");
+    } else if (isFreelancer && !inPortal) {
       setLocation("/portal");
     }
-  }, [isFreelancer, location, setLocation]);
+  }, [isFreelancer, serverRole, location, setLocation]);
   return null;
 }
 
@@ -1226,6 +1264,12 @@ function ClearAuthMode() {
 function ClearUserRoleOnSignedOut() {
   useEffect(() => {
     saveUserRole(null);
+    saveLoginIntent(null);
+    try {
+      sessionStorage.removeItem(AUTH_MODE_KEY);
+    } catch {
+      /* sessionStorage may be unavailable */
+    }
   }, []);
   return null;
 }

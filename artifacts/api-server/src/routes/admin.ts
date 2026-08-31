@@ -65,6 +65,50 @@ const requireAdmin: RequestHandler = async (req, res, next) => {
 
 const router: IRouter = Router();
 
+/** Allow an authenticated EHS staff member to repair their own account
+ * classification when legacy signup state incorrectly tagged it as a
+ * freelancer. The caller cannot name or modify another account here;
+ * requireAdmin verifies the signed-in Clerk account has an @ehs.no email. */
+router.post("/admin/claim-employee", requireAdmin, async (req, res) => {
+  if (!clerk) {
+    res.status(503).json({ ok: false, error: "Clerk not configured." });
+    return;
+  }
+  const auth =
+    typeof (req as unknown as { auth?: unknown }).auth === "function"
+      ? (req as unknown as { auth: () => { userId?: string | null } }).auth()
+      : ((req as unknown as { auth?: { userId?: string | null } }).auth ?? {});
+  const userId = auth?.userId ?? null;
+  if (!userId) {
+    res.status(401).json({ ok: false, error: "Sign in required." });
+    return;
+  }
+  try {
+    const user = await clerk.users.getUser(userId);
+    await clerk.users.updateUserMetadata(userId, {
+      publicMetadata: {
+        ...(user.publicMetadata ?? {}),
+        userType: "employee",
+      },
+    });
+    invalidateUserTypeCache(userId);
+    await db
+      .delete(freelancerProfilesTable)
+      .where(eq(freelancerProfilesTable.userId, userId));
+    res.json({ ok: true, userType: "employee" });
+  } catch (err) {
+    logger.error(
+      {
+        scope: "admin",
+        userId,
+        err: err instanceof Error ? err.message : String(err),
+      },
+      "admin: self-service employee classification failed",
+    );
+    res.status(500).json({ ok: false, error: "Failed to update user type." });
+  }
+});
+
 /** Set a Clerk user's `publicMetadata.userType` by email. When demoting
  *  to "employee" we also delete any row in `freelancer_profiles` so the
  *  lazy backfill in `getUserType` does not re-tag them on the next

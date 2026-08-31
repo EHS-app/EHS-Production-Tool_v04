@@ -76202,11 +76202,16 @@ var clerk = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: proces
 if (!clerk) {
   logger.warn(
     { scope: "userType" },
-    "CLERK_SECRET_KEY missing \u2014 userType gating is disabled (treating all users as employee)."
+    "CLERK_SECRET_KEY missing \u2014 employee authorization will be denied."
   );
 }
 var TTL_MS = 6e4;
 var cache2 = /* @__PURE__ */ new Map();
+function hasEhsStaffEmail(user) {
+  return (user.emailAddresses ?? []).some(
+    (entry) => entry.emailAddress?.trim().toLowerCase().endsWith("@ehs.no")
+  );
+}
 function readCache(userId) {
   const hit = cache2.get(userId);
   if (!hit) return null;
@@ -76257,13 +76262,25 @@ async function tagAsFreelancer(userId) {
 async function getUserType(userId) {
   const cached2 = readCache(userId);
   if (cached2) return cached2;
+  let clerkLookupFailed = !clerk;
   if (clerk) {
     try {
       const user = await clerk.users.getUser(userId);
+      clerkLookupFailed = false;
       const raw = user.publicMetadata?.userType;
       if (raw === "freelancer" || raw === "employee") {
         writeCache(userId, raw);
         return raw;
+      }
+      if (hasEhsStaffEmail(user)) {
+        await clerk.users.updateUserMetadata(userId, {
+          publicMetadata: {
+            ...user.publicMetadata,
+            userType: "employee"
+          }
+        });
+        writeCache(userId, "employee");
+        return "employee";
       }
     } catch (err) {
       logger.warn(
@@ -76276,6 +76293,7 @@ async function getUserType(userId) {
       );
     }
   }
+  let dbLookupFailed = false;
   try {
     const rows = await db.select({ userId: freelancerProfilesTable.userId }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId)).limit(1);
     if (rows.length > 0) {
@@ -76284,6 +76302,7 @@ async function getUserType(userId) {
       return "freelancer";
     }
   } catch (err) {
+    dbLookupFailed = true;
     logger.warn(
       {
         scope: "userType",
@@ -76293,8 +76312,12 @@ async function getUserType(userId) {
       "DB userType inference failed"
     );
   }
-  writeCache(userId, "employee");
-  return "employee";
+  if (clerkLookupFailed || dbLookupFailed) {
+    throw new Error("Unable to resolve user type safely.");
+  }
+  await tagAsFreelancer(userId);
+  writeCache(userId, "freelancer");
+  return "freelancer";
 }
 var requireEmployee = async (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
@@ -76320,8 +76343,13 @@ var requireEmployee = async (req, res, next) => {
         userId,
         err: err instanceof Error ? err.message : String(err)
       },
-      "requireEmployee middleware threw \u2014 failing open as employee"
+      "requireEmployee middleware threw \u2014 denying access"
     );
+    res.status(503).json({
+      ok: false,
+      error: "Employee authorization is temporarily unavailable."
+    });
+    return;
   }
   req._userId = userId;
   next();
@@ -80627,6 +80655,40 @@ var requireAdmin = async (req, res, next) => {
   }
 };
 var router13 = (0, import_express15.Router)();
+router13.post("/admin/claim-employee", requireAdmin, async (req, res) => {
+  if (!clerk3) {
+    res.status(503).json({ ok: false, error: "Clerk not configured." });
+    return;
+  }
+  const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
+  const userId = auth?.userId ?? null;
+  if (!userId) {
+    res.status(401).json({ ok: false, error: "Sign in required." });
+    return;
+  }
+  try {
+    const user = await clerk3.users.getUser(userId);
+    await clerk3.users.updateUserMetadata(userId, {
+      publicMetadata: {
+        ...user.publicMetadata ?? {},
+        userType: "employee"
+      }
+    });
+    invalidateUserTypeCache(userId);
+    await db.delete(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId));
+    res.json({ ok: true, userType: "employee" });
+  } catch (err) {
+    logger.error(
+      {
+        scope: "admin",
+        userId,
+        err: err instanceof Error ? err.message : String(err)
+      },
+      "admin: self-service employee classification failed"
+    );
+    res.status(500).json({ ok: false, error: "Failed to update user type." });
+  }
+});
 router13.post("/admin/set-user-type", requireAdmin, async (req, res) => {
   if (!clerk3) {
     res.status(503).json({ ok: false, error: "Clerk not configured." });

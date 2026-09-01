@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, type ReactNode } from "react";
+import React, { type ReactNode } from "react";
 import { Link } from "wouter";
 import { useClerk } from "@clerk/react";
 import {
@@ -24,6 +24,12 @@ import { useT } from "../lib/i18n/I18nContext";
 import type { TranslationKey } from "../lib/i18n/types";
 import { FeedbackDialog } from "../components/FeedbackDialog";
 import { Toaster } from "../components/ui/sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu";
 
 export type PortalNavKey =
   | "hub"
@@ -119,31 +125,6 @@ export function PortalLayout({
 
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [feedbackOpen, setFeedbackOpen] = React.useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  const openFeedback = React.useCallback(() => {
-    setMenuOpen(false);
-    window.requestAnimationFrame(() => setFeedbackOpen(true));
-  }, []);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenuOpen(false);
-    };
-    const onPointer = (e: MouseEvent) => {
-      const t2 = e.target as Node | null;
-      if (menuRef.current && t2 && !menuRef.current.contains(t2)) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("mousedown", onPointer);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("mousedown", onPointer);
-    };
-  }, [menuOpen]);
 
   const allItems = [...NAV_WORK, ...NAV_ACCOUNT];
   const activeItem = allItems.find((i) => i.key === active);
@@ -243,32 +224,32 @@ export function PortalLayout({
             <div className="ehs-shell-user-name">{userLabel}</div>
             <div className="ehs-shell-user-role">Freelancer</div>
           </div>
-          <div style={{ position: "relative" }} ref={menuRef}>
-            <button
-              type="button"
-              className="ehs-shell-icon-btn"
-              onClick={() => setMenuOpen((v) => !v)}
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-              aria-label={t("portal.header.signOut")}
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="ehs-shell-icon-btn"
+                aria-label={t("portal.header.signOut")}
+              >
+                <MoreHorizontal size={14} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              className="ehs-shell-menu"
+              side="top"
+              align="end"
+              sideOffset={6}
             >
-              <MoreHorizontal size={14} />
-            </button>
-            {menuOpen ? (
-              <div className="ehs-shell-menu" role="menu">
                 <div className="ehs-shell-menu-label">
                   {lang === "no" ? "Tema" : "Theme"}
                 </div>
                 {(["light", "dark", "system"] as const).map((opt) => (
-                  <button
+                  <DropdownMenuItem
                     key={opt}
-                    type="button"
-                    role="menuitemradio"
                     aria-checked={pref === opt}
                     className={`ehs-shell-menu-item${pref === opt ? " is-active" : ""}`}
-                    onClick={() => {
+                    onSelect={() => {
                       setPref(opt);
-                      setMenuOpen(false);
                     }}
                   >
                     {opt === "light"
@@ -280,23 +261,22 @@ export function PortalLayout({
                         ? "Mørk"
                         : "Dark"
                       : "System"}
-                  </button>
+                  </DropdownMenuItem>
                 ))}
                 <div className="ehs-shell-menu-sep" />
-                <button
-                  type="button"
-                  role="menuitem"
+                <DropdownMenuItem
                   className="ehs-shell-menu-item"
-                  onClick={openFeedback}
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    setFeedbackOpen(true);
+                    setMenuOpen(false);
+                  }}
                 >
                   <MessageSquare size={12} /> {lang === "no" ? "Tilbakemelding" : "Feedback"}
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   className="ehs-shell-menu-item is-danger"
-                  onClick={() => {
-                    setMenuOpen(false);
+                  onSelect={() => {
                     try {
                       sessionStorage.setItem("ehs-skip-dev-auto-signin", "1");
                       sessionStorage.removeItem("ehs-login-intent");
@@ -313,10 +293,9 @@ export function PortalLayout({
                   }}
                 >
                   <LogOut size={12} /> {t("portal.header.signOut")}
-                </button>
-              </div>
-            ) : null}
-          </div>
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </aside>
 
@@ -425,6 +404,8 @@ export function PortalLayout({
         }
       `}</style>
 
+      {/* Kept outside the dropdown tree so closing its portal cannot unmount
+          the controlled feedback dialog. */}
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
       <Toaster theme={pref === "system" ? "dark" : pref} />
     </div>

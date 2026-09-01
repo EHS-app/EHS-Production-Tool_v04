@@ -32,6 +32,12 @@ import { useT, type Translator } from "../lib/i18n/I18nContext";
 import { CommandPalette } from "./CommandPalette";
 import { FeedbackDialog } from "./FeedbackDialog";
 import { Toaster } from "./ui/sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
 /**
  * Linear v2 — Tactical Command Center shell.
@@ -231,12 +237,6 @@ export function AppShell({
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [feedbackOpen, setFeedbackOpen] = React.useState(false);
   const overflowRef = React.useRef<HTMLDivElement | null>(null);
-  const themeRef = React.useRef<HTMLDivElement | null>(null);
-
-  const openFeedback = React.useCallback(() => {
-    setThemeOpen(false);
-    window.requestAnimationFrame(() => setFeedbackOpen(true));
-  }, []);
   const mobileMenuBtnRef = React.useRef<HTMLButtonElement | null>(null);
   const wasMobileMenuOpenRef = React.useRef(false);
 
@@ -290,20 +290,16 @@ export function AppShell({
   // user clicks outside the trigger/menu container. Producers don't
   // expect a menu to stay docked when they navigate elsewhere.
   React.useEffect(() => {
-    if (!overflowOpen && !themeOpen) return;
+    if (!overflowOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setOverflowOpen(false);
-        setThemeOpen(false);
       }
     };
     const onPointer = (e: MouseEvent) => {
       const t = e.target as Node | null;
       if (overflowOpen && overflowRef.current && t && !overflowRef.current.contains(t)) {
         setOverflowOpen(false);
-      }
-      if (themeOpen && themeRef.current && t && !themeRef.current.contains(t)) {
-        setThemeOpen(false);
       }
     };
     document.addEventListener("keydown", onKey);
@@ -312,7 +308,7 @@ export function AppShell({
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("mousedown", onPointer);
     };
-  }, [overflowOpen, themeOpen]);
+  }, [overflowOpen]);
 
   // Hide Catering / Hotel rows when no server brief exists yet.
   const groups = buildNavGroups(t).map((g) => ({
@@ -443,35 +439,35 @@ export function AppShell({
             <div className="ehs-shell-user-name">{userName}</div>
             <div className="ehs-shell-user-role">{userRole}</div>
           </div>
-          <div style={{ position: "relative" }} ref={themeRef}>
-            <button
-              type="button"
-              className="ehs-shell-icon-btn"
-              onClick={() => setThemeOpen((v) => !v)}
-              title={t("shell.settings")}
-              aria-label={t("shell.settings")}
-              aria-haspopup="menu"
-              aria-expanded={themeOpen}
+          <DropdownMenu open={themeOpen} onOpenChange={setThemeOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="ehs-shell-icon-btn"
+                title={t("shell.settings")}
+                aria-label={t("shell.settings")}
+              >
+                <MoreHorizontal size={14} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              className="ehs-shell-menu"
+              side="top"
+              align="end"
+              sideOffset={6}
             >
-              <MoreHorizontal size={14} />
-            </button>
-            {themeOpen ? (
-              <div className="ehs-shell-menu" role="menu">
                 <div className="ehs-shell-menu-label">{t("theme.label")}</div>
                 {(["light", "dark", "system"] as const).map((opt) => (
-                  <button
+                  <DropdownMenuItem
                     key={opt}
-                    type="button"
-                    role="menuitemradio"
                     aria-checked={themePref === opt}
                     className={`ehs-shell-menu-item${themePref === opt ? " is-active" : ""}`}
-                    onClick={() => {
+                    onSelect={() => {
                       onChangeTheme(opt);
-                      setThemeOpen(false);
                     }}
                   >
                     {opt === "light" ? t("theme.light") : opt === "dark" ? t("theme.dark") : t("theme.system")}
-                  </button>
+                  </DropdownMenuItem>
                 ))}
                 <div className="ehs-shell-menu-sep" />
                 <Link
@@ -486,28 +482,26 @@ export function AppShell({
                     {userEmail}
                   </div>
                 ) : null}
-                <button
-                  type="button"
-                  role="menuitem"
+                <DropdownMenuItem
                   className="ehs-shell-menu-item"
-                  onClick={openFeedback}
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    setFeedbackOpen(true);
+                    setThemeOpen(false);
+                  }}
                 >
                   <MessageSquare size={12} /> Feedback
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   className="ehs-shell-menu-item is-danger"
-                  onClick={() => {
-                    setThemeOpen(false);
+                  onSelect={() => {
                     onSignOut();
                   }}
                 >
                   <LogOut size={12} /> {t("shell.signOut")}
-                </button>
-              </div>
-            ) : null}
-          </div>
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </aside>
 
@@ -672,6 +666,8 @@ export function AppShell({
         showHotel={showHotel}
         showCatering={showCatering}
       />
+      {/* Kept outside the dropdown tree so closing its portal cannot unmount
+          the controlled feedback dialog. */}
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
       <Toaster theme={themePref === "system" ? "dark" : themePref} />
     </div>

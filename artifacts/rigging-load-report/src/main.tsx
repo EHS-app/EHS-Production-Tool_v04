@@ -902,8 +902,6 @@ function PostLoginRedirect() {
         location === "/portal" || location.startsWith("/portal/");
       if (effective === "freelancer" && !inPortal) {
         setLocation("/portal");
-      } else if (effective === "employee" && inPortal) {
-        setLocation("/");
       }
       saveLoginIntent(null);
     })();
@@ -918,7 +916,8 @@ function PostLoginRedirect() {
 }
 
 /**
- * Continuous guard that locks freelancers to the /portal/* surface.
+ * Continuous guard that locks freelancers to the /portal/* surface while
+ * allowing employees to use both the Production Tool and Freelancer Portal.
  * Runs on every location change. Once Clerk is loaded, the verified primary
  * email classification wins; local storage is only a loading-time fallback.
  */
@@ -939,9 +938,7 @@ function FreelancerGuard() {
     (serverRole === null && localRole === "freelancer");
   useEffect(() => {
     const inPortal = location === "/portal" || location.startsWith("/portal/");
-    if (serverRole === "employee" && inPortal) {
-      setLocation("/");
-    } else if (isFreelancer && !inPortal) {
+    if (isFreelancer && !inPortal) {
       setLocation("/portal");
     }
   }, [isFreelancer, serverRole, location, setLocation]);

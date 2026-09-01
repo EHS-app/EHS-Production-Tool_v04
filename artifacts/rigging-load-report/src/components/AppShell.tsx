@@ -232,6 +232,11 @@ export function AppShell({
   const [feedbackOpen, setFeedbackOpen] = React.useState(false);
   const overflowRef = React.useRef<HTMLDivElement | null>(null);
   const themeRef = React.useRef<HTMLDivElement | null>(null);
+
+  const openFeedback = React.useCallback(() => {
+    setThemeOpen(false);
+    window.requestAnimationFrame(() => setFeedbackOpen(true));
+  }, []);
   const mobileMenuBtnRef = React.useRef<HTMLButtonElement | null>(null);
   const wasMobileMenuOpenRef = React.useRef(false);
 
@@ -485,10 +490,7 @@ export function AppShell({
                   type="button"
                   role="menuitem"
                   className="ehs-shell-menu-item"
-                  onClick={() => {
-                    setThemeOpen(false);
-                    setFeedbackOpen(true);
-                  }}
+                  onClick={openFeedback}
                 >
                   <MessageSquare size={12} /> Feedback
                 </button>

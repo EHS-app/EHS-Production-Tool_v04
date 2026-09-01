@@ -121,6 +121,11 @@ export function PortalLayout({
   const [feedbackOpen, setFeedbackOpen] = React.useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
+  const openFeedback = React.useCallback(() => {
+    setMenuOpen(false);
+    window.requestAnimationFrame(() => setFeedbackOpen(true));
+  }, []);
+
   useEffect(() => {
     if (!menuOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -282,10 +287,7 @@ export function PortalLayout({
                   type="button"
                   role="menuitem"
                   className="ehs-shell-menu-item"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setFeedbackOpen(true);
-                  }}
+                  onClick={openFeedback}
                 >
                   <MessageSquare size={12} /> {lang === "no" ? "Tilbakemelding" : "Feedback"}
                 </button>

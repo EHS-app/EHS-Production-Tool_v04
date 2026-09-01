@@ -1,7 +1,7 @@
 /**
  * Server-side user type gating.
  *
- * Every Clerk user is classified as either "employee" (default) or
+ * Every Clerk user is classified as either "employee" or
  * "freelancer". The classification is the **server-side source of
  * truth** for whether a signed-in user is allowed to reach Production
  * Tool endpoints. Storing it in Clerk's `publicMetadata` keeps it on
@@ -9,20 +9,16 @@
  *
  * Behaviour:
  *
- *  - On first read, we look at `user.publicMetadata.userType`.
+ *  - A user is an employee only when their Clerk primary email is
+ *    verified and ends with @ehs.no.
  *
- *  - If unset (existing users created before this feature shipped) we
- *    fall back to a DB check: a row in `freelancer_profiles` means
- *    they signed up via the Frilanser tab, so we infer "freelancer"
- *    and lazily write that back into Clerk so the lookup is correct
- *    on subsequent requests.
+ *  - Every other account is a freelancer, regardless of stale metadata.
  *
- *  - Untagged @ehs.no accounts are trusted staff and become "employee".
+ *  - We keep Clerk `publicMetadata.userType` synchronized with that
+ *    classification for routing consistency across browser sessions.
  *
- *  - Any other untagged account defaults to "freelancer", never employee.
- *
- *  - Results are cached for 60 seconds per userId to avoid hammering
- *    Clerk on every request from the same active user.
+ * Employee authorization is deliberately not cached: every protected
+ * request revalidates the current primary email and verification status.
  *
  * The middleware `requireEmployee` is mounted on Production Tool
  * routers (projects, drawing analyser, venue memory, storage,
@@ -48,76 +44,62 @@ if (!clerk) {
   );
 }
 
-const TTL_MS = 60_000;
-type CacheEntry = { type: UserType; at: number };
-const cache = new Map<string, CacheEntry>();
+type ClerkEmailLike = {
+  id?: string | null;
+  emailAddress?: string | null;
+  verification?: { status?: string | null } | null;
+};
 
-function hasEhsStaffEmail(user: {
-  emailAddresses?: Array<{ emailAddress?: string | null }> | null;
+function hasVerifiedPrimaryEhsEmail(user: {
+  primaryEmailAddressId?: string | null;
+  emailAddresses?: ClerkEmailLike[] | null;
 }): boolean {
-  return (user.emailAddresses ?? []).some((entry) =>
-    entry.emailAddress?.trim().toLowerCase().endsWith("@ehs.no"),
+  if (!user.primaryEmailAddressId) return false;
+  const primary = (user.emailAddresses ?? []).find(
+    (entry) => entry.id === user.primaryEmailAddressId,
+  );
+  return (
+    primary?.verification?.status === "verified" &&
+    primary.emailAddress?.trim().toLowerCase().endsWith("@ehs.no") === true
   );
 }
 
-function readCache(userId: string): UserType | null {
-  const hit = cache.get(userId);
-  if (!hit) return null;
-  if (Date.now() - hit.at > TTL_MS) {
-    cache.delete(userId);
-    return null;
-  }
-  return hit.type;
-}
-
-function writeCache(userId: string, type: UserType): void {
-  cache.set(userId, { type, at: Date.now() });
-}
-
-/** Invalidate a single userId's cached type. Call this any time we
- *  *change* a user's metadata server-side (e.g. tagging on signup,
- *  backfill writes) so the very next request reflects the new value. */
-export function invalidateUserTypeCache(userId: string): void {
-  cache.delete(userId);
-}
-
-/** Persist `userType=freelancer` on the Clerk user. No-op if the
- *  Clerk client isn't configured (dev without a secret key) OR if
- *  the user is already tagged as `userType=employee` — we never
- *  silently downgrade an employee to freelancer, even if a stray
- *  caller (e.g. an admin testing the portal endpoints with an
- *  employee account) hits one of the tag triggers. Failures are
- *  logged but not thrown — the upstream caller (signup, backfill,
- *  lazy lookup) should still succeed even if the write fails. */
+/** Persist the email-derived role on the Clerk user. A verified primary
+ *  @ehs.no address cannot be downgraded by a portal tag trigger, while a
+ *  stale employee tag on any other account is corrected to freelancer.
+ *  Failures are logged but not thrown so portal/profile operations remain
+ *  available under the server's safe freelancer fallback. */
 export async function tagAsFreelancer(userId: string): Promise<void> {
   if (!clerk) return;
   try {
-    // Read-before-write protects employees from accidental
-    // self-downgrade. The cost is one extra Clerk call per first
-    // write per user, which is negligible — subsequent calls hit the
-    // cache via `getUserType` and skip the tag flow entirely.
     const current = await clerk.users.getUser(userId);
+    if (hasVerifiedPrimaryEhsEmail(current)) {
+      if (
+        (current.publicMetadata as Record<string, unknown> | null)?.userType !==
+        "employee"
+      ) {
+        await clerk.users.updateUserMetadata(userId, {
+          publicMetadata: {
+            ...(current.publicMetadata as Record<string, unknown> | null),
+            userType: "employee",
+          },
+        });
+      }
+      return;
+    }
     const currentType = (
       current.publicMetadata as Record<string, unknown> | null
     )?.userType;
-    if (currentType === "employee") {
-      logger.warn(
-        { scope: "userType", userId },
-        "refusing to tag user as freelancer — already tagged employee",
-      );
-      writeCache(userId, "employee");
-      return;
-    }
     if (currentType === "freelancer") {
-      // Already correctly tagged; just refresh the cache and skip
-      // the redundant write.
-      writeCache(userId, "freelancer");
+      // Already correctly tagged; skip the redundant write.
       return;
     }
     await clerk.users.updateUserMetadata(userId, {
-      publicMetadata: { userType: "freelancer" },
+      publicMetadata: {
+        ...(current.publicMetadata as Record<string, unknown> | null),
+        userType: "freelancer",
+      },
     });
-    writeCache(userId, "freelancer");
   } catch (err) {
     logger.warn(
       {
@@ -131,35 +113,33 @@ export async function tagAsFreelancer(userId: string): Promise<void> {
 }
 
 /** Resolve a user's type with fallback inference for legacy accounts.
- * Throws when identity or legacy-profile lookups fail and no cached or
- * explicit classification is available, so authorization uncertainty
- * cannot become employee access. */
+ * Throws when identity or legacy-profile lookups fail, so authorization
+ * uncertainty cannot become employee access. */
 export async function getUserType(userId: string): Promise<UserType> {
-  const cached = readCache(userId);
-  if (cached) return cached;
-
   // Clerk lookup is the canonical source.
   let clerkLookupFailed = !clerk;
   if (clerk) {
     try {
       const user = await clerk.users.getUser(userId);
       clerkLookupFailed = false;
+      const eligibleEmployee = hasVerifiedPrimaryEhsEmail(user);
+      const expectedType: UserType = eligibleEmployee
+        ? "employee"
+        : "freelancer";
       const raw = (user.publicMetadata as Record<string, unknown> | null)
         ?.userType;
-      if (raw === "freelancer" || raw === "employee") {
-        writeCache(userId, raw);
-        return raw;
-      }
-      if (hasEhsStaffEmail(user)) {
+      if (raw !== expectedType) {
         await clerk.users.updateUserMetadata(userId, {
           publicMetadata: {
             ...(user.publicMetadata as Record<string, unknown> | null),
-            userType: "employee",
+            userType: expectedType,
           },
         });
-        writeCache(userId, "employee");
+      }
+      if (eligibleEmployee) {
         return "employee";
       }
+      return "freelancer";
     } catch (err) {
       logger.warn(
         {
@@ -172,9 +152,8 @@ export async function getUserType(userId: string): Promise<UserType> {
     }
   }
 
-  // Legacy inference: any row in freelancer_profiles means this user
-  // signed up via the Frilanser tab before we started tagging. Tag
-  // them now so the lookup is fast and correct from the next request.
+  // If Clerk is temporarily unavailable, a legacy profile can still prove
+  // freelancer status. It can never be used to infer employee access.
   let dbLookupFailed = false;
   try {
     const rows = await db
@@ -183,10 +162,9 @@ export async function getUserType(userId: string): Promise<UserType> {
       .where(eq(freelancerProfilesTable.userId, userId))
       .limit(1);
     if (rows.length > 0) {
-      // Fire-and-forget: don't block the request waiting for Clerk's
-      // metadata write; the cache is already populated below.
+      // Fire-and-forget: the current request is already safely classified
+      // as freelancer, and the metadata write only improves consistency.
       void tagAsFreelancer(userId);
-      writeCache(userId, "freelancer");
       return "freelancer";
     }
   } catch (err) {
@@ -211,7 +189,6 @@ export async function getUserType(userId: string): Promise<UserType> {
   // Production Tool. Persist the safe freelancer default so subsequent
   // browser sessions and server requests agree immediately.
   await tagAsFreelancer(userId);
-  writeCache(userId, "freelancer");
   return "freelancer";
 }
 

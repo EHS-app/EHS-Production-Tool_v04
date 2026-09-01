@@ -2,7 +2,6 @@ import { Router, type IRouter, type RequestHandler } from "express";
 import { eq } from "drizzle-orm";
 import { createClerkClient } from "@clerk/express";
 import { db, freelancerProfilesTable } from "@workspace/db";
-import { invalidateUserTypeCache } from "../middleware/userType";
 import { logger } from "../lib/logger";
 
 const clerk = process.env.CLERK_SECRET_KEY
@@ -11,15 +10,46 @@ const clerk = process.env.CLERK_SECRET_KEY
 
 const ADMIN_EMAIL_DOMAIN = "@ehs.no";
 
-function getEmailFromUser(
-  user: { emailAddresses?: Array<{ emailAddress?: string | null }> | null },
-): string | null {
+function getEmailFromUser(user: {
+  primaryEmailAddressId?: string | null;
+  emailAddresses?: Array<{
+    id?: string | null;
+    emailAddress?: string | null;
+  }> | null;
+}): string | null {
   const list = user.emailAddresses ?? [];
-  for (const e of list) {
-    const addr = e?.emailAddress;
-    if (typeof addr === "string" && addr.includes("@")) return addr;
+  const primary = list.find(
+    (entry) => entry.id === user.primaryEmailAddressId,
+  );
+  if (typeof primary?.emailAddress === "string") {
+    return primary.emailAddress;
   }
-  return null;
+  return (
+    list.find((entry) => typeof entry.emailAddress === "string")?.emailAddress ??
+    null
+  );
+}
+
+function getVerifiedPrimaryEhsEmail(user: {
+  primaryEmailAddressId?: string | null;
+  emailAddresses?: Array<{
+    id?: string | null;
+    emailAddress?: string | null;
+    verification?: { status?: string | null } | null;
+  }> | null;
+}): string | null {
+  if (!user.primaryEmailAddressId) return null;
+  const primary = (user.emailAddresses ?? []).find(
+    (entry) => entry.id === user.primaryEmailAddressId,
+  );
+  const email = primary?.emailAddress?.trim().toLowerCase();
+  if (
+    primary?.verification?.status !== "verified" ||
+    !email?.endsWith(ADMIN_EMAIL_DOMAIN)
+  ) {
+    return null;
+  }
+  return email;
 }
 
 const requireAdmin: RequestHandler = async (req, res, next) => {
@@ -40,11 +70,12 @@ const requireAdmin: RequestHandler = async (req, res, next) => {
   }
   try {
     const caller = await clerk.users.getUser(userId);
-    const email = getEmailFromUser(caller);
-    if (!email || !email.toLowerCase().endsWith(ADMIN_EMAIL_DOMAIN)) {
+    const email = getVerifiedPrimaryEhsEmail(caller);
+    if (!email) {
       res.status(403).json({
         ok: false,
-        error: "Admin tools are restricted to EHS staff.",
+        error:
+          "Admin tools require a verified primary EHS email address.",
       });
       return;
     }
@@ -68,7 +99,8 @@ const router: IRouter = Router();
 /** Allow an authenticated EHS staff member to repair their own account
  * classification when legacy signup state incorrectly tagged it as a
  * freelancer. The caller cannot name or modify another account here;
- * requireAdmin verifies the signed-in Clerk account has an @ehs.no email. */
+ * requireAdmin verifies the signed-in Clerk account has a verified primary
+ * @ehs.no email. */
 router.post("/admin/claim-employee", requireAdmin, async (req, res) => {
   if (!clerk) {
     res.status(503).json({ ok: false, error: "Clerk not configured." });
@@ -91,7 +123,6 @@ router.post("/admin/claim-employee", requireAdmin, async (req, res) => {
         userType: "employee",
       },
     });
-    invalidateUserTypeCache(userId);
     await db
       .delete(freelancerProfilesTable)
       .where(eq(freelancerProfilesTable.userId, userId));
@@ -154,7 +185,6 @@ router.post("/admin/set-user-type", requireAdmin, async (req, res) => {
       await clerk.users.updateUserMetadata(u.id, {
         publicMetadata: { ...(u.publicMetadata ?? {}), userType },
       });
-      invalidateUserTypeCache(u.id);
       let freelancerProfileDeleted = false;
       if (userType === "employee") {
         try {
@@ -251,7 +281,6 @@ router.post("/admin/delete-user", requireAdmin, async (req, res) => {
         );
       }
       await clerk.users.deleteUser(u.id);
-      invalidateUserTypeCache(u.id);
       deleted.push({ userId: u.id, email: getEmailFromUser(u) });
     }
     logger.info(

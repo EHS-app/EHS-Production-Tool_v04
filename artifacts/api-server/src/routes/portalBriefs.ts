@@ -10,6 +10,7 @@ import {
   freelancerProfilesTable,
   type ProjectBriefRow,
 } from "@workspace/db";
+import { requireEmployee } from "../middleware/userType";
 import { logger } from "../lib/logger";
 import {
   assignRooms,
@@ -294,7 +295,7 @@ router.get("/portal/briefs/mine", requireSignedIn, async (req, res) => {
 
 /** GET /api/portal/briefs
  *  Producer-facing list: every brief the signed-in user owns. */
-router.get("/portal/briefs", requireSignedIn, async (req, res) => {
+router.get("/portal/briefs", requireEmployee, async (req, res) => {
   const userId = (req as unknown as { _userId: string })._userId;
   try {
     const rows = await db
@@ -371,7 +372,7 @@ router.get("/portal/briefs/:id", requireSignedIn, async (req, res) => {
  *  brief. The unique index on (brief_id, freelancer_user_id) makes the
  *  upsert + crewId refresh truly idempotent — no DELETE-USING dedup
  *  pass needed. */
-router.post("/portal/briefs", requireSignedIn, async (req, res) => {
+router.post("/portal/briefs", requireEmployee, async (req, res) => {
   const userId = (req as unknown as { _userId: string })._userId;
   const body = (req.body ?? {}) as {
     id?: unknown;
@@ -511,7 +512,7 @@ router.post("/portal/briefs", requireSignedIn, async (req, res) => {
  *  than 24 hours without forcing a server-side timer. */
 router.get(
   "/portal/briefs/:id/assignments",
-  requireSignedIn,
+  requireEmployee,
   async (req, res) => {
     const userId = (req as unknown as { _userId: string })._userId;
     const id = String(req.params.id ?? "");
@@ -919,7 +920,7 @@ const COUNTABLE_GIG_STATUSES: ReadonlySet<string> = new Set([
 
 router.get(
   "/portal/briefs/:id/catering",
-  requireSignedIn,
+  requireEmployee,
   async (req, res) => {
     const userId = (req as unknown as { _userId: string })._userId;
     const id = String(req.params.id ?? "");
@@ -1124,7 +1125,7 @@ router.get(
  *  last show"). Producer overrides via PATCH always win. */
 router.get(
   "/portal/briefs/:id/hotel",
-  requireSignedIn,
+  requireEmployee,
   async (req, res) => {
     const userId = (req as unknown as { _userId: string })._userId;
     const id = String(req.params.id ?? "");
@@ -1404,7 +1405,7 @@ router.get(
  *  fields because hotel logistics are producer-controlled. */
 router.patch(
   "/portal/briefs/:id/hotel/:gigId",
-  requireSignedIn,
+  requireEmployee,
   async (req, res) => {
     const userId = (req as unknown as { _userId: string })._userId;
     const briefId = String(req.params.id ?? "");
@@ -1669,7 +1670,7 @@ router.patch(
  *  to update both gigs at once. */
 router.patch(
   "/portal/briefs/:id/roster/:gigId/dates",
-  requireSignedIn,
+  requireEmployee,
   async (req, res) => {
     const userId = (req as unknown as { _userId: string })._userId;
     const briefId = String(req.params.id ?? "");
@@ -1915,7 +1916,7 @@ function expandDateRange(
 
 router.get(
   "/portal/briefs/:id/roster",
-  requireSignedIn,
+  requireEmployee,
   async (req, res) => {
     const userId = (req as unknown as { _userId: string })._userId;
     const id = String(req.params.id ?? "");
@@ -2218,7 +2219,7 @@ router.get(
  *  alone. The single transaction makes that all-or-nothing. */
 router.post(
   "/portal/briefs/:id/hotel/lock",
-  requireSignedIn,
+  requireEmployee,
   async (req, res) => {
     const userId = (req as unknown as { _userId: string })._userId;
     const briefId = String(req.params.id ?? "");
@@ -2359,7 +2360,7 @@ router.post(
  *  brief — only their lock rows are removed. */
 router.post(
   "/portal/briefs/:id/hotel/unlock",
-  requireSignedIn,
+  requireEmployee,
   async (req, res) => {
     const userId = (req as unknown as { _userId: string })._userId;
     const briefId = String(req.params.id ?? "");
@@ -2422,7 +2423,7 @@ router.post(
  *  a no-op the UI shouldn't have offered. */
 router.post(
   "/portal/briefs/:id/hotel/swap",
-  requireSignedIn,
+  requireEmployee,
   async (req, res) => {
     const userId = (req as unknown as { _userId: string })._userId;
     const briefId = String(req.params.id ?? "");

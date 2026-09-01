@@ -827,35 +827,26 @@ export type { ThemePreference };
 
 
 /**
- * Read the canonical user type off the signed-in Clerk user. This is
- * the **server-authoritative** classification (stored in Clerk's
- * `publicMetadata`, not in localStorage), so a freelancer cannot
- * escape the portal lock by clicking the Employee tab or by editing
- * their browser storage. Returns `null` while Clerk is still loading
- * the user object so callers can defer their decision until the
- * truth is known.
+ * Resolve the signed-in user's route from their verified primary Clerk
+ * email. Only a verified primary @ehs.no address is employee-eligible;
+ * every other account is routed as a freelancer. The server enforces the
+ * same rule independently for API authorization.
  */
 function useClerkUserType(): "employee" | "freelancer" | null {
   const { isLoaded, user } = useUser();
   if (!isLoaded) return null;
-  const raw = (user?.publicMetadata as Record<string, unknown> | undefined)
-    ?.userType;
-  if (raw === "freelancer") return "freelancer";
-  if (raw === "employee") return "employee";
-  // Untagged EHS-domain accounts are trusted staff; all other untagged
-  // accounts are treated as freelancers until an administrator assigns
-  // explicit employee metadata. This mirrors the server and prevents a new
-  // external signup from briefly entering the Production Tool while its
-  // freelancer tag is still being written.
-  const email = user?.primaryEmailAddress?.emailAddress?.trim().toLowerCase();
-  return email?.endsWith("@ehs.no") ? "employee" : "freelancer";
+  const primary = user?.primaryEmailAddress;
+  const email = primary?.emailAddress?.trim().toLowerCase();
+  return primary?.verification?.status === "verified" &&
+    email?.endsWith("@ehs.no")
+    ? "employee"
+    : "freelancer";
 }
 
 function PostLoginRedirect() {
   const [location, setLocation] = useLocation();
   const serverRole = useClerkUserType();
   const { getToken } = useAuth();
-  const { user } = useUser();
   // Capture the sign-in vs sign-up mode synchronously at render time.
   // The sibling `ClearAuthMode` component also runs in a useEffect on
   // signed-in mount and removes this key — without capturing it
@@ -866,11 +857,9 @@ function PostLoginRedirect() {
   useEffect(() => {
     let cancelled = false;
     const intent = loadInitialLoginIntent();
-    // Trust Clerk metadata over the user's sign-in tab choice: a
-    // freelancer who picked "Ansatt" on the role toggle is still a
-    // freelancer and must be routed to the portal.
-    const effective: LoginIntent | null =
-      serverRole === "freelancer" ? "freelancer" : (intent ?? null);
+    // The verified primary email classification always wins over the tab
+    // selected before authentication.
+    const effective: LoginIntent | null = serverRole;
 
     // Bootstrap-tag a brand-new freelancer in Clerk publicMetadata so
     // the Production Tool refuses to load for them even before they
@@ -884,7 +873,7 @@ function PostLoginRedirect() {
     if (
       intent === "freelancer" &&
       authModeAtMount.current === "signUp" &&
-      serverRole !== "freelancer"
+      serverRole === "freelancer"
     ) {
       (async () => {
         try {
@@ -898,44 +887,14 @@ function PostLoginRedirect() {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
           });
         } catch {
-          // Best-effort: if the call fails the user is still locked
-          // by localStorage role + the lazy-backfill that fires the
-          // next time they hit any portal endpoint. No need to
-          // surface this to the user.
+          // Best-effort metadata synchronization only. Frontend routing and
+          // backend authorization already classify this account by its
+          // verified primary email.
         }
       })();
     }
 
     void (async () => {
-      // An @ehs.no staff member can safely repair their own stale legacy
-      // freelancer tag. The server validates the signed-in email domain and
-      // only changes the caller's own account; ordinary freelancers receive
-      // 403 and remain isolated in the portal.
-      if (serverRole === "freelancer" && intent === "employee") {
-        try {
-          const token = await getToken();
-          const baseUrl =
-            (typeof import.meta !== "undefined" &&
-              (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
-            "/";
-          const response = await fetch(`${baseUrl}api/admin/claim-employee`, {
-            method: "POST",
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-          });
-          if (response.ok) {
-            await user?.reload();
-            if (cancelled) return;
-            saveUserRole("employee");
-            saveLoginIntent(null);
-            setLocation("/");
-            return;
-          }
-        } catch {
-          // A failed recovery must never grant employee access. Continue with
-          // the authoritative freelancer role and route to the portal.
-        }
-      }
-
       if (!effective || cancelled) return;
       saveUserRole(effective);
       const inPortal =
@@ -959,22 +918,16 @@ function PostLoginRedirect() {
 
 /**
  * Continuous guard that locks freelancers to the /portal/* surface.
- * Runs on every location change; if **either** the persisted local
- * role OR the Clerk-authoritative `publicMetadata.userType` says
- * "freelancer", the user is redirected back to /portal whenever they
- * navigate outside it. Clerk metadata wins on conflict — a freelancer
- * who tampered with their localStorage role still gets bounced.
+ * Runs on every location change. Once Clerk is loaded, the verified primary
+ * email classification wins; local storage is only a loading-time fallback.
  */
 function FreelancerGuard() {
   const [location, setLocation] = useLocation();
   const localRole = loadUserRole();
   const serverRole = useClerkUserType();
-  // Server (Clerk publicMetadata) is the source of truth once it has
-  // resolved. If the server says the user is an employee, ignore any
-  // stale localStorage role flag — and clear it — so an employee who
-  // once clicked the Frilanser tab is not permanently bounced back to
-  // the portal. Only fall back to localRole while serverRole is still
-  // loading (null) to avoid a flash of the wrong screen.
+  // Once Clerk resolves, ignore any stale local role flag and use the
+  // verified primary email classification. localRole only prevents a flash
+  // of the wrong surface while Clerk is still loading.
   useEffect(() => {
     if (serverRole === "employee" && localRole === "freelancer") {
       saveUserRole(null);

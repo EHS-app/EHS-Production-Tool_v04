@@ -168,7 +168,7 @@ export function Vercel() {
             <div className="mt-2 flex items-baseline gap-2">
               <div className="text-2xl font-bold tracking-tight">18 <span className="text-zinc-500 text-lg font-medium">/ 22</span></div>
             </div>
-            <Progress value={81} className="h-1.5 mt-3 bg-zinc-800" indicatorClassName="bg-zinc-300" />
+            <Progress value={81} className="h-1.5 mt-3 bg-zinc-800 [&>div]:bg-zinc-300" />
           </div>
 
           <div className="vercel-card p-5">
@@ -179,7 +179,7 @@ export function Vercel() {
             <div className="mt-2 flex items-baseline gap-2">
               <div className="text-2xl font-bold tracking-tight">4.2 t <span className="text-zinc-500 text-lg font-medium">/ 6.0 t maks</span></div>
             </div>
-            <Progress value={70} className="h-1.5 mt-3 bg-zinc-800" indicatorClassName="bg-amber-500" />
+            <Progress value={70} className="h-1.5 mt-3 bg-zinc-800 [&>div]:bg-amber-500" />
           </div>
 
           <div className="vercel-card p-5">

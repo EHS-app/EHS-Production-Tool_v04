@@ -21076,7 +21076,7 @@ var require_application = __commonJS({
       return this;
     };
     app2.render = function render(name, options, callback) {
-      var cache3 = this.cache;
+      var cache2 = this.cache;
       var done = callback;
       var engines = this.engines;
       var opts = options;
@@ -21090,7 +21090,7 @@ var require_application = __commonJS({
         renderOptions.cache = this.enabled("view cache");
       }
       if (renderOptions.cache) {
-        view = cache3[name];
+        view = cache2[name];
       }
       if (!view) {
         var View3 = this.get("view");
@@ -21106,7 +21106,7 @@ var require_application = __commonJS({
           return done(err);
         }
         if (renderOptions.cache) {
-          cache3[name] = view;
+          cache2[name] = view;
         }
       }
       tryRender(view, renderOptions, done);
@@ -26776,12 +26776,12 @@ var require_levels = __commonJS({
     function genLsCache(instance) {
       const formatter = instance[formattersSym].level;
       const { labels } = instance.levels;
-      const cache3 = {};
+      const cache2 = {};
       for (const label in labels) {
         const level = formatter(labels[label], Number(label));
-        cache3[label] = JSON.stringify(level).slice(0, -1);
+        cache2[label] = JSON.stringify(level).slice(0, -1);
       }
-      instance[lsCacheSym] = cache3;
+      instance[lsCacheSym] = cache2;
       return instance;
     }
     function isStandardLevel(level, useOnlyCustomLevels) {
@@ -46432,8 +46432,8 @@ var DEFAULT_CACHE_TTL_MS = 864e5;
 var TelemetryEventThrottler = class {
   #cache;
   #cacheTtl = DEFAULT_CACHE_TTL_MS;
-  constructor(cache3) {
-    this.#cache = cache3;
+  constructor(cache2) {
+    this.#cache = cache2;
   }
   isEventThrottled(payload) {
     const now = Date.now();
@@ -46472,18 +46472,18 @@ var LocalStorageThrottlerCache = class {
   }
   setItem(key2, value) {
     try {
-      const cache3 = this.#getCache();
-      cache3[key2] = value;
-      localStorage.setItem(this.#storageKey, JSON.stringify(cache3));
+      const cache2 = this.#getCache();
+      cache2[key2] = value;
+      localStorage.setItem(this.#storageKey, JSON.stringify(cache2));
     } catch (err) {
       if (err instanceof DOMException && (err.name === "QuotaExceededError" || err.name === "NS_ERROR_DOM_QUOTA_REACHED") && localStorage.length > 0) localStorage.removeItem(this.#storageKey);
     }
   }
   removeItem(key2) {
     try {
-      const cache3 = this.#getCache();
-      delete cache3[key2];
-      localStorage.setItem(this.#storageKey, JSON.stringify(cache3));
+      const cache2 = this.#getCache();
+      delete cache2[key2];
+      localStorage.setItem(this.#storageKey, JSON.stringify(cache2));
     } catch {
     }
   }
@@ -62324,12 +62324,12 @@ async function hashQuery(sql2, params) {
 
 // ../../node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.18.0_pg@8.20.0/node_modules/drizzle-orm/pg-core/session.js
 var PgPreparedQuery = class {
-  constructor(query, cache3, queryMetadata, cacheConfig) {
+  constructor(query, cache2, queryMetadata, cacheConfig) {
     this.query = query;
-    this.cache = cache3;
+    this.cache = cache2;
     this.queryMetadata = queryMetadata;
     this.cacheConfig = cacheConfig;
-    if (cache3 && cache3.strategy() === "all" && cacheConfig === void 0) {
+    if (cache2 && cache2.strategy() === "all" && cacheConfig === void 0) {
       this.cacheConfig = { enable: true, autoInvalidate: true };
     }
     if (!this.cacheConfig?.enable) {
@@ -62485,8 +62485,8 @@ var PgTransaction = class extends PgDatabase {
 // ../../node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.18.0_pg@8.20.0/node_modules/drizzle-orm/node-postgres/session.js
 var { Pool: Pool2, types: types2 } = esm_default;
 var NodePgPreparedQuery = class extends PgPreparedQuery {
-  constructor(client, queryString, params, logger2, cache3, queryMetadata, cacheConfig, fields, name, _isResponseInArrayMode, customResultMapper) {
-    super({ sql: queryString, params }, cache3, queryMetadata, cacheConfig);
+  constructor(client, queryString, params, logger2, cache2, queryMetadata, cacheConfig, fields, name, _isResponseInArrayMode, customResultMapper) {
+    super({ sql: queryString, params }, cache2, queryMetadata, cacheConfig);
     this.client = client;
     this.queryString = queryString;
     this.params = params;
@@ -76205,49 +76205,38 @@ if (!clerk) {
     "CLERK_SECRET_KEY missing \u2014 employee authorization will be denied."
   );
 }
-var TTL_MS = 6e4;
-var cache2 = /* @__PURE__ */ new Map();
-function hasEhsStaffEmail(user) {
-  return (user.emailAddresses ?? []).some(
-    (entry) => entry.emailAddress?.trim().toLowerCase().endsWith("@ehs.no")
+function hasVerifiedPrimaryEhsEmail(user) {
+  if (!user.primaryEmailAddressId) return false;
+  const primary = (user.emailAddresses ?? []).find(
+    (entry) => entry.id === user.primaryEmailAddressId
   );
-}
-function readCache(userId) {
-  const hit = cache2.get(userId);
-  if (!hit) return null;
-  if (Date.now() - hit.at > TTL_MS) {
-    cache2.delete(userId);
-    return null;
-  }
-  return hit.type;
-}
-function writeCache(userId, type) {
-  cache2.set(userId, { type, at: Date.now() });
-}
-function invalidateUserTypeCache(userId) {
-  cache2.delete(userId);
+  return primary?.verification?.status === "verified" && primary.emailAddress?.trim().toLowerCase().endsWith("@ehs.no") === true;
 }
 async function tagAsFreelancer(userId) {
   if (!clerk) return;
   try {
     const current = await clerk.users.getUser(userId);
-    const currentType = current.publicMetadata?.userType;
-    if (currentType === "employee") {
-      logger.warn(
-        { scope: "userType", userId },
-        "refusing to tag user as freelancer \u2014 already tagged employee"
-      );
-      writeCache(userId, "employee");
+    if (hasVerifiedPrimaryEhsEmail(current)) {
+      if (current.publicMetadata?.userType !== "employee") {
+        await clerk.users.updateUserMetadata(userId, {
+          publicMetadata: {
+            ...current.publicMetadata,
+            userType: "employee"
+          }
+        });
+      }
       return;
     }
+    const currentType = current.publicMetadata?.userType;
     if (currentType === "freelancer") {
-      writeCache(userId, "freelancer");
       return;
     }
     await clerk.users.updateUserMetadata(userId, {
-      publicMetadata: { userType: "freelancer" }
+      publicMetadata: {
+        ...current.publicMetadata,
+        userType: "freelancer"
+      }
     });
-    writeCache(userId, "freelancer");
   } catch (err) {
     logger.warn(
       {
@@ -76260,28 +76249,26 @@ async function tagAsFreelancer(userId) {
   }
 }
 async function getUserType(userId) {
-  const cached2 = readCache(userId);
-  if (cached2) return cached2;
   let clerkLookupFailed = !clerk;
   if (clerk) {
     try {
       const user = await clerk.users.getUser(userId);
       clerkLookupFailed = false;
+      const eligibleEmployee = hasVerifiedPrimaryEhsEmail(user);
+      const expectedType = eligibleEmployee ? "employee" : "freelancer";
       const raw = user.publicMetadata?.userType;
-      if (raw === "freelancer" || raw === "employee") {
-        writeCache(userId, raw);
-        return raw;
-      }
-      if (hasEhsStaffEmail(user)) {
+      if (raw !== expectedType) {
         await clerk.users.updateUserMetadata(userId, {
           publicMetadata: {
             ...user.publicMetadata,
-            userType: "employee"
+            userType: expectedType
           }
         });
-        writeCache(userId, "employee");
+      }
+      if (eligibleEmployee) {
         return "employee";
       }
+      return "freelancer";
     } catch (err) {
       logger.warn(
         {
@@ -76298,7 +76285,6 @@ async function getUserType(userId) {
     const rows = await db.select({ userId: freelancerProfilesTable.userId }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId)).limit(1);
     if (rows.length > 0) {
       void tagAsFreelancer(userId);
-      writeCache(userId, "freelancer");
       return "freelancer";
     }
   } catch (err) {
@@ -76316,7 +76302,6 @@ async function getUserType(userId) {
     throw new Error("Unable to resolve user type safely.");
   }
   await tagAsFreelancer(userId);
-  writeCache(userId, "freelancer");
   return "freelancer";
 }
 var requireEmployee = async (req, res, next) => {
@@ -77556,7 +77541,7 @@ router7.get("/portal/briefs/mine", requireSignedIn5, async (req, res) => {
     res.status(500).json({ ok: false, error: "Could not load briefs." });
   }
 });
-router7.get("/portal/briefs", requireSignedIn5, async (req, res) => {
+router7.get("/portal/briefs", requireEmployee, async (req, res) => {
   const userId = req._userId;
   try {
     const rows = await db.select().from(projectBriefsTable).where(eq(projectBriefsTable.ownerUserId, userId)).orderBy(desc(projectBriefsTable.updatedAt)).limit(200);
@@ -77600,7 +77585,7 @@ router7.get("/portal/briefs/:id", requireSignedIn5, async (req, res) => {
     res.status(500).json({ ok: false, error: "Could not load brief." });
   }
 });
-router7.post("/portal/briefs", requireSignedIn5, async (req, res) => {
+router7.post("/portal/briefs", requireEmployee, async (req, res) => {
   const userId = req._userId;
   const body = req.body ?? {};
   const data = body.data;
@@ -77688,7 +77673,7 @@ router7.post("/portal/briefs", requireSignedIn5, async (req, res) => {
 });
 router7.get(
   "/portal/briefs/:id/assignments",
-  requireSignedIn5,
+  requireEmployee,
   async (req, res) => {
     const userId = req._userId;
     const id = String(req.params.id ?? "");
@@ -77918,7 +77903,7 @@ var COUNTABLE_GIG_STATUSES = /* @__PURE__ */ new Set([
 ]);
 router7.get(
   "/portal/briefs/:id/catering",
-  requireSignedIn5,
+  requireEmployee,
   async (req, res) => {
     const userId = req._userId;
     const id = String(req.params.id ?? "");
@@ -78044,7 +78029,7 @@ router7.get(
 );
 router7.get(
   "/portal/briefs/:id/hotel",
-  requireSignedIn5,
+  requireEmployee,
   async (req, res) => {
     const userId = req._userId;
     const id = String(req.params.id ?? "");
@@ -78195,7 +78180,7 @@ router7.get(
 );
 router7.patch(
   "/portal/briefs/:id/hotel/:gigId",
-  requireSignedIn5,
+  requireEmployee,
   async (req, res) => {
     const userId = req._userId;
     const briefId = String(req.params.id ?? "");
@@ -78337,7 +78322,7 @@ router7.patch(
 );
 router7.patch(
   "/portal/briefs/:id/roster/:gigId/dates",
-  requireSignedIn5,
+  requireEmployee,
   async (req, res) => {
     const userId = req._userId;
     const briefId = String(req.params.id ?? "");
@@ -78493,7 +78478,7 @@ function expandDateRange(startIso, endIso) {
 }
 router7.get(
   "/portal/briefs/:id/roster",
-  requireSignedIn5,
+  requireEmployee,
   async (req, res) => {
     const userId = req._userId;
     const id = String(req.params.id ?? "");
@@ -78675,7 +78660,7 @@ router7.get(
 );
 router7.post(
   "/portal/briefs/:id/hotel/lock",
-  requireSignedIn5,
+  requireEmployee,
   async (req, res) => {
     const userId = req._userId;
     const briefId = String(req.params.id ?? "");
@@ -78763,7 +78748,7 @@ router7.post(
 );
 router7.post(
   "/portal/briefs/:id/hotel/unlock",
-  requireSignedIn5,
+  requireEmployee,
   async (req, res) => {
     const userId = req._userId;
     const briefId = String(req.params.id ?? "");
@@ -78801,7 +78786,7 @@ router7.post(
 );
 router7.post(
   "/portal/briefs/:id/hotel/swap",
-  requireSignedIn5,
+  requireEmployee,
   async (req, res) => {
     const userId = req._userId;
     const briefId = String(req.params.id ?? "");
@@ -80613,11 +80598,24 @@ var clerk3 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: proce
 var ADMIN_EMAIL_DOMAIN = "@ehs.no";
 function getEmailFromUser(user) {
   const list2 = user.emailAddresses ?? [];
-  for (const e of list2) {
-    const addr = e?.emailAddress;
-    if (typeof addr === "string" && addr.includes("@")) return addr;
+  const primary = list2.find(
+    (entry) => entry.id === user.primaryEmailAddressId
+  );
+  if (typeof primary?.emailAddress === "string") {
+    return primary.emailAddress;
   }
-  return null;
+  return list2.find((entry) => typeof entry.emailAddress === "string")?.emailAddress ?? null;
+}
+function getVerifiedPrimaryEhsEmail(user) {
+  if (!user.primaryEmailAddressId) return null;
+  const primary = (user.emailAddresses ?? []).find(
+    (entry) => entry.id === user.primaryEmailAddressId
+  );
+  const email3 = primary?.emailAddress?.trim().toLowerCase();
+  if (primary?.verification?.status !== "verified" || !email3?.endsWith(ADMIN_EMAIL_DOMAIN)) {
+    return null;
+  }
+  return email3;
 }
 var requireAdmin = async (req, res, next) => {
   if (!clerk3) {
@@ -80632,11 +80630,11 @@ var requireAdmin = async (req, res, next) => {
   }
   try {
     const caller = await clerk3.users.getUser(userId);
-    const email3 = getEmailFromUser(caller);
-    if (!email3 || !email3.toLowerCase().endsWith(ADMIN_EMAIL_DOMAIN)) {
+    const email3 = getVerifiedPrimaryEhsEmail(caller);
+    if (!email3) {
       res.status(403).json({
         ok: false,
-        error: "Admin tools are restricted to EHS staff."
+        error: "Admin tools require a verified primary EHS email address."
       });
       return;
     }
@@ -80674,7 +80672,6 @@ router13.post("/admin/claim-employee", requireAdmin, async (req, res) => {
         userType: "employee"
       }
     });
-    invalidateUserTypeCache(userId);
     await db.delete(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId));
     res.json({ ok: true, userType: "employee" });
   } catch (err) {
@@ -80714,7 +80711,6 @@ router13.post("/admin/set-user-type", requireAdmin, async (req, res) => {
       await clerk3.users.updateUserMetadata(u.id, {
         publicMetadata: { ...u.publicMetadata ?? {}, userType }
       });
-      invalidateUserTypeCache(u.id);
       let freelancerProfileDeleted = false;
       if (userType === "employee") {
         try {
@@ -80795,7 +80791,6 @@ router13.post("/admin/delete-user", requireAdmin, async (req, res) => {
         );
       }
       await clerk3.users.deleteUser(u.id);
-      invalidateUserTypeCache(u.id);
       deleted.push({ userId: u.id, email: getEmailFromUser(u) });
     }
     logger.info(

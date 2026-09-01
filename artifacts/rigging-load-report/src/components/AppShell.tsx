@@ -14,6 +14,7 @@ import {
   LogOut,
   MapPin,
   Menu,
+  MessageSquare,
   MonitorPlay,
   MoreHorizontal,
   Plus,
@@ -29,6 +30,8 @@ import {
 import type { ThemePreference } from "../main";
 import { useT, type Translator } from "../lib/i18n/I18nContext";
 import { CommandPalette } from "./CommandPalette";
+import { FeedbackDialog } from "./FeedbackDialog";
+import { Toaster } from "./ui/sonner";
 
 /**
  * Linear v2 — Tactical Command Center shell.
@@ -226,6 +229,7 @@ export function AppShell({
   const [themeOpen, setThemeOpen] = React.useState(false);
   const [cmdOpen, setCmdOpen] = React.useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [feedbackOpen, setFeedbackOpen] = React.useState(false);
   const overflowRef = React.useRef<HTMLDivElement | null>(null);
   const themeRef = React.useRef<HTMLDivElement | null>(null);
   const mobileMenuBtnRef = React.useRef<HTMLButtonElement | null>(null);
@@ -480,6 +484,17 @@ export function AppShell({
                 <button
                   type="button"
                   role="menuitem"
+                  className="ehs-shell-menu-item"
+                  onClick={() => {
+                    setThemeOpen(false);
+                    setFeedbackOpen(true);
+                  }}
+                >
+                  <MessageSquare size={12} /> Feedback
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
                   className="ehs-shell-menu-item is-danger"
                   onClick={() => {
                     setThemeOpen(false);
@@ -655,6 +670,8 @@ export function AppShell({
         showHotel={showHotel}
         showCatering={showCatering}
       />
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+      <Toaster theme={themePref === "system" ? "dark" : themePref} />
     </div>
   );
 }

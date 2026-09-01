@@ -11,3 +11,4 @@ export * from "./briefRoomAssignments";
 export * from "./projects";
 export * from "./timeEntries";
 export * from "./calendar";
+export * from "./feedbackReports";

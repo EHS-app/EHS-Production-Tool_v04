@@ -12,6 +12,7 @@ import portalCalendarRouter from "./portalCalendar";
 import projectsRouter from "./projects";
 import inspectionExtractRouter from "./inspectionExtract";
 import adminRouter from "./admin";
+import feedbackRouter from "./feedback";
 import { requireEmployee } from "../middleware/userType";
 
 const router: IRouter = Router();
@@ -43,6 +44,7 @@ router.use(inspectionExtractRouter);
 // don't accidentally double-gate it, but the admin gate is strictly
 // tighter than the employee gate.
 router.use(adminRouter);
+router.use(feedbackRouter);
 
 // Portal surface — open to both freelancers (their own data) and
 // employees (producers reading freelancer data via the Crew Report).

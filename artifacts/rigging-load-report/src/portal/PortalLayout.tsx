@@ -11,6 +11,7 @@ import {
   HelpCircle,
   Inbox,
   LogOut,
+  MessageSquare,
   MoreHorizontal,
   Search,
   TrendingUp,
@@ -21,6 +22,8 @@ import ehsLogo from "../assets/ehs-logo.png";
 import { PALETTE, PORTAL_FONT, type ThemeMode } from "./lib/portalTheme";
 import { useT } from "../lib/i18n/I18nContext";
 import type { TranslationKey } from "../lib/i18n/types";
+import { FeedbackDialog } from "../components/FeedbackDialog";
+import { Toaster } from "../components/ui/sonner";
 
 export type PortalNavKey =
   | "hub"
@@ -115,6 +118,7 @@ export function PortalLayout({
     : "no";
 
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [feedbackOpen, setFeedbackOpen] = React.useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -277,6 +281,17 @@ export function PortalLayout({
                 <button
                   type="button"
                   role="menuitem"
+                  className="ehs-shell-menu-item"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setFeedbackOpen(true);
+                  }}
+                >
+                  <MessageSquare size={12} /> {lang === "no" ? "Tilbakemelding" : "Feedback"}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
                   className="ehs-shell-menu-item is-danger"
                   onClick={() => {
                     setMenuOpen(false);
@@ -407,6 +422,9 @@ export function PortalLayout({
           .ehs-portal-bottomnav { display: none !important; }
         }
       `}</style>
+
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+      <Toaster theme={pref === "system" ? "dark" : pref} />
     </div>
   );
 }

@@ -1,0 +1,47 @@
+Please implement a combined "Feedback & Bug Report" system across both the Employee Production Tool (`/`) and the Freelancer Portal (`/portal`), along with an Admin Management View (`/admin/feedback`).
+
+CRITICAL SAFETY RULES:
+1. Do NOT modify, hide, or alter Clerk's internal React components (`<SignIn />`, `<SignUp />`) or CSS styles.
+2. Do NOT drop, alter, or reset any existing PostgreSQL database tables, Drizzle schemas, or environment variables.
+
+TASK 1: Database Schema (`db/schema.ts` or equivalent)
+- Add a new `feedback_reports` table with the following fields:
+  - `id`: serial primary key
+  - `userId`: varchar(255), not null
+  - `userEmail`: varchar(255)
+  - `userRole`: varchar(50) -- 'employee' or 'freelancer'
+  - `type`: varchar(50), default 'bug' -- 'bug' or 'feature_request'
+  - `title`: varchar(255), not null
+  - `description`: text, not null
+  - `pageUrl`: varchar(512)
+  - `userAgent`: text
+  - `status`: varchar(50), default 'open' -- 'open', 'in_progress', 'resolved'
+  - `createdAt`: timestamp with time zone, default now()
+
+TASK 2: API Routes (`artifacts/api-server/src/routes/feedback.ts`)
+1. `POST /api/feedback` (Protected by `requireSignedIn`):
+   - Accepts JSON payload: `{ type, title, description, pageUrl }`.
+   - Automatically populates submitter's primary verified email, current role (`userType`), and user-agent.
+   - Saves record to `feedback_reports` and returns `201 Created`.
+2. `GET /api/admin/feedback` (Protected by `requireAdmin`):
+   - Returns all feedback items ordered by `createdAt DESC`.
+3. `PATCH /api/admin/feedback/:id` (Protected by `requireAdmin`):
+   - Accepts `{ status }` and updates the specified report.
+- Mount the new router in `artifacts/api-server/src/routes/index.ts`.
+
+TASK 3: Shared Frontend Submission UI
+- Add a "Send Feedback / Report Bug" option in the top navigation bar / user profile menu available to BOTH `/` (Production Tool) and `/portal` (Freelancer Portal).
+- Clicking it opens a clean dialog modal with:
+  - Type selection: 🐛 "Bug Report" vs 💡 "Feature Request"
+  - Title / Subject input field
+  - Detailed Description textarea
+- Automatically include `window.location.href` as `pageUrl` on submit.
+- Show a confirmation toast upon successful submission.
+
+TASK 4: Admin Management UI (`/admin/feedback`)
+- Create an admin page under `/admin/feedback` (protected by `requireAdmin` and `FreelancerGuard`).
+- Render a table showing: Date, Type (Bug/Feature), Submitter Email, Role (Employee/Freelancer), Title, Page URL, Status badge, and Actions.
+- Provide filter controls for Type ('all', 'bug', 'feature_request') and Status ('all', 'open', 'in_progress', 'resolved').
+- Allow admins to update status ('open', 'in_progress', 'resolved') directly from the interface.
+
+After implementing, run `pnpm build` in the workspace root to confirm zero TypeScript compilation errors across all workspace artifacts.

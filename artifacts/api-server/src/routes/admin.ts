@@ -52,7 +52,7 @@ function getVerifiedPrimaryEhsEmail(user: {
   return email;
 }
 
-const requireAdmin: RequestHandler = async (req, res, next) => {
+export const requireAdmin: RequestHandler = async (req, res, next) => {
   if (!clerk) {
     res
       .status(503)

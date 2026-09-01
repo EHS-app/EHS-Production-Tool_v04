@@ -13,6 +13,7 @@ import { dark } from "@clerk/themes";
 import { Redirect, Route, Router, Switch, useLocation } from "wouter";
 import App from "./App";
 import AdminUsersPage from "./AdminUsersPage";
+import AdminFeedbackPage from "./AdminFeedbackPage";
 import { Portal } from "./portal/Portal";
 import { I18nProvider, useT } from "./lib/i18n/I18nContext";
 import { FartButton } from "./components/fart/FartButton";
@@ -1120,6 +1121,9 @@ function AuthGate({
             </Route>
             <Route path="/admin/users">
               <AdminUsersPage />
+            </Route>
+            <Route path="/admin/feedback">
+              <AdminFeedbackPage />
             </Route>
             <Route>
               <ProductionToolGate />

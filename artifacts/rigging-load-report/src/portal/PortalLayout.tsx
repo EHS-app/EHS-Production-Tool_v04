@@ -126,6 +126,11 @@ export function PortalLayout({
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [feedbackOpen, setFeedbackOpen] = React.useState(false);
 
+  const openFeedback = React.useCallback(() => {
+    setFeedbackOpen(true);
+    setMenuOpen(false);
+  }, []);
+
   const allItems = [...NAV_WORK, ...NAV_ACCOUNT];
   const activeItem = allItems.find((i) => i.key === active);
   const activeLabel = activeItem ? t(activeItem.labelKey) : "";
@@ -266,11 +271,16 @@ export function PortalLayout({
                 <div className="ehs-shell-menu-sep" />
                 <DropdownMenuItem
                   className="ehs-shell-menu-item"
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openFeedback();
+                  }}
                   onSelect={(event) => {
                     event.preventDefault();
-                    setFeedbackOpen(true);
-                    setMenuOpen(false);
+                    openFeedback();
                   }}
+                  onClick={openFeedback}
                 >
                   <MessageSquare size={12} /> {lang === "no" ? "Tilbakemelding" : "Feedback"}
                 </DropdownMenuItem>

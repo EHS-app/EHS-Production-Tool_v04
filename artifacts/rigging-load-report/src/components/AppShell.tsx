@@ -240,6 +240,11 @@ export function AppShell({
   const mobileMenuBtnRef = React.useRef<HTMLButtonElement | null>(null);
   const wasMobileMenuOpenRef = React.useRef(false);
 
+  const openFeedback = React.useCallback(() => {
+    setFeedbackOpen(true);
+    setThemeOpen(false);
+  }, []);
+
   // Auto-close the mobile drawer when the user picks a nav item.
   const handleChangeView = React.useCallback(
     (next: ShellView) => {
@@ -484,11 +489,16 @@ export function AppShell({
                 ) : null}
                 <DropdownMenuItem
                   className="ehs-shell-menu-item"
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openFeedback();
+                  }}
                   onSelect={(event) => {
                     event.preventDefault();
-                    setFeedbackOpen(true);
-                    setThemeOpen(false);
+                    openFeedback();
                   }}
+                  onClick={openFeedback}
                 >
                   <MessageSquare size={12} /> Feedback
                 </DropdownMenuItem>

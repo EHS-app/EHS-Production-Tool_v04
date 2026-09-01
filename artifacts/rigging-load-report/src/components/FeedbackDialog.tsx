@@ -54,15 +54,16 @@ export function FeedbackDialog({
       aria-describedby="feedback-panel-description"
       style={{
         position: "fixed",
-        bottom: 64,
-        left: 16,
+        bottom: 24,
+        left: 24,
         zIndex: 9999,
-        width: 384,
-        maxWidth: "calc(100vw - 2rem)",
-        maxHeight: "calc(100vh - 5rem)",
+        width: "calc(100vw - 3rem)",
+        minWidth: "min(340px, calc(100vw - 3rem))",
+        maxWidth: 512,
+        maxHeight: "calc(100vh - 3rem)",
         overflowY: "auto",
         padding: 24,
-        borderRadius: 12,
+        borderRadius: 16,
         background: "var(--card-bg, #25252F)",
         border: "1px solid var(--border-color, #2a2a34)",
         boxShadow: "0 24px 64px rgba(0, 0, 0, 0.45)",
@@ -113,34 +114,49 @@ export function FeedbackDialog({
       </div>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <label
+          <div
+            role="group"
+            aria-label="Feedback type"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: 12,
+              width: "100%",
+              marginBottom: 4,
+            }}
+          >
+            <button
+              type="button"
+              aria-pressed={type === "bug"}
+              onClick={() => setType("bug")}
               style={{
                 display: "flex",
                 alignItems: "center",
+                justifyContent: "center",
                 gap: 8,
                 cursor: "pointer",
                 padding: 12,
                 borderRadius: 8,
                 border: `1px solid ${type === "bug" ? "#F88000" : "var(--border-color, #2a2a34)"}`,
-                background: type === "bug" ? "rgba(248,128,0,0.1)" : "transparent",
+                background: type === "bug" ? "rgba(248,128,0,0.10)" : "rgba(0,0,0,0.08)",
+                color: type === "bug" ? "var(--text-main, #E5E5EC)" : "var(--text-muted, #9999A6)",
+                boxShadow: type === "bug" ? "0 0 0 2px rgba(248,128,0,0.20)" : "none",
+                fontSize: 14,
+                fontWeight: 600,
+                transition: "background 150ms ease, border-color 150ms ease, box-shadow 150ms ease, color 150ms ease",
               }}
             >
-              <input
-                type="radio"
-                name="feedbackType"
-                value="bug"
-                checked={type === "bug"}
-                onChange={() => setType("bug")}
-                style={{ accentColor: "#F88000" }}
-              />
               <Bug size={16} aria-hidden />
               Bug Report
-            </label>
-            <label
+            </button>
+            <button
+              type="button"
+              aria-pressed={type === "feature_request"}
+              onClick={() => setType("feature_request")}
               style={{
                 display: "flex",
                 alignItems: "center",
+                justifyContent: "center",
                 gap: 8,
                 cursor: "pointer",
                 padding: 12,
@@ -148,21 +164,24 @@ export function FeedbackDialog({
                 border: `1px solid ${type === "feature_request" ? "#F88000" : "var(--border-color, #2a2a34)"}`,
                 background:
                   type === "feature_request"
-                    ? "rgba(248,128,0,0.1)"
-                    : "transparent",
+                    ? "rgba(248,128,0,0.10)"
+                    : "rgba(0,0,0,0.08)",
+                color:
+                  type === "feature_request"
+                    ? "var(--text-main, #E5E5EC)"
+                    : "var(--text-muted, #9999A6)",
+                boxShadow:
+                  type === "feature_request"
+                    ? "0 0 0 2px rgba(248,128,0,0.20)"
+                    : "none",
+                fontSize: 14,
+                fontWeight: 600,
+                transition: "background 150ms ease, border-color 150ms ease, box-shadow 150ms ease, color 150ms ease",
               }}
             >
-              <input
-                type="radio"
-                name="feedbackType"
-                value="feature_request"
-                checked={type === "feature_request"}
-                onChange={() => setType("feature_request")}
-                style={{ accentColor: "#F88000" }}
-              />
               <Lightbulb size={16} aria-hidden />
               Feature Request
-            </label>
+            </button>
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>

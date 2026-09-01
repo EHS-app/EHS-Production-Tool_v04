@@ -1,0 +1,585 @@
+# Project and task architecture summary
+
+## 1. Key files
+
+### Database schemas
+
+| File | Purpose |
+|---|---|
+| `lib/db/src/schema/projects.ts` | Main persisted `projects` table and inferred TypeScript types |
+| `lib/db/src/schema/projectBriefs.ts` | Project briefs and freelancer assignment records |
+| `lib/db/src/schema/gigs.ts` | Freelancer gigs created manually or from accepted assignments |
+| `lib/db/src/schema/index.ts` | Central schema exports |
+
+### API routes
+
+| File | Purpose |
+|---|---|
+| `artifacts/api-server/src/routes/projects.ts` | Project list, detail, create, update, and delete endpoints |
+| `artifacts/api-server/src/routes/portalBriefs.ts` | Project brief and assignment operations |
+| `artifacts/api-server/src/routes/portalGigs.ts` | Freelancer gig operations |
+
+The project API currently provides:
+
+```text
+GET    /api/projects
+GET    /api/projects/:id
+POST   /api/projects
+PATCH  /api/projects/:id
+DELETE /api/projects/:id
+```
+
+All project operations are scoped to the authenticated Clerk user.
+
+### Frontend project files
+
+| File | Purpose |
+|---|---|
+| `artifacts/rigging-load-report/src/App.tsx` | Main project editor, project state, persistence, and view selection |
+| `artifacts/rigging-load-report/src/components/AppShell.tsx` | Sidebar, navigation tabs, top bar, and project-detail layout |
+| `artifacts/rigging-load-report/src/components/OverviewView.tsx` | Current project overview screen |
+| `artifacts/rigging-load-report/src/components/ProjectListModal.tsx` | Project browser with create, open, search, and delete controls |
+| `artifacts/rigging-load-report/src/lib/projectBrief.ts` | Project brief and assignment TypeScript types |
+| `artifacts/rigging-load-report/src/lib/crew.ts` | Crew member and crew-role domain types |
+| `artifacts/rigging-load-report/src/lib/riggPlan.ts` | Rigging-plan domain types |
+
+There is currently **no** file named:
+
+```text
+artifacts/rigging-load-report/src/pages/ProjectDetail.tsx
+```
+
+There is no dedicated project-detail route or page component. The equivalent project-detail surface is the main `App` component wrapped by `AppShell`.
+
+---
+
+# 2. Current `projects` schema
+
+Defined in:
+
+```text
+lib/db/src/schema/projects.ts
+```
+
+```ts
+export const projectsTable = pgTable(
+  "projects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+
+    userId: text("user_id").notNull(),
+
+    name: text("name")
+      .notNull()
+      .default("Untitled"),
+
+    venue: text("venue")
+      .notNull()
+      .default(""),
+
+    client: text("client")
+      .notNull()
+      .default(""),
+
+    data: jsonb("data")
+      .notNull()
+      .default({}),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+    })
+      .notNull()
+      .defaultNow(),
+
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+    })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("projects_user_id_idx").on(table.userId),
+  ],
+);
+```
+
+## Database columns
+
+| Column | PostgreSQL type | Required | Default |
+|---|---|---:|---|
+| `id` | UUID | Yes | Random UUID |
+| `user_id` | Text | Yes | — |
+| `name` | Text | Yes | `"Untitled"` |
+| `venue` | Text | Yes | `""` |
+| `client` | Text | Yes | `""` |
+| `data` | JSONB | Yes | `{}` |
+| `created_at` | Timestamp with timezone | Yes | Current time |
+| `updated_at` | Timestamp with timezone | Yes | Current time |
+
+The table has an index on `user_id`.
+
+## Generated project types
+
+```ts
+export const insertProjectSchema =
+  createInsertSchema(projectsTable).omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  });
+
+export type InsertProject =
+  z.infer<typeof insertProjectSchema>;
+
+export type ProjectRow =
+  typeof projectsTable.$inferSelect;
+```
+
+Conceptually, the selected project type is:
+
+```ts
+type ProjectRow = {
+  id: string;
+  userId: string;
+  name: string;
+  venue: string;
+  client: string;
+  data: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+};
+```
+
+The `data` JSONB field currently contains most of the detailed Production Tool state. There is no separate normalized table for task-board data.
+
+---
+
+# 3. Frontend project summary type
+
+Defined in:
+
+```text
+artifacts/rigging-load-report/src/components/ProjectListModal.tsx
+```
+
+```ts
+export type ProjectSummary = {
+  id: string;
+  name: string;
+  venue: string;
+  client: string;
+  createdAt: string;
+  updatedAt: string;
+};
+```
+
+This is the lighter object returned by the project-list endpoint.
+
+The full project response also includes:
+
+```ts
+{
+  userId: string;
+  data: unknown;
+}
+```
+
+There is currently no shared frontend interface for the complete project payload. `App.tsx` loads the `data` object and maps its contents into the component’s individual state variables.
+
+---
+
+# 4. Existing task structures
+
+There is currently **no app-domain task board structure**.
+
+Specifically, the application does not currently contain:
+
+- A `tasks` database table
+- A `Task` TypeScript interface
+- Task CRUD API routes
+- A project-to-task relationship
+- Task status or priority enums
+- Task-board components
+
+The Replit project tasks shown in the workspace are platform planning records. They are not stored in the application database and should not be mixed with the future Production Tool task board.
+
+## Closest existing structure: brief assignments
+
+Defined in:
+
+```text
+lib/db/src/schema/projectBriefs.ts
+```
+
+```ts
+export const briefAssignmentsTable = pgTable(
+  "brief_assignments",
+  {
+    id: text("id").primaryKey(),
+
+    briefId: text("brief_id")
+      .notNull()
+      .references(() => projectBriefsTable.id, {
+        onDelete: "cascade",
+      }),
+
+    freelancerUserId:
+      text("freelancer_user_id").notNull(),
+
+    crewId: text("crew_id")
+      .notNull()
+      .default(""),
+
+    decision: text("decision")
+      .notNull()
+      .default("pending"),
+
+    decidedAt: timestamp("decided_at", {
+      withTimezone: true,
+    }),
+
+    acceptedSnapshot: jsonb("accepted_snapshot"),
+
+    acceptedGigId: text("accepted_gig_id"),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+    })
+      .notNull()
+      .defaultNow(),
+
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+    })
+      .notNull()
+      .defaultNow(),
+  },
+);
+```
+
+These records represent freelancer invitations and decisions, not general project tasks.
+
+## Frontend assignment type
+
+Defined in:
+
+```text
+artifacts/rigging-load-report/src/lib/projectBrief.ts
+```
+
+```ts
+export type BriefAssignment = {
+  crewId: string;
+  name: string;
+  role: CrewRole;
+  callTime: string;
+  offTime: string;
+  hours: number;
+  dayRate: number;
+  notes: string;
+  assignedDates: string[];
+  hotelDates: string[];
+  freelancerUserId?: string;
+};
+```
+
+## Freelancer gigs
+
+Defined in:
+
+```text
+lib/db/src/schema/gigs.ts
+```
+
+Important columns include:
+
+```ts
+{
+  id: string;
+  freelancerUserId: string;
+  briefId: string | null;
+
+  projectName: string;
+  client: string;
+  venue: string;
+  role: string;
+
+  startDate: string | null;
+  endDate: string | null;
+  assignedDates: string[];
+
+  hotelRequired: boolean;
+  hotelDates: string[];
+  checkInDate: string | null;
+  checkOutDate: string | null;
+
+  hours: string;
+  rate: string;
+  flatFee: string;
+  notes: string;
+
+  status: string;
+  checkIn: unknown;
+
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+Supported gig statuses are documented as:
+
+```ts
+"invited" | "confirmed" | "done" | "invoiced" | "paid"
+```
+
+Gigs are freelancer work records, not task-board cards.
+
+---
+
+# 5. Current project-detail view structure
+
+The current project-detail editor is assembled in:
+
+```text
+artifacts/rigging-load-report/src/App.tsx
+```
+
+Its simplified structure is:
+
+```tsx
+function App() {
+  // Project identity and metadata state
+  // Rigging state
+  // Lighting state
+  // LED state
+  // Stage state
+  // Sound state
+  // Crew state
+  // Schedule state
+  // Brief state
+  // Project loading and autosave logic
+
+  return (
+    <div className="container">
+      <AppShell
+        view={mainView}
+        onChangeView={setMainView}
+        projectTitle={venue}
+        projectStatus={projectStatus}
+        onOpenProjects={() => setProjectsOpen(true)}
+        onResetProject={resetAll}
+        // Other shell properties
+      >
+        {mainView === "oversikt" && (
+          <OverviewView
+            projectTitle={venue}
+            dateLabel={dateLabel}
+            venueLabel={venue}
+            metaSlot={projectMetaSlot}
+            kpis={overviewKpis}
+            crewRows={overviewCrewRows}
+            crewDayHeaders={overviewCrewDayHeaders}
+            crewSummary={overviewCrewSummary}
+            systems={overviewSystems}
+            hotelSummary={hotelSummary}
+            cateringSummary={cateringSummary}
+            activity={overviewActivity}
+            onJump={(view) => setMainView(view)}
+          />
+        )}
+
+        {/* Existing project view branches */}
+
+        {mainView === "rigging" && (
+          // Rigging editor
+        )}
+
+        {mainView === "stage" && (
+          // Stage editor
+        )}
+
+        {mainView === "crew" && (
+          // Crew editor
+        )}
+
+        {mainView === "catering" && (
+          // Catering editor
+        )}
+
+        {mainView === "hotel" && (
+          // Hotel editor
+        )}
+
+        {mainView === "sound" && (
+          // Sound editor
+        )}
+
+        {mainView === "riggPlan" && (
+          // Rigging plan
+        )}
+
+        {mainView === "inspection" && (
+          // Inspection view
+        )}
+
+        {mainView === "led" && (
+          // LED editor
+        )}
+
+        {mainView === "lighting" && (
+          // Lighting editor
+        )}
+      </AppShell>
+
+      <ProjectListModal
+        open={projectsOpen}
+        onOpen={openProject}
+        onNew={createProject}
+        onDelete={deleteProject}
+        currentProjectId={currentProjectId}
+      />
+    </div>
+  );
+}
+```
+
+---
+
+# 6. Current navigation structure
+
+The sidebar view union is in:
+
+```text
+artifacts/rigging-load-report/src/components/AppShell.tsx
+```
+
+```ts
+export type ShellView =
+  | "oversikt"
+  | "rigging"
+  | "lighting"
+  | "led"
+  | "stage"
+  | "sound"
+  | "crew"
+  | "hotel"
+  | "catering"
+  | "riggPlan"
+  | "inspection";
+```
+
+Navigation is assembled into two groups:
+
+```ts
+Project:
+- Overview
+- Rigging
+- Lighting
+- LED
+- Sound
+- Stage
+- Rigg Plan
+- Inspection
+
+Logistics:
+- Crew
+- Hotel
+- Catering
+```
+
+---
+
+# 7. Best insertion points for a task board
+
+## Option A: First-class sidebar view
+
+This is the cleanest option for a complete task board.
+
+Add a new view:
+
+```ts
+export type ShellView =
+  | "oversikt"
+  | "tasks"
+  | "rigging"
+  // ...
+```
+
+Add the navigation item in `buildNavGroups()`:
+
+```ts
+{
+  id: "tasks",
+  label: "Tasks",
+  icon: ListTodo,
+}
+```
+
+Then add a branch in `App.tsx` beside the existing overview and discipline views:
+
+```tsx
+{mainView === "tasks" && (
+  <ProjectTaskBoard projectId={currentProjectId} />
+)}
+```
+
+This gives the board its own full workspace and URL-like navigation state.
+
+## Option B: Overview dashboard section
+
+For a compact task summary, insert it into:
+
+```text
+artifacts/rigging-load-report/src/components/OverviewView.tsx
+```
+
+Possible structure:
+
+```tsx
+<OverviewView
+  // Existing props
+  taskSummary={taskSummary}
+  onOpenTasks={() => setMainView("tasks")}
+/>
+```
+
+Then render a small task section inside the overview:
+
+```tsx
+<ProjectTaskSummary
+  tasks={taskSummary}
+  onViewAll={() => onJump("tasks")}
+/>
+```
+
+## Option C: Directly after `OverviewView`
+
+A faster but less modular insertion would be:
+
+```tsx
+{mainView === "oversikt" && (
+  <>
+    <OverviewView {...overviewProps} />
+    <ProjectTaskBoard projectId={currentProjectId} />
+  </>
+)}
+```
+
+This would place the full board below the overview, but it could make the overview page long and crowded.
+
+## Recommended structure
+
+For a full task board, the cleanest architecture is:
+
+```text
+lib/db/src/schema/projectTasks.ts
+artifacts/api-server/src/routes/projectTasks.ts
+artifacts/rigging-load-report/src/types/projectTask.ts
+artifacts/rigging-load-report/src/hooks/use-project-tasks.ts
+artifacts/rigging-load-report/src/components/ProjectTaskBoard.tsx
+artifacts/rigging-load-report/src/components/ProjectTaskCard.tsx
+```
+
+Then add `"tasks"` to `ShellView` and render `ProjectTaskBoard` as a first-class `App.tsx` view.
+
+This keeps tasks normalized and independently queryable instead of embedding the entire board inside the existing `projects.data` JSONB column.

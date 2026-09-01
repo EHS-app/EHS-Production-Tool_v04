@@ -2,4 +2,4 @@
 - [LED finishing row](led-finishing-row.md) — bottom row uses a different real (smaller) panel; finishing panel width MUST match main panel; the key→panel resolver is the single guard.
 - [Profile photo ownership and route gates](profile-photo-security.md) — bind private uploads to their issuer; scope role middleware to URL namespaces so shared portal routes remain reachable.
 - [Calendar interval semantics](calendar-interval-semantics.md) — use half-open instants server-side, then map them into local calendar days; never group all-day events by UTC date prefixes.
-- [Radix menu-to-dialog lifecycle](radix-menu-dialog-lifecycle.md) — keep controlled dialogs outside dropdown portals; prevent selection cancellation and explicitly close the menu.
+- [Feedback panel rendering](feedback-panel-rendering.md) — feedback must be a direct fixed in-layout panel; do not reintroduce Radix Dialog or portal rendering.

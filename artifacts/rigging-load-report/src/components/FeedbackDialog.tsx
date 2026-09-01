@@ -1,21 +1,14 @@
 import React, { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "./ui/dialog";
 import { useSubmitFeedback } from "../hooks/use-feedback";
 import { toast } from "sonner";
 import { Bug, Lightbulb } from "lucide-react";
 
 export function FeedbackDialog({
-  open,
-  onOpenChange,
+  isOpen,
+  onClose,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  isOpen: boolean;
+  onClose: () => void;
 }) {
   const submitFeedback = useSubmitFeedback();
 
@@ -37,7 +30,7 @@ export function FeedbackDialog({
       
       toast.success("Feedback submitted. Thank you!");
 
-      onOpenChange(false);
+      onClose();
 
       // Reset after close animation
       setTimeout(() => {
@@ -52,23 +45,74 @@ export function FeedbackDialog({
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
+    <div
+      role="dialog"
+      aria-labelledby="feedback-panel-title"
+      aria-describedby="feedback-panel-description"
+      style={{
+        position: "fixed",
+        bottom: 64,
+        left: 16,
+        zIndex: 9999,
+        width: 384,
+        maxWidth: "calc(100vw - 2rem)",
+        maxHeight: "calc(100vh - 5rem)",
+        overflowY: "auto",
+        padding: 24,
+        borderRadius: 12,
+        background: "var(--card-bg, #25252F)",
+        border: "1px solid var(--border-color, #2a2a34)",
+        boxShadow: "0 24px 64px rgba(0, 0, 0, 0.45)",
+        color: "var(--text-main, #E5E5EC)",
+      }}
+    >
+      <div
         style={{
-          background: "var(--card-bg, #25252F)",
-          border: "1px solid var(--border-color, #2a2a34)",
-          color: "var(--text-main, #E5E5EC)",
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 16,
+          marginBottom: 16,
         }}
       >
-        <DialogHeader>
-          <DialogTitle style={{ color: "var(--text-main, #E5E5EC)" }}>Submit Feedback</DialogTitle>
-          <DialogDescription style={{ color: "var(--text-muted, #9999A6)" }}>
+        <div>
+          <h3
+            id="feedback-panel-title"
+            style={{ margin: 0, fontSize: 18, fontWeight: 600 }}
+          >
+            Report a Bug / Feedback
+          </h3>
+          <p
+            id="feedback-panel-description"
+            style={{ margin: "6px 0 0", color: "var(--text-muted, #9999A6)", fontSize: 14 }}
+          >
             Report an issue or request a new feature.
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={submitFeedback.isPending}
+          aria-label="Close feedback panel"
+          style={{
+            flexShrink: 0,
+            border: 0,
+            borderRadius: 6,
+            padding: "4px 8px",
+            background: "transparent",
+            color: "var(--text-muted, #9999A6)",
+            cursor: submitFeedback.isPending ? "not-allowed" : "pointer",
+            fontSize: 13,
+          }}
+        >
+          ✕ Close
+        </button>
+      </div>
 
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "12px" }}>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <label
               style={{
@@ -167,7 +211,7 @@ export function FeedbackDialog({
           <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "8px" }}>
             <button
               type="button"
-              onClick={() => onOpenChange(false)}
+              onClick={onClose}
               disabled={submitFeedback.isPending}
               style={{
                 padding: "8px 16px",
@@ -200,7 +244,6 @@ export function FeedbackDialog({
             </button>
           </div>
         </form>
-      </DialogContent>
-    </Dialog>
+    </div>
   );
 }

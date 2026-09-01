@@ -240,11 +240,6 @@ export function AppShell({
   const mobileMenuBtnRef = React.useRef<HTMLButtonElement | null>(null);
   const wasMobileMenuOpenRef = React.useRef(false);
 
-  const openFeedback = React.useCallback(() => {
-    setFeedbackOpen(true);
-    setThemeOpen(false);
-  }, []);
-
   // Auto-close the mobile drawer when the user picks a nav item.
   const handleChangeView = React.useCallback(
     (next: ShellView) => {
@@ -489,16 +484,7 @@ export function AppShell({
                 ) : null}
                 <DropdownMenuItem
                   className="ehs-shell-menu-item"
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    openFeedback();
-                  }}
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    openFeedback();
-                  }}
-                  onClick={openFeedback}
+                  onClick={() => setFeedbackOpen(!feedbackOpen)}
                 >
                   <MessageSquare size={12} /> Feedback
                 </DropdownMenuItem>
@@ -676,9 +662,12 @@ export function AppShell({
         showHotel={showHotel}
         showCatering={showCatering}
       />
-      {/* Kept outside the dropdown tree so closing its portal cannot unmount
-          the controlled feedback dialog. */}
-      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+      {/* Direct fixed panel: deliberately outside the dropdown and free of
+          Radix Dialog/Portal rendering. */}
+      <FeedbackDialog
+        isOpen={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+      />
       <Toaster theme={themePref === "system" ? "dark" : themePref} />
     </div>
   );

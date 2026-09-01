@@ -126,11 +126,6 @@ export function PortalLayout({
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [feedbackOpen, setFeedbackOpen] = React.useState(false);
 
-  const openFeedback = React.useCallback(() => {
-    setFeedbackOpen(true);
-    setMenuOpen(false);
-  }, []);
-
   const allItems = [...NAV_WORK, ...NAV_ACCOUNT];
   const activeItem = allItems.find((i) => i.key === active);
   const activeLabel = activeItem ? t(activeItem.labelKey) : "";
@@ -271,16 +266,7 @@ export function PortalLayout({
                 <div className="ehs-shell-menu-sep" />
                 <DropdownMenuItem
                   className="ehs-shell-menu-item"
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    openFeedback();
-                  }}
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    openFeedback();
-                  }}
-                  onClick={openFeedback}
+                  onClick={() => setFeedbackOpen(!feedbackOpen)}
                 >
                   <MessageSquare size={12} /> {lang === "no" ? "Tilbakemelding" : "Feedback"}
                 </DropdownMenuItem>
@@ -414,9 +400,12 @@ export function PortalLayout({
         }
       `}</style>
 
-      {/* Kept outside the dropdown tree so closing its portal cannot unmount
-          the controlled feedback dialog. */}
-      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+      {/* Direct fixed panel: deliberately outside the dropdown and free of
+          Radix Dialog/Portal rendering. */}
+      <FeedbackDialog
+        isOpen={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+      />
       <Toaster theme={pref === "system" ? "dark" : pref} />
     </div>
   );

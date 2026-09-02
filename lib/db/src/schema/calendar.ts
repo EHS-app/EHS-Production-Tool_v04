@@ -1,4 +1,5 @@
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { projectBriefsTable } from "./projectBriefs";
 
 /** Private, user-owned availability. Dates are instants so half days remain precise. */
 export const calendarAvailabilityTable = pgTable("calendar_availability", {
@@ -75,17 +76,25 @@ export const calendarOAuthStatesTable = pgTable("calendar_oauth_states", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("calendar_oauth_states_expiry_idx").on(t.expiresAt)]);
 
-/** Producer-scoped tentative reservations. Ownership is verified through brief ownership. */
+/** Producer-scoped tentative reservations. Ownership is verified through brief
+ * ownership. The FK makes a brief deletion and any concurrent hold creation
+ * serialize safely; reservations must never outlive their brief. */
 export const calendarHoldsTable = pgTable("calendar_holds", {
   id: text("id").primaryKey(),
   freelancerUserId: text("freelancer_user_id").notNull(),
   ownerUserId: text("owner_user_id").notNull(),
-  briefId: text("brief_id"),
+  briefId: text("brief_id").references(() => projectBriefsTable.id, {
+    onDelete: "cascade",
+  }),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [index("calendar_holds_freelancer_time_idx").on(t.freelancerUserId, t.startsAt), index("calendar_holds_owner_idx").on(t.ownerUserId)]);
+}, (t) => [
+  index("calendar_holds_freelancer_time_idx").on(t.freelancerUserId, t.startsAt),
+  index("calendar_holds_owner_idx").on(t.ownerUserId),
+  index("calendar_holds_brief_idx").on(t.briefId),
+]);
 
 /** Durable lease/retry queue. Payload excludes credentials and event details. */
 export const calendarSyncJobsTable = pgTable("calendar_sync_jobs", {

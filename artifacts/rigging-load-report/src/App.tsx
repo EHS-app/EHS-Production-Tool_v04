@@ -64,7 +64,8 @@ import { EconomyDashboard } from "./components/global/EconomyDashboard";
 import { VenuesDatabasePage } from "./components/global/VenuesDatabasePage";
 import { ClientsDatabasePage } from "./components/global/ClientsDatabasePage";
 import { SettingsPage } from "./components/global/SettingsPage";
-import { FolderOpen as ShellFolderOpen, Copy as ShellCopy } from "lucide-react";
+import { DeleteProjectDialog } from "./components/DeleteProjectDialog";
+import { FolderOpen as ShellFolderOpen, Copy as ShellCopy, Trash2 as ShellTrash2 } from "lucide-react";
 import { useI18n } from "./lib/i18n/I18nContext";
 import { buildBrief, type BuildBriefInput } from "./lib/projectBrief";
 import type { CrewRequestStatus } from "./lib/crew";
@@ -1554,6 +1555,7 @@ function App() {
   const [currentProjectAccessRole, setCurrentProjectAccessRole] = useState<
     "owner" | "editor" | "viewer" | null
   >(null);
+  const [currentProjectServerStatus, setCurrentProjectServerStatus] = useState<"active" | "planning" | "draft">("draft");
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     activeProjects: 0,
     planningProjects: 0,
@@ -1562,6 +1564,7 @@ function App() {
   });
   const projectSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectSaveVersion = useRef(0);
+  const suppressCloudSave = useRef(false);
   const cloudSaveInFlight = useRef(false);
 
   const cloudSave = useCallback(async (data: PersistedV2) => {
@@ -1646,6 +1649,7 @@ function App() {
         const json = await res.json();
         if (!cancelled) {
           setCurrentProjectAccessRole(json.project?.accessRole ?? null);
+          setCurrentProjectServerStatus(json.project?.status || "draft");
         }
       } catch {
         // Keep cloud writes paused until access can be resolved safely.
@@ -1930,6 +1934,16 @@ function App() {
   ]);
 
   useEffect(() => {
+    if (suppressCloudSave.current) {
+      suppressCloudSave.current = false;
+      return () => {
+        if (projectSaveTimer.current) {
+          clearTimeout(projectSaveTimer.current);
+          projectSaveTimer.current = null;
+        }
+      };
+    }
+
     const data = buildPersistedData();
     try {
       localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(data));
@@ -1944,6 +1958,7 @@ function App() {
     }
 
     if (projectSaveTimer.current) clearTimeout(projectSaveTimer.current);
+
     const ver = ++projectSaveVersion.current;
     projectSaveTimer.current = setTimeout(() => {
       if (ver !== projectSaveVersion.current) return;
@@ -4898,15 +4913,21 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
-  const resetAll = () => {
-    if (!confirm(tr("reset.confirm"))) return;
+  const cleanupProjectState = useCallback(() => {
+    suppressCloudSave.current = true;
+    if (projectSaveTimer.current) {
+      clearTimeout(projectSaveTimer.current);
+      projectSaveTimer.current = null;
+    }
     // Truly empty starting system: no truss row, no motor — so the
     // Rigging Report comes up blank instead of carrying over the
     // pre-seeded "4× FD34" row + first hoist.
     const fresh = makeEmptySystem("LX1");
     setVenue("");
+    setVenueId(null);
     setEasyjobNumber("");
     setClient("");
+    setClientId(null);
     setReportDate(new Date().toISOString().slice(0, 10));
     setReportEndDate("");
     setExtraSchedule({});
@@ -4946,8 +4967,18 @@ function App() {
     setCustBracket("");
     setShareOpen(false);
     setCurrentProjectId(null);
+    setCurrentProjectAccessRole(null);
+    setCurrentProjectServerStatus("draft");
     setCloudSavedAt("");
-    try { localStorage.removeItem("ehs-current-project-id"); } catch { /* ignore */ }
+    try {
+      localStorage.removeItem(STORAGE_KEY_V2);
+      localStorage.removeItem("ehs-current-project-id");
+    } catch { /* ignore */ }
+  }, []);
+
+  const resetAll = () => {
+    if (!confirm(tr("reset.confirm"))) return;
+    cleanupProjectState();
   };
 
   const hydrateFromData = useCallback((d: Partial<PersistedV2>) => {
@@ -5033,6 +5064,7 @@ function App() {
       });
       setCurrentProjectId(id);
       setCurrentProjectAccessRole(p.accessRole ?? null);
+      setCurrentProjectServerStatus(p.status || "draft");
       setCloudSavedAt(
         new Date(p.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       );
@@ -5042,48 +5074,8 @@ function App() {
 
   const newProject = useCallback(async () => {
     await flushPendingSave();
-    const fresh = makeEmptySystem("LX1");
-    setVenue("");
-    setVenueId(null);
-    setEasyjobNumber("");
-    setClient("");
-    setClientId(null);
-    setReportDate(new Date().toISOString().slice(0, 10));
-    setReportEndDate("");
-    setExtraSchedule({});
-    setEngineer("");
-    setBriefDescription("");
-    setClientContact("");
-    setSystems([fresh]);
-    setActiveSystemId(fresh.id);
-    setShowFixtures([]);
-    setLinkedMeta({});
-    setLedScreens([]);
-    setLedLinkedMeta({});
-    setLedSettings(DEFAULT_LED_SETTINGS);
-    setStages([]);
-    setCrew([]);
-    setActiveBriefId(null);
-    setSendError(null);
-    setSoundItems([]);
-    setInspection({ ...EMPTY_INSPECTION });
-    setPower(defaultPowerPlan());
-    setRiggPlan({ ...DEFAULT_RIGG_PLAN, trussById: {} });
-    setFloorPlanLibrary(emptyFloorPlanLibrary());
-    setMainView("rigging");
-    setPickerTarget(null);
-    setModalTarget(null);
-    setCustName("");
-    setCustWeight("");
-    setCustWatt("");
-    setCustArea("");
-    setCustBracket("");
-    setShareOpen(false);
-    setCurrentProjectId(null);
-    setCurrentProjectAccessRole(null);
-    setCloudSavedAt("");
-    try { localStorage.removeItem("ehs-current-project-id"); } catch { /* ignore */ }
-  }, [flushPendingSave]);
+    cleanupProjectState();
+  }, [flushPendingSave, cleanupProjectState]);
 
   const saveAsNewProject = useCallback(async () => {
     try {
@@ -5120,12 +5112,9 @@ function App() {
 
   const handleProjectDelete = useCallback((deletedId: string) => {
     if (currentProjectId === deletedId) {
-      setCurrentProjectId(null);
-      setCurrentProjectAccessRole(null);
-      setCloudSavedAt("");
-      try { localStorage.removeItem("ehs-current-project-id"); } catch { /* ignore */ }
+      cleanupProjectState();
     }
-  }, [currentProjectId]);
+  }, [currentProjectId, cleanupProjectState]);
 
   const metricsByActive = useMemo(() => computeMetrics(activeSystem), [activeSystem]);
 
@@ -5968,6 +5957,9 @@ function App() {
                   navigate("/project/new");
                 });
               }}
+              onProjectDeleted={(id) => {
+                handleProjectDelete(id);
+              }}
             />
           ) : globalView === "venues" ? (
             <VenuesDatabasePage getToken={getToken} />
@@ -6062,6 +6054,46 @@ function App() {
         onOpenProjects={() => navigateGlobalView("projects")}
         cloudSavedAt={cloudSavedAt}
         onResetProject={currentProjectAccessRole === "viewer" ? undefined : resetAll}
+        deleteProjectTrigger={
+          currentProjectAccessRole === "owner" && currentProjectId ? (
+            <DeleteProjectDialog
+              projectId={currentProjectId}
+              projectName={venue || tr("shell.breadcrumb.untitled")}
+              projectStatus={currentProjectServerStatus}
+              getToken={getToken}
+              onSuccess={() => {
+                handleProjectDelete(currentProjectId);
+                navigateGlobalView("projects");
+              }}
+              trigger={
+                <button
+                  type="button"
+                  title={tr("project.delete.title")}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    height: 22,
+                    padding: "0 8px",
+                    marginLeft: 4,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    lineHeight: 1,
+                    color: "var(--danger)",
+                    background: "transparent",
+                    border: "1px solid var(--danger)",
+                    borderRadius: 999,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <ShellTrash2 size={11} />
+                  <span>{tr("project.delete.title")}</span>
+                </button>
+              }
+            />
+          ) : undefined
+        }
         readOnly={currentProjectAccessRole === "viewer" && mainView !== "chat"}
         readOnlyLabel="View-only project · changes are disabled"
       >

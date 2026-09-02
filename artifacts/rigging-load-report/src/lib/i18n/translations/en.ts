@@ -10,6 +10,15 @@
  * helper substitutes them via `params`.
  */
 export const en = {
+  "project.delete.title": "Delete Project",
+  "project.delete.description": "Are you sure you want to delete {name}? This action cannot be undone.",
+  "project.delete.confirmLabel": "To confirm deletion, type",
+  "project.delete.cancel": "Cancel",
+  "project.delete.confirm": "Delete Project",
+  "project.delete.deleting": "Deleting...",
+  "project.delete.success": "Project successfully deleted",
+  "project.delete.error.conflict": "Cannot delete project due to a conflict.",
+  "project.delete.error.generic": "Failed to delete project.",
   // ---------- Common ----------
   // ---------- Economy Dashboard ----------
   "economy.title": "Economy & Finance",

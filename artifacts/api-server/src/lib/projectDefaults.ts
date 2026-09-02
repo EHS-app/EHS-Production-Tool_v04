@@ -32,7 +32,12 @@ export function projectFinanceSeed(rawData: Record<string, unknown>) {
   return {
     contractRevenueMinor: minor("contractRevenueMinor"),
     easyjobRevenueMinor:
-      raw.easyjobRevenueMinor === null ? null : minor("easyjobRevenueMinor"),
+      typeof raw.easyjobRevenueMinor === "number" &&
+      Number.isSafeInteger(raw.easyjobRevenueMinor) &&
+      raw.easyjobRevenueMinor >= 0 &&
+      raw.easyjobRevenueMinor <= 2_147_483_647
+        ? raw.easyjobRevenueMinor
+        : null,
     laborBudgetMinor: minor("laborBudgetMinor"),
     hotelBudgetMinor: minor("hotelBudgetMinor"),
     cateringBudgetMinor: minor("cateringBudgetMinor"),

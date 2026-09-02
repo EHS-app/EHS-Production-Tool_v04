@@ -5,11 +5,13 @@ import {
   timestamp,
   date,
   boolean,
+  uuid,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { projectsTable } from "./projects";
 
 /** A project brief authored by a producer in the Production Tool.
  *
@@ -29,6 +31,12 @@ export const projectBriefsTable = pgTable(
     id: text("id").primaryKey(),
     /** Clerk user id of the producer who created the brief. */
     ownerUserId: text("owner_user_id").notNull(),
+    /** Server-validated, stable provenance back to the Production Tool
+     * project that created this brief. Legacy briefs may be NULL and are
+     * still discoverable through projects.data.activeBriefId. */
+    projectId: uuid("project_id").references(() => projectsTable.id, {
+      onDelete: "set null",
+    }),
     projectName: text("project_name").notNull().default(""),
     client: text("client").notNull().default(""),
     venue: text("venue").notNull().default(""),
@@ -45,7 +53,10 @@ export const projectBriefsTable = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("project_briefs_owner_idx").on(t.ownerUserId)],
+  (t) => [
+    index("project_briefs_owner_idx").on(t.ownerUserId),
+    index("project_briefs_project_idx").on(t.projectId),
+  ],
 );
 
 export const insertProjectBriefSchema = createInsertSchema(

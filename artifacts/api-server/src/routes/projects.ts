@@ -1,8 +1,13 @@
 import { Router, type IRouter, type RequestHandler } from "express";
-import { and, desc, eq, or, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, desc, eq, ne, or, sql } from "drizzle-orm";
 import {
   clientsTable,
   db,
+  deleteOwnedProject,
+  PROJECT_BRIEF_PROVENANCE_LOCK,
+  PROJECT_DELETE_FINANCIAL_CONFLICT,
+  projectBriefsTable,
   projectMembersTable,
   projectFinanceSettingsTable,
   projectsTable,
@@ -38,6 +43,57 @@ const requireSignedIn: RequestHandler = (req, res, next) => {
 };
 
 const MAX_DATA_BYTES = 2 * 1024 * 1024;
+
+function activeBriefIdIn(data: unknown): string | null | "invalid" {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const raw = (data as Record<string, unknown>).activeBriefId;
+  if (raw === undefined || raw === null || raw === "") return null;
+  if (
+    typeof raw !== "string" ||
+    raw !== raw.trim() ||
+    raw.length > 64
+  ) {
+    return "invalid";
+  }
+  return raw;
+}
+
+async function validActiveBriefProvenance(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  projectId: string,
+  projectOwnerId: string,
+  data: unknown,
+): Promise<boolean> {
+  const briefId = activeBriefIdIn(data);
+  if (briefId === null) return true;
+  if (briefId === "invalid") return false;
+  const [brief] = await tx
+    .select({
+      ownerUserId: projectBriefsTable.ownerUserId,
+      projectId: projectBriefsTable.projectId,
+    })
+    .from(projectBriefsTable)
+    .where(eq(projectBriefsTable.id, briefId))
+    .limit(1);
+  if (
+    !brief ||
+    brief.ownerUserId !== projectOwnerId ||
+    (brief.projectId !== null && brief.projectId !== projectId)
+  ) {
+    return false;
+  }
+  const [otherClaim] = await tx
+    .select({ id: projectsTable.id })
+    .from(projectsTable)
+    .where(
+      and(
+        ne(projectsTable.id, projectId),
+        eq(sql<string>`${projectsTable.data}->>'activeBriefId'`, briefId),
+      ),
+    )
+    .limit(1);
+  return !otherClaim;
+}
 
 function linkedId(value: unknown): string | null | undefined | "invalid" {
   if (value === undefined) return undefined;
@@ -189,6 +245,13 @@ router.get("/projects/:id", requireSignedIn, async (req, res) => {
       project: {
         ...projectResponse(row),
         accessRole,
+        status:
+          typeof (row.data as Record<string, unknown> | null)?.activeBriefId === "string" &&
+          String((row.data as Record<string, unknown>).activeBriefId).trim()
+            ? "active"
+            : row.venue?.trim() || row.client?.trim()
+              ? "planning"
+              : "draft",
       },
     });
   } catch (err) {
@@ -225,10 +288,23 @@ router.post("/projects", requireSignedIn, async (req, res) => {
       data,
       organizationDefaultsSnapshot(organization),
     );
-    const row = await db.transaction(async (tx) => {
+    const projectId = randomUUID();
+    const result = await db.transaction(async (tx) => {
+      await tx.execute(PROJECT_BRIEF_PROVENANCE_LOCK);
+      if (
+        !(await validActiveBriefProvenance(
+          tx,
+          projectId,
+          userId,
+          projectData,
+        ))
+      ) {
+        return { kind: "invalid_brief" as const };
+      }
       const [created] = await tx
         .insert(projectsTable)
         .values({
+          id: projectId,
           userId,
           name: typeof name === "string" ? name.slice(0, 200) : "Untitled",
           venue: links.venueName ?? (typeof venue === "string" ? venue.slice(0, 200) : ""),
@@ -249,8 +325,17 @@ router.post("/projects", requireSignedIn, async (req, res) => {
         ...projectFinanceSeed(projectData),
         updatedByUserId: userId,
       });
-      return created;
+      return { kind: "created" as const, project: created };
     });
+    if (result.kind === "invalid_brief") {
+      res.status(400).json({
+        ok: false,
+        error:
+          "The active brief must belong to the project owner and cannot be linked to another project.",
+      });
+      return;
+    }
+    const row = result.project;
     res.json({
       ok: true,
       project: row
@@ -322,25 +407,58 @@ router.patch("/projects/:id", requireSignedIn, async (req, res) => {
       if (links.clientName !== undefined) updates.client = links.clientName;
     }
     if (clonedFromProjectId !== undefined) updates.clonedFromProjectId = clonedFromProjectId;
-    const [row] = await db
-      .update(projectsTable)
-      .set(updates)
-      .where(eq(projectsTable.id, String(id)))
-      .returning({
-        id: projectsTable.id,
-        name: projectsTable.name,
-        venue: projectsTable.venue,
-        client: projectsTable.client,
-        easyjob_number: projectsTable.easyjobNumber,
-        venue_id: projectsTable.venueId,
-        client_id: projectsTable.clientId,
-        cloned_from_project_id: projectsTable.clonedFromProjectId,
-        updatedAt: projectsTable.updatedAt,
-      });
-    if (!row) {
+    const result = await db.transaction(async (tx) => {
+      await tx.execute(PROJECT_BRIEF_PROVENANCE_LOCK);
+      const [project] = await tx
+        .select({ ownerUserId: projectsTable.userId })
+        .from(projectsTable)
+        .where(eq(projectsTable.id, String(id)))
+        .limit(1)
+        .for("update");
+      if (!project) return { kind: "not_found" as const };
+      if (
+        data !== undefined &&
+        !(await validActiveBriefProvenance(
+          tx,
+          String(id),
+          project.ownerUserId,
+          data,
+        ))
+      ) {
+        return { kind: "invalid_brief" as const };
+      }
+      const [updated] = await tx
+        .update(projectsTable)
+        .set(updates)
+        .where(eq(projectsTable.id, String(id)))
+        .returning({
+          id: projectsTable.id,
+          name: projectsTable.name,
+          venue: projectsTable.venue,
+          client: projectsTable.client,
+          easyjob_number: projectsTable.easyjobNumber,
+          venue_id: projectsTable.venueId,
+          client_id: projectsTable.clientId,
+          cloned_from_project_id: projectsTable.clonedFromProjectId,
+          updatedAt: projectsTable.updatedAt,
+        });
+      return updated
+        ? { kind: "updated" as const, project: updated }
+        : { kind: "not_found" as const };
+    });
+    if (result.kind === "not_found") {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
+    if (result.kind === "invalid_brief") {
+      res.status(400).json({
+        ok: false,
+        error:
+          "The active brief must belong to the project owner and cannot be linked to another project.",
+      });
+      return;
+    }
+    const row = result.project;
     res.json({ ok: true, project: row });
   } catch (err) {
     req.log.error(err, "Failed to update project");
@@ -356,11 +474,17 @@ router.delete("/projects/:id", requireSignedIn, async (req, res) => {
     return;
   }
   try {
-    const result = await db
-      .delete(projectsTable)
-      .where(and(eq(projectsTable.id, String(id)), eq(projectsTable.userId, userId)));
-    if (result.rowCount === 0) {
+    const result = await deleteOwnedProject(String(id), userId);
+    if (result.kind === "not_found") {
       res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    if (result.kind === "financial_conflict") {
+      res.status(409).json({
+        ok: false,
+        code: "PROJECT_FINANCIAL_RECORDS_LOCKED",
+        error: PROJECT_DELETE_FINANCIAL_CONFLICT,
+      });
       return;
     }
     res.json({ ok: true });

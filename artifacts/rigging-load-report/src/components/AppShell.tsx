@@ -126,6 +126,7 @@ interface AppShellProps {
    *  producers can wipe the working project without diving into the
    *  overflow menu. */
   onResetProject?: () => void;
+  deleteProjectTrigger?: ReactNode;
   readOnly?: boolean;
   readOnlyLabel?: string;
   children: ReactNode;
@@ -239,6 +240,7 @@ export function AppShell({
   onHome,
   cloudSavedAt,
   onResetProject,
+  deleteProjectTrigger,
   readOnly = false,
   readOnlyLabel = "View-only project",
   children,
@@ -591,6 +593,7 @@ export function AppShell({
                 <span>{t("shell.action.resetProject")}</span>
               </button>
             ) : null}
+            {deleteProjectTrigger}
           </div>
 
           <div className="ehs-shell-topbar-actions">

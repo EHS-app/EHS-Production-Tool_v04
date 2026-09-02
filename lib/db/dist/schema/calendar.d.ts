@@ -896,7 +896,9 @@ export declare const calendarOAuthStatesTable: import("drizzle-orm/pg-core").PgT
     };
     dialect: "pg";
 }>;
-/** Producer-scoped tentative reservations. Ownership is verified through brief ownership. */
+/** Producer-scoped tentative reservations. Ownership is verified through brief
+ * ownership. The FK makes a brief deletion and any concurrent hold creation
+ * serialize safely; reservations must never outlive their brief. */
 export declare const calendarHoldsTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
     name: "calendar_holds";
     schema: undefined;

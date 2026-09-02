@@ -9,6 +9,7 @@ import {
   gigsTable,
   freelancerProfilesTable,
   projectsTable,
+  PROJECT_BRIEF_PROVENANCE_LOCK,
   venuesTable,
   type ProjectBriefRow,
 } from "@workspace/db";
@@ -610,6 +611,9 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
       return;
     }
     const result = await db.transaction(async (tx) => {
+      if (typeof rawProjectId === "string") {
+        await tx.execute(PROJECT_BRIEF_PROVENANCE_LOCK);
+      }
       // If the brief already exists, only the original owner may update it.
       const existing = await tx
         .select({ ownerUserId: projectBriefsTable.ownerUserId })
@@ -624,6 +628,7 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
         .values({
           id,
           ownerUserId: userId,
+          projectId: typeof rawProjectId === "string" ? rawProjectId : null,
           ...indexed,
           data: data as Record<string, unknown>,
           venueTechnicalSnapshot: venueProjection.snapshot,
@@ -632,6 +637,9 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
           target: projectBriefsTable.id,
           set: {
             ...indexed,
+            ...(typeof rawProjectId === "string"
+              ? { projectId: rawProjectId }
+              : {}),
             data: data as Record<string, unknown>,
             venueTechnicalSnapshot: venueProjection.snapshot,
             updatedAt: sql`now()`,

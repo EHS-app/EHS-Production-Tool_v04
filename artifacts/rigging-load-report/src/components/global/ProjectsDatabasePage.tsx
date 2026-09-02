@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Search, Plus, FileText, ChevronRight } from "lucide-react";
+import { Search, Plus, FileText, ChevronRight, Trash2 } from "lucide-react";
+import { DeleteProjectDialog } from "../DeleteProjectDialog";
+import { useT } from "../../lib/i18n/I18nContext";
 
 export type ProjectRow = {
   id: string;
@@ -18,9 +20,11 @@ interface Props {
   getToken: () => Promise<string | null>;
   onOpenProject: (id: string) => void;
   onNewProject: () => void;
+  onProjectDeleted?: (id: string) => void;
 }
 
-export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject }: Props) {
+export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, onProjectDeleted }: Props) {
+  const t = useT();
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -155,7 +159,7 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject }: 
                   <th>Status</th>
                   <th>Last Updated</th>
                   <th>Role</th>
-                  <th style={{ width: 40 }}></th>
+                  <th style={{ width: 170 }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -175,8 +179,35 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject }: 
                         {p.accessRole}
                       </span>
                     </td>
-                    <td style={{ textAlign: "right" }}>
-                      <ChevronRight size={16} color="var(--text-muted)" />
+                    <td style={{ textAlign: "right", paddingRight: 16 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+                        {p.accessRole === "owner" && (
+                          <DeleteProjectDialog
+                            projectId={p.id}
+                            projectName={p.name}
+                            projectStatus={p.status}
+                            getToken={getToken}
+                            onSuccess={() => {
+                              setProjects(prev => prev.filter(x => x.id !== p.id));
+                              onProjectDeleted?.(p.id);
+                            }}
+                            trigger={
+                              <button
+                                type="button"
+                                className="ehs-ghost-btn"
+                                style={{ color: "var(--danger)", background: "transparent", border: "1px solid var(--danger)", cursor: "pointer", padding: "5px 8px", borderRadius: 6, whiteSpace: "nowrap" }}
+                                onClick={(e) => e.stopPropagation()}
+                                title={t("project.delete.title")}
+                                aria-label={t("project.delete.title")}
+                              >
+                                <Trash2 size={14} />
+                                <span>{t("project.delete.title")}</span>
+                              </button>
+                            }
+                          />
+                        )}
+                        <ChevronRight size={16} color="var(--text-muted)" />
+                      </div>
                     </td>
                   </tr>
                 ))}

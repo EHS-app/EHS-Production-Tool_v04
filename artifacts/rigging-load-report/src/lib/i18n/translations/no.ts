@@ -15,6 +15,15 @@ import type { Translations } from "../types";
  *  - `{placeholder}` tokens MUST be preserved 1:1.
  */
 export const no: Translations = {
+  "project.delete.title": "Slett Prosjekt",
+  "project.delete.description": "Er du sikker på at du vil slette {name}? Denne handlingen kan ikke angres.",
+  "project.delete.confirmLabel": "For å bekrefte sletting, skriv",
+  "project.delete.cancel": "Avbryt",
+  "project.delete.confirm": "Slett Prosjekt",
+  "project.delete.deleting": "Sletter...",
+  "project.delete.success": "Prosjektet ble slettet",
+  "project.delete.error.conflict": "Kan ikke slette prosjektet på grunn av en konflikt.",
+  "project.delete.error.generic": "Kunne ikke slette prosjektet.",
   // ---------- Common ----------
   // ---------- Economy Dashboard ----------
   "economy.title": "Økonomi",

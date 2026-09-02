@@ -14,6 +14,7 @@ import {
 } from "../lib/portalStorage";
 import { useI18n, useT } from "../../lib/i18n/I18nContext";
 import { downloadBriefIcs } from "../../lib/icalExport";
+import { buildGoogleCalendarUrl } from "../../lib/googleCalendar";
 import type { ProjectBrief } from "../../lib/projectBrief";
 
 type T = ReturnType<typeof useT>;
@@ -68,6 +69,51 @@ function synthesizeBriefFromGig(gig: Gig): ProjectBrief {
     riggPlan: null,
     attachments: [],
   };
+}
+
+function localDateTime(date: string, time = "00:00"): Date {
+  return new Date(`${date}T${time}:00`);
+}
+
+function addLocalDay(date: string): Date {
+  const value = localDateTime(date);
+  value.setDate(value.getDate() + 1);
+  return value;
+}
+
+function googleCalendarWindow(gig: Gig, brief?: ProjectBrief): {
+  start: Date;
+  end: Date;
+} {
+  const segments = brief?.project.schedule
+    ? Object.values(brief.project.schedule).flatMap((phase) => phase ?? [])
+    : [];
+  const validSegments = segments.filter((segment) => segment.from || segment.to);
+
+  if (validSegments.length === 0) {
+    return {
+      start: localDateTime(gig.startDate),
+      end: addLocalDay(gig.endDate || gig.startDate),
+    };
+  }
+
+  const starts = validSegments.map((segment) =>
+    localDateTime(segment.from || segment.to, segment.fromTime || "00:00"),
+  );
+  const ends = validSegments.map((segment) =>
+    segment.toTime || segment.fromTime
+      ? localDateTime(
+          segment.to || segment.from,
+          segment.toTime || segment.fromTime || "00:00",
+        )
+      : addLocalDay(segment.to || segment.from),
+  );
+  const start = new Date(Math.min(...starts.map((value) => value.getTime())));
+  let end = new Date(Math.max(...ends.map((value) => value.getTime())));
+  if (end <= start) {
+    end = new Date(start.getTime() + 60 * 60 * 1000);
+  }
+  return { start, end };
 }
 
 const STATUS_ORDER: GigStatus[] = [
@@ -509,6 +555,33 @@ export function Gigs({
     downloadBriefIcs(linkedBrief ?? synthesizeBriefFromGig(g));
   }
 
+  function googleCalendarUrl(g: Gig): string {
+    const linkedBrief = g.briefId
+      ? findBrief(data, g.briefId)?.brief
+      : undefined;
+    const { start, end } = googleCalendarWindow(g, linkedBrief);
+    const assignmentNotes = linkedBrief?.assignments.find(
+      (assignment) => assignment.crewId === linkedBrief.recipientCrewId,
+    )?.notes;
+    const details = [
+      g.client ? `${t("portal.gigs.googleClient")}: ${g.client}` : "",
+      g.role ? `${t("portal.gigs.googleRole")}: ${g.role}` : "",
+      g.notes || assignmentNotes
+        ? `${t("portal.gigs.googleNotes")}: ${g.notes || assignmentNotes}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    return buildGoogleCalendarUrl({
+      title: g.projectName || g.venue || t("portal.gigs.fallbackTitle"),
+      start,
+      end,
+      details,
+      location: g.venue,
+    });
+  }
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <header
@@ -807,8 +880,33 @@ export function Gigs({
                       gap: 6,
                     }}
                   >
-                    <span aria-hidden>📅</span> {t("portal.gigs.addToCalendar")}
+                    <span aria-hidden>📅</span> {t("portal.gigs.downloadIcs")}
                   </button>
+                  <a
+                    href={googleCalendarUrl(g)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={t("portal.gigs.googleCalendarTitle")}
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: "6px 12px",
+                      background: theme === "dark" ? "#ffffff" : "#1a73e8",
+                      color: theme === "dark" ? "#202124" : "#ffffff",
+                      border: `1px solid ${
+                        theme === "dark" ? "#ffffff" : "#1a73e8"
+                      }`,
+                      borderRadius: 999,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      textDecoration: "none",
+                    }}
+                  >
+                    <span aria-hidden>G</span>{" "}
+                    {t("portal.gigs.addToGoogleCalendar")}
+                  </a>
                 </div>
               </div>
             );

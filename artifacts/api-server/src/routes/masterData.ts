@@ -3,11 +3,20 @@ import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import {
   clientsTable,
   db,
+  projectFinanceSettingsTable,
   projectMembersTable,
   projectsTable,
   venuesTable,
 } from "@workspace/db";
 import { getProjectAccess, isProjectWriter, UUID_PATTERN } from "../lib/projectAccess";
+import {
+  getOrganizationSettings,
+  organizationDefaultsSnapshot,
+} from "../lib/organizationSettings";
+import {
+  projectDataWithOrganizationDefaults,
+  projectFinanceSeed,
+} from "../lib/projectDefaults";
 
 const router: IRouter = Router();
 const MAX_JSON_BYTES = 128 * 1024;
@@ -414,17 +423,31 @@ router.post("/clients/:clientId/projects/:projectId/clone", async (req, res): Pr
     const sourceData = plainObject(source.data) ? source.data : {};
     const data: JsonObject = { status: "draft" };
     for (const key of CLONE_DATA_KEYS) if (key in sourceData) data[key] = sourceData[key];
-    const [project] = await db.insert(projectsTable).values({
-      userId,
-      name: name.value ?? `${source.name} (copy)`,
-      venue: source.venue,
-      client: source.client,
-      venueId: source.venueId,
-      clientId: source.clientId,
-      clonedFromProjectId: source.id,
-      easyjobNumber: easyjob.value || null,
+    const organization = await getOrganizationSettings();
+    const projectData = projectDataWithOrganizationDefaults(
       data,
-    }).returning();
+      organizationDefaultsSnapshot(organization),
+    );
+    const project = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(projectsTable).values({
+        userId,
+        name: name.value ?? `${source.name} (copy)`,
+        venue: source.venue,
+        client: source.client,
+        venueId: source.venueId,
+        clientId: source.clientId,
+        clonedFromProjectId: source.id,
+        easyjobNumber: easyjob.value || null,
+        data: projectData,
+      }).returning();
+      if (!created) throw new Error("Project clone insert returned no row.");
+      await tx.insert(projectFinanceSettingsTable).values({
+        projectId: created.id,
+        ...projectFinanceSeed(projectData),
+        updatedByUserId: userId,
+      });
+      return created;
+    });
     res.status(201).json({
       ok: true,
       project: project ? {

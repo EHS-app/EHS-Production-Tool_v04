@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { MapPin, Truck } from "lucide-react";
 import { PALETTE, type ThemeMode } from "../lib/portalTheme";
+import { useT } from "../../lib/i18n/I18nContext";
 
 type Run = {
   id: string;
@@ -37,6 +38,7 @@ function formatDate(value: string | null): string {
 export function MyRuns({ theme }: { theme: ThemeMode }) {
   const c = PALETTE[theme];
   const { getToken } = useAuth();
+  const t = useT();
   const [runs, setRuns] = useState<Run[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -51,12 +53,12 @@ export function MyRuns({ theme }: { theme: ThemeMode }) {
         });
         const body = (await response.json()) as { ok?: boolean; runs?: Run[]; error?: string };
         if (!response.ok || !body.ok || !Array.isArray(body.runs)) {
-          throw new Error(body.error || "Could not load your transport runs.");
+          throw new Error(body.error || t("portal.runs.loadError"));
         }
         if (!cancelled) setRuns(body.runs);
       } catch (reason) {
         if (!cancelled) {
-          setError(reason instanceof Error ? reason.message : "Could not load your transport runs.");
+          setError(reason instanceof Error ? reason.message : t("portal.runs.loadError"));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -65,19 +67,19 @@ export function MyRuns({ theme }: { theme: ThemeMode }) {
     return () => {
       cancelled = true;
     };
-  }, [getToken]);
+  }, [getToken, t]);
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <header>
-        <h1 style={{ margin: 0, fontSize: 26 }}>My Runs</h1>
-        <p style={{ color: c.muted, margin: "6px 0 0" }}>Transport runs assigned to you</p>
+        <h1 style={{ margin: 0, fontSize: 26 }}>{t("portal.runs.title")}</h1>
+        <p style={{ color: c.muted, margin: "6px 0 0" }}>{t("portal.runs.subtitle")}</p>
       </header>
-      {loading ? <p style={{ color: c.muted }}>Loading transport runs…</p> : null}
+      {loading ? <p style={{ color: c.muted }}>{t("portal.runs.loading")}</p> : null}
       {error ? <p role="alert" style={{ color: "#ef4444" }}>{error}</p> : null}
       {!loading && !error && runs.length === 0 ? (
         <div style={{ padding: 24, border: `1px solid ${c.border}`, borderRadius: 14, color: c.muted }}>
-          No transport runs are assigned to you.
+          {t("portal.runs.empty")}
         </div>
       ) : null}
       {runs.map((run) => (
@@ -96,9 +98,9 @@ export function MyRuns({ theme }: { theme: ThemeMode }) {
             </span>
           </div>
           <div style={{ display: "grid", gap: 8, marginTop: 14, fontSize: 14 }}>
-            <div><MapPin size={15} style={{ display: "inline", marginRight: 7 }} />{run.origin || "Origin TBC"} → {run.destination || "Destination TBC"}</div>
+            <div><MapPin size={15} style={{ display: "inline", marginRight: 7 }} />{run.origin || t("portal.runs.originTbc")} → {run.destination || t("portal.runs.destinationTbc")}</div>
             <div><Truck size={15} style={{ display: "inline", marginRight: 7 }} />{run.vehicleName} · {run.vehicleLicensePlate}</div>
-            <div style={{ color: c.muted }}>Load in: {formatDate(run.loadInAt)} · Load out: {formatDate(run.loadOutAt)}</div>
+            <div style={{ color: c.muted }}>{t("portal.runs.loadIn")}: {formatDate(run.loadInAt)} · {t("portal.runs.loadOut")}: {formatDate(run.loadOutAt)}</div>
             {run.cargoNotes ? <div style={{ color: c.muted, whiteSpace: "pre-wrap" }}>{run.cargoNotes}</div> : null}
           </div>
         </article>

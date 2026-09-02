@@ -3,6 +3,7 @@ import { useAuth } from "@clerk/react";
 import { Link, useLocation } from "wouter";
 import { PALETTE, type ThemeMode } from "../lib/portalTheme";
 import { ItinerarySection } from "./ItinerarySection";
+import { useT } from "../../lib/i18n/I18nContext";
 import {
   buildAcceptedSnapshot,
   findBrief,
@@ -199,6 +200,7 @@ export function BriefDetail({
   setData: React.Dispatch<React.SetStateAction<PortalData>>;
 }) {
   const c = PALETTE[theme];
+  const t = useT();
   const { getToken } = useAuth();
   const [, setLocation] = useLocation();
   const entry = findBrief(data, briefId);
@@ -318,11 +320,10 @@ export function BriefDetail({
         }}
       >
         <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
-          Brief not found
+          {t("portal.brief.notFound")}
         </div>
         <div style={{ fontSize: 14, color: c.muted, marginBottom: 16 }}>
-          This briefing isn't in your portal. The share link may have expired
-          or been imported in a different account.
+          {t("portal.brief.notFoundBody")}
         </div>
         <Link
           href="/portal/briefs"
@@ -337,7 +338,7 @@ export function BriefDetail({
             textDecoration: "none",
           }}
         >
-          Back to briefs
+          {t("portal.brief.backToBriefs")}
         </Link>
       </section>
     );
@@ -674,7 +675,7 @@ export function BriefDetail({
             textTransform: "uppercase",
           }}
         >
-          Project briefing
+          {t("portal.brief.projectBriefing")}
         </div>
         <h1
           style={{
@@ -684,7 +685,7 @@ export function BriefDetail({
             lineHeight: 1.15,
           }}
         >
-          {brief.project.venue || "Untitled show"}
+          {brief.project.venue || t("portal.briefs.untitledShow")}
         </h1>
         {brief.project.client ? (
           <div
@@ -695,7 +696,7 @@ export function BriefDetail({
               marginTop: 2,
             }}
           >
-            for{" "}
+            {t("portal.brief.for", { client: "" })}
             <span style={{ color: c.text, fontWeight: 800 }}>
               {brief.project.client}
             </span>
@@ -725,7 +726,8 @@ export function BriefDetail({
             : formatDate(brief.project.date)}
           {brief.project.preparedBy ? (
             <>
-              {" · project manager "}
+              {" · "}
+              {t("portal.brief.preparedBy", { name: "" })}
               <span style={{ color: c.text, fontWeight: 600 }}>
                 {brief.project.preparedBy}
               </span>
@@ -760,7 +762,7 @@ export function BriefDetail({
               marginBottom: 6,
             }}
           >
-            Note from the producer
+            {t("portal.brief.noteFromProducer")}
           </div>
           <div
             style={{
@@ -795,17 +797,17 @@ export function BriefDetail({
               marginBottom: 12,
             }}
           >
-            Venue Technical Specs
+            {t("portal.brief.venueTechSpecs")}
           </div>
           <div style={{ display: "grid", gap: 16 }}>
             {Object.entries(brief.project.venueTechnicalSnapshot).map(([category, fields]) => {
               if (!fields || typeof fields !== "object" || !Object.values(fields).some(Boolean)) return null;
               if (!["riggingSpecs", "powerInfrastructure", "logisticsAccess", "siteFacilities"].includes(category)) return null;
 
-              const title = category === "riggingSpecs" ? "Rigging & Stage"
-                : category === "powerInfrastructure" ? "Power Infrastructure"
-                : category === "logisticsAccess" ? "Logistics & Access"
-                : "Site Facilities";
+              const title = category === "riggingSpecs" ? t("portal.brief.riggingAndStage")
+                : category === "powerInfrastructure" ? t("portal.brief.powerInfrastructure")
+                : category === "logisticsAccess" ? t("portal.brief.logisticsAccess")
+                : t("portal.brief.siteFacilities");
 
               return (
                 <div key={category}>
@@ -901,13 +903,13 @@ export function BriefDetail({
 
       {/* Production schedule (only shown when at least one phase is set) */}
       {brief.project.schedule ? (
-        <SectionCard theme={theme} title="Production schedule">
+        <SectionCard theme={theme} title={t("portal.brief.prodSchedule")}>
           <ScheduleList theme={theme} schedule={brief.project.schedule} />
         </SectionCard>
       ) : null}
 
       {/* Project context */}
-      <SectionCard theme={theme} title="Crew on the call sheet">
+      <SectionCard theme={theme} title={t("portal.brief.crewCallSheet")}>
         <CrewTable
           theme={theme}
           assignments={brief.assignments}
@@ -915,7 +917,7 @@ export function BriefDetail({
         />
       </SectionCard>
 
-      <SectionCard theme={theme} title="Rigging">
+      <SectionCard theme={theme} title={t("portal.brief.rigging")}>
         <KvGrid
           theme={theme}
           items={[
@@ -973,7 +975,7 @@ export function BriefDetail({
         ) : null}
       </SectionCard>
 
-      <SectionCard theme={theme} title="Lighting">
+      <SectionCard theme={theme} title={t("portal.brief.lighting")}>
         <KvGrid
           theme={theme}
           items={[
@@ -1111,9 +1113,9 @@ export function BriefDetail({
         ) : null}
       </SectionCard>
 
-      <SectionCard theme={theme} title="LED screens">
+      <SectionCard theme={theme} title={t("portal.brief.ledScreens")}>
         {brief.led.screens.length === 0 ? (
-          <Empty theme={theme} text="No LED screens on this project." />
+          <Empty theme={theme} text={t("portal.brief.noLed")} />
         ) : (
           <>
             <KvGrid
@@ -1231,9 +1233,9 @@ export function BriefDetail({
         )}
       </SectionCard>
 
-      <SectionCard theme={theme} title="Stage">
+      <SectionCard theme={theme} title={t("portal.brief.stage")}>
         {brief.stage.stages.length === 0 ? (
-          <Empty theme={theme} text="No stage on this project." />
+          <Empty theme={theme} text={t("portal.brief.noStage")} />
         ) : (
           <>
             <KvGrid
@@ -1306,9 +1308,9 @@ export function BriefDetail({
         )}
       </SectionCard>
 
-      <SectionCard theme={theme} title="Sound">
+      <SectionCard theme={theme} title={t("portal.brief.sound")}>
         {brief.sound.rowCount === 0 ? (
-          <Empty theme={theme} text="No sound inventory on this project." />
+          <Empty theme={theme} text={t("portal.brief.noSound")} />
         ) : (
           <>
             <KvGrid
@@ -1384,7 +1386,7 @@ export function BriefDetail({
             (drawing.contentType || "").toLowerCase() === "application/pdf" ||
             /\.pdf$/i.test(drawing.name);
           return (
-            <SectionCard theme={theme} title="Rigg plan (top-down)">
+            <SectionCard theme={theme} title={t("portal.brief.riggPlan")}>
               {isPdf ? (
                 <iframe
                   src={url}
@@ -1434,14 +1436,14 @@ export function BriefDetail({
           );
         }
         return brief.riggPlan ? (
-          <SectionCard theme={theme} title="Rigg plan (top-down)">
+          <SectionCard theme={theme} title={t("portal.brief.riggPlan")}>
             <RiggPlanMap theme={theme} plan={brief.riggPlan} />
           </SectionCard>
         ) : null;
       })()}
 
       {brief.attachments.length > 0 ? (
-        <SectionCard theme={theme} title="Drawings & attachments">
+        <SectionCard theme={theme} title={t("portal.brief.drawingsAttachments")}>
           <AttachmentsList theme={theme} attachments={brief.attachments} />
         </SectionCard>
       ) : null}
@@ -1570,6 +1572,7 @@ function AssignmentCard({
   onOpenGig: () => void;
 }) {
   const c = PALETTE[theme];
+  const t = useT();
   const fee = assignment.dayRate;
   const dayBreakdown = useMemo(
     () => groupAssignedDaysByPhase(assignment.assignedDates, schedule),
@@ -1753,7 +1756,7 @@ function AssignmentCard({
                 cursor: "pointer",
               }}
             >
-              {conflicts.length > 0 ? "Accept anyway" : "Accept gig"}
+              {conflicts.length > 0 ? t("portal.brief.actions.acceptAnyway") : t("portal.brief.actions.acceptGig")}
             </button>
             <button
               type="button"
@@ -1844,9 +1847,7 @@ function AssignmentCard({
           // too_late — first-to-accept-wins terminal state. We hide the
           // accept/decline buttons entirely; the dedicated TooLateBanner
           // higher up the page already explains what happened.
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>
-            Position filled — another freelancer accepted first.
-          </span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>{t("portal.brief.actions.tooLate")}</span>
         )}
       </div>
     </section>
@@ -1873,6 +1874,7 @@ function GenericNoticeCard({
   onOpenGig: () => void;
 }) {
   const c = PALETTE[theme];
+  const t = useT();
   return (
     <section
       style={{
@@ -1999,9 +2001,7 @@ function GenericNoticeCard({
           </>
         ) : (
           // too_late — see AssignmentCard for the matching message.
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>
-            Position filled — another freelancer accepted first.
-          </span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>{t("portal.brief.actions.tooLate")}</span>
         )}
       </div>
     </section>
@@ -2378,6 +2378,7 @@ function UpdateBanner({
   onAcknowledge: () => void;
 }) {
   const c = PALETTE[theme];
+  const t = useT();
   const visible = diffs.slice(0, 6);
   const extra = diffs.length - visible.length;
   return (
@@ -2452,7 +2453,7 @@ function UpdateBanner({
             cursor: "pointer",
           }}
         >
-          Acknowledge changes
+          {t("portal.brief.actions.diffAcknowledge")}
         </button>
       </div>
     </section>

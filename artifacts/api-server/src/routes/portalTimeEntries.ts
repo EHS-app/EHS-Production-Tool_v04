@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
 import {
   db,
+  freelancerProfilesTable,
   gigsTable,
   projectBriefsTable,
   timeEntriesTable,
@@ -11,6 +12,7 @@ import {
 } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { requireEmployee } from "../middleware/userType";
+import { getOrganizationSettings } from "../lib/organizationSettings";
 
 const router: IRouter = Router();
 
@@ -125,10 +127,15 @@ function serialize(row: TimeEntryRow) {
     producerBreakMinutes: row.producerBreakMinutes,
     producerAdjustmentMinutes: row.producerAdjustmentMinutes,
     overtimeMinutes: row.overtimeMinutes,
+    overtimeIsExplicit: row.overtimeIsExplicit,
     payableMinutes: payableMinutes(row),
     adjustmentReason: row.adjustmentReason,
     adjustedByUserId: row.adjustedByUserId,
     adjustedAt: row.adjustedAt,
+    approvedRateMinor: row.approvedRateMinor,
+    approvedFlatFeeMinor: row.approvedFlatFeeMinor,
+    approvedOvertimeMultiplierBasisPoints:
+      row.approvedOvertimeMultiplierBasisPoints,
     flagReason: row.flagReason,
     notes: row.notes,
     status: row.status,
@@ -156,14 +163,48 @@ async function loadGigForProducer(gigId: string, userId: string) {
     .select({
       gig: gigsTable,
       brief: projectBriefsTable,
+      profileDayRate: freelancerProfilesTable.defaultDayRate,
     })
     .from(gigsTable)
     .leftJoin(projectBriefsTable, eq(gigsTable.briefId, projectBriefsTable.id))
+    .leftJoin(
+      freelancerProfilesTable,
+      eq(gigsTable.freelancerUserId, freelancerProfilesTable.userId),
+    )
     .where(eq(gigsTable.id, gigId))
     .limit(1);
   const row = rows[0];
   if (!row || !row.brief || row.brief.ownerUserId !== userId) return null;
   return row;
+}
+
+function approvalCompensation(
+  gig: Awaited<ReturnType<typeof loadGigForProducer>> extends infer T
+    ? NonNullable<T>
+    : never,
+  settings: Awaited<ReturnType<typeof getOrganizationSettings>>,
+): { rateMinor: number; flatFeeMinor: number } {
+  const gigFlat = majorNokToMinor(gig.gig.flatFee);
+  const gigHourly = majorNokToMinor(gig.gig.rate);
+  if (gigFlat > 0) return { rateMinor: 0, flatFeeMinor: gigFlat };
+  if (gigHourly > 0) return { rateMinor: gigHourly, flatFeeMinor: 0 };
+  // Profiles store NOK major units. Convert a trusted day rate to an hourly
+  // snapshot using the organization's day threshold so payroll remains based
+  // on minutes and multi-day gigs are not collapsed into one flat fee.
+  const profileDayMinor = Math.max(0, gig.profileDayRate ?? 0) * 100;
+  const rateMinor =
+    profileDayMinor > 0 && settings.overtimeThresholdMinutes > 0
+      ? Math.ceil((profileDayMinor * 60) / settings.overtimeThresholdMinutes)
+      : settings.fallbackHourlyRateMinor > 0
+      ? settings.fallbackHourlyRateMinor
+      : settings.fallbackDayRateMinor > 0 &&
+          settings.overtimeThresholdMinutes > 0
+        ? Math.ceil(
+            (settings.fallbackDayRateMinor * 60) /
+              settings.overtimeThresholdMinutes,
+          )
+        : 0;
+  return { rateMinor, flatFeeMinor: 0 };
 }
 
 /** GET /api/portal/gigs/:gigId/time-entries
@@ -312,6 +353,7 @@ router.put(
         producerAdjustmentMinutes: 0,
         producerBreakMinutes: null,
         overtimeMinutes: 0,
+        overtimeIsExplicit: false,
         adjustmentReason: "",
         adjustedByUserId: null,
         adjustedAt: null,
@@ -402,6 +444,7 @@ router.post(
         producerAdjustmentMinutes: 0,
         producerBreakMinutes: null,
         overtimeMinutes: 0,
+        overtimeIsExplicit: false,
         adjustmentReason: "",
         adjustedByUserId: null,
         adjustedAt: null,
@@ -549,6 +592,12 @@ router.post(
     // status filter a freelancer PUT that fired between our read and
     // write could flip the row back to draft and we'd silently approve
     // a draft.
+    const settings = await getOrganizationSettings();
+    const compensation = approvalCompensation(gig, settings);
+    const automaticOvertime = Math.max(
+      0,
+      payableMinutes(entry) - settings.overtimeThresholdMinutes,
+    );
     const updated = await db
       .update(timeEntriesTable)
       .set({
@@ -563,9 +612,17 @@ router.post(
         rejectionReason: decision === "reject" ? reason : "",
         flagReason: decision === "flag" ? reason : "",
         approvedRateMinor:
-          decision === "approve" ? majorNokToMinor(gig.gig.rate) : null,
+          decision === "approve" ? compensation.rateMinor : null,
         approvedFlatFeeMinor:
-          decision === "approve" ? majorNokToMinor(gig.gig.flatFee) : null,
+          decision === "approve" ? compensation.flatFeeMinor : null,
+        overtimeMinutes:
+          decision === "approve" && !entry.overtimeIsExplicit
+            ? automaticOvertime
+            : entry.overtimeMinutes,
+        approvedOvertimeMultiplierBasisPoints:
+          decision === "approve"
+            ? settings.overtimeMultiplierBasisPoints
+            : null,
         updatedAt: sql`now()`,
       })
       .where(
@@ -635,7 +692,19 @@ router.post(
     }
     const adjustmentMinutes = pickInteger(body.adjustmentMinutes, -1440, 1440);
     const breakMinutes = pickInteger(body.breakMinutes, 0, 1440);
-    const overtimeMinutes = pickInteger(body.overtimeMinutes, 0, 1440);
+    const overtimeWasSupplied = "overtimeMinutes" in body;
+    const settings = await getOrganizationSettings();
+    const overtimeMinutes = overtimeWasSupplied
+      ? pickInteger(body.overtimeMinutes, 0, 1440)
+      : Math.max(
+          0,
+          Math.max(
+            0,
+            grossMinutes(entry) -
+              (pickInteger(body.breakMinutes, 0, 1440) ?? 0) +
+              (pickInteger(body.adjustmentMinutes, -1440, 1440) ?? 0),
+          ) - settings.overtimeThresholdMinutes,
+        );
     const reason = clampStr(body.reason, MAX_REASON);
     if (
       adjustmentMinutes == null ||
@@ -673,6 +742,7 @@ router.post(
         producerAdjustmentMinutes: adjustmentMinutes,
         producerBreakMinutes: breakMinutes,
         overtimeMinutes,
+        overtimeIsExplicit: overtimeWasSupplied,
         adjustmentReason: reason,
         adjustedByUserId: userId,
         adjustedAt: sql`now()`,

@@ -6,7 +6,6 @@ import {
   gigEarnings,
   newGigId,
   statusColor,
-  statusLabel,
   statusLabelT,
   type Gig,
   type GigCheckIn,

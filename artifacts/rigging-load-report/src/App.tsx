@@ -58,12 +58,12 @@ import { HomeDashboard, type DashboardStats } from "./components/global/HomeDash
 import { ProjectsDatabasePage } from "./components/global/ProjectsDatabasePage";
 import { CrewDirectoryPage } from "./components/global/CrewDirectoryPage";
 import { MasterCalendarPage } from "./components/global/MasterCalendarPage";
-import { GlobalPlaceholderPage } from "./components/global/GlobalPlaceholderPage";
 import { GlobalTaskBoard } from "./components/global/GlobalTaskBoard";
 import { TransportDashboard } from "./components/global/TransportDashboard";
 import { EconomyDashboard } from "./components/global/EconomyDashboard";
 import { VenuesDatabasePage } from "./components/global/VenuesDatabasePage";
 import { ClientsDatabasePage } from "./components/global/ClientsDatabasePage";
+import { SettingsPage } from "./components/global/SettingsPage";
 import { FolderOpen as ShellFolderOpen, Copy as ShellCopy } from "lucide-react";
 import { useI18n } from "./lib/i18n/I18nContext";
 import { buildBrief, type BuildBriefInput } from "./lib/projectBrief";
@@ -5960,31 +5960,6 @@ function App() {
   );
 
   if (globalView) {
-    const placeholderCopy: Record<
-      Exclude<GlobalView, "home" | "projects" | "crew" | "venues" | "clients">,
-      { title: string; description: string }
-    > = {
-      calendar: {
-        title: "Master Calendar",
-        description: "Cross-project scheduling, crew availability, and production milestones will arrive in Phase 2.",
-      },
-      transport: {
-        title: "Transport & Logistics",
-        description: "Fleet planning, transport runs, manifests, and logistics coordination are prepared for the next phase.",
-      },
-      tasks: {
-        title: "Task Management",
-        description: "A consolidated view of tasks across every production is planned for the next phase.",
-      },
-      economy: {
-        title: "Economy",
-        description: "Global budgets, purchasing, invoicing, and financial reporting will be introduced in a later phase.",
-      },
-      settings: {
-        title: "System Settings",
-        description: "Organization-wide configuration and operational defaults will be introduced in a later phase.",
-      },
-    };
     return (
       <div className="container">
         <GlobalShell
@@ -6069,8 +6044,10 @@ function App() {
                 });
               }}
             />
+          ) : globalView === "settings" ? (
+            <SettingsPage />
           ) : (
-            <GlobalPlaceholderPage {...placeholderCopy[globalView]} />
+            null
           )}
         </GlobalShell>
       </div>

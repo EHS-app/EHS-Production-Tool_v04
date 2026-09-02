@@ -3,7 +3,6 @@ import { PALETTE, type ThemeMode } from "../lib/portalTheme";
 import {
   gigEarnings,
   statusColor,
-  statusLabel,
   statusLabelT,
   type Gig,
   type PortalData,
@@ -42,7 +41,7 @@ function csvEscape(value: string): string {
   return v;
 }
 
-function buildCsv(gigs: Gig[]): string {
+function buildCsv(gigs: Gig[], t: ReturnType<typeof useT>): string {
   const header = [
     "Status",
     "Project",
@@ -59,7 +58,7 @@ function buildCsv(gigs: Gig[]): string {
   ].join(",");
   const rows = gigs.map((g) =>
     [
-      statusLabel(g.status),
+      statusLabelT(g.status, t),
       g.projectName,
       g.client,
       g.role,
@@ -153,7 +152,7 @@ export function Earnings({
     if (yearGigs.length === 0) return;
     downloadCsv(
       `ehs-portal-earnings-${now.getFullYear()}.csv`,
-      buildCsv(yearGigs),
+      buildCsv(yearGigs, t),
     );
   }
 
@@ -161,7 +160,7 @@ export function Earnings({
     if (readyList.length === 0) return;
     downloadCsv(
       `ehs-portal-ready-to-invoice-${new Date().toISOString().slice(0, 10)}.csv`,
-      buildCsv(readyList),
+      buildCsv(readyList, t),
     );
   }
 

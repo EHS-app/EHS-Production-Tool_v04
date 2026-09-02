@@ -13,6 +13,7 @@ import {
   type FinanceCategory,
 } from "@workspace/db";
 import { requireEmployee } from "../middleware/userType";
+import { getOrganizationSettings } from "../lib/organizationSettings";
 import {
   getProjectAccess,
   isProjectWriter,
@@ -76,11 +77,17 @@ function majorNokToMinor(raw: string): number {
 
 function csvCell(value: string | number | null): string {
   const initial = value == null ? "" : String(value);
-  const raw = /^[=+\-@]/.test(initial) ? `'${initial}` : initial;
+  // Excel/Sheets discard leading whitespace before evaluating a formula.
+  // Treat ASCII controls and all JavaScript whitespace as leading whitespace
+  // too, so a tab/newline-prefixed formula cannot bypass neutralization.
+  const raw = /^[\s\u0000-\u001f]*[=+\-@]/.test(initial)
+    ? `'${initial}`
+    : initial;
   return /[",\r\n]/.test(raw) ? `"${raw.replaceAll('"', '""')}"` : raw;
 }
 
 async function loadEconomy(callerUserId: string) {
+  const organization = await getOrganizationSettings();
   const projects = await db
     .select({
       id: projectsTable.id,
@@ -148,11 +155,18 @@ async function loadEconomy(callerUserId: string) {
         overtimeMinutes: timeEntriesTable.overtimeMinutes,
         approvedRateMinor: timeEntriesTable.approvedRateMinor,
         approvedFlatFeeMinor: timeEntriesTable.approvedFlatFeeMinor,
+        approvedOvertimeMultiplierBasisPoints:
+          timeEntriesTable.approvedOvertimeMultiplierBasisPoints,
         rate: gigsTable.rate,
         flatFee: gigsTable.flatFee,
+        profileDayRate: freelancerProfilesTable.defaultDayRate,
       })
       .from(timeEntriesTable)
       .innerJoin(gigsTable, eq(timeEntriesTable.gigId, gigsTable.id))
+      .leftJoin(
+        freelancerProfilesTable,
+        eq(timeEntriesTable.freelancerUserId, freelancerProfilesTable.userId),
+      )
       .where(
         and(
           inArray(timeEntriesTable.briefId, activeBriefIds),
@@ -188,7 +202,7 @@ async function loadEconomy(callerUserId: string) {
 
   const gigs = new Map<
     string,
-    { projectId: string; minutes: number; rateMinor: number; flatFeeMinor: number }
+    { projectId: string; hourlyCostMinor: number; flatFeeMinor: number }
   >();
   for (const row of laborRows) {
     if (!row.briefId) continue;
@@ -196,16 +210,54 @@ async function loadEconomy(callerUserId: string) {
     if (!projectId) continue;
     const current = gigs.get(row.gigId) ?? {
       projectId,
-      minutes: 0,
-      rateMinor: row.approvedRateMinor ?? majorNokToMinor(row.rate),
-      flatFeeMinor: row.approvedFlatFeeMinor ?? majorNokToMinor(row.flatFee),
+      hourlyCostMinor: 0,
+      flatFeeMinor: 0,
     };
+    const hasSnapshot =
+      row.approvedRateMinor != null || row.approvedFlatFeeMinor != null;
+    const trustedGigFlat = majorNokToMinor(row.flatFee);
+    const trustedGigHourly = majorNokToMinor(row.rate);
+    const profileDayMinor = Math.max(0, row.profileDayRate ?? 0) * 100;
+    const fallbackHourly =
+      profileDayMinor > 0 && organization.overtimeThresholdMinutes > 0
+        ? Math.ceil(
+            (profileDayMinor * 60) / organization.overtimeThresholdMinutes,
+          )
+        : organization.fallbackHourlyRateMinor > 0
+        ? organization.fallbackHourlyRateMinor
+        : organization.fallbackDayRateMinor > 0 &&
+            organization.overtimeThresholdMinutes > 0
+          ? Math.ceil(
+              (organization.fallbackDayRateMinor * 60) /
+                organization.overtimeThresholdMinutes,
+            )
+          : 0;
+    const flatFeeMinor = hasSnapshot
+      ? (row.approvedFlatFeeMinor ?? 0)
+      : trustedGigFlat;
+    const rateMinor = hasSnapshot
+      ? (row.approvedRateMinor ?? 0)
+      : trustedGigFlat > 0
+        ? 0
+        : trustedGigHourly > 0
+          ? trustedGigHourly
+          : fallbackHourly;
+    current.flatFeeMinor = Math.max(current.flatFeeMinor, flatFeeMinor);
     if (row.startMinute != null && row.endMinute != null) {
       const elapsed = (row.endMinute - row.startMinute + 1_440) % 1_440;
       const reviewedBreak = row.producerBreakMinutes ?? row.breakMinutes;
-      current.minutes += Math.max(
+      const payable = Math.max(
         0,
         elapsed - reviewedBreak + row.producerAdjustmentMinutes,
+      );
+      const overtime = Math.min(payable, Math.max(0, row.overtimeMinutes));
+      const regular = payable - overtime;
+      const multiplier =
+        row.approvedOvertimeMultiplierBasisPoints ??
+        10_000;
+      current.hourlyCostMinor += Math.ceil(
+        (regular * rateMinor) / 60 +
+          (overtime * rateMinor * multiplier) / (60 * 10_000),
       );
     }
     gigs.set(row.gigId, current);
@@ -218,9 +270,7 @@ async function loadEconomy(callerUserId: string) {
      * next øre, so the estimate never understates cost due to rounding.
      */
     const actual =
-      gig.flatFeeMinor > 0
-        ? gig.flatFeeMinor
-        : Math.ceil((gig.minutes * gig.rateMinor) / 60);
+      gig.flatFeeMinor > 0 ? gig.flatFeeMinor : gig.hourlyCostMinor;
     actualByProject.get(gig.projectId)!.labor += actual;
   }
 
@@ -305,6 +355,9 @@ async function loadEconomy(callerUserId: string) {
           flatFee: gigsTable.flatFee,
           approvedRateMinor: timeEntriesTable.approvedRateMinor,
           approvedFlatFeeMinor: timeEntriesTable.approvedFlatFeeMinor,
+          approvedOvertimeMultiplierBasisPoints:
+            timeEntriesTable.approvedOvertimeMultiplierBasisPoints,
+          profileDayRate: freelancerProfilesTable.defaultDayRate,
           createdAt: timeEntriesTable.createdAt,
           updatedAt: timeEntriesTable.updatedAt,
         })
@@ -336,8 +389,26 @@ async function loadEconomy(callerUserId: string) {
       freelancerName: row.freelancerName || "Freelancer",
       workedMinutes,
       payableMinutes,
-      rateMinor: row.approvedRateMinor ?? majorNokToMinor(row.rate),
-      flatFeeMinor: row.approvedFlatFeeMinor ?? majorNokToMinor(row.flatFee),
+      rateMinor:
+        row.approvedRateMinor ??
+        (majorNokToMinor(row.flatFee) > 0
+          ? 0
+          : majorNokToMinor(row.rate) > 0
+          ? majorNokToMinor(row.rate)
+          : (row.profileDayRate ?? 0) > 0
+            ? Math.ceil(
+                (Math.max(0, row.profileDayRate ?? 0) * 100 * 60) /
+                  Math.max(1, organization.overtimeThresholdMinutes),
+              )
+            : organization.fallbackHourlyRateMinor > 0
+            ? organization.fallbackHourlyRateMinor
+            : Math.ceil(
+                (organization.fallbackDayRateMinor *
+                  60) /
+                  Math.max(1, organization.overtimeThresholdMinutes),
+              )),
+      flatFeeMinor:
+        row.approvedFlatFeeMinor ?? majorNokToMinor(row.flatFee),
     }];
   });
 
@@ -351,6 +422,12 @@ async function loadEconomy(callerUserId: string) {
   });
 
   return {
+    organization: {
+      companyName: organization.companyName,
+      currency: organization.defaultCurrency,
+      vatRateBasisPoints: organization.defaultVatRateBasisPoints,
+      paymentTermsDays: organization.defaultPaymentTermsDays,
+    },
     projects: summaries,
     expenses: expenseRows,
     timecards,
@@ -366,7 +443,7 @@ async function loadEconomy(callerUserId: string) {
       ),
     },
     laborMethod:
-      "Approved/locked entries only; positive flat fee once per gig, otherwise approved payable minutes × trusted hourly rate, rounded up to øre.",
+      "Approved/locked entries only; positive flat fee once per gig, otherwise approved payable minutes × immutable/trusted/fallback hourly rate with snapshotted overtime, rounded up to øre.",
   };
 }
 
@@ -550,7 +627,13 @@ router.get(
     try {
       const economy = await loadEconomy(userId(req));
       const rows: Array<Array<string | number | null>> = [
+        // This finance CSV is the application's invoice/export surface; there
+        // is intentionally no separate invoice route.
         [
+          "organization",
+          "currency",
+          "vat_rate_basis_points",
+          "payment_terms_days",
           "project_id",
           "project",
           "client",
@@ -569,6 +652,10 @@ router.get(
       for (const project of economy.projects) {
         for (const category of project.categories) {
           rows.push([
+            economy.organization.companyName,
+            economy.organization.currency,
+            economy.organization.vatRateBasisPoints,
+            economy.organization.paymentTermsDays,
             project.projectId,
             project.projectName,
             project.client,

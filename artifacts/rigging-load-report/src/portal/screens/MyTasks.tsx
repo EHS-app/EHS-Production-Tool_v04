@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { PALETTE, type ThemeMode } from "../lib/portalTheme";
+import { useT } from "../../lib/i18n/I18nContext";
 
 type Task = {
   id: string;
@@ -22,6 +23,7 @@ const BASE_URL =
 export function MyTasks({ theme }: { theme: ThemeMode }) {
   const c = PALETTE[theme];
   const { getToken } = useAuth();
+  const t = useT();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -36,11 +38,11 @@ export function MyTasks({ theme }: { theme: ThemeMode }) {
         });
         const body = (await response.json()) as { ok?: boolean; tasks?: Task[]; error?: string };
         if (!response.ok || !body.ok || !Array.isArray(body.tasks)) {
-          throw new Error(body.error || "Could not load your tasks.");
+          throw new Error(body.error || t("portal.tasks.loadError"));
         }
         if (!cancelled) setTasks(body.tasks);
       } catch (reason) {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Could not load your tasks.");
+        if (!cancelled) setError(reason instanceof Error ? reason.message : t("portal.tasks.loadError"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -48,19 +50,19 @@ export function MyTasks({ theme }: { theme: ThemeMode }) {
     return () => {
       cancelled = true;
     };
-  }, [getToken]);
+  }, [getToken, t]);
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <header>
-        <h1 style={{ margin: 0, fontSize: 26 }}>My Tasks</h1>
-        <p style={{ color: c.muted, margin: "6px 0 0" }}>Production tasks assigned to you</p>
+        <h1 style={{ margin: 0, fontSize: 26 }}>{t("portal.tasks.title")}</h1>
+        <p style={{ color: c.muted, margin: "6px 0 0" }}>{t("portal.tasks.subtitle")}</p>
       </header>
-      {loading ? <p style={{ color: c.muted }}>Loading tasks…</p> : null}
+      {loading ? <p style={{ color: c.muted }}>{t("portal.tasks.loading")}</p> : null}
       {error ? <p role="alert" style={{ color: "#ef4444" }}>{error}</p> : null}
       {!loading && !error && tasks.length === 0 ? (
         <div style={{ padding: 24, border: `1px solid ${c.border}`, borderRadius: 14, color: c.muted }}>
-          No production tasks are assigned to you.
+          {t("portal.tasks.empty")}
         </div>
       ) : null}
       {tasks.map((task) => (
@@ -80,8 +82,8 @@ export function MyTasks({ theme }: { theme: ThemeMode }) {
             </span>
           </div>
           <div style={{ color: c.muted, fontSize: 13, marginTop: 8 }}>
-            {task.department} · {task.priority} priority
-            {task.dueDate ? ` · Due ${new Date(`${task.dueDate}T00:00:00`).toLocaleDateString()}` : ""}
+            {task.department} · {task.priority} {t("portal.tasks.priority")}
+            {task.dueDate ? ` · ${t("portal.tasks.due")} ${new Date(`${task.dueDate}T00:00:00`).toLocaleDateString()}` : ""}
           </div>
           {task.description ? <p style={{ margin: "12px 0 0", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{task.description}</p> : null}
         </article>

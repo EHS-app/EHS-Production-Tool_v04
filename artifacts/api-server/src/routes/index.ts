@@ -21,6 +21,7 @@ import transportRouter from "./transport";
 import globalTasksRouter from "./globalTasks";
 import economyRouter from "./economy";
 import masterDataRouter from "./masterData";
+import settingsRouter from "./settings";
 import { requireEmployee } from "../middleware/userType";
 
 const router: IRouter = Router();
@@ -64,6 +65,7 @@ router.use(inspectionExtractRouter);
 // don't accidentally double-gate it, but the admin gate is strictly
 // tighter than the employee gate.
 router.use(adminRouter);
+router.use(settingsRouter);
 router.use(feedbackRouter);
 
 // Portal surface — open to both freelancers (their own data) and

@@ -9,3 +9,4 @@
 - [Booking history integrity](booking-history-integrity.md) — trust only server-built acceptance snapshots with DB provenance and the exact recorded accepted gig.
 - [Payroll approval integrity](payroll-approval-integrity.md) — approved labor uses immutable compensation snapshots; freelancers cannot rewrite producer-owned assignment terms.
 - [Venue brief projection](venue-brief-projection.md) — portal briefs use server-built venue snapshots and exclude venue contacts plus all client directory details.
+- [Organization settings governance](organization-settings-governance.md) — admin access is explicit; project defaults are server-owned snapshots and approved payroll remains immutable.

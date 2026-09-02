@@ -14,4 +14,5 @@ export * from "./projectMembers";
 export * from "./projectMessages";
 export * from "./transport";
 export * from "./projectFinance";
+export * from "./organizationSettings";
 //# sourceMappingURL=index.d.ts.map

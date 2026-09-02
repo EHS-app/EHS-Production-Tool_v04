@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import ehsLogo from "../../assets/ehs-logo.png";
+import { useT } from "../../lib/i18n/I18nContext";
 
 export type GlobalView =
   | "home"
@@ -48,20 +49,20 @@ interface GlobalShellProps {
 }
 
 const NAV_ITEMS = [
-  { id: "home", label: "Home", icon: Activity },
-  { id: "projects", label: "Projects Database", icon: Briefcase },
-  { id: "clients", label: "Client Hub", icon: Building2 },
-  { id: "venues", label: "Venue Directory", icon: MapPin },
-  { id: "crew", label: "Global Crew Directory", icon: Users },
-  { id: "calendar", label: "Master Calendar", icon: Calendar },
-  { id: "transport", label: "Transport & Logistics", icon: Truck },
-  { id: "tasks", label: "Task Management", icon: CheckSquare },
-  { id: "economy", label: "Economy", icon: DollarSign },
-];
+  { id: "home", key: "global.nav.home", icon: Activity },
+  { id: "projects", key: "global.nav.projects", icon: Briefcase },
+  { id: "clients", key: "global.nav.clients", icon: Building2 },
+  { id: "venues", key: "global.nav.venues", icon: MapPin },
+  { id: "crew", key: "global.nav.crew", icon: Users },
+  { id: "calendar", key: "global.nav.calendar", icon: Calendar },
+  { id: "transport", key: "global.nav.transport", icon: Truck },
+  { id: "tasks", key: "global.nav.tasks", icon: CheckSquare },
+  { id: "economy", key: "global.nav.economy", icon: DollarSign },
+] as const;
 
 const NAV_BOTTOM = [
-  { id: "settings", label: "System Settings", icon: Settings },
-];
+  { id: "settings", key: "global.nav.settings", icon: Settings },
+] as const;
 
 export function GlobalShell({
   view,
@@ -74,6 +75,7 @@ export function GlobalShell({
   onSignOut,
   children,
 }: GlobalShellProps) {
+  const t = useT();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
 
@@ -82,7 +84,8 @@ export function GlobalShell({
     onChangeView(next);
   };
 
-  const activeLabel = [...NAV_ITEMS, ...NAV_BOTTOM].find((i) => i.id === view)?.label || "EHS Hub";
+  const activeItem = [...NAV_ITEMS, ...NAV_BOTTOM].find((item) => item.id === view);
+  const activeLabel = activeItem ? t(activeItem.key) : "EHS Hub";
 
   return (
     <div className="ehs-shell">
@@ -103,14 +106,14 @@ export function GlobalShell({
             />
           </div>
           <div className="ehs-shell-workspace-text">
-            <div className="ehs-shell-workspace-name">Production Tool</div>
+            <div className="ehs-shell-workspace-name">{t("global.workspace.productionTool")}</div>
           </div>
           <ChevronDown size={14} className="ehs-shell-workspace-chevron" />
         </div>
 
         <nav className="ehs-shell-nav">
           <div style={{ marginTop: 18 }}>
-            <div className="ehs-shell-nav-label">HQ</div>
+            <div className="ehs-shell-nav-label">{t("global.nav.hq")}</div>
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const active = item.id === view;
@@ -122,7 +125,7 @@ export function GlobalShell({
                   className={`ehs-shell-nav-item${active ? " is-active" : ""}`}
                 >
                   <Icon size={15} strokeWidth={1.75} />
-                  <span style={{ flex: 1, textAlign: "left" }}>{item.label}</span>
+                  <span style={{ flex: 1, textAlign: "left" }}>{t(item.key)}</span>
                 </button>
               );
             })}
@@ -142,7 +145,7 @@ export function GlobalShell({
                 style={{ background: active ? "" : "none", border: "none", cursor: "pointer", width: "100%" }}
               >
                 <Icon size={15} strokeWidth={1.75} />
-                <span style={{ flex: 1, textAlign: "left" }}>{item.label}</span>
+                  <span style={{ flex: 1, textAlign: "left" }}>{t(item.key)}</span>
               </button>
             );
           })}
@@ -159,8 +162,8 @@ export function GlobalShell({
               <button
                 type="button"
                 className="ehs-shell-icon-btn"
-                title="Settings"
-                aria-label="Settings"
+                title={t("global.menu.settings")}
+                aria-label={t("global.menu.settings")}
               >
                 <MoreHorizontal size={14} />
               </button>
@@ -171,7 +174,7 @@ export function GlobalShell({
               align="end"
               sideOffset={6}
             >
-                <div className="ehs-shell-menu-label">Theme</div>
+                <div className="ehs-shell-menu-label">{t("global.menu.theme")}</div>
                 {(["light", "dark", "system"] as const).map((opt) => (
                   <DropdownMenuItem
                     key={opt}
@@ -179,7 +182,7 @@ export function GlobalShell({
                     className={`ehs-shell-menu-item${themePref === opt ? " is-active" : ""}`}
                     onSelect={() => onChangeTheme(opt)}
                   >
-                    {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                    {t(`global.menu.theme.${opt}`)}
                   </DropdownMenuItem>
                 ))}
                 <div className="ehs-shell-menu-sep" />
@@ -187,7 +190,7 @@ export function GlobalShell({
                   className="ehs-shell-menu-item is-danger"
                   onSelect={onSignOut}
                 >
-                  <LogOut size={12} /> Sign Out
+                  <LogOut size={12} /> {t("global.menu.signOut")}
                 </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -200,13 +203,13 @@ export function GlobalShell({
             type="button"
             className="ehs-shell-mobile-menu-btn"
             onClick={() => setMobileMenuOpen((v) => !v)}
-            aria-label="Menu"
+            aria-label={t("global.menu.open")}
             aria-expanded={mobileMenuOpen}
           >
             <Menu size={18} />
           </button>
           <div className="ehs-shell-crumbs">
-            <span className="ehs-shell-crumb-link">Operations Hub</span>
+            <span className="ehs-shell-crumb-link">{t("global.breadcrumb.operationsHub")}</span>
             <span className="ehs-shell-crumb-sep">/</span>
             <span className="ehs-shell-crumb-current">{activeLabel}</span>
           </div>

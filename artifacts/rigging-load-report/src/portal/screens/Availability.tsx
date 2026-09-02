@@ -3,6 +3,7 @@ import { PALETTE, type ThemeMode } from "../lib/portalTheme";
 import { type PortalData } from "../lib/portalStorage";
 import { useAuth } from "@clerk/react";
 import { toast } from "sonner";
+import { useT } from "../../lib/i18n/I18nContext";
 
 type CalendarEntry = {
   id: string;
@@ -99,6 +100,7 @@ function buildMonthCells(year: number, month: number) {
 
 export function Availability({ theme, data, setData }: { theme: ThemeMode; data: PortalData; setData: React.Dispatch<React.SetStateAction<PortalData>> }) {
   const c = PALETTE[theme];
+  const t = useT();
   const { getToken } = useAuth();
   const [tab, setTab] = useState<"calendar" | "integrations">("calendar");
 
@@ -393,30 +395,30 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
 
     <div style={{ display: "grid", gap: 16 }}>
       <header style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "space-between" }}>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>Availability & Calendar</h1>
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>{t("portal.availability.title")}</h1>
         <div style={{ display: "flex", gap: 8, background: c.cardBgSubtle, padding: 4, borderRadius: 8, border: `1px solid ${c.border}` }}>
-          <button onClick={() => setTab("calendar")} style={tabBtn(tab === "calendar", theme)}>Calendar</button>
-          <button onClick={() => setTab("integrations")} style={tabBtn(tab === "integrations", theme)}>Sync & Integrations</button>
+          <button onClick={() => setTab("calendar")} style={tabBtn(tab === "calendar", theme)}>{t("portal.availability.tab.calendar")}</button>
+          <button onClick={() => setTab("integrations")} style={tabBtn(tab === "integrations", theme)}>{t("portal.availability.tab.integrations")}</button>
         </div>
       </header>
 
       {tab === "calendar" && (
         <div style={{ background: c.cardBg, border: `1px solid ${c.border}`, borderRadius: 14, padding: 16 }}>
           <div style={{ display: "flex", alignItems: "center", marginBottom: 12, gap: 8 }}>
-            <button onClick={() => shiftDate(-1)} style={navBtnStyle(theme)} aria-label="Previous">‹</button>
+            <button onClick={() => shiftDate(-1)} style={navBtnStyle(theme)} aria-label={t("portal.availability.prev")}>‹</button>
             <div style={{ flex: 1, textAlign: "center", fontSize: 18, fontWeight: 800 }}>
               {viewMode === "month" ? monthName : `Week of ${viewWeekStart.toLocaleDateString("en-GB", { month: "short", day: "numeric" })}`}
             </div>
-            <button onClick={() => shiftDate(+1)} style={navBtnStyle(theme)} aria-label="Next">›</button>
+            <button onClick={() => shiftDate(+1)} style={navBtnStyle(theme)} aria-label={t("portal.availability.next")}>›</button>
             <div style={{ display: "flex", gap: 4, background: c.cardBgSubtle, padding: 4, borderRadius: 8, border: `1px solid ${c.border}` }}>
-              <button onClick={() => setViewMode("month")} style={tabBtn(viewMode === "month", theme)}>Month</button>
-              <button onClick={() => setViewMode("week")} style={tabBtn(viewMode === "week", theme)}>Week</button>
+              <button onClick={() => setViewMode("month")} style={tabBtn(viewMode === "month", theme)}>{t("portal.availability.view.month")}</button>
+              <button onClick={() => setViewMode("week")} style={tabBtn(viewMode === "week", theme)}>{t("portal.availability.view.week")}</button>
             </div>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 4 }}>
-            {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(wk => (
-              <div key={wk} style={{ fontSize: 11, fontWeight: 700, color: c.muted, textAlign: "center", padding: "4px 0", textTransform: "uppercase" }}>{wk}</div>
+            {["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((wk) => (
+              <div key={wk} style={{ fontSize: 11, fontWeight: 700, color: c.muted, textAlign: "center", padding: "4px 0", textTransform: "uppercase" }}>{t(`portal.availability.weekday.${wk}` as any)}</div>
             ))}
           </div>
 
@@ -497,15 +499,15 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
 
 
           <div style={{ marginTop: 14, display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center", fontSize: 12, color: c.muted }}>
-            <LegendDot color="#16a34a" label="Available" />
-            <LegendDot color="#dc2626" label="Unavailable / Busy" />
-            <LegendDot color="#6366f1" label="EHS Gig" />
+            <LegendDot color="#16a34a" label={t("portal.availability.legend.available")} />
+            <LegendDot color="#dc2626" label={t("portal.availability.legend.unavailable")} />
+            <LegendDot color="#6366f1" label={t("portal.availability.legend.gig")} />
           </div>
 
           <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
-            <button onClick={() => handleBulk("available", "month")} style={btnPill(theme)}>Mark Month Available</button>
-            <button onClick={() => handleBulk("unavailable", "month")} style={btnPill(theme)}>Mark Month Unavailable</button>
-            <button onClick={() => handleBulk("available", "today")} style={btnPill(theme)}>Mark Free From Today</button>
+            <button onClick={() => handleBulk("available", "month")} style={btnPill(theme)}>{t("portal.availability.bulk.monthAvailable")}</button>
+            <button onClick={() => handleBulk("unavailable", "month")} style={btnPill(theme)}>{t("portal.availability.bulk.monthUnavailable")}</button>
+            <button onClick={() => handleBulk("available", "today")} style={btnPill(theme)}>{t("portal.availability.bulk.freeFromToday")}</button>
           </div>
 
         </div>
@@ -514,7 +516,7 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
       {tab === "integrations" && (
         <div style={{ display: "grid", gap: 16 }}>
           <div style={{ background: c.cardBg, border: `1px solid ${c.border}`, borderRadius: 14, padding: 20 }}>
-            <h3 style={{ margin: "0 0 16px", fontSize: 18 }}>Connected Accounts</h3>
+            <h3 style={{ margin: "0 0 16px", fontSize: 18 }}>{t("portal.availability.connectedAccounts")}</h3>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <ConnectionRow
@@ -525,6 +527,7 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
                 onSync={handleSync}
                 onDelete={handleDeleteConnection}
                 theme={theme}
+                t={t}
               />
               <ConnectionRow
                 provider="microsoft"
@@ -534,6 +537,7 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
                 onSync={handleSync}
                 onDelete={handleDeleteConnection}
                 theme={theme}
+                t={t}
               />
               {connections.filter(c => c.provider === "ics").map(c => (
                 <ConnectionRow
@@ -545,45 +549,46 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
                   onSync={handleSync}
                   onDelete={handleDeleteConnection}
                   theme={theme}
+                  t={t}
                 />
               ))}
             </div>
 
 
-            <h3 style={{ margin: "32px 0 16px", fontSize: 18 }}>Private ICS Import</h3>
+            <h3 style={{ margin: "32px 0 16px", fontSize: 18 }}>{t("portal.availability.privateIcs")}</h3>
             <p style={{ fontSize: 13, color: c.muted, marginBottom: 12 }}>
-              Paste a private ICS URL to sync external busy intervals. Treat this URL like a password.
+              {t("portal.availability.icsHint")}
             </p>
             <div style={{ display: "flex", gap: 8 }}>
               <input type="url" value={icsUrl} onChange={e => setIcsUrl(e.target.value)} placeholder="https://..." style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text }} />
-              <button onClick={handleAddIcs} style={{ padding: "8px 16px", background: c.accent, color: "#fff", border: "none", borderRadius: 8, fontWeight: "bold", cursor: "pointer" }}>Add URL</button>
+              <button onClick={handleAddIcs} style={{ padding: "8px 16px", background: c.accent, color: "#fff", border: "none", borderRadius: 8, fontWeight: "bold", cursor: "pointer" }}>{t("portal.availability.addUrl")}</button>
             </div>
           </div>
 
           <div style={{ background: c.cardBg, border: `1px solid ${c.border}`, borderRadius: 14, padding: 20 }}>
-            <h3 style={{ margin: "0 0 16px", fontSize: 18 }}>Export Calendar</h3>
+            <h3 style={{ margin: "0 0 16px", fontSize: 18 }}>{t("portal.availability.export")}</h3>
             <p style={{ fontSize: 13, color: c.muted, marginBottom: 16 }}>
-              Subscribe to your EHS shifts and holds from your personal calendar.
+              {t("portal.availability.exportHint")}
             </p>
             {feed?.enabled && (
               <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
                 <input readOnly value={feed.url} style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${c.border}`, background: c.inputBg, color: c.text }} />
-                <button onClick={handleCopy} style={{ padding: "8px 16px", background: c.cardBgSubtle, color: c.text, border: `1px solid ${c.border}`, borderRadius: 8, cursor: "pointer" }}>{copied ? "Copied" : "Copy"}</button>
-                <button onClick={handleRotateFeed} style={{ padding: "8px 16px", background: "transparent", color: c.danger, border: `1px solid ${c.danger}`, borderRadius: 8, cursor: "pointer" }}>Rotate</button>
+                <button onClick={handleCopy} style={{ padding: "8px 16px", background: c.cardBgSubtle, color: c.text, border: `1px solid ${c.border}`, borderRadius: 8, cursor: "pointer" }}>{copied ? t("portal.availability.copied") : t("portal.availability.copy")}</button>
+                <button onClick={handleRotateFeed} style={{ padding: "8px 16px", background: "transparent", color: c.danger, border: `1px solid ${c.danger}`, borderRadius: 8, cursor: "pointer" }}>{t("portal.availability.rotate")}</button>
               </div>
             )}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {feed?.url && (
                 <>
-                  <a href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(getWebcalUrl())}`} target="_blank" rel="noopener noreferrer" style={{...btnPill(theme), textDecoration: "none"}}>Add to Google Calendar</a>
-                  <a href={getWebcalUrl()} style={{...btnPill(theme), textDecoration: "none"}}>Add to Apple Calendar</a>
-                  <a href={`https://outlook.office.com/calendar/0/addcalendar?url=${encodeURIComponent(getWebcalUrl())}&name=EHS+Portal`} target="_blank" rel="noopener noreferrer" style={{...btnPill(theme), textDecoration: "none"}}>Add to Outlook</a>
+                  <a href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(getWebcalUrl())}`} target="_blank" rel="noopener noreferrer" style={{...btnPill(theme), textDecoration: "none"}}>{t("portal.availability.addToGoogle")}</a>
+                  <a href={getWebcalUrl()} style={{...btnPill(theme), textDecoration: "none"}}>{t("portal.availability.addToApple")}</a>
+                  <a href={`https://outlook.office.com/calendar/0/addcalendar?url=${encodeURIComponent(getWebcalUrl())}&name=EHS+Portal`} target="_blank" rel="noopener noreferrer" style={{...btnPill(theme), textDecoration: "none"}}>{t("portal.availability.addToOutlook")}</a>
                 </>
               )}
-              <button onClick={handleDownload} style={btnPill(theme)}>Download .ics</button>
+              <button onClick={handleDownload} style={btnPill(theme)}>{t("portal.availability.downloadIcs")}</button>
             </div>
             <p style={{ fontSize: 12, color: c.danger, marginTop: 16 }}>
-              Warning: Rotating your subscription URL will immediately revoke access to the old link.
+              {t("portal.availability.rotateWarning")}
             </p>
           </div>
         </div>
@@ -592,11 +597,11 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
       {rotateConfirm && (
         <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 1000, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.5)", padding: 20 }}>
           <div style={{ background: c.cardBg, color: c.text, padding: 24, borderRadius: 12, width: "100%", maxWidth: 400, boxShadow: "0 24px 80px rgba(0,0,0,0.2)" }}>
-            <h2 style={{ margin: "0 0 12px" }}>Rotate Subscription</h2>
-            <p style={{ margin: "0 0 24px", color: c.muted, fontSize: 14 }}>Are you sure? Your old calendar link will stop working immediately.</p>
+            <h2 style={{ margin: "0 0 12px" }}>{t("portal.availability.rotateDialog.title")}</h2>
+            <p style={{ margin: "0 0 24px", color: c.muted, fontSize: 14 }}>{t("portal.availability.rotateDialog.body")}</p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-              <button onClick={() => setRotateConfirm(false)} style={{ padding: "8px 16px", background: "transparent", border: "none", color: c.muted, cursor: "pointer" }}>Cancel</button>
-              <button onClick={confirmRotate} style={{ padding: "8px 16px", background: c.danger, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: "bold" }}>Rotate Link</button>
+              <button onClick={() => setRotateConfirm(false)} style={{ padding: "8px 16px", background: "transparent", border: "none", color: c.muted, cursor: "pointer" }}>{t("portal.availability.rotateDialog.cancel")}</button>
+              <button onClick={confirmRotate} style={{ padding: "8px 16px", background: c.danger, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: "bold" }}>{t("portal.availability.rotateDialog.confirm")}</button>
             </div>
           </div>
         </div>
@@ -618,7 +623,7 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
   );
 }
 
-function ConnectionRow({ provider, name, connection, onStart, onSync, onDelete, theme }: { provider: string, name: string, connection: any, onStart: () => void, onSync: (id: string) => void, onDelete: (id: string) => void, theme: import("../lib/portalTheme").ThemeMode }) {
+function ConnectionRow({ provider, name, connection, onStart, onSync, onDelete, theme, t }: { provider: string, name: string, connection: any, onStart: () => void, onSync: (id: string) => void, onDelete: (id: string) => void, theme: import("../lib/portalTheme").ThemeMode, t: ReturnType<typeof useT> }) {
   const c = PALETTE[theme];
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 16, border: `1px solid ${c.border}`, borderRadius: 8, background: c.cardBgSubtle }}>
@@ -627,21 +632,21 @@ function ConnectionRow({ provider, name, connection, onStart, onSync, onDelete, 
         <div style={{ fontSize: 12, color: c.muted }}>
   {connection?.connected ? (
     <>
-      Connected as {connection.accountLabel || "Unknown"}
-      {connection.lastSyncedAt && ` · Synced ${new Date(connection.lastSyncedAt).toLocaleString()}`}
-      {connection.lastError && <span style={{color: c.danger}}> · Error: {connection.lastError}</span>}
+      {t("portal.availability.connectedAs")} {connection.accountLabel || "Unknown"}
+      {connection.lastSyncedAt && ` · ${t("portal.availability.synced")} ${new Date(connection.lastSyncedAt).toLocaleString()}`}
+      {connection.lastError && <span style={{color: c.danger}}> · {t("portal.availability.error")}: {connection.lastError}</span>}
     </>
-  ) : "Not connected"}
+  ) : t("portal.availability.notConnected")}
 </div>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         {connection?.connected ? (
           <>
-            <button onClick={() => onSync(connection.id)} style={{ padding: "6px 12px", fontSize: 13, background: "transparent", border: `1px solid ${c.border}`, color: c.text, borderRadius: 6, cursor: "pointer" }}>Sync</button>
-            <button onClick={() => onDelete(connection.id)} style={{ padding: "6px 12px", fontSize: 13, background: "transparent", border: `1px solid ${c.danger}`, color: c.danger, borderRadius: 6, cursor: "pointer" }}>Disconnect</button>
+            <button onClick={() => onSync(connection.id)} style={{ padding: "6px 12px", fontSize: 13, background: "transparent", border: `1px solid ${c.border}`, color: c.text, borderRadius: 6, cursor: "pointer" }}>{t("portal.availability.sync")}</button>
+            <button onClick={() => onDelete(connection.id)} style={{ padding: "6px 12px", fontSize: 13, background: "transparent", border: `1px solid ${c.danger}`, color: c.danger, borderRadius: 6, cursor: "pointer" }}>{t("portal.availability.disconnect")}</button>
           </>
         ) : (
-          <button onClick={onStart} style={{ padding: "6px 12px", fontSize: 13, background: c.accent, border: "none", color: "#fff", borderRadius: 6, cursor: "pointer", fontWeight: "bold" }}>Connect</button>
+          <button onClick={onStart} style={{ padding: "6px 12px", fontSize: 13, background: c.accent, border: "none", color: "#fff", borderRadius: 6, cursor: "pointer", fontWeight: "bold" }}>{t("portal.availability.connect")}</button>
         )}
       </div>
     </div>
@@ -650,6 +655,7 @@ function ConnectionRow({ provider, name, connection, onStart, onSync, onDelete, 
 
 function EditorDialog({ date, onClose, onSave, theme, getToken, baseUrl, existingEntry }: { date: string, onClose: () => void, onSave: () => void, theme: import("../lib/portalTheme").ThemeMode, getToken: any, baseUrl: string, existingEntry?: CalendarEntry }) {
   const c = PALETTE[theme];
+  const t = useT();
   const [status, setStatus] = useState(existingEntry?.status || "available");
   const [allDay, setAllDay] = useState(existingEntry ? existingEntry.allDay : true);
   const existingStartTime = existingEntry && !existingEntry.allDay ? localTimeOnly(existingEntry.startAt) : "08:00";
@@ -755,40 +761,40 @@ function EditorDialog({ date, onClose, onSave, theme, getToken, baseUrl, existin
   return (
     <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 1000, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.5)", padding: 20 }}>
       <div style={{ background: c.cardBg, color: c.text, padding: 24, borderRadius: 12, width: "100%", maxWidth: 400, boxShadow: "0 24px 80px rgba(0,0,0,0.2)" }}>
-        <h2 style={{ margin: "0 0 20px" }}>Update Availability for {date}</h2>
+        <h2 style={{ margin: "0 0 20px" }}>{t("portal.availability.editor.title")} {date}</h2>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
           {(["available", "unavailable", "tentative"] as const).map(s => (
             <button key={s} onClick={() => setStatus(s)} style={{ flex: 1, padding: "8px", textTransform: "capitalize", borderRadius: 8, border: `1px solid ${status === s ? c.accent : c.border}`, background: status === s ? c.cardBgSubtle : "transparent", color: c.text, cursor: "pointer", fontWeight: status === s ? "bold" : "normal" }}>
-              {s}
+              {s === "available" ? t("portal.availability.legend.available") : s === "unavailable" ? t("portal.availability.legend.unavailable") : s}
             </button>
           ))}
         </div>
 
         <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, cursor: "pointer" }}>
           <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
-          All day
+          {t("portal.availability.editor.allDay")}
         </label>
 
         {!allDay && (
           <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
             <input type="time" value={startAt} onChange={(e) => setStartAt(e.target.value)} style={inputStyle(theme)} />
-            <span style={{ alignSelf: "center" }}>to</span>
+            <span style={{ alignSelf: "center" }}>-</span>
             <input type="time" value={endAt} onChange={(e) => setEndAt(e.target.value)} style={inputStyle(theme)} />
           </div>
         )}
 
         <div style={{ marginBottom: 16 }}>
-          <label style={{ display: "block", fontSize: 12, marginBottom: 4, color: c.muted }}>Note (optional)</label>
-          <input type="text" value={note} onChange={(e) => setNote(e.target.value)} style={{ ...inputStyle(theme), width: "100%" }} placeholder="e.g. Only for Oslo gigs" />
+          <label style={{ display: "block", fontSize: 12, marginBottom: 4, color: c.muted }}>{t("portal.availability.editor.note")}</label>
+          <input type="text" value={note} onChange={(e) => setNote(e.target.value)} style={{ ...inputStyle(theme), width: "100%" }} placeholder={t("portal.availability.editor.notePlaceholder")} />
         </div>
 
         <div style={{ marginBottom: 24 }}>
-          <label style={{ display: "block", fontSize: 12, marginBottom: 4, color: c.muted }}>Recurrence</label>
+          <label style={{ display: "block", fontSize: 12, marginBottom: 4, color: c.muted }}>{t("portal.availability.editor.repeat")}</label>
           <div style={{ display: "flex", gap: 12 }}>
             <select value={recurrence} onChange={(e) => setRecurrence(e.target.value)} style={inputStyle(theme)}>
-              <option value="none">Does not repeat</option>
-              <option value="weekly">Weekly</option>
+              <option value="none">{t("portal.availability.editor.repeatNone")}</option>
+              <option value="weekly">{t("portal.availability.editor.repeatWeekly")}</option>
             </select>
             {recurrence === "weekly" && (
               <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} style={inputStyle(theme)} />
@@ -797,10 +803,10 @@ function EditorDialog({ date, onClose, onSave, theme, getToken, baseUrl, existin
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <button onClick={handleClear} style={{ padding: "8px 16px", background: "transparent", border: `1px solid ${c.danger}`, color: c.danger, borderRadius: 8, cursor: "pointer", visibility: existingEntry ? "visible" : "hidden" }}>Clear</button>
+          <button onClick={handleClear} style={{ padding: "8px 16px", background: "transparent", border: `1px solid ${c.danger}`, color: c.danger, borderRadius: 8, cursor: "pointer", visibility: existingEntry ? "visible" : "hidden" }}>{t("portal.availability.editor.clear")}</button>
           <div style={{ display: "flex", gap: 12 }}>
-            <button onClick={onClose} style={{ padding: "8px 16px", background: "transparent", border: "none", color: c.muted, cursor: "pointer" }}>Cancel</button>
-            <button onClick={handleSave} style={{ padding: "8px 16px", background: c.accent, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: "bold" }}>Save</button>
+            <button onClick={onClose} style={{ padding: "8px 16px", background: "transparent", border: "none", color: c.muted, cursor: "pointer" }}>{t("portal.availability.editor.close")}</button>
+            <button onClick={handleSave} style={{ padding: "8px 16px", background: c.accent, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: "bold" }}>{t("portal.availability.editor.save")}</button>
           </div>
         </div>
       </div>

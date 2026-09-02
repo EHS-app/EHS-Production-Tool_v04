@@ -16,7 +16,7 @@ const LOCALE_OPTIONS: ReadonlyArray<{
   short: string;
 }> = [
   { value: "en", label: "English", short: "EN" },
-  { value: "no", label: "Norsk (Bokmål)", short: "NO" },
+  { value: "no", label: "Norsk", short: "NO" },
 ];
 
 /**

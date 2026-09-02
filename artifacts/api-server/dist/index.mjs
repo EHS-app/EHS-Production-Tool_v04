@@ -20488,27 +20488,27 @@ var require_router = __commonJS({
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module.exports = Router24;
+    module.exports = Router25;
     module.exports.Route = Route;
-    function Router24(options) {
-      if (!(this instanceof Router24)) {
-        return new Router24(options);
+    function Router25(options) {
+      if (!(this instanceof Router25)) {
+        return new Router25(options);
       }
       const opts = options || {};
-      function router24(req, res, next) {
-        router24.handle(req, res, next);
+      function router25(req, res, next) {
+        router25.handle(req, res, next);
       }
-      Object.setPrototypeOf(router24, this);
-      router24.caseSensitive = opts.caseSensitive;
-      router24.mergeParams = opts.mergeParams;
-      router24.params = {};
-      router24.strict = opts.strict;
-      router24.stack = [];
-      return router24;
+      Object.setPrototypeOf(router25, this);
+      router25.caseSensitive = opts.caseSensitive;
+      router25.mergeParams = opts.mergeParams;
+      router25.params = {};
+      router25.strict = opts.strict;
+      router25.stack = [];
+      return router25;
     }
-    Router24.prototype = function() {
+    Router25.prototype = function() {
     };
-    Router24.prototype.param = function param4(name, fn) {
+    Router25.prototype.param = function param4(name, fn) {
       if (!name) {
         throw new TypeError("argument name is required");
       }
@@ -20528,7 +20528,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router24.prototype.handle = function handle(req, res, callback) {
+    Router25.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -20655,7 +20655,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router24.prototype.use = function use(handler) {
+    Router25.prototype.use = function use(handler) {
       let offset = 0;
       let path2 = "/";
       if (typeof handler !== "function") {
@@ -20688,7 +20688,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router24.prototype.route = function route(path2) {
+    Router25.prototype.route = function route(path2) {
       const route2 = new Route(path2);
       const layer = new Layer(path2, {
         sensitive: this.caseSensitive,
@@ -20703,7 +20703,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router24.prototype[method] = function(path2) {
+      Router25.prototype[method] = function(path2) {
         const route = this.route(path2);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
@@ -20886,13 +20886,13 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = __require("node:path").resolve;
     var once = require_once();
-    var Router24 = require_router();
+    var Router25 = require_router();
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app2 = exports = module.exports = {};
     var trustProxyDefaultSymbol = "@@symbol:trust_proxy_default";
     app2.init = function init() {
-      var router24 = null;
+      var router25 = null;
       this.cache = /* @__PURE__ */ Object.create(null);
       this.engines = /* @__PURE__ */ Object.create(null);
       this.settings = /* @__PURE__ */ Object.create(null);
@@ -20901,13 +20901,13 @@ var require_application = __commonJS({
         configurable: true,
         enumerable: true,
         get: function getrouter() {
-          if (router24 === null) {
-            router24 = new Router24({
+          if (router25 === null) {
+            router25 = new Router25({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
           }
-          return router24;
+          return router25;
         }
       });
     };
@@ -20978,15 +20978,15 @@ var require_application = __commonJS({
       if (fns.length === 0) {
         throw new TypeError("app.use() requires a middleware function");
       }
-      var router24 = this.router;
+      var router25 = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router24.use(path2, fn2);
+          return router25.use(path2, fn2);
         }
         debug(".use app under %s", path2);
         fn2.mountpath = path2;
         fn2.parent = this;
-        router24.use(path2, function mounted_app(req, res, next) {
+        router25.use(path2, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -23513,7 +23513,7 @@ var require_express = __commonJS({
     var EventEmitter = __require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router24 = require_router();
+    var Router25 = require_router();
     var req = require_request();
     var res = require_response();
     exports = module.exports = createApplication;
@@ -23535,8 +23535,8 @@ var require_express = __commonJS({
     exports.application = proto;
     exports.request = req;
     exports.response = res;
-    exports.Route = Router24.Route;
-    exports.Router = Router24;
+    exports.Route = Router25.Route;
+    exports.Router = Router25;
     exports.json = bodyParser.json;
     exports.raw = bodyParser.raw;
     exports.static = require_serve_static();
@@ -33123,11 +33123,11 @@ var require_router2 = __commonJS({
     var debug = debug_1.Debug.extend("router");
     async function getTarget(req, config3) {
       let newTarget;
-      const router24 = config3.router;
-      if ((0, is_plain_object_1.isPlainObject)(router24)) {
-        newTarget = getTargetFromProxyTable(req, router24);
-      } else if (typeof router24 === "function") {
-        newTarget = await router24(req);
+      const router25 = config3.router;
+      if ((0, is_plain_object_1.isPlainObject)(router25)) {
+        newTarget = getTargetFromProxyTable(req, router25);
+      } else if (typeof router25 === "function") {
+        newTarget = await router25(req);
       }
       return newTarget;
     }
@@ -33170,7 +33170,7 @@ var require_http_proxy_middleware = __commonJS({
     var get_plugins_1 = require_get_plugins();
     var path_filter_1 = require_path_filter();
     var PathRewriter = require_path_rewriter();
-    var Router24 = require_router2();
+    var Router25 = require_router2();
     var debug_1 = require_debug2();
     var function_1 = require_function();
     var logger_1 = require_logger2();
@@ -33241,7 +33241,7 @@ var require_http_proxy_middleware = __commonJS({
         this.applyRouter = async (req, options2) => {
           let newTarget;
           if (options2.router) {
-            newTarget = await Router24.getTarget(req, options2);
+            newTarget = await Router25.getTarget(req, options2);
             if (newTarget) {
               (0, debug_1.Debug)('router new target: "%s"', newTarget);
               options2.target = newTarget;
@@ -39055,7 +39055,7 @@ var init_calendarCrypto = __esm({
 });
 
 // src/app.ts
-var import_express30 = __toESM(require_express2(), 1);
+var import_express31 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 
@@ -47229,7 +47229,7 @@ function clerkProxyMiddleware() {
 }
 
 // src/routes/index.ts
-var import_express29 = __toESM(require_express2(), 1);
+var import_express30 = __toESM(require_express2(), 1);
 
 // src/routes/health.ts
 var import_express = __toESM(require_express2(), 1);
@@ -62807,6 +62807,7 @@ __export(schema_exports, {
   insertFeedbackReportSchema: () => insertFeedbackReportSchema,
   insertFreelancerProfileSchema: () => insertFreelancerProfileSchema,
   insertGigSchema: () => insertGigSchema,
+  insertOrganizationSettingsSchema: () => insertOrganizationSettingsSchema,
   insertProjectBriefSchema: () => insertProjectBriefSchema,
   insertProjectExpenseSchema: () => insertProjectExpenseSchema,
   insertProjectFinanceSettingsSchema: () => insertProjectFinanceSettingsSchema,
@@ -62819,6 +62820,7 @@ __export(schema_exports, {
   insertTransportVehicleSchema: () => insertTransportVehicleSchema,
   insertVenueMemorySchema: () => insertVenueMemorySchema,
   insertVenueSchema: () => insertVenueSchema,
+  organizationSettingsTable: () => organizationSettingsTable,
   profilePhotoUploadsTable: () => profilePhotoUploadsTable,
   projectBriefsTable: () => projectBriefsTable,
   projectExpensesTable: () => projectExpensesTable,
@@ -74637,6 +74639,9 @@ var timeEntriesTable = pgTable(
     producerBreakMinutes: integer("producer_break_minutes"),
     /** Portion of payable time classified as overtime (not added twice). */
     overtimeMinutes: integer("overtime_minutes").notNull().default(0),
+    /** Distinguishes a producer-entered value (including an explicit zero)
+     * from the automatic organization-threshold calculation. */
+    overtimeIsExplicit: boolean("overtime_is_explicit").notNull().default(false),
     /** Required audit explanation when producer adjustments are made. */
     adjustmentReason: text("adjustment_reason").notNull().default(""),
     /** Required reason for a flagged entry. */
@@ -74647,6 +74652,9 @@ var timeEntriesTable = pgTable(
     /** Immutable compensation snapshot captured at producer approval. */
     approvedRateMinor: integer("approved_rate_minor"),
     approvedFlatFeeMinor: integer("approved_flat_fee_minor"),
+    approvedOvertimeMultiplierBasisPoints: integer(
+      "approved_overtime_multiplier_basis_points"
+    ),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },
@@ -74978,6 +74986,32 @@ var insertProjectFinanceSettingsSchema = createInsertSchema(
 var insertProjectExpenseSchema = createInsertSchema(
   projectExpensesTable
 ).omit({ id: true, createdAt: true });
+
+// ../../lib/db/src/schema/organizationSettings.ts
+var organizationSettingsTable = pgTable("organization_settings", {
+  id: text("id").primaryKey().default("singleton"),
+  companyName: text("company_name").notNull(),
+  contactEmail: text("contact_email").notNull().default(""),
+  contactPhone: text("contact_phone").notNull().default(""),
+  contactAddress: text("contact_address").notNull().default(""),
+  defaultCurrency: text("default_currency").notNull(),
+  logoUrl: text("logo_url").notNull().default(""),
+  defaultVatRateBasisPoints: integer("default_vat_rate_basis_points").notNull(),
+  defaultPaymentTermsDays: integer("default_payment_terms_days").notNull(),
+  fallbackDayRateMinor: integer("fallback_day_rate_minor").notNull(),
+  fallbackHourlyRateMinor: integer("fallback_hourly_rate_minor").notNull(),
+  overtimeThresholdMinutes: integer("overtime_threshold_minutes").notNull(),
+  overtimeMultiplierBasisPoints: integer(
+    "overtime_multiplier_basis_points"
+  ).notNull(),
+  departments: text("departments").array().notNull(),
+  updatedByUserId: text("updated_by_user_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+});
+var insertOrganizationSettingsSchema = createInsertSchema(
+  organizationSettingsTable
+).omit({ createdAt: true, updatedAt: true });
 
 // ../../lib/db/src/index.ts
 var { Pool: Pool3 } = esm_default;
@@ -80137,6 +80171,62 @@ var portalGigs_default = router8;
 // src/routes/portalTimeEntries.ts
 var import_express11 = __toESM(require_express2(), 1);
 import { randomUUID as randomUUID4 } from "node:crypto";
+
+// src/lib/organizationSettings.ts
+var ORGANIZATION_SETTINGS_ID = "singleton";
+var ORGANIZATION_SETTINGS_DEFAULTS = {
+  id: ORGANIZATION_SETTINGS_ID,
+  companyName: "EHS Lyd \xB7 Lys \xB7 Bilder",
+  contactEmail: "",
+  contactPhone: "",
+  contactAddress: "",
+  defaultCurrency: "NOK",
+  logoUrl: "",
+  defaultVatRateBasisPoints: 2500,
+  defaultPaymentTermsDays: 14,
+  fallbackDayRateMinor: 0,
+  fallbackHourlyRateMinor: 0,
+  overtimeThresholdMinutes: 8 * 60,
+  overtimeMultiplierBasisPoints: 15e3,
+  departments: [
+    "Rigging",
+    "Lights",
+    "LED",
+    "Sound",
+    "Stage",
+    "Inspection",
+    "Logistics"
+  ],
+  updatedByUserId: null
+};
+async function getOrganizationSettings() {
+  await db.insert(organizationSettingsTable).values({
+    ...ORGANIZATION_SETTINGS_DEFAULTS,
+    departments: [...ORGANIZATION_SETTINGS_DEFAULTS.departments]
+  }).onConflictDoNothing({ target: organizationSettingsTable.id });
+  const [settings] = await db.select().from(organizationSettingsTable).limit(1);
+  if (!settings) throw new Error("Failed to initialize organization settings.");
+  return settings;
+}
+function organizationDefaultsSnapshot(settings) {
+  return {
+    companyName: settings.companyName,
+    contactEmail: settings.contactEmail,
+    contactPhone: settings.contactPhone,
+    contactAddress: settings.contactAddress,
+    defaultCurrency: settings.defaultCurrency,
+    logoUrl: settings.logoUrl,
+    defaultVatRateBasisPoints: settings.defaultVatRateBasisPoints,
+    defaultPaymentTermsDays: settings.defaultPaymentTermsDays,
+    fallbackDayRateMinor: settings.fallbackDayRateMinor,
+    fallbackHourlyRateMinor: settings.fallbackHourlyRateMinor,
+    overtimeThresholdMinutes: settings.overtimeThresholdMinutes,
+    overtimeMultiplierBasisPoints: settings.overtimeMultiplierBasisPoints,
+    departments: [...settings.departments]
+  };
+}
+
+// src/routes/portalTimeEntries.ts
 var router9 = (0, import_express11.Router)();
 var requireSignedIn7 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
@@ -80222,10 +80312,14 @@ function serialize(row) {
     producerBreakMinutes: row.producerBreakMinutes,
     producerAdjustmentMinutes: row.producerAdjustmentMinutes,
     overtimeMinutes: row.overtimeMinutes,
+    overtimeIsExplicit: row.overtimeIsExplicit,
     payableMinutes: payableMinutes(row),
     adjustmentReason: row.adjustmentReason,
     adjustedByUserId: row.adjustedByUserId,
     adjustedAt: row.adjustedAt,
+    approvedRateMinor: row.approvedRateMinor,
+    approvedFlatFeeMinor: row.approvedFlatFeeMinor,
+    approvedOvertimeMultiplierBasisPoints: row.approvedOvertimeMultiplierBasisPoints,
     flagReason: row.flagReason,
     notes: row.notes,
     status: row.status,
@@ -80243,11 +80337,26 @@ async function loadOwnGig(gigId, userId2) {
 async function loadGigForProducer(gigId, userId2) {
   const rows = await db.select({
     gig: gigsTable,
-    brief: projectBriefsTable
-  }).from(gigsTable).leftJoin(projectBriefsTable, eq(gigsTable.briefId, projectBriefsTable.id)).where(eq(gigsTable.id, gigId)).limit(1);
+    brief: projectBriefsTable,
+    profileDayRate: freelancerProfilesTable.defaultDayRate
+  }).from(gigsTable).leftJoin(projectBriefsTable, eq(gigsTable.briefId, projectBriefsTable.id)).leftJoin(
+    freelancerProfilesTable,
+    eq(gigsTable.freelancerUserId, freelancerProfilesTable.userId)
+  ).where(eq(gigsTable.id, gigId)).limit(1);
   const row = rows[0];
   if (!row || !row.brief || row.brief.ownerUserId !== userId2) return null;
   return row;
+}
+function approvalCompensation(gig, settings) {
+  const gigFlat = majorNokToMinor(gig.gig.flatFee);
+  const gigHourly = majorNokToMinor(gig.gig.rate);
+  if (gigFlat > 0) return { rateMinor: 0, flatFeeMinor: gigFlat };
+  if (gigHourly > 0) return { rateMinor: gigHourly, flatFeeMinor: 0 };
+  const profileDayMinor = Math.max(0, gig.profileDayRate ?? 0) * 100;
+  const rateMinor = profileDayMinor > 0 && settings.overtimeThresholdMinutes > 0 ? Math.ceil(profileDayMinor * 60 / settings.overtimeThresholdMinutes) : settings.fallbackHourlyRateMinor > 0 ? settings.fallbackHourlyRateMinor : settings.fallbackDayRateMinor > 0 && settings.overtimeThresholdMinutes > 0 ? Math.ceil(
+    settings.fallbackDayRateMinor * 60 / settings.overtimeThresholdMinutes
+  ) : 0;
+  return { rateMinor, flatFeeMinor: 0 };
 }
 router9.get(
   "/portal/gigs/:gigId/time-entries",
@@ -80352,6 +80461,7 @@ router9.put(
       producerAdjustmentMinutes: 0,
       producerBreakMinutes: null,
       overtimeMinutes: 0,
+      overtimeIsExplicit: false,
       adjustmentReason: "",
       adjustedByUserId: null,
       adjustedAt: null,
@@ -80428,6 +80538,7 @@ router9.post(
       producerAdjustmentMinutes: 0,
       producerBreakMinutes: null,
       overtimeMinutes: 0,
+      overtimeIsExplicit: false,
       adjustmentReason: "",
       adjustedByUserId: null,
       adjustedAt: null,
@@ -80536,14 +80647,22 @@ router9.post(
       });
       return;
     }
+    const settings = await getOrganizationSettings();
+    const compensation = approvalCompensation(gig, settings);
+    const automaticOvertime = Math.max(
+      0,
+      payableMinutes(entry) - settings.overtimeThresholdMinutes
+    );
     const updated = await db.update(timeEntriesTable).set({
       status: decision === "approve" ? "approved" : decision === "flag" ? "flagged" : "rejected",
       decidedByUserId: userId2,
       decidedAt: sql`now()`,
       rejectionReason: decision === "reject" ? reason : "",
       flagReason: decision === "flag" ? reason : "",
-      approvedRateMinor: decision === "approve" ? majorNokToMinor(gig.gig.rate) : null,
-      approvedFlatFeeMinor: decision === "approve" ? majorNokToMinor(gig.gig.flatFee) : null,
+      approvedRateMinor: decision === "approve" ? compensation.rateMinor : null,
+      approvedFlatFeeMinor: decision === "approve" ? compensation.flatFeeMinor : null,
+      overtimeMinutes: decision === "approve" && !entry.overtimeIsExplicit ? automaticOvertime : entry.overtimeMinutes,
+      approvedOvertimeMultiplierBasisPoints: decision === "approve" ? settings.overtimeMultiplierBasisPoints : null,
       updatedAt: sql`now()`
     }).where(
       and(
@@ -80600,7 +80719,15 @@ router9.post(
     }
     const adjustmentMinutes = pickInteger(body.adjustmentMinutes, -1440, 1440);
     const breakMinutes = pickInteger(body.breakMinutes, 0, 1440);
-    const overtimeMinutes = pickInteger(body.overtimeMinutes, 0, 1440);
+    const overtimeWasSupplied = "overtimeMinutes" in body;
+    const settings = await getOrganizationSettings();
+    const overtimeMinutes = overtimeWasSupplied ? pickInteger(body.overtimeMinutes, 0, 1440) : Math.max(
+      0,
+      Math.max(
+        0,
+        grossMinutes(entry) - (pickInteger(body.breakMinutes, 0, 1440) ?? 0) + (pickInteger(body.adjustmentMinutes, -1440, 1440) ?? 0)
+      ) - settings.overtimeThresholdMinutes
+    );
     const reason = clampStr3(body.reason, MAX_REASON);
     if (adjustmentMinutes == null || breakMinutes == null || overtimeMinutes == null || !reason) {
       res.status(400).json({
@@ -80629,6 +80756,7 @@ router9.post(
       producerAdjustmentMinutes: adjustmentMinutes,
       producerBreakMinutes: breakMinutes,
       overtimeMinutes,
+      overtimeIsExplicit: overtimeWasSupplied,
       adjustmentReason: reason,
       adjustedByUserId: userId2,
       adjustedAt: sql`now()`,
@@ -81398,6 +81526,28 @@ var portalWork_default = router11;
 
 // src/routes/projects.ts
 var import_express14 = __toESM(require_express2(), 1);
+
+// src/lib/projectDefaults.ts
+function projectDataWithOrganizationDefaults(raw, snapshot) {
+  const data = raw && typeof raw === "object" && !Array.isArray(raw) ? { ...raw } : {};
+  data.organizationDefaults = { ...snapshot };
+  return data;
+}
+function projectFinanceSeed(rawData) {
+  const raw = rawData.financeSettings && typeof rawData.financeSettings === "object" && !Array.isArray(rawData.financeSettings) ? rawData.financeSettings : {};
+  const minor = (key2) => typeof raw[key2] === "number" && Number.isSafeInteger(raw[key2]) && raw[key2] >= 0 && raw[key2] <= 2147483647 ? raw[key2] : 0;
+  return {
+    contractRevenueMinor: minor("contractRevenueMinor"),
+    easyjobRevenueMinor: raw.easyjobRevenueMinor === null ? null : minor("easyjobRevenueMinor"),
+    laborBudgetMinor: minor("laborBudgetMinor"),
+    hotelBudgetMinor: minor("hotelBudgetMinor"),
+    cateringBudgetMinor: minor("cateringBudgetMinor"),
+    transportBudgetMinor: minor("transportBudgetMinor"),
+    subRentalsBudgetMinor: minor("subRentalsBudgetMinor")
+  };
+}
+
+// src/routes/projects.ts
 var router12 = (0, import_express14.Router)();
 var requireSignedIn10 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
@@ -81559,17 +81709,31 @@ router12.post("/projects", requireSignedIn10, async (req, res) => {
       res.status(400).json({ ok: false, error: "A linked venue, client, or source project does not exist." });
       return;
     }
-    const [row] = await db.insert(projectsTable).values({
-      userId: userId2,
-      name: typeof name === "string" ? name.slice(0, 200) : "Untitled",
-      venue: links.venueName ?? (typeof venue === "string" ? venue.slice(0, 200) : ""),
-      client: links.clientName ?? (typeof client === "string" ? client.slice(0, 200) : ""),
-      venueId: links.venueId,
-      clientId: links.clientId,
-      clonedFromProjectId: links.clonedFromProjectId,
-      easyjobNumber: typeof easyjob_number === "string" ? easyjob_number.trim().slice(0, 100) || null : null,
-      data: data ?? {}
-    }).returning();
+    const organization = await getOrganizationSettings();
+    const projectData = projectDataWithOrganizationDefaults(
+      data,
+      organizationDefaultsSnapshot(organization)
+    );
+    const row = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(projectsTable).values({
+        userId: userId2,
+        name: typeof name === "string" ? name.slice(0, 200) : "Untitled",
+        venue: links.venueName ?? (typeof venue === "string" ? venue.slice(0, 200) : ""),
+        client: links.clientName ?? (typeof client === "string" ? client.slice(0, 200) : ""),
+        venueId: links.venueId,
+        clientId: links.clientId,
+        clonedFromProjectId: links.clonedFromProjectId,
+        easyjobNumber: typeof easyjob_number === "string" ? easyjob_number.trim().slice(0, 100) || null : null,
+        data: projectData
+      }).returning();
+      if (!created) throw new Error("Project insert returned no row.");
+      await tx.insert(projectFinanceSettingsTable).values({
+        projectId: created.id,
+        ...projectFinanceSeed(projectData),
+        updatedByUserId: userId2
+      });
+      return created;
+    });
     res.json({
       ok: true,
       project: row ? projectResponse(row) : row
@@ -81861,6 +82025,9 @@ var inspectionExtract_default = router13;
 var import_express16 = __toESM(require_express2(), 1);
 var clerk3 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
 var ADMIN_EMAIL_DOMAIN = "@ehs.no";
+var ADMIN_EMAILS = new Set(
+  (process.env.ADMIN_EMAILS ?? "olti@ehs.no").split(",").map((email3) => email3.trim().toLowerCase()).filter(Boolean)
+);
 function getEmailFromUser(user) {
   const list2 = user.emailAddresses ?? [];
   const primary = list2.find(
@@ -81883,23 +82050,23 @@ function getVerifiedPrimaryEhsEmail(user) {
   return email3;
 }
 var requireAdmin = async (req, res, next) => {
-  if (!clerk3) {
-    res.status(503).json({ ok: false, error: "Admin API unavailable (Clerk not configured)." });
-    return;
-  }
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   const userId2 = auth?.userId ?? null;
   if (!userId2) {
     res.status(401).json({ ok: false, error: "Sign in required." });
     return;
   }
+  if (!clerk3) {
+    res.status(503).json({ ok: false, error: "Admin API unavailable (Clerk not configured)." });
+    return;
+  }
   try {
     const caller = await clerk3.users.getUser(userId2);
     const email3 = getVerifiedPrimaryEhsEmail(caller);
-    if (!email3) {
+    if (!email3 || !ADMIN_EMAILS.has(email3)) {
       res.status(403).json({
         ok: false,
-        error: "Admin tools require a verified primary EHS email address."
+        error: "Admin tools require an authorized EHS administrator."
       });
       return;
     }
@@ -83129,10 +83296,11 @@ function majorNokToMinor2(raw) {
 }
 function csvCell(value) {
   const initial = value == null ? "" : String(value);
-  const raw = /^[=+\-@]/.test(initial) ? `'${initial}` : initial;
+  const raw = /^[\s\u0000-\u001f]*[=+\-@]/.test(initial) ? `'${initial}` : initial;
   return /[",\r\n]/.test(raw) ? `"${raw.replaceAll('"', '""')}"` : raw;
 }
 async function loadEconomy(callerUserId) {
+  const organization = await getOrganizationSettings();
   const projects = await db.select({
     id: projectsTable.id,
     name: projectsTable.name,
@@ -83190,9 +83358,14 @@ async function loadEconomy(callerUserId) {
       overtimeMinutes: timeEntriesTable.overtimeMinutes,
       approvedRateMinor: timeEntriesTable.approvedRateMinor,
       approvedFlatFeeMinor: timeEntriesTable.approvedFlatFeeMinor,
+      approvedOvertimeMultiplierBasisPoints: timeEntriesTable.approvedOvertimeMultiplierBasisPoints,
       rate: gigsTable.rate,
-      flatFee: gigsTable.flatFee
-    }).from(timeEntriesTable).innerJoin(gigsTable, eq(timeEntriesTable.gigId, gigsTable.id)).where(
+      flatFee: gigsTable.flatFee,
+      profileDayRate: freelancerProfilesTable.defaultDayRate
+    }).from(timeEntriesTable).innerJoin(gigsTable, eq(timeEntriesTable.gigId, gigsTable.id)).leftJoin(
+      freelancerProfilesTable,
+      eq(timeEntriesTable.freelancerUserId, freelancerProfilesTable.userId)
+    ).where(
       and(
         inArray(timeEntriesTable.briefId, activeBriefIds),
         inArray(timeEntriesTable.status, ["approved", "locked"])
@@ -83227,22 +83400,39 @@ async function loadEconomy(callerUserId) {
     if (!projectId) continue;
     const current = gigs.get(row.gigId) ?? {
       projectId,
-      minutes: 0,
-      rateMinor: row.approvedRateMinor ?? majorNokToMinor2(row.rate),
-      flatFeeMinor: row.approvedFlatFeeMinor ?? majorNokToMinor2(row.flatFee)
+      hourlyCostMinor: 0,
+      flatFeeMinor: 0
     };
+    const hasSnapshot = row.approvedRateMinor != null || row.approvedFlatFeeMinor != null;
+    const trustedGigFlat = majorNokToMinor2(row.flatFee);
+    const trustedGigHourly = majorNokToMinor2(row.rate);
+    const profileDayMinor = Math.max(0, row.profileDayRate ?? 0) * 100;
+    const fallbackHourly = profileDayMinor > 0 && organization.overtimeThresholdMinutes > 0 ? Math.ceil(
+      profileDayMinor * 60 / organization.overtimeThresholdMinutes
+    ) : organization.fallbackHourlyRateMinor > 0 ? organization.fallbackHourlyRateMinor : organization.fallbackDayRateMinor > 0 && organization.overtimeThresholdMinutes > 0 ? Math.ceil(
+      organization.fallbackDayRateMinor * 60 / organization.overtimeThresholdMinutes
+    ) : 0;
+    const flatFeeMinor = hasSnapshot ? row.approvedFlatFeeMinor ?? 0 : trustedGigFlat;
+    const rateMinor = hasSnapshot ? row.approvedRateMinor ?? 0 : trustedGigFlat > 0 ? 0 : trustedGigHourly > 0 ? trustedGigHourly : fallbackHourly;
+    current.flatFeeMinor = Math.max(current.flatFeeMinor, flatFeeMinor);
     if (row.startMinute != null && row.endMinute != null) {
       const elapsed = (row.endMinute - row.startMinute + 1440) % 1440;
       const reviewedBreak = row.producerBreakMinutes ?? row.breakMinutes;
-      current.minutes += Math.max(
+      const payable = Math.max(
         0,
         elapsed - reviewedBreak + row.producerAdjustmentMinutes
+      );
+      const overtime = Math.min(payable, Math.max(0, row.overtimeMinutes));
+      const regular = payable - overtime;
+      const multiplier = row.approvedOvertimeMultiplierBasisPoints ?? 1e4;
+      current.hourlyCostMinor += Math.ceil(
+        regular * rateMinor / 60 + overtime * rateMinor * multiplier / (60 * 1e4)
       );
     }
     gigs.set(row.gigId, current);
   }
   for (const gig of gigs.values()) {
-    const actual = gig.flatFeeMinor > 0 ? gig.flatFeeMinor : Math.ceil(gig.minutes * gig.rateMinor / 60);
+    const actual = gig.flatFeeMinor > 0 ? gig.flatFeeMinor : gig.hourlyCostMinor;
     actualByProject.get(gig.projectId).labor += actual;
   }
   const summaries = projects.map((project) => {
@@ -83307,6 +83497,8 @@ async function loadEconomy(callerUserId) {
     flatFee: gigsTable.flatFee,
     approvedRateMinor: timeEntriesTable.approvedRateMinor,
     approvedFlatFeeMinor: timeEntriesTable.approvedFlatFeeMinor,
+    approvedOvertimeMultiplierBasisPoints: timeEntriesTable.approvedOvertimeMultiplierBasisPoints,
+    profileDayRate: freelancerProfilesTable.defaultDayRate,
     createdAt: timeEntriesTable.createdAt,
     updatedAt: timeEntriesTable.updatedAt
   }).from(timeEntriesTable).innerJoin(gigsTable, eq(timeEntriesTable.gigId, gigsTable.id)).leftJoin(
@@ -83333,7 +83525,11 @@ async function loadEconomy(callerUserId) {
       freelancerName: row.freelancerName || "Freelancer",
       workedMinutes: workedMinutes2,
       payableMinutes: payableMinutes2,
-      rateMinor: row.approvedRateMinor ?? majorNokToMinor2(row.rate),
+      rateMinor: row.approvedRateMinor ?? (majorNokToMinor2(row.flatFee) > 0 ? 0 : majorNokToMinor2(row.rate) > 0 ? majorNokToMinor2(row.rate) : (row.profileDayRate ?? 0) > 0 ? Math.ceil(
+        Math.max(0, row.profileDayRate ?? 0) * 100 * 60 / Math.max(1, organization.overtimeThresholdMinutes)
+      ) : organization.fallbackHourlyRateMinor > 0 ? organization.fallbackHourlyRateMinor : Math.ceil(
+        organization.fallbackDayRateMinor * 60 / Math.max(1, organization.overtimeThresholdMinutes)
+      )),
       flatFeeMinor: row.approvedFlatFeeMinor ?? majorNokToMinor2(row.flatFee)
     }];
   });
@@ -83346,6 +83542,12 @@ async function loadEconomy(callerUserId) {
     };
   });
   return {
+    organization: {
+      companyName: organization.companyName,
+      currency: organization.defaultCurrency,
+      vatRateBasisPoints: organization.defaultVatRateBasisPoints,
+      paymentTermsDays: organization.defaultPaymentTermsDays
+    },
     projects: summaries,
     expenses: expenseRows,
     timecards,
@@ -83360,7 +83562,7 @@ async function loadEconomy(callerUserId) {
         0
       )
     },
-    laborMethod: "Approved/locked entries only; positive flat fee once per gig, otherwise approved payable minutes \xD7 trusted hourly rate, rounded up to \xF8re."
+    laborMethod: "Approved/locked entries only; positive flat fee once per gig, otherwise approved payable minutes \xD7 immutable/trusted/fallback hourly rate with snapshotted overtime, rounded up to \xF8re."
   };
 }
 router21.get("/economy", requireEmployee, async (req, res) => {
@@ -83503,7 +83705,13 @@ router21.get(
     try {
       const economy = await loadEconomy(userId(req));
       const rows = [
+        // This finance CSV is the application's invoice/export surface; there
+        // is intentionally no separate invoice route.
         [
+          "organization",
+          "currency",
+          "vat_rate_basis_points",
+          "payment_terms_days",
           "project_id",
           "project",
           "client",
@@ -83522,6 +83730,10 @@ router21.get(
       for (const project of economy.projects) {
         for (const category of project.categories) {
           rows.push([
+            economy.organization.companyName,
+            economy.organization.currency,
+            economy.organization.vatRateBasisPoints,
+            economy.organization.paymentTermsDays,
             project.projectId,
             project.projectName,
             project.client,
@@ -83928,17 +84140,31 @@ router22.post("/clients/:clientId/projects/:projectId/clone", async (req, res) =
     const sourceData = plainObject(source.data) ? source.data : {};
     const data = { status: "draft" };
     for (const key2 of CLONE_DATA_KEYS) if (key2 in sourceData) data[key2] = sourceData[key2];
-    const [project] = await db.insert(projectsTable).values({
-      userId: userId2,
-      name: name.value ?? `${source.name} (copy)`,
-      venue: source.venue,
-      client: source.client,
-      venueId: source.venueId,
-      clientId: source.clientId,
-      clonedFromProjectId: source.id,
-      easyjobNumber: easyjob.value || null,
-      data
-    }).returning();
+    const organization = await getOrganizationSettings();
+    const projectData = projectDataWithOrganizationDefaults(
+      data,
+      organizationDefaultsSnapshot(organization)
+    );
+    const project = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(projectsTable).values({
+        userId: userId2,
+        name: name.value ?? `${source.name} (copy)`,
+        venue: source.venue,
+        client: source.client,
+        venueId: source.venueId,
+        clientId: source.clientId,
+        clonedFromProjectId: source.id,
+        easyjobNumber: easyjob.value || null,
+        data: projectData
+      }).returning();
+      if (!created) throw new Error("Project clone insert returned no row.");
+      await tx.insert(projectFinanceSettingsTable).values({
+        projectId: created.id,
+        ...projectFinanceSeed(projectData),
+        updatedByUserId: userId2
+      });
+      return created;
+    });
     res.status(201).json({
       ok: true,
       project: project ? {
@@ -83956,43 +84182,138 @@ router22.post("/clients/:clientId/projects/:projectId/clone", async (req, res) =
 });
 var masterData_default = router22;
 
-// src/routes/index.ts
+// src/routes/settings.ts
+var import_express29 = __toESM(require_express2(), 1);
 var router23 = (0, import_express29.Router)();
-router23.use(health_default);
-router23.use(devAutoSignIn_default);
-router23.use("/rigplan", requireEmployee);
-router23.use(rigplanAnalyze_default);
-router23.use(venueMemory_default);
-router23.use("/storage", requireEmployee);
-router23.use(storage_default);
-router23.use("/projects", requireEmployee);
-router23.use(projectTasks_default);
-router23.use(projectMembers_default);
-router23.use(projectMessages_default);
-router23.use(projects_default);
-router23.use("/venues", requireEmployee);
-router23.use("/clients", requireEmployee);
-router23.use(masterData_default);
-router23.use("/transport", requireEmployee);
-router23.use(transport_default);
-router23.use("/tasks", requireEmployee);
-router23.use(globalTasks_default);
-router23.use("/economy", requireEmployee);
-router23.use(economy_default);
-router23.use("/inspection", requireEmployee);
-router23.use(inspectionExtract_default);
-router23.use(admin_default);
-router23.use(feedback_default);
-router23.use(portalProfile_default);
-router23.use(portalBriefs_default);
-router23.use(portalGigs_default);
-router23.use(portalTimeEntries_default);
-router23.use(portalCalendar_default);
-router23.use(portalWork_default);
-var routes_default = router23;
+var TEXT_LIMITS = {
+  companyName: 300,
+  contactEmail: 320,
+  contactPhone: 100,
+  contactAddress: 2e3,
+  defaultCurrency: 3,
+  logoUrl: 2e3
+};
+var NUMBER_LIMITS = {
+  defaultVatRateBasisPoints: 1e5,
+  defaultPaymentTermsDays: 3650,
+  fallbackDayRateMinor: 2147483647,
+  fallbackHourlyRateMinor: 2147483647,
+  overtimeThresholdMinutes: 1440,
+  overtimeMultiplierBasisPoints: 1e5
+};
+var ALLOWED = /* @__PURE__ */ new Set([
+  ...Object.keys(TEXT_LIMITS),
+  ...Object.keys(NUMBER_LIMITS),
+  "departments"
+]);
+router23.get("/settings", requireAdmin, async (req, res) => {
+  try {
+    res.json({ ok: true, settings: await getOrganizationSettings() });
+  } catch (error40) {
+    req.log.error({ error: error40 }, "Failed to load organization settings");
+    res.status(500).json({ ok: false, error: "Failed to load settings." });
+  }
+});
+router23.put("/settings", requireAdmin, async (req, res) => {
+  const body = req.body ?? {};
+  const keys = Object.keys(body);
+  if (keys.length === 0 || keys.some((key2) => !ALLOWED.has(key2))) {
+    res.status(400).json({ ok: false, error: "Invalid or unknown settings fields." });
+    return;
+  }
+  for (const [key2, max] of Object.entries(TEXT_LIMITS)) {
+    if (key2 in body && (typeof body[key2] !== "string" || body[key2].trim().length > max || key2 === "companyName" && !body[key2].trim() || key2 === "defaultCurrency" && !/^[A-Za-z]{3}$/.test(body[key2].trim()))) {
+      res.status(400).json({ ok: false, error: `Invalid ${key2}.` });
+      return;
+    }
+  }
+  for (const [key2, max] of Object.entries(NUMBER_LIMITS)) {
+    const value = body[key2];
+    if (key2 in body && (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > max)) {
+      res.status(400).json({ ok: false, error: `Invalid ${key2}.` });
+      return;
+    }
+  }
+  if ("departments" in body && (!Array.isArray(body.departments) || body.departments.length > 100 || body.departments.some(
+    (value) => typeof value !== "string" || !value.trim() || value.trim().length > 100
+  ))) {
+    res.status(400).json({ ok: false, error: "Invalid departments." });
+    return;
+  }
+  try {
+    const current = await getOrganizationSettings();
+    const value = (key2) => key2 in body ? body[key2] : current[key2];
+    const auth = typeof req.auth === "function" ? req.auth() : req.auth;
+    const userId2 = auth?.userId;
+    if (!userId2) {
+      res.status(401).json({ ok: false, error: "Sign in required." });
+      return;
+    }
+    const [settings] = await db.update(organizationSettingsTable).set({
+      companyName: String(value("companyName")).trim(),
+      contactEmail: String(value("contactEmail")).trim(),
+      contactPhone: String(value("contactPhone")).trim(),
+      contactAddress: String(value("contactAddress")).trim(),
+      defaultCurrency: String(value("defaultCurrency")).trim().toUpperCase(),
+      logoUrl: String(value("logoUrl")).trim(),
+      defaultVatRateBasisPoints: Number(value("defaultVatRateBasisPoints")),
+      defaultPaymentTermsDays: Number(value("defaultPaymentTermsDays")),
+      fallbackDayRateMinor: Number(value("fallbackDayRateMinor")),
+      fallbackHourlyRateMinor: Number(value("fallbackHourlyRateMinor")),
+      overtimeThresholdMinutes: Number(value("overtimeThresholdMinutes")),
+      overtimeMultiplierBasisPoints: Number(
+        value("overtimeMultiplierBasisPoints")
+      ),
+      departments: "departments" in body ? [...new Set(body.departments.map((item) => item.trim()))] : current.departments,
+      updatedByUserId: userId2,
+      updatedAt: sql`now()`
+    }).where(eq(organizationSettingsTable.id, ORGANIZATION_SETTINGS_ID)).returning();
+    res.json({ ok: true, settings });
+  } catch (error40) {
+    req.log.error({ error: error40 }, "Failed to update organization settings");
+    res.status(500).json({ ok: false, error: "Failed to update settings." });
+  }
+});
+var settings_default = router23;
+
+// src/routes/index.ts
+var router24 = (0, import_express30.Router)();
+router24.use(health_default);
+router24.use(devAutoSignIn_default);
+router24.use("/rigplan", requireEmployee);
+router24.use(rigplanAnalyze_default);
+router24.use(venueMemory_default);
+router24.use("/storage", requireEmployee);
+router24.use(storage_default);
+router24.use("/projects", requireEmployee);
+router24.use(projectTasks_default);
+router24.use(projectMembers_default);
+router24.use(projectMessages_default);
+router24.use(projects_default);
+router24.use("/venues", requireEmployee);
+router24.use("/clients", requireEmployee);
+router24.use(masterData_default);
+router24.use("/transport", requireEmployee);
+router24.use(transport_default);
+router24.use("/tasks", requireEmployee);
+router24.use(globalTasks_default);
+router24.use("/economy", requireEmployee);
+router24.use(economy_default);
+router24.use("/inspection", requireEmployee);
+router24.use(inspectionExtract_default);
+router24.use(admin_default);
+router24.use(settings_default);
+router24.use(feedback_default);
+router24.use(portalProfile_default);
+router24.use(portalBriefs_default);
+router24.use(portalGigs_default);
+router24.use(portalTimeEntries_default);
+router24.use(portalCalendar_default);
+router24.use(portalWork_default);
+var routes_default = router24;
 
 // src/app.ts
-var app = (0, import_express30.default)();
+var app = (0, import_express31.default)();
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -84017,12 +84338,12 @@ app.use((0, import_cors.default)());
 var PATHS_WITHOUT_GLOBAL_JSON = /* @__PURE__ */ new Set([
   "/api/rigplan/analyze"
 ]);
-var globalJsonParser = import_express30.default.json({ limit: "256kb" });
+var globalJsonParser = import_express31.default.json({ limit: "256kb" });
 app.use((req, res, next) => {
   if (PATHS_WITHOUT_GLOBAL_JSON.has(req.path)) return next();
   return globalJsonParser(req, res, next);
 });
-app.use(import_express30.default.urlencoded({ extended: true }));
+app.use(import_express31.default.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 app.use("/api", routes_default);
 var app_default = app;

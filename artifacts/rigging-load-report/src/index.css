@@ -10574,3 +10574,108 @@ html[data-shell="linear"] .container {
 [data-theme="dark"] .crew-skill-pill {
   background: rgba(255,255,255,0.08);
 }
+
+/* SETTINGS PAGE */
+.settings-section {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.settings-section-header {
+  background: var(--card-soft, rgba(0, 0, 0, 0.02));
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.settings-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-main);
+}
+.settings-section-body {
+  padding: 24px;
+}
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+@media (min-width: 768px) {
+  .settings-grid.cols-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .settings-grid.cols-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+.settings-field {
+  display: flex;
+  flex-direction: column;
+}
+.settings-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.settings-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+.settings-input-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.settings-input-group .ehs-input {
+  width: 100%;
+}
+.settings-input-suffix {
+  position: absolute;
+  right: 12px;
+  color: var(--text-muted);
+  font-size: 14px;
+  pointer-events: none;
+}
+.settings-divider {
+  grid-column: 1 / -1;
+  height: 1px;
+  background: var(--border-color);
+  margin: 8px 0;
+}
+.settings-status-success {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  padding: 6px 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.settings-status-error {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  padding: 6px 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

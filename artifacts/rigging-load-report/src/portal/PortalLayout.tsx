@@ -24,6 +24,7 @@ import ehsLogo from "../assets/ehs-logo.png";
 import { PALETTE, PORTAL_FONT, type ThemeMode } from "./lib/portalTheme";
 import { useT } from "../lib/i18n/I18nContext";
 import type { TranslationKey } from "../lib/i18n/types";
+import { LanguageSelector } from "../components/LanguageSelector";
 import { FeedbackDialog } from "../components/FeedbackDialog";
 import { Toaster } from "../components/ui/sonner";
 import {
@@ -313,6 +314,9 @@ export function PortalLayout({
           </div>
 
           <div className="ehs-shell-topbar-actions">
+            <div style={{ marginRight: 8, display: "flex" }}>
+              <LanguageSelector />
+            </div>
             <button
               type="button"
               className="ehs-shell-icon-btn"

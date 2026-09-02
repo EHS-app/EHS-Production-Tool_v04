@@ -290,6 +290,23 @@ export declare const timeEntriesTable: import("drizzle-orm/pg-core").PgTableWith
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        overtimeIsExplicit: import("drizzle-orm/pg-core").PgColumn<{
+            name: "overtime_is_explicit";
+            tableName: "time_entries";
+            dataType: "boolean";
+            columnType: "PgBoolean";
+            data: boolean;
+            driverParam: boolean;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         adjustmentReason: import("drizzle-orm/pg-core").PgColumn<{
             name: "adjustment_reason";
             tableName: "time_entries";
@@ -392,6 +409,23 @@ export declare const timeEntriesTable: import("drizzle-orm/pg-core").PgTableWith
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        approvedOvertimeMultiplierBasisPoints: import("drizzle-orm/pg-core").PgColumn<{
+            name: "approved_overtime_multiplier_basis_points";
+            tableName: "time_entries";
+            dataType: "number";
+            columnType: "PgInteger";
+            data: number;
+            driverParam: string | number;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         createdAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";
             tableName: "time_entries";
@@ -431,9 +465,8 @@ export declare const timeEntriesTable: import("drizzle-orm/pg-core").PgTableWith
 }>;
 export declare const insertTimeEntrySchema: z.ZodObject<{
     id: z.ZodString;
-    briefId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     freelancerUserId: z.ZodString;
-    decidedAt: z.ZodOptional<z.ZodNullable<z.ZodDate>>;
+    briefId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     notes: z.ZodOptional<z.ZodString>;
     status: z.ZodOptional<z.ZodString>;
     gigId: z.ZodString;
@@ -442,16 +475,19 @@ export declare const insertTimeEntrySchema: z.ZodObject<{
     endMinute: z.ZodOptional<z.ZodNullable<z.ZodInt>>;
     breakMinutes: z.ZodOptional<z.ZodInt>;
     decidedByUserId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    decidedAt: z.ZodOptional<z.ZodNullable<z.ZodDate>>;
     rejectionReason: z.ZodOptional<z.ZodString>;
     producerAdjustmentMinutes: z.ZodOptional<z.ZodInt>;
     producerBreakMinutes: z.ZodOptional<z.ZodNullable<z.ZodInt>>;
     overtimeMinutes: z.ZodOptional<z.ZodInt>;
+    overtimeIsExplicit: z.ZodOptional<z.ZodBoolean>;
     adjustmentReason: z.ZodOptional<z.ZodString>;
     flagReason: z.ZodOptional<z.ZodString>;
     adjustedByUserId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     adjustedAt: z.ZodOptional<z.ZodNullable<z.ZodDate>>;
     approvedRateMinor: z.ZodOptional<z.ZodNullable<z.ZodInt>>;
     approvedFlatFeeMinor: z.ZodOptional<z.ZodNullable<z.ZodInt>>;
+    approvedOvertimeMultiplierBasisPoints: z.ZodOptional<z.ZodNullable<z.ZodInt>>;
 }, {
     out: {};
     in: {};

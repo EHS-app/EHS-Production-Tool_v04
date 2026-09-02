@@ -1,0 +1,27 @@
+Please implement the final pass: System Settings (/settings) and Full Localization (EN/NO):
+
+====================================================================
+1. SYSTEM SETTINGS & ORGANIZATION DEFAULTS (/settings)
+====================================================================
+- Replace the Phase 1 static placeholder view at `/settings` with a functional administrative interface:
+  * General & Branding: Company name ("EHS Lyd · Lys · Bilder"), contact details, default currency (NOK), and logo configuration.
+  * Finance & Overtime Defaults: Default VAT rate, payment terms (e.g., 14 days), fallback day/hourly rates, and overtime threshold rules for timecard approvals (Phase 5).
+  * Department Management: Editable list of global departments (Rigging, Lights, LED, Sound, Stage, Inspection, Logistics).
+- Create an `organization_settings` database model.
+- Expose GET and PUT `/api/settings` endpoints secured with strict admin/employee authorization (`403` for non-admins).
+- Wire these settings as active default fallbacks across project creation, timecard calculations, and invoice exports.
+
+====================================================================
+2. FULL LOCALIZATION & TRANSLATION PASS (EN / NO)
+====================================================================
+- Locale Toggle & Persistence: Ensure clicking the top-right language switcher (EN / NO) dynamically updates the active locale and persists across sessions/browser refreshes.
+- Full UI Translation Dictionary: Wire i18n hooks across ALL visible UI strings for English and Norwegian (Bokmål):
+  * Employee Platform: Navigation sidebars, headers, dashboard widgets, Master Calendar, Fleet/Transport, Global Tasks, Economy, Venues, Clients, and Settings.
+  * Freelancer Portal: Hub dashboard, "My Runs (Transport)", "My Tasks", Availability, Hours, Earnings, Profile, Help, "Log Hours (Clock In)", "View Brief & Logistics", stat cards ("Month-to-date", "Ready to invoice", "Days marked", "Logged gigs"), and status badges ("In Progress", "Urgent", "To Do", "High", "Confirmed").
+
+====================================================================
+3. VERIFICATION & BUILD
+====================================================================
+- Verify non-employee accounts receive a 403 response on `/api/settings`.
+- Confirm toggling between EN and NO updates all strings on both the main platform and freelancer portal instantly.
+- Run `pnpm build` across the workspace to ensure zero compilation or i18n type errors.

@@ -9,6 +9,12 @@ const clerk = process.env.CLERK_SECRET_KEY
   : null;
 
 const ADMIN_EMAIL_DOMAIN = "@ehs.no";
+const ADMIN_EMAILS = new Set(
+  (process.env.ADMIN_EMAILS ?? "olti@ehs.no")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
+);
 
 function getEmailFromUser(user: {
   primaryEmailAddressId?: string | null;
@@ -53,12 +59,6 @@ function getVerifiedPrimaryEhsEmail(user: {
 }
 
 export const requireAdmin: RequestHandler = async (req, res, next) => {
-  if (!clerk) {
-    res
-      .status(503)
-      .json({ ok: false, error: "Admin API unavailable (Clerk not configured)." });
-    return;
-  }
   const auth =
     typeof (req as unknown as { auth?: unknown }).auth === "function"
       ? (req as unknown as { auth: () => { userId?: string | null } }).auth()
@@ -68,14 +68,20 @@ export const requireAdmin: RequestHandler = async (req, res, next) => {
     res.status(401).json({ ok: false, error: "Sign in required." });
     return;
   }
+  if (!clerk) {
+    res
+      .status(503)
+      .json({ ok: false, error: "Admin API unavailable (Clerk not configured)." });
+    return;
+  }
   try {
     const caller = await clerk.users.getUser(userId);
     const email = getVerifiedPrimaryEhsEmail(caller);
-    if (!email) {
+    if (!email || !ADMIN_EMAILS.has(email)) {
       res.status(403).json({
         ok: false,
         error:
-          "Admin tools require a verified primary EHS email address.",
+          "Admin tools require an authorized EHS administrator.",
       });
       return;
     }

@@ -4,6 +4,7 @@ import {
   clientsTable,
   db,
   projectMembersTable,
+  projectFinanceSettingsTable,
   projectsTable,
   venuesTable,
 } from "@workspace/db";
@@ -12,6 +13,14 @@ import {
   isProjectWriter,
   UUID_PATTERN,
 } from "../lib/projectAccess";
+import {
+  getOrganizationSettings,
+  organizationDefaultsSnapshot,
+} from "../lib/organizationSettings";
+import {
+  projectDataWithOrganizationDefaults,
+  projectFinanceSeed,
+} from "../lib/projectDefaults";
 
 const router: IRouter = Router();
 
@@ -211,23 +220,37 @@ router.post("/projects", requireSignedIn, async (req, res) => {
       res.status(400).json({ ok: false, error: "A linked venue, client, or source project does not exist." });
       return;
     }
-    const [row] = await db
-      .insert(projectsTable)
-      .values({
-        userId,
-        name: typeof name === "string" ? name.slice(0, 200) : "Untitled",
-        venue: links.venueName ?? (typeof venue === "string" ? venue.slice(0, 200) : ""),
-        client: links.clientName ?? (typeof client === "string" ? client.slice(0, 200) : ""),
-        venueId: links.venueId,
-        clientId: links.clientId,
-        clonedFromProjectId: links.clonedFromProjectId,
-        easyjobNumber:
-          typeof easyjob_number === "string"
-            ? easyjob_number.trim().slice(0, 100) || null
-            : null,
-        data: data ?? {},
-      })
-      .returning();
+    const organization = await getOrganizationSettings();
+    const projectData = projectDataWithOrganizationDefaults(
+      data,
+      organizationDefaultsSnapshot(organization),
+    );
+    const row = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(projectsTable)
+        .values({
+          userId,
+          name: typeof name === "string" ? name.slice(0, 200) : "Untitled",
+          venue: links.venueName ?? (typeof venue === "string" ? venue.slice(0, 200) : ""),
+          client: links.clientName ?? (typeof client === "string" ? client.slice(0, 200) : ""),
+          venueId: links.venueId,
+          clientId: links.clientId,
+          clonedFromProjectId: links.clonedFromProjectId,
+          easyjobNumber:
+            typeof easyjob_number === "string"
+              ? easyjob_number.trim().slice(0, 100) || null
+              : null,
+          data: projectData,
+        })
+        .returning();
+      if (!created) throw new Error("Project insert returned no row.");
+      await tx.insert(projectFinanceSettingsTable).values({
+        projectId: created.id,
+        ...projectFinanceSeed(projectData),
+        updatedByUserId: userId,
+      });
+      return created;
+    });
     res.json({
       ok: true,
       project: row

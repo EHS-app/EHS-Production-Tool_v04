@@ -6,6 +6,7 @@ import {
   timestamp,
   index,
   uniqueIndex,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -71,6 +72,9 @@ export const timeEntriesTable = pgTable(
     producerBreakMinutes: integer("producer_break_minutes"),
     /** Portion of payable time classified as overtime (not added twice). */
     overtimeMinutes: integer("overtime_minutes").notNull().default(0),
+    /** Distinguishes a producer-entered value (including an explicit zero)
+     * from the automatic organization-threshold calculation. */
+    overtimeIsExplicit: boolean("overtime_is_explicit").notNull().default(false),
     /** Required audit explanation when producer adjustments are made. */
     adjustmentReason: text("adjustment_reason").notNull().default(""),
     /** Required reason for a flagged entry. */
@@ -81,6 +85,9 @@ export const timeEntriesTable = pgTable(
     /** Immutable compensation snapshot captured at producer approval. */
     approvedRateMinor: integer("approved_rate_minor"),
     approvedFlatFeeMinor: integer("approved_flat_fee_minor"),
+    approvedOvertimeMultiplierBasisPoints: integer(
+      "approved_overtime_multiplier_basis_points",
+    ),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

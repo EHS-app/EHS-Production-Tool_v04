@@ -1,0 +1,28 @@
+Please implement Phase 6 (Venues Technical Database and Client Directory) following these instructions:
+
+====================================================================
+1. VENUES TECHNICAL DATABASE (/venues)
+====================================================================
+- Replace the Phase 6 placeholder view at `/venues` with a searchable, production-ready venue management directory.
+- Create a comprehensive technical data model for venues containing:
+  * Basic Info: Name, address, website, key on-site technical contact details (phone, email).
+  * Rigging & Load Specs: Maximum point load limits, roof truss capacities, beam heights.
+  * Power Infrastructure: Power distribution specs (e.g., 32A, 63A, 125A CEE sockets), panel locations, shore power availability.
+  * Logistics & Access: Loading dock dimensions, door clearance heights, ramp access, freight elevator limits, truck parking rules.
+  * Site Facilities: Wi-Fi credentials, production office locations, dressing rooms, stage dimensions.
+- Integrate with Projects: Allow selecting a saved venue when creating/editing a project, making venue technical specs instantly accessible inside the project workspace and portal briefs.
+
+====================================================================
+2. CLIENT DIRECTORY & EVENT ARCHIVES (/clients)
+====================================================================
+- Replace the Phase 6 placeholder view at `/clients` with a client management hub.
+- Store client company profiles, billing addresses, organization numbers, primary contacts, and default payment terms.
+- Link past projects and shows to each client record, displaying a historical archive of completed productions (cross-referenced with `easyjob_number`).
+- Quick Template Creation: Allow creating a new show directly from a client profile by cloning key settings from a past event archive.
+
+====================================================================
+3. VERIFICATION & SAFETY
+====================================================================
+- Enforce strict employee-only authorization (`403` for freelancers) on `/api/venues` and `/api/clients` management endpoints.
+- Ensure technical venue specs are safely readable by assigned freelancers via their portal briefs without exposing restricted client contact/billing data.
+- Run `pnpm build` to verify zero TypeScript compilation errors across all workspace packages.

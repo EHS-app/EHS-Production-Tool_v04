@@ -440,28 +440,28 @@ export declare const transportRunsTable: import("drizzle-orm/pg-core").PgTableWi
 }>;
 export declare const insertTransportVehicleSchema: z.ZodObject<{
     name: z.ZodString;
+    notes: z.ZodOptional<z.ZodString>;
     vehicleType: z.ZodString;
     licensePlate: z.ZodString;
     capacityKg: z.ZodOptional<z.ZodNullable<z.ZodInt>>;
     volumeM3: z.ZodOptional<z.ZodNullable<z.ZodInt>>;
     primaryDriverUserId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     availabilityStatus: z.ZodOptional<z.ZodString>;
-    notes: z.ZodOptional<z.ZodString>;
 }, {
     out: {};
     in: {};
 }>;
 export declare const insertTransportRunSchema: z.ZodObject<{
+    status: z.ZodOptional<z.ZodString>;
+    title: z.ZodString;
     projectId: z.ZodUUID;
     vehicleId: z.ZodUUID;
     driverUserId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    title: z.ZodString;
     origin: z.ZodOptional<z.ZodString>;
     destination: z.ZodOptional<z.ZodString>;
     departureAt: z.ZodDate;
     loadInAt: z.ZodOptional<z.ZodNullable<z.ZodDate>>;
     loadOutAt: z.ZodOptional<z.ZodNullable<z.ZodDate>>;
-    status: z.ZodOptional<z.ZodString>;
     cargoNotes: z.ZodOptional<z.ZodString>;
 }, {
     out: {};

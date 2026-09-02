@@ -1,11 +1,11 @@
 import { z } from "zod/v4";
-export declare const projectTasksTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
-    name: "project_tasks";
+export declare const venuesTable: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "venues";
     schema: undefined;
     columns: {
         id: import("drizzle-orm/pg-core").PgColumn<{
             name: "id";
-            tableName: "project_tasks";
+            tableName: "venues";
             dataType: "string";
             columnType: "PgUUID";
             data: string;
@@ -20,15 +20,117 @@ export declare const projectTasksTable: import("drizzle-orm/pg-core").PgTableWit
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
-        projectId: import("drizzle-orm/pg-core").PgColumn<{
-            name: "project_id";
-            tableName: "project_tasks";
+        name: import("drizzle-orm/pg-core").PgColumn<{
+            name: "name";
+            tableName: "venues";
             dataType: "string";
-            columnType: "PgUUID";
+            columnType: "PgText";
             data: string;
             driverParam: string;
             notNull: true;
             hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        address: import("drizzle-orm/pg-core").PgColumn<{
+            name: "address";
+            tableName: "venues";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        website: import("drizzle-orm/pg-core").PgColumn<{
+            name: "website";
+            tableName: "venues";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        technicalContactName: import("drizzle-orm/pg-core").PgColumn<{
+            name: "technical_contact_name";
+            tableName: "venues";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        technicalContactPhone: import("drizzle-orm/pg-core").PgColumn<{
+            name: "technical_contact_phone";
+            tableName: "venues";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        technicalContactEmail: import("drizzle-orm/pg-core").PgColumn<{
+            name: "technical_contact_email";
+            tableName: "venues";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        riggingSpecs: import("drizzle-orm/pg-core").PgColumn<{
+            name: "rigging_specs";
+            tableName: "venues";
+            dataType: "json";
+            columnType: "PgJsonb";
+            data: unknown;
+            driverParam: unknown;
+            notNull: true;
+            hasDefault: true;
             isPrimaryKey: false;
             isAutoincrement: false;
             hasRuntimeDefault: false;
@@ -37,83 +139,15 @@ export declare const projectTasksTable: import("drizzle-orm/pg-core").PgTableWit
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
-        title: import("drizzle-orm/pg-core").PgColumn<{
-            name: "title";
-            tableName: "project_tasks";
-            dataType: "string";
-            columnType: "PgText";
-            data: string;
-            driverParam: string;
-            notNull: true;
-            hasDefault: false;
-            isPrimaryKey: false;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: [string, ...string[]];
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {}>;
-        status: import("drizzle-orm/pg-core").PgColumn<{
-            name: "status";
-            tableName: "project_tasks";
-            dataType: "string";
-            columnType: "PgText";
-            data: string;
-            driverParam: string;
+        powerInfrastructure: import("drizzle-orm/pg-core").PgColumn<{
+            name: "power_infrastructure";
+            tableName: "venues";
+            dataType: "json";
+            columnType: "PgJsonb";
+            data: unknown;
+            driverParam: unknown;
             notNull: true;
             hasDefault: true;
-            isPrimaryKey: false;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: [string, ...string[]];
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {}>;
-        priority: import("drizzle-orm/pg-core").PgColumn<{
-            name: "priority";
-            tableName: "project_tasks";
-            dataType: "string";
-            columnType: "PgText";
-            data: string;
-            driverParam: string;
-            notNull: true;
-            hasDefault: true;
-            isPrimaryKey: false;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: [string, ...string[]];
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {}>;
-        department: import("drizzle-orm/pg-core").PgColumn<{
-            name: "department";
-            tableName: "project_tasks";
-            dataType: "string";
-            columnType: "PgText";
-            data: string;
-            driverParam: string;
-            notNull: true;
-            hasDefault: true;
-            isPrimaryKey: false;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: [string, ...string[]];
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {}>;
-        dueDate: import("drizzle-orm/pg-core").PgColumn<{
-            name: "due_date";
-            tableName: "project_tasks";
-            dataType: "string";
-            columnType: "PgDateString";
-            data: string;
-            driverParam: string;
-            notNull: false;
-            hasDefault: false;
             isPrimaryKey: false;
             isAutoincrement: false;
             hasRuntimeDefault: false;
@@ -122,60 +156,43 @@ export declare const projectTasksTable: import("drizzle-orm/pg-core").PgTableWit
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
-        assignedTo: import("drizzle-orm/pg-core").PgColumn<{
-            name: "assigned_to";
-            tableName: "project_tasks";
-            dataType: "string";
-            columnType: "PgText";
-            data: string;
-            driverParam: string;
+        logisticsAccess: import("drizzle-orm/pg-core").PgColumn<{
+            name: "logistics_access";
+            tableName: "venues";
+            dataType: "json";
+            columnType: "PgJsonb";
+            data: unknown;
+            driverParam: unknown;
             notNull: true;
             hasDefault: true;
             isPrimaryKey: false;
             isAutoincrement: false;
             hasRuntimeDefault: false;
-            enumValues: [string, ...string[]];
+            enumValues: undefined;
             baseColumn: never;
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
-        assignedUserId: import("drizzle-orm/pg-core").PgColumn<{
-            name: "assigned_user_id";
-            tableName: "project_tasks";
-            dataType: "string";
-            columnType: "PgText";
-            data: string;
-            driverParam: string;
-            notNull: false;
-            hasDefault: false;
-            isPrimaryKey: false;
-            isAutoincrement: false;
-            hasRuntimeDefault: false;
-            enumValues: [string, ...string[]];
-            baseColumn: never;
-            identity: undefined;
-            generated: undefined;
-        }, {}, {}>;
-        description: import("drizzle-orm/pg-core").PgColumn<{
-            name: "description";
-            tableName: "project_tasks";
-            dataType: "string";
-            columnType: "PgText";
-            data: string;
-            driverParam: string;
+        siteFacilities: import("drizzle-orm/pg-core").PgColumn<{
+            name: "site_facilities";
+            tableName: "venues";
+            dataType: "json";
+            columnType: "PgJsonb";
+            data: unknown;
+            driverParam: unknown;
             notNull: true;
             hasDefault: true;
             isPrimaryKey: false;
             isAutoincrement: false;
             hasRuntimeDefault: false;
-            enumValues: [string, ...string[]];
+            enumValues: undefined;
             baseColumn: never;
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
         createdAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";
-            tableName: "project_tasks";
+            tableName: "venues";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -192,7 +209,7 @@ export declare const projectTasksTable: import("drizzle-orm/pg-core").PgTableWit
         }, {}, {}>;
         updatedAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "updated_at";
-            tableName: "project_tasks";
+            tableName: "venues";
             dataType: "date";
             columnType: "PgTimestamp";
             data: Date;
@@ -210,20 +227,21 @@ export declare const projectTasksTable: import("drizzle-orm/pg-core").PgTableWit
     };
     dialect: "pg";
 }>;
-export declare const insertProjectTaskSchema: z.ZodObject<{
-    status: z.ZodOptional<z.ZodString>;
-    title: z.ZodString;
-    description: z.ZodOptional<z.ZodString>;
-    projectId: z.ZodUUID;
-    priority: z.ZodOptional<z.ZodString>;
-    department: z.ZodOptional<z.ZodString>;
-    dueDate: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    assignedTo: z.ZodOptional<z.ZodString>;
-    assignedUserId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+export declare const insertVenueSchema: z.ZodObject<{
+    name: z.ZodString;
+    address: z.ZodOptional<z.ZodString>;
+    website: z.ZodOptional<z.ZodString>;
+    technicalContactName: z.ZodOptional<z.ZodString>;
+    technicalContactPhone: z.ZodOptional<z.ZodString>;
+    technicalContactEmail: z.ZodOptional<z.ZodString>;
+    riggingSpecs: z.ZodOptional<z.ZodType<import("drizzle-zod").Json, unknown, z.core.$ZodTypeInternals<import("drizzle-zod").Json, unknown>>>;
+    powerInfrastructure: z.ZodOptional<z.ZodType<import("drizzle-zod").Json, unknown, z.core.$ZodTypeInternals<import("drizzle-zod").Json, unknown>>>;
+    logisticsAccess: z.ZodOptional<z.ZodType<import("drizzle-zod").Json, unknown, z.core.$ZodTypeInternals<import("drizzle-zod").Json, unknown>>>;
+    siteFacilities: z.ZodOptional<z.ZodType<import("drizzle-zod").Json, unknown, z.core.$ZodTypeInternals<import("drizzle-zod").Json, unknown>>>;
 }, {
     out: {};
     in: {};
 }>;
-export type InsertProjectTask = z.infer<typeof insertProjectTaskSchema>;
-export type ProjectTaskRow = typeof projectTasksTable.$inferSelect;
-//# sourceMappingURL=projectTasks.d.ts.map
+export type InsertVenue = z.infer<typeof insertVenueSchema>;
+export type VenueRow = typeof venuesTable.$inferSelect;
+//# sourceMappingURL=venues.d.ts.map

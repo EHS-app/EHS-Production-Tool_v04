@@ -149,6 +149,23 @@ export declare const projectBriefsTable: import("drizzle-orm/pg-core").PgTableWi
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        venueTechnicalSnapshot: import("drizzle-orm/pg-core").PgColumn<{
+            name: "venue_technical_snapshot";
+            tableName: "project_briefs";
+            dataType: "json";
+            columnType: "PgJsonb";
+            data: unknown;
+            driverParam: unknown;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         createdAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";
             tableName: "project_briefs";
@@ -188,13 +205,14 @@ export declare const projectBriefsTable: import("drizzle-orm/pg-core").PgTableWi
 }>;
 export declare const insertProjectBriefSchema: z.ZodObject<{
     id: z.ZodString;
-    ownerUserId: z.ZodString;
     data: z.ZodType<import("drizzle-zod").Json, unknown, z.core.$ZodTypeInternals<import("drizzle-zod").Json, unknown>>;
+    ownerUserId: z.ZodString;
     projectName: z.ZodOptional<z.ZodString>;
     client: z.ZodOptional<z.ZodString>;
     venue: z.ZodOptional<z.ZodString>;
     startDate: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     endDate: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    venueTechnicalSnapshot: z.ZodOptional<z.ZodNullable<z.ZodType<import("drizzle-zod").Json, unknown, z.core.$ZodTypeInternals<import("drizzle-zod").Json, unknown>>>>;
 }, {
     out: {};
     in: {};

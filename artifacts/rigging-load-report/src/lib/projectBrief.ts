@@ -282,6 +282,10 @@ export type ProjectBrief = {
      *  etc.) without editing any structured field. Optional — empty /
      *  missing means "no note", and the section is hidden in that case. */
     description?: string;
+    /** Server-appended venue spec payload when the project is linked to a directory venue.
+     *  Only included by the portal GET /api/portal/briefs/:id/mine endpoint; never
+     *  round-tripped through the producer JSON blob. */
+    venueTechnicalSnapshot?: Record<string, Record<string, string>>;
   };
   assignments: BriefAssignment[];
   rigging: BriefRiggingTotals;
@@ -1136,6 +1140,9 @@ export function normalizeBrief(raw: unknown): ProjectBrief | null {
       preparedBy: asString(project.preparedBy),
       ...(typeof project.description === "string" && project.description.trim()
         ? { description: project.description.trim() }
+        : {}),
+      ...(project.venueTechnicalSnapshot && typeof project.venueTechnicalSnapshot === "object"
+        ? { venueTechnicalSnapshot: project.venueTechnicalSnapshot as Record<string, Record<string, string>> }
         : {}),
     },
     assignments: asArray(r.assignments).map(normalizeAssignment),

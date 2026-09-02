@@ -20,6 +20,7 @@ import projectMessagesRouter from "./projectMessages";
 import transportRouter from "./transport";
 import globalTasksRouter from "./globalTasks";
 import economyRouter from "./economy";
+import masterDataRouter from "./masterData";
 import { requireEmployee } from "../middleware/userType";
 
 const router: IRouter = Router();
@@ -46,6 +47,9 @@ router.use(projectTasksRouter);
 router.use(projectMembersRouter);
 router.use(projectMessagesRouter);
 router.use(projectsRouter);
+router.use("/venues", requireEmployee);
+router.use("/clients", requireEmployee);
+router.use(masterDataRouter);
 router.use("/transport", requireEmployee);
 router.use(transportRouter);
 router.use("/tasks", requireEmployee);

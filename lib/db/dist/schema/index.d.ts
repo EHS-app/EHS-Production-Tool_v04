@@ -4,6 +4,8 @@ export * from "./projectBriefs";
 export * from "./gigs";
 export * from "./briefRoomAssignments";
 export * from "./projects";
+export * from "./venues";
+export * from "./clients";
 export * from "./timeEntries";
 export * from "./calendar";
 export * from "./feedbackReports";

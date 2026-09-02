@@ -62,6 +62,8 @@ import { GlobalPlaceholderPage } from "./components/global/GlobalPlaceholderPage
 import { GlobalTaskBoard } from "./components/global/GlobalTaskBoard";
 import { TransportDashboard } from "./components/global/TransportDashboard";
 import { EconomyDashboard } from "./components/global/EconomyDashboard";
+import { VenuesDatabasePage } from "./components/global/VenuesDatabasePage";
+import { ClientsDatabasePage } from "./components/global/ClientsDatabasePage";
 import { FolderOpen as ShellFolderOpen, Copy as ShellCopy } from "lucide-react";
 import { useI18n } from "./lib/i18n/I18nContext";
 import { buildBrief, type BuildBriefInput } from "./lib/projectBrief";
@@ -742,6 +744,8 @@ type MainView =
 const GLOBAL_VIEW_PATHS: Record<GlobalView, string> = {
   home: "/home",
   projects: "/projects",
+  clients: "/clients",
+  venues: "/venues",
   crew: "/crew",
   calendar: "/calendar",
   transport: "/transport",
@@ -934,6 +938,7 @@ type ThemePref = "light" | "dark" | "system";
 type PersistedV2 = {
   theme: ThemePref;
   venue: string;
+  venueId?: string | null;
   /** External Easyjob reference. Optional for backwards compatibility. */
   easyjobNumber?: string;
   /** Client / customer name. Optional — empty string when not yet set.
@@ -941,6 +946,7 @@ type PersistedV2 = {
    *  to the Client Pack cover, the Show Simulation cover, and every
    *  Freelancer Portal brief / accepted Gig. */
   client?: string;
+  clientId?: string | null;
   reportDate: string;
   /** Optional end date for the SHOW phase. Empty = single day.
    *  ISO date (YYYY-MM-DD). */
@@ -1283,6 +1289,7 @@ function ThemeSegmentedControl({
 }
 
 function App() {
+  const { getToken } = useAuth();
   const [location, navigate] = useLocation();
   const persisted = useRef<Partial<PersistedV2> | null>(loadPersisted()).current;
   const initialSystem = makeSystem("LX1");
@@ -1318,8 +1325,10 @@ function App() {
   const theme: "light" | "dark" =
     themePref === "system" ? systemTheme : themePref;
   const [venue, setVenue] = useState(persisted?.venue ?? "");
+  const [venueId, setVenueId] = useState<string | null>(persisted?.venueId ?? null);
   const [easyjobNumber, setEasyjobNumber] = useState(persisted?.easyjobNumber ?? "");
   const [client, setClient] = useState(persisted?.client ?? "");
+  const [clientId, setClientId] = useState<string | null>(persisted?.clientId ?? null);
   const [reportDate, setReportDate] = useState(
     persisted?.reportDate ?? new Date().toISOString().slice(0, 10),
   );
@@ -1341,6 +1350,33 @@ function App() {
       ? persisted.systems
       : [initialSystem],
   );
+
+  const [venuesOptions, setVenuesOptions] = useState<Array<{ id: string; name: string; riggingSpecs?: Record<string, string>; powerInfrastructure?: Record<string, string>; logisticsAccess?: Record<string, string>; siteFacilities?: Record<string, string>; technicalContactName?: string; technicalContactPhone?: string; technicalContactEmail?: string }>>([]);
+  const [clientsOptions, setClientsOptions] = useState<Array<{ id: string; companyName: string; }>>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadOptions = async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const [vRes, cRes] = await Promise.all([
+          fetch("/api/venues", { headers: { Authorization: `Bearer ${token}` } }),
+          fetch("/api/clients", { headers: { Authorization: `Bearer ${token}` } })
+        ]);
+        if (vRes.ok && mounted) {
+          const vJson = await vRes.json();
+          setVenuesOptions(vJson.venues || []);
+        }
+        if (cRes.ok && mounted) {
+          const cJson = await cRes.json();
+          setClientsOptions(cJson.clients || []);
+        }
+      } catch {}
+    };
+    loadOptions();
+    return () => { mounted = false; };
+  }, [getToken]);
   const [activeSystemId, setActiveSystemId] = useState<string>(() => {
     const fromPersisted = persisted?.activeSystemId;
     const list = persisted?.systems && persisted.systems.length > 0
@@ -1381,7 +1417,6 @@ function App() {
   );
   const [sendingRequests, setSendingRequests] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const { getToken } = useAuth();
   /** Equipment-library picker state. `target` controls which add-handler the
    *  picked item flows into; `null` means the picker is closed. */
   const [pickerTarget, setPickerTarget] = useState<
@@ -1483,6 +1518,8 @@ function App() {
       return { plans, activeId };
     });
   };
+  const [showVenueSpecs, setShowVenueSpecs] = useState(false);
+
   /** Switch which plan is shown as the backdrop. Pass `null` to hide
    *  the backdrop without deleting any plans. */
   const selectFloorPlan = (id: string | null) => {
@@ -1547,7 +1584,9 @@ function App() {
       const body = {
         name: data.venue || "",
         venue: data.venue || "",
+        venue_id: data.venueId || null,
         client: data.client || "",
+        client_id: data.clientId || null,
         easyjob_number: data.easyjobNumber || null,
         data,
       };
@@ -1857,8 +1896,10 @@ function App() {
   const buildPersistedData = useCallback((): PersistedV2 => ({
     theme: themePref,
     venue,
+    venueId,
     easyjobNumber,
     client,
+    clientId,
     reportDate,
     reportEndDate,
     extraSchedule,
@@ -3424,6 +3465,8 @@ function App() {
         const postBatch = async (withId: string | null) => {
           const body: Record<string, unknown> = { data, recipients };
           if (withId) body.id = withId;
+          if (currentProjectId) body.project_id = currentProjectId;
+          if (venueId) body.venue_id = venueId;
           const r = await fetch(`${baseUrl}api/portal/briefs`, {
             method: "POST",
             headers: {
@@ -4910,8 +4953,10 @@ function App() {
   const hydrateFromData = useCallback((d: Partial<PersistedV2>) => {
     if (d.theme) setThemePref(d.theme);
     setVenue(d.venue ?? "");
+    setVenueId(d.venueId ?? null);
     setEasyjobNumber(typeof d.easyjobNumber === "string" ? d.easyjobNumber : "");
     setClient(d.client ?? "");
+    setClientId(d.clientId ?? null);
     setReportDate(d.reportDate ?? new Date().toISOString().slice(0, 10));
     setReportEndDate(d.reportEndDate ?? "");
     setExtraSchedule(d.extraSchedule ?? {});
@@ -4975,6 +5020,10 @@ function App() {
       if (!p?.data) return;
       hydrateFromData({
         ...(p.data as Partial<PersistedV2>),
+        venueId: p.venue_id ?? (p.data as Partial<PersistedV2>).venueId,
+        clientId: p.client_id ?? (p.data as Partial<PersistedV2>).clientId,
+        venue: p.venue ?? (p.data as Partial<PersistedV2>).venue,
+        client: p.client ?? (p.data as Partial<PersistedV2>).client,
         easyjobNumber:
           typeof p.easyjob_number === "string"
             ? p.easyjob_number
@@ -4995,8 +5044,10 @@ function App() {
     await flushPendingSave();
     const fresh = makeEmptySystem("LX1");
     setVenue("");
+    setVenueId(null);
     setEasyjobNumber("");
     setClient("");
+    setClientId(null);
     setReportDate(new Date().toISOString().slice(0, 10));
     setReportEndDate("");
     setExtraSchedule({});
@@ -5773,21 +5824,81 @@ function App() {
       </div>
       <div className="meta-field">
         <label>{tr("project.venueProject")}</label>
-        <input
-          type="text"
-          value={venue}
-          onChange={(e) => setVenue(e.target.value)}
-          placeholder={tr("project.placeholder.venue")}
-        />
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <select
+            value={venueId || ""}
+            onChange={e => {
+               const id = e.target.value;
+               setVenueId(id || null);
+               if (id) {
+                 const v = venuesOptions.find(o => o.id === id);
+                 if (v) setVenue(v.name);
+               }
+            }}
+            style={{
+              background: "var(--input-bg)", border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 6, color: "var(--text-main)", padding: "0 8px", height: 34,
+              flex: "0 0 150px"
+            }}
+          >
+            <option value="">(Custom / Select...)</option>
+            {venuesOptions.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select>
+          <input
+            type="text"
+            value={venue}
+            onChange={(e) => {
+              setVenue(e.target.value);
+              if (venueId) setVenueId(null);
+            }}
+            placeholder={tr("project.placeholder.venue")}
+            style={{ flex: 1 }}
+          />
+          {venueId && (
+            <button
+              type="button"
+              className="ehs-ghost-btn"
+              style={{ padding: "0 8px", height: 34, fontSize: 13 }}
+              onClick={() => setShowVenueSpecs(true)}
+            >
+              Specs
+            </button>
+          )}
+        </div>
       </div>
       <div className="meta-field">
         <label>{tr("project.client")}</label>
-        <input
-          type="text"
-          value={client}
-          onChange={(e) => setClient(e.target.value)}
-          placeholder={tr("project.placeholder.client")}
-        />
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <select
+            value={clientId || ""}
+            onChange={e => {
+               const id = e.target.value;
+               setClientId(id || null);
+               if (id) {
+                 const c = clientsOptions.find(o => o.id === id);
+                 if (c) setClient(c.companyName);
+               }
+            }}
+            style={{
+              background: "var(--input-bg)", border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 6, color: "var(--text-main)", padding: "0 8px", height: 34,
+              flex: "0 0 150px"
+            }}
+          >
+            <option value="">(Custom / Select...)</option>
+            {clientsOptions.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
+          </select>
+          <input
+            type="text"
+            value={client}
+            onChange={(e) => {
+              setClient(e.target.value);
+              if (clientId) setClientId(null);
+            }}
+            placeholder={tr("project.placeholder.client")}
+            style={{ flex: 1 }}
+          />
+        </div>
       </div>
       <div className="meta-field">
         <label>{tr("project.clientContact")}</label>
@@ -5850,7 +5961,7 @@ function App() {
 
   if (globalView) {
     const placeholderCopy: Record<
-      Exclude<GlobalView, "home" | "projects" | "crew">,
+      Exclude<GlobalView, "home" | "projects" | "crew" | "venues" | "clients">,
       { title: string; description: string }
     > = {
       calendar: {
@@ -5901,6 +6012,18 @@ function App() {
                 void newProject().then(() => {
                   setGlobalView(null);
                   navigate("/project/new");
+                });
+              }}
+            />
+          ) : globalView === "venues" ? (
+            <VenuesDatabasePage getToken={getToken} />
+          ) : globalView === "clients" ? (
+            <ClientsDatabasePage
+              getToken={getToken}
+              onProjectCloned={(id) => {
+                void loadProject(id).then(() => {
+                  setGlobalView(null);
+                  navigate(`/project/${id}`);
                 });
               }}
             />
@@ -7207,6 +7330,65 @@ function App() {
           onClose={() => setShareOpen(false)}
         />
       ) : null}
+
+      {showVenueSpecs && venueId ? (() => {
+        const v = venuesOptions.find(o => o.id === venueId);
+        if (!v) return null;
+
+        const renderObj = (obj: any) => {
+          if (!obj || typeof obj !== 'object') return null;
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 13, marginTop: 4 }}>
+              {Object.entries(obj).filter(([_, val]) => val).map(([k, val]) => (
+                <div key={k} style={{ background: "var(--input-bg)", padding: 8, borderRadius: 6 }}>
+                  <div style={{ fontSize: 10, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 2 }}>{k.replace(/([A-Z])/g, ' $1')}</div>
+                  <div>{String(val)}</div>
+                </div>
+              ))}
+            </div>
+          );
+        };
+
+        return (
+          <div className="modal-backdrop" onClick={() => setShowVenueSpecs(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 700 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+                <h2>Venue Specs: {v.name}</h2>
+                <button className="btn-close" onClick={() => setShowVenueSpecs(false)}>×</button>
+              </div>
+              <div style={{ display: "grid", gap: 16 }}>
+                {v.riggingSpecs && Object.values(v.riggingSpecs).some(Boolean) && (
+                  <div>
+                    <strong>Rigging & Stage</strong>
+                    {renderObj(v.riggingSpecs)}
+                  </div>
+                )}
+                {v.powerInfrastructure && Object.values(v.powerInfrastructure).some(Boolean) && (
+                  <div>
+                    <strong>Power Infrastructure</strong>
+                    {renderObj(v.powerInfrastructure)}
+                  </div>
+                )}
+                {v.logisticsAccess && Object.values(v.logisticsAccess).some(Boolean) && (
+                  <div>
+                    <strong>Logistics & Access</strong>
+                    {renderObj(v.logisticsAccess)}
+                  </div>
+                )}
+                {v.siteFacilities && Object.values(v.siteFacilities).some(Boolean) && (
+                  <div>
+                    <strong>Site Facilities</strong>
+                    {renderObj(v.siteFacilities)}
+                  </div>
+                )}
+                {(!v.riggingSpecs && !v.powerInfrastructure && !v.logisticsAccess && !v.siteFacilities) && (
+                  <div style={{ color: "var(--text-muted)" }}>No technical specs provided.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })() : null}
 
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
 

@@ -36,6 +36,8 @@ export const projectBriefsTable = pgTable(
     endDate: date("end_date"),
     /** The full ProjectBrief jsonb. */
     data: jsonb("data").notNull(),
+    /** Server-built projection of venue data safe for freelancer access. */
+    venueTechnicalSnapshot: jsonb("venue_technical_snapshot"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

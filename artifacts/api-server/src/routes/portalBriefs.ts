@@ -8,6 +8,8 @@ import {
   briefRoomAssignmentsTable,
   gigsTable,
   freelancerProfilesTable,
+  projectsTable,
+  venuesTable,
   type ProjectBriefRow,
 } from "@workspace/db";
 import { requireEmployee } from "../middleware/userType";
@@ -21,6 +23,7 @@ import {
 import { dispatchBriefRequestEmails } from "../lib/briefEmail";
 import { autoAssignedDatesFor } from "../lib/roleSchedule";
 import { rollupItinerary } from "../lib/itineraryRollup";
+import { getProjectAccess, UUID_PATTERN } from "../lib/projectAccess";
 import {
   classifyDietary,
   splitAllergens,
@@ -47,6 +50,130 @@ const requireSignedIn: RequestHandler = (req, res, next) => {
  *  ceiling so a malformed payload can't park a multi-MB blob in the
  *  table. Matches the global JSON parser limit in `app.ts`. */
 const MAX_BRIEF_BYTES = 256 * 1024;
+
+const RESTRICTED_BRIEF_KEYS = new Set([
+  "venueTechnicalSnapshot",
+  "venueTechnical",
+  "venueProfile",
+  "clientProfile",
+  "clientDetails",
+  "billingAddress",
+  "primaryContacts",
+  "clientContact",
+  "clientContacts",
+  "organizationNumber",
+  "defaultPaymentTermsDays",
+  "paymentTerms",
+  "billing_address",
+  "primary_contacts",
+  "organization_number",
+  "default_payment_terms_days",
+  "client_contact",
+  "client_contacts",
+  "clientDirectory",
+  "technicalContactName",
+  "technicalContactPhone",
+  "technicalContactEmail",
+]);
+
+/** Remove fields that are never appropriate in a freelancer DTO. This is
+ * recursive because old briefs may have nested client-directory payloads. */
+function withoutUntrustedProfiles(raw: Record<string, unknown>): Record<string, unknown> {
+  const cleanse = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(cleanse);
+    if (!value || typeof value !== "object") return value;
+    const result: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      if (
+        RESTRICTED_BRIEF_KEYS.has(key) ||
+        /^(?:client[_-]?)?(?:billing|contact|contacts|organization|payment)/i.test(key)
+      ) continue;
+      result[key] = cleanse(child);
+    }
+    return result;
+  };
+  const cleansed = cleanse(raw);
+  const clean = cleansed && typeof cleansed === "object" && !Array.isArray(cleansed)
+    ? cleansed as Record<string, unknown>
+    : {};
+  if ("client" in clean && typeof clean.client !== "string") delete clean.client;
+  if ("venue" in clean && typeof clean.venue !== "string") delete clean.venue;
+  if (clean.project && typeof clean.project === "object" && !Array.isArray(clean.project)) {
+    const project = { ...(clean.project as Record<string, unknown>) };
+    for (const key of RESTRICTED_BRIEF_KEYS) delete project[key];
+    if ("client" in project && typeof project.client !== "string") delete project.client;
+    if ("venue" in project && typeof project.venue !== "string") delete project.venue;
+    clean.project = project;
+  }
+  return clean;
+}
+
+/** Only the server-owned venue projection is added to a freelancer brief.
+ * The database row could only have been created by `safeVenueSnapshot`, but
+ * we still select its allowed keys explicitly as a defence-in-depth DTO. */
+function trustedVenueSnapshot(raw: unknown): Record<string, unknown> | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const source = raw as Record<string, unknown>;
+  const snapshot: Record<string, unknown> = {};
+  for (const key of [
+    "name",
+    "address",
+    "website",
+    "riggingSpecs",
+    "powerInfrastructure",
+    "logisticsAccess",
+    "siteFacilities",
+  ]) {
+    if (key in source) snapshot[key] = source[key];
+  }
+  return snapshot;
+}
+
+function freelancerBriefData(
+  raw: unknown,
+  storedSnapshot: unknown,
+): Record<string, unknown> {
+  const clean = raw && typeof raw === "object" && !Array.isArray(raw)
+    ? withoutUntrustedProfiles(raw as Record<string, unknown>)
+    : {};
+  const project = clean.project && typeof clean.project === "object" && !Array.isArray(clean.project)
+    ? { ...(clean.project as Record<string, unknown>) }
+    : {};
+  // The client body cannot carry a venue snapshot. The only one emitted is
+  // this narrowed DB projection, under the stable project DTO location.
+  delete project.venueTechnicalSnapshot;
+  const snapshot = trustedVenueSnapshot(storedSnapshot);
+  if (snapshot) project.venueTechnicalSnapshot = snapshot;
+  clean.project = project;
+  return clean;
+}
+
+async function safeVenueSnapshot(
+  userId: string,
+  projectId: string | null,
+  directVenueId: string | null,
+): Promise<{ snapshot: Record<string, unknown> | null; error?: string }> {
+  let venueId = directVenueId;
+  if (projectId) {
+    const access = await getProjectAccess(projectId, userId);
+    if (!access) return { snapshot: null, error: "Project not found." };
+    const [project] = await db.select({ venueId: projectsTable.venueId })
+      .from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
+    venueId = project?.venueId ?? null;
+  }
+  if (!venueId) return { snapshot: null };
+  const [venue] = await db.select({
+    name: venuesTable.name,
+    address: venuesTable.address,
+    website: venuesTable.website,
+    riggingSpecs: venuesTable.riggingSpecs,
+    powerInfrastructure: venuesTable.powerInfrastructure,
+    logisticsAccess: venuesTable.logisticsAccess,
+    siteFacilities: venuesTable.siteFacilities,
+  }).from(venuesTable).where(eq(venuesTable.id, venueId)).limit(1);
+  if (!venue) return { snapshot: null, error: "Venue not found." };
+  return { snapshot: venue };
+}
 
 /** Decisions a freelancer is allowed to send themselves. `too_late` is
  *  a *server-only* status — it's set when another freelancer beats this
@@ -303,6 +430,7 @@ router.get("/portal/briefs/mine", requireSignedIn, async (req, res) => {
         ownerUserId: projectBriefsTable.ownerUserId,
         projectName: projectBriefsTable.projectName,
         venue: projectBriefsTable.venue,
+        venueTechnicalSnapshot: projectBriefsTable.venueTechnicalSnapshot,
         startDate: projectBriefsTable.startDate,
         endDate: projectBriefsTable.endDate,
       })
@@ -313,7 +441,22 @@ router.get("/portal/briefs/mine", requireSignedIn, async (req, res) => {
       )
       .where(eq(briefAssignmentsTable.freelancerUserId, userId))
       .orderBy(desc(briefAssignmentsTable.createdAt));
-    res.json({ ok: true, briefs: rows });
+    res.json({
+      ok: true,
+      briefs: rows.map((row) => ({
+        ...(() => {
+          const { venueTechnicalSnapshot: _trustedSnapshot, ...withoutSnapshot } = row;
+          return withoutSnapshot;
+        })(),
+        brief: freelancerBriefData(row.brief, row.venueTechnicalSnapshot),
+        acceptedSnapshot:
+          row.acceptedSnapshot &&
+          typeof row.acceptedSnapshot === "object" &&
+          !Array.isArray(row.acceptedSnapshot)
+            ? freelancerBriefData(row.acceptedSnapshot, null)
+            : row.acceptedSnapshot,
+      })),
+    });
   } catch (err) {
     logger.error(
       { err: err instanceof Error ? err.message : String(err) },
@@ -378,7 +521,19 @@ router.get("/portal/briefs/:id", requireSignedIn, async (req, res) => {
         return;
       }
     }
-    res.json({ ok: true, brief });
+    const freelancerView = brief.ownerUserId !== userId;
+    res.json({
+      ok: true,
+      brief: freelancerView
+        ? (() => {
+            const { venueTechnicalSnapshot: _trustedSnapshot, ...withoutSnapshot } = brief;
+            return {
+              ...withoutSnapshot,
+              data: freelancerBriefData(brief.data, brief.venueTechnicalSnapshot),
+            };
+          })()
+        : brief,
+    });
   } catch (err) {
     logger.error(
       { err: err instanceof Error ? err.message : String(err) },
@@ -408,12 +563,15 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
     id?: unknown;
     data?: unknown;
     recipients?: unknown;
+    project_id?: unknown;
+    venue_id?: unknown;
   };
-  const data = body.data;
-  if (!data || typeof data !== "object" || Array.isArray(data)) {
+  const submittedData = body.data;
+  if (!submittedData || typeof submittedData !== "object" || Array.isArray(submittedData)) {
     res.status(400).json({ ok: false, error: "data must be a JSON object." });
     return;
   }
+  const data = withoutUntrustedProfiles(submittedData as Record<string, unknown>);
   const serialised = JSON.stringify(data);
   if (Buffer.byteLength(serialised, "utf8") > MAX_BRIEF_BYTES) {
     res.status(413).json({ ok: false, error: "Brief too large." });
@@ -425,10 +583,32 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
       : randomUUID();
   const indexed = extractIndexed(data as Record<string, unknown>);
   const recipients = readRecipients(
-    data as Record<string, unknown>,
+    data,
     body.recipients,
   );
   try {
+    const nestedProject =
+      data.project && typeof data.project === "object" && !Array.isArray(data.project)
+        ? (data.project as Record<string, unknown>)
+        : {};
+    const rawProjectId = body.project_id ?? nestedProject.project_id ?? nestedProject.projectId;
+    const rawVenueId = body.venue_id ?? nestedProject.venue_id ?? nestedProject.venueId;
+    if (
+      (rawProjectId != null && (typeof rawProjectId !== "string" || !UUID_PATTERN.test(rawProjectId))) ||
+      (rawVenueId != null && (typeof rawVenueId !== "string" || !UUID_PATTERN.test(rawVenueId)))
+    ) {
+      res.status(400).json({ ok: false, error: "project_id and venue_id must be valid UUIDs." });
+      return;
+    }
+    const venueProjection = await safeVenueSnapshot(
+      userId,
+      typeof rawProjectId === "string" ? rawProjectId : null,
+      typeof rawVenueId === "string" ? rawVenueId : null,
+    );
+    if (venueProjection.error) {
+      res.status(400).json({ ok: false, error: venueProjection.error });
+      return;
+    }
     const result = await db.transaction(async (tx) => {
       // If the brief already exists, only the original owner may update it.
       const existing = await tx
@@ -446,12 +626,14 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
           ownerUserId: userId,
           ...indexed,
           data: data as Record<string, unknown>,
+          venueTechnicalSnapshot: venueProjection.snapshot,
         })
         .onConflictDoUpdate({
           target: projectBriefsTable.id,
           set: {
             ...indexed,
             data: data as Record<string, unknown>,
+            venueTechnicalSnapshot: venueProjection.snapshot,
             updatedAt: sql`now()`,
           },
         })

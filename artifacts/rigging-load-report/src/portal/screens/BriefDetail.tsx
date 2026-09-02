@@ -776,6 +776,55 @@ export function BriefDetail({
         </section>
       ) : null}
 
+      {/* Venue Technical Specs (server-appended snapshot) */}
+      {brief.project.venueTechnicalSnapshot && Object.keys(brief.project.venueTechnicalSnapshot).length > 0 ? (
+        <section
+          style={{
+            background: c.cardBg,
+            border: `1px solid ${c.border}`,
+            borderRadius: 12,
+            padding: "16px",
+            marginBottom: 12,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: c.text,
+              marginBottom: 12,
+            }}
+          >
+            Venue Technical Specs
+          </div>
+          <div style={{ display: "grid", gap: 16 }}>
+            {Object.entries(brief.project.venueTechnicalSnapshot).map(([category, fields]) => {
+              if (!fields || typeof fields !== "object" || !Object.values(fields).some(Boolean)) return null;
+              if (!["riggingSpecs", "powerInfrastructure", "logisticsAccess", "siteFacilities"].includes(category)) return null;
+
+              const title = category === "riggingSpecs" ? "Rigging & Stage"
+                : category === "powerInfrastructure" ? "Power Infrastructure"
+                : category === "logisticsAccess" ? "Logistics & Access"
+                : "Site Facilities";
+
+              return (
+                <div key={category}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: c.muted, marginBottom: 4 }}>{title}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {Object.entries(fields as Record<string, string>).filter(([_, val]) => val).map(([k, val]) => (
+                      <div key={k} style={{ background: c.inputBg, padding: 8, borderRadius: 6 }}>
+                        <div style={{ fontSize: 10, textTransform: "uppercase", color: c.muted, marginBottom: 2 }}>{k.replace(/([A-Z])/g, ' $1')}</div>
+                        <div style={{ fontSize: 13, color: c.text }}>{String(val)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
       {/* "What changed since you accepted" banner — only when there is a
           newer producer revision than the snapshot we kept locally. */}
       {diffs.length > 0 ? (

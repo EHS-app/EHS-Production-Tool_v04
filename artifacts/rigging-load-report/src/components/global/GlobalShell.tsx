@@ -11,7 +11,9 @@ import {
   ChevronDown,
   LogOut,
   Menu,
-  MoreHorizontal
+  MoreHorizontal,
+  MapPin,
+  Building2
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -29,6 +31,8 @@ export type GlobalView =
   | "transport"
   | "tasks"
   | "economy"
+  | "venues"
+  | "clients"
   | "settings";
 
 interface GlobalShellProps {
@@ -46,6 +50,8 @@ interface GlobalShellProps {
 const NAV_ITEMS = [
   { id: "home", label: "Home", icon: Activity },
   { id: "projects", label: "Projects Database", icon: Briefcase },
+  { id: "clients", label: "Client Hub", icon: Building2 },
+  { id: "venues", label: "Venue Directory", icon: MapPin },
   { id: "crew", label: "Global Crew Directory", icon: Users },
   { id: "calendar", label: "Master Calendar", icon: Calendar },
   { id: "transport", label: "Transport & Logistics", icon: Truck },

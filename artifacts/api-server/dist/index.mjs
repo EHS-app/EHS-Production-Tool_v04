@@ -20488,27 +20488,27 @@ var require_router = __commonJS({
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module.exports = Router23;
+    module.exports = Router24;
     module.exports.Route = Route;
-    function Router23(options) {
-      if (!(this instanceof Router23)) {
-        return new Router23(options);
+    function Router24(options) {
+      if (!(this instanceof Router24)) {
+        return new Router24(options);
       }
       const opts = options || {};
-      function router23(req, res, next) {
-        router23.handle(req, res, next);
+      function router24(req, res, next) {
+        router24.handle(req, res, next);
       }
-      Object.setPrototypeOf(router23, this);
-      router23.caseSensitive = opts.caseSensitive;
-      router23.mergeParams = opts.mergeParams;
-      router23.params = {};
-      router23.strict = opts.strict;
-      router23.stack = [];
-      return router23;
+      Object.setPrototypeOf(router24, this);
+      router24.caseSensitive = opts.caseSensitive;
+      router24.mergeParams = opts.mergeParams;
+      router24.params = {};
+      router24.strict = opts.strict;
+      router24.stack = [];
+      return router24;
     }
-    Router23.prototype = function() {
+    Router24.prototype = function() {
     };
-    Router23.prototype.param = function param4(name, fn) {
+    Router24.prototype.param = function param4(name, fn) {
       if (!name) {
         throw new TypeError("argument name is required");
       }
@@ -20528,7 +20528,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router23.prototype.handle = function handle(req, res, callback) {
+    Router24.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -20655,7 +20655,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router23.prototype.use = function use(handler) {
+    Router24.prototype.use = function use(handler) {
       let offset = 0;
       let path2 = "/";
       if (typeof handler !== "function") {
@@ -20688,7 +20688,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router23.prototype.route = function route(path2) {
+    Router24.prototype.route = function route(path2) {
       const route2 = new Route(path2);
       const layer = new Layer(path2, {
         sensitive: this.caseSensitive,
@@ -20703,7 +20703,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router23.prototype[method] = function(path2) {
+      Router24.prototype[method] = function(path2) {
         const route = this.route(path2);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
@@ -20886,13 +20886,13 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = __require("node:path").resolve;
     var once = require_once();
-    var Router23 = require_router();
+    var Router24 = require_router();
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app2 = exports = module.exports = {};
     var trustProxyDefaultSymbol = "@@symbol:trust_proxy_default";
     app2.init = function init() {
-      var router23 = null;
+      var router24 = null;
       this.cache = /* @__PURE__ */ Object.create(null);
       this.engines = /* @__PURE__ */ Object.create(null);
       this.settings = /* @__PURE__ */ Object.create(null);
@@ -20901,13 +20901,13 @@ var require_application = __commonJS({
         configurable: true,
         enumerable: true,
         get: function getrouter() {
-          if (router23 === null) {
-            router23 = new Router23({
+          if (router24 === null) {
+            router24 = new Router24({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
           }
-          return router23;
+          return router24;
         }
       });
     };
@@ -20978,15 +20978,15 @@ var require_application = __commonJS({
       if (fns.length === 0) {
         throw new TypeError("app.use() requires a middleware function");
       }
-      var router23 = this.router;
+      var router24 = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router23.use(path2, fn2);
+          return router24.use(path2, fn2);
         }
         debug(".use app under %s", path2);
         fn2.mountpath = path2;
         fn2.parent = this;
-        router23.use(path2, function mounted_app(req, res, next) {
+        router24.use(path2, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -23513,7 +23513,7 @@ var require_express = __commonJS({
     var EventEmitter = __require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router23 = require_router();
+    var Router24 = require_router();
     var req = require_request();
     var res = require_response();
     exports = module.exports = createApplication;
@@ -23535,8 +23535,8 @@ var require_express = __commonJS({
     exports.application = proto;
     exports.request = req;
     exports.response = res;
-    exports.Route = Router23.Route;
-    exports.Router = Router23;
+    exports.Route = Router24.Route;
+    exports.Router = Router24;
     exports.json = bodyParser.json;
     exports.raw = bodyParser.raw;
     exports.static = require_serve_static();
@@ -33123,11 +33123,11 @@ var require_router2 = __commonJS({
     var debug = debug_1.Debug.extend("router");
     async function getTarget(req, config3) {
       let newTarget;
-      const router23 = config3.router;
-      if ((0, is_plain_object_1.isPlainObject)(router23)) {
-        newTarget = getTargetFromProxyTable(req, router23);
-      } else if (typeof router23 === "function") {
-        newTarget = await router23(req);
+      const router24 = config3.router;
+      if ((0, is_plain_object_1.isPlainObject)(router24)) {
+        newTarget = getTargetFromProxyTable(req, router24);
+      } else if (typeof router24 === "function") {
+        newTarget = await router24(req);
       }
       return newTarget;
     }
@@ -33170,7 +33170,7 @@ var require_http_proxy_middleware = __commonJS({
     var get_plugins_1 = require_get_plugins();
     var path_filter_1 = require_path_filter();
     var PathRewriter = require_path_rewriter();
-    var Router23 = require_router2();
+    var Router24 = require_router2();
     var debug_1 = require_debug2();
     var function_1 = require_function();
     var logger_1 = require_logger2();
@@ -33241,7 +33241,7 @@ var require_http_proxy_middleware = __commonJS({
         this.applyRouter = async (req, options2) => {
           let newTarget;
           if (options2.router) {
-            newTarget = await Router23.getTarget(req, options2);
+            newTarget = await Router24.getTarget(req, options2);
             if (newTarget) {
               (0, debug_1.Debug)('router new target: "%s"', newTarget);
               options2.target = newTarget;
@@ -39055,7 +39055,7 @@ var init_calendarCrypto = __esm({
 });
 
 // src/app.ts
-var import_express29 = __toESM(require_express2(), 1);
+var import_express30 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 
@@ -47229,7 +47229,7 @@ function clerkProxyMiddleware() {
 }
 
 // src/routes/index.ts
-var import_express28 = __toESM(require_express2(), 1);
+var import_express29 = __toESM(require_express2(), 1);
 
 // src/routes/health.ts
 var import_express = __toESM(require_express2(), 1);
@@ -55923,6 +55923,17 @@ var ForeignKey = class {
     return name ?? `${chunks.join("_")}_fk`;
   }
 };
+function foreignKey(config3) {
+  function mappedConfig() {
+    const { name, columns, foreignColumns } = config3;
+    return {
+      name,
+      columns,
+      foreignColumns
+    };
+  }
+  return new ForeignKeyBuilder(mappedConfig);
+}
 
 // ../../node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.18.0_pg@8.20.0/node_modules/drizzle-orm/tracing-utils.js
 function iife(fn, ...args) {
@@ -62786,11 +62797,13 @@ __export(schema_exports, {
   calendarOAuthStatesTable: () => calendarOAuthStatesTable,
   calendarSubscriptionsTable: () => calendarSubscriptionsTable,
   calendarSyncJobsTable: () => calendarSyncJobsTable,
+  clientsTable: () => clientsTable,
   feedbackReportsTable: () => feedbackReportsTable,
   freelancerProfilesTable: () => freelancerProfilesTable,
   gigsTable: () => gigsTable,
   insertBriefAssignmentSchema: () => insertBriefAssignmentSchema,
   insertBriefRoomAssignmentSchema: () => insertBriefRoomAssignmentSchema,
+  insertClientSchema: () => insertClientSchema,
   insertFeedbackReportSchema: () => insertFeedbackReportSchema,
   insertFreelancerProfileSchema: () => insertFreelancerProfileSchema,
   insertGigSchema: () => insertGigSchema,
@@ -62805,6 +62818,7 @@ __export(schema_exports, {
   insertTransportRunSchema: () => insertTransportRunSchema,
   insertTransportVehicleSchema: () => insertTransportVehicleSchema,
   insertVenueMemorySchema: () => insertVenueMemorySchema,
+  insertVenueSchema: () => insertVenueSchema,
   profilePhotoUploadsTable: () => profilePhotoUploadsTable,
   projectBriefsTable: () => projectBriefsTable,
   projectExpensesTable: () => projectExpensesTable,
@@ -62816,7 +62830,8 @@ __export(schema_exports, {
   timeEntriesTable: () => timeEntriesTable,
   transportRunsTable: () => transportRunsTable,
   transportVehiclesTable: () => transportVehiclesTable,
-  venueMemoryTable: () => venueMemoryTable
+  venueMemoryTable: () => venueMemoryTable,
+  venuesTable: () => venuesTable
 });
 
 // ../../node_modules/.pnpm/zod@3.25.76/node_modules/zod/v4/classic/external.js
@@ -74323,6 +74338,8 @@ var projectBriefsTable = pgTable(
     endDate: date("end_date"),
     /** The full ProjectBrief jsonb. */
     data: jsonb("data").notNull(),
+    /** Server-built projection of venue data safe for freelancer access. */
+    venueTechnicalSnapshot: jsonb("venue_technical_snapshot"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },
@@ -74489,6 +74506,56 @@ var insertBriefRoomAssignmentSchema = createInsertSchema(
   updatedAt: true
 });
 
+// ../../lib/db/src/schema/venues.ts
+var venuesTable = pgTable(
+  "venues",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    address: text("address").notNull().default(""),
+    website: text("website").notNull().default(""),
+    technicalContactName: text("technical_contact_name").notNull().default(""),
+    technicalContactPhone: text("technical_contact_phone").notNull().default(""),
+    technicalContactEmail: text("technical_contact_email").notNull().default(""),
+    riggingSpecs: jsonb("rigging_specs").notNull().default({}),
+    powerInfrastructure: jsonb("power_infrastructure").notNull().default({}),
+    logisticsAccess: jsonb("logistics_access").notNull().default({}),
+    siteFacilities: jsonb("site_facilities").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => [index("venues_name_idx").on(t.name)]
+);
+var insertVenueSchema = createInsertSchema(venuesTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+// ../../lib/db/src/schema/clients.ts
+var clientsTable = pgTable(
+  "clients",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyName: text("company_name").notNull(),
+    billingAddress: text("billing_address").notNull().default(""),
+    organizationNumber: text("organization_number").notNull().default(""),
+    primaryContacts: jsonb("primary_contacts").notNull().default([]),
+    defaultPaymentTermsDays: integer("default_payment_terms_days").notNull().default(14),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => [
+    index("clients_company_name_idx").on(t.companyName),
+    index("clients_organization_number_idx").on(t.organizationNumber)
+  ]
+);
+var insertClientSchema = createInsertSchema(clientsTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
 // ../../lib/db/src/schema/projects.ts
 var projectsTable = pgTable(
   "projects",
@@ -74499,13 +74566,28 @@ var projectsTable = pgTable(
     venue: text("venue").notNull().default(""),
     client: text("client").notNull().default(""),
     easyjobNumber: text("easyjob_number"),
+    venueId: uuid("venue_id").references(() => venuesTable.id, {
+      onDelete: "set null"
+    }),
+    clientId: uuid("client_id").references(() => clientsTable.id, {
+      onDelete: "set null"
+    }),
+    clonedFromProjectId: uuid("cloned_from_project_id"),
     data: jsonb("data").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },
   (t) => [
     index("projects_user_id_idx").on(t.userId),
-    index("projects_easyjob_number_idx").on(t.easyjobNumber)
+    index("projects_easyjob_number_idx").on(t.easyjobNumber),
+    index("projects_venue_id_idx").on(t.venueId),
+    index("projects_client_id_idx").on(t.clientId),
+    index("projects_cloned_from_idx").on(t.clonedFromProjectId),
+    foreignKey({
+      columns: [t.clonedFromProjectId],
+      foreignColumns: [t.id],
+      name: "projects_cloned_from_project_id_fk"
+    }).onDelete("set null")
   ]
 );
 var insertProjectSchema = createInsertSchema(projectsTable).omit({
@@ -77961,6 +78043,24 @@ function rollupItinerary(input) {
   return days;
 }
 
+// src/lib/projectAccess.ts
+var UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function isProjectWriter(role) {
+  return role === "owner" || role === "editor";
+}
+async function getProjectAccess(projectId, userId2) {
+  const [project] = await db.select({ ownerId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
+  if (!project) return null;
+  if (project.ownerId === userId2) return "owner";
+  const [membership] = await db.select({ role: projectMembersTable.role }).from(projectMembersTable).where(
+    and(
+      eq(projectMembersTable.projectId, projectId),
+      eq(projectMembersTable.userId, userId2)
+    )
+  ).limit(1);
+  return membership?.role === "editor" || membership?.role === "viewer" ? membership.role : null;
+}
+
 // src/routes/portalBriefs.ts
 var router7 = (0, import_express9.Router)();
 var requireSignedIn5 = (req, res, next) => {
@@ -77973,6 +78073,101 @@ var requireSignedIn5 = (req, res, next) => {
   next();
 };
 var MAX_BRIEF_BYTES = 256 * 1024;
+var RESTRICTED_BRIEF_KEYS = /* @__PURE__ */ new Set([
+  "venueTechnicalSnapshot",
+  "venueTechnical",
+  "venueProfile",
+  "clientProfile",
+  "clientDetails",
+  "billingAddress",
+  "primaryContacts",
+  "clientContact",
+  "clientContacts",
+  "organizationNumber",
+  "defaultPaymentTermsDays",
+  "paymentTerms",
+  "billing_address",
+  "primary_contacts",
+  "organization_number",
+  "default_payment_terms_days",
+  "client_contact",
+  "client_contacts",
+  "clientDirectory",
+  "technicalContactName",
+  "technicalContactPhone",
+  "technicalContactEmail"
+]);
+function withoutUntrustedProfiles(raw) {
+  const cleanse = (value) => {
+    if (Array.isArray(value)) return value.map(cleanse);
+    if (!value || typeof value !== "object") return value;
+    const result = {};
+    for (const [key2, child] of Object.entries(value)) {
+      if (RESTRICTED_BRIEF_KEYS.has(key2) || /^(?:client[_-]?)?(?:billing|contact|contacts|organization|payment)/i.test(key2)) continue;
+      result[key2] = cleanse(child);
+    }
+    return result;
+  };
+  const cleansed = cleanse(raw);
+  const clean = cleansed && typeof cleansed === "object" && !Array.isArray(cleansed) ? cleansed : {};
+  if ("client" in clean && typeof clean.client !== "string") delete clean.client;
+  if ("venue" in clean && typeof clean.venue !== "string") delete clean.venue;
+  if (clean.project && typeof clean.project === "object" && !Array.isArray(clean.project)) {
+    const project = { ...clean.project };
+    for (const key2 of RESTRICTED_BRIEF_KEYS) delete project[key2];
+    if ("client" in project && typeof project.client !== "string") delete project.client;
+    if ("venue" in project && typeof project.venue !== "string") delete project.venue;
+    clean.project = project;
+  }
+  return clean;
+}
+function trustedVenueSnapshot(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const source = raw;
+  const snapshot = {};
+  for (const key2 of [
+    "name",
+    "address",
+    "website",
+    "riggingSpecs",
+    "powerInfrastructure",
+    "logisticsAccess",
+    "siteFacilities"
+  ]) {
+    if (key2 in source) snapshot[key2] = source[key2];
+  }
+  return snapshot;
+}
+function freelancerBriefData(raw, storedSnapshot) {
+  const clean = raw && typeof raw === "object" && !Array.isArray(raw) ? withoutUntrustedProfiles(raw) : {};
+  const project = clean.project && typeof clean.project === "object" && !Array.isArray(clean.project) ? { ...clean.project } : {};
+  delete project.venueTechnicalSnapshot;
+  const snapshot = trustedVenueSnapshot(storedSnapshot);
+  if (snapshot) project.venueTechnicalSnapshot = snapshot;
+  clean.project = project;
+  return clean;
+}
+async function safeVenueSnapshot(userId2, projectId, directVenueId) {
+  let venueId = directVenueId;
+  if (projectId) {
+    const access = await getProjectAccess(projectId, userId2);
+    if (!access) return { snapshot: null, error: "Project not found." };
+    const [project] = await db.select({ venueId: projectsTable.venueId }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
+    venueId = project?.venueId ?? null;
+  }
+  if (!venueId) return { snapshot: null };
+  const [venue] = await db.select({
+    name: venuesTable.name,
+    address: venuesTable.address,
+    website: venuesTable.website,
+    riggingSpecs: venuesTable.riggingSpecs,
+    powerInfrastructure: venuesTable.powerInfrastructure,
+    logisticsAccess: venuesTable.logisticsAccess,
+    siteFacilities: venuesTable.siteFacilities
+  }).from(venuesTable).where(eq(venuesTable.id, venueId)).limit(1);
+  if (!venue) return { snapshot: null, error: "Venue not found." };
+  return { snapshot: venue };
+}
 var VALID_DECISIONS = /* @__PURE__ */ new Set([
   "pending",
   "accepted",
@@ -78091,13 +78286,24 @@ router7.get("/portal/briefs/mine", requireSignedIn5, async (req, res) => {
       ownerUserId: projectBriefsTable.ownerUserId,
       projectName: projectBriefsTable.projectName,
       venue: projectBriefsTable.venue,
+      venueTechnicalSnapshot: projectBriefsTable.venueTechnicalSnapshot,
       startDate: projectBriefsTable.startDate,
       endDate: projectBriefsTable.endDate
     }).from(briefAssignmentsTable).innerJoin(
       projectBriefsTable,
       eq(briefAssignmentsTable.briefId, projectBriefsTable.id)
     ).where(eq(briefAssignmentsTable.freelancerUserId, userId2)).orderBy(desc(briefAssignmentsTable.createdAt));
-    res.json({ ok: true, briefs: rows });
+    res.json({
+      ok: true,
+      briefs: rows.map((row) => ({
+        ...(() => {
+          const { venueTechnicalSnapshot: _trustedSnapshot, ...withoutSnapshot } = row;
+          return withoutSnapshot;
+        })(),
+        brief: freelancerBriefData(row.brief, row.venueTechnicalSnapshot),
+        acceptedSnapshot: row.acceptedSnapshot && typeof row.acceptedSnapshot === "object" && !Array.isArray(row.acceptedSnapshot) ? freelancerBriefData(row.acceptedSnapshot, null) : row.acceptedSnapshot
+      }))
+    });
   } catch (err) {
     logger.error(
       { err: err instanceof Error ? err.message : String(err) },
@@ -78141,7 +78347,17 @@ router7.get("/portal/briefs/:id", requireSignedIn5, async (req, res) => {
         return;
       }
     }
-    res.json({ ok: true, brief });
+    const freelancerView = brief.ownerUserId !== userId2;
+    res.json({
+      ok: true,
+      brief: freelancerView ? (() => {
+        const { venueTechnicalSnapshot: _trustedSnapshot, ...withoutSnapshot } = brief;
+        return {
+          ...withoutSnapshot,
+          data: freelancerBriefData(brief.data, brief.venueTechnicalSnapshot)
+        };
+      })() : brief
+    });
   } catch (err) {
     logger.error(
       { err: err instanceof Error ? err.message : String(err) },
@@ -78153,11 +78369,12 @@ router7.get("/portal/briefs/:id", requireSignedIn5, async (req, res) => {
 router7.post("/portal/briefs", requireEmployee, async (req, res) => {
   const userId2 = req._userId;
   const body = req.body ?? {};
-  const data = body.data;
-  if (!data || typeof data !== "object" || Array.isArray(data)) {
+  const submittedData = body.data;
+  if (!submittedData || typeof submittedData !== "object" || Array.isArray(submittedData)) {
     res.status(400).json({ ok: false, error: "data must be a JSON object." });
     return;
   }
+  const data = withoutUntrustedProfiles(submittedData);
   const serialised = JSON.stringify(data);
   if (Buffer.byteLength(serialised, "utf8") > MAX_BRIEF_BYTES) {
     res.status(413).json({ ok: false, error: "Brief too large." });
@@ -78170,6 +78387,22 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
     body.recipients
   );
   try {
+    const nestedProject = data.project && typeof data.project === "object" && !Array.isArray(data.project) ? data.project : {};
+    const rawProjectId = body.project_id ?? nestedProject.project_id ?? nestedProject.projectId;
+    const rawVenueId = body.venue_id ?? nestedProject.venue_id ?? nestedProject.venueId;
+    if (rawProjectId != null && (typeof rawProjectId !== "string" || !UUID_PATTERN.test(rawProjectId)) || rawVenueId != null && (typeof rawVenueId !== "string" || !UUID_PATTERN.test(rawVenueId))) {
+      res.status(400).json({ ok: false, error: "project_id and venue_id must be valid UUIDs." });
+      return;
+    }
+    const venueProjection = await safeVenueSnapshot(
+      userId2,
+      typeof rawProjectId === "string" ? rawProjectId : null,
+      typeof rawVenueId === "string" ? rawVenueId : null
+    );
+    if (venueProjection.error) {
+      res.status(400).json({ ok: false, error: venueProjection.error });
+      return;
+    }
     const result = await db.transaction(async (tx) => {
       const existing = await tx.select({ ownerUserId: projectBriefsTable.ownerUserId }).from(projectBriefsTable).where(eq(projectBriefsTable.id, id)).limit(1);
       if (existing[0] && existing[0].ownerUserId !== userId2) {
@@ -78179,12 +78412,14 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
         id,
         ownerUserId: userId2,
         ...indexed,
-        data
+        data,
+        venueTechnicalSnapshot: venueProjection.snapshot
       }).onConflictDoUpdate({
         target: projectBriefsTable.id,
         set: {
           ...indexed,
           data,
+          venueTechnicalSnapshot: venueProjection.snapshot,
           updatedAt: sql`now()`
         }
       }).returning();
@@ -81163,26 +81398,6 @@ var portalWork_default = router11;
 
 // src/routes/projects.ts
 var import_express14 = __toESM(require_express2(), 1);
-
-// src/lib/projectAccess.ts
-var UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-function isProjectWriter(role) {
-  return role === "owner" || role === "editor";
-}
-async function getProjectAccess(projectId, userId2) {
-  const [project] = await db.select({ ownerId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
-  if (!project) return null;
-  if (project.ownerId === userId2) return "owner";
-  const [membership] = await db.select({ role: projectMembersTable.role }).from(projectMembersTable).where(
-    and(
-      eq(projectMembersTable.projectId, projectId),
-      eq(projectMembersTable.userId, userId2)
-    )
-  ).limit(1);
-  return membership?.role === "editor" || membership?.role === "viewer" ? membership.role : null;
-}
-
-// src/routes/projects.ts
 var router12 = (0, import_express14.Router)();
 var requireSignedIn10 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
@@ -81194,6 +81409,38 @@ var requireSignedIn10 = (req, res, next) => {
   next();
 };
 var MAX_DATA_BYTES2 = 2 * 1024 * 1024;
+function linkedId(value) {
+  if (value === void 0) return void 0;
+  if (value === null || value === "") return null;
+  return typeof value === "string" && UUID_PATTERN.test(value) ? value : "invalid";
+}
+async function resolveLinks(userId2, venueId, clientId, clonedFromProjectId) {
+  let venueName;
+  let clientName;
+  if (venueId) {
+    const [venue] = await db.select({ name: venuesTable.name }).from(venuesTable).where(eq(venuesTable.id, venueId)).limit(1);
+    if (!venue) return null;
+    venueName = venue.name;
+  }
+  if (clientId) {
+    const [client] = await db.select({ name: clientsTable.companyName }).from(clientsTable).where(eq(clientsTable.id, clientId)).limit(1);
+    if (!client) return null;
+    clientName = client.name;
+  }
+  if (clonedFromProjectId) {
+    if (!await getProjectAccess(clonedFromProjectId, userId2)) return null;
+  }
+  return { venueId, venueName, clientId, clientName, clonedFromProjectId };
+}
+function projectResponse(row) {
+  return {
+    ...row,
+    easyjob_number: row.easyjobNumber,
+    venue_id: row.venueId,
+    client_id: row.clientId,
+    cloned_from_project_id: row.clonedFromProjectId
+  };
+}
 router12.get("/projects", requireSignedIn10, async (req, res) => {
   const userId2 = req._userId;
   try {
@@ -81203,6 +81450,9 @@ router12.get("/projects", requireSignedIn10, async (req, res) => {
       venue: projectsTable.venue,
       client: projectsTable.client,
       easyjob_number: projectsTable.easyjobNumber,
+      venue_id: projectsTable.venueId,
+      client_id: projectsTable.clientId,
+      cloned_from_project_id: projectsTable.clonedFromProjectId,
       reportDate: sql`${projectsTable.data}->>'reportDate'`,
       reportEndDate: sql`${projectsTable.data}->>'reportEndDate'`,
       crewCount: sql`case when jsonb_typeof(${projectsTable.data}->'crew') = 'array' then jsonb_array_length(${projectsTable.data}->'crew') else 0 end`,
@@ -81271,8 +81521,7 @@ router12.get("/projects/:id", requireSignedIn10, async (req, res) => {
     res.json({
       ok: true,
       project: {
-        ...row,
-        easyjob_number: row.easyjobNumber,
+        ...projectResponse(row),
         accessRole
       }
     });
@@ -81283,23 +81532,47 @@ router12.get("/projects/:id", requireSignedIn10, async (req, res) => {
 });
 router12.post("/projects", requireSignedIn10, async (req, res) => {
   const userId2 = req._userId;
-  const { name, venue, client, easyjob_number, data } = req.body ?? {};
+  const {
+    name,
+    venue,
+    client,
+    easyjob_number,
+    data,
+    venue_id,
+    client_id,
+    cloned_from_project_id
+  } = req.body ?? {};
   if (data && JSON.stringify(data).length > MAX_DATA_BYTES2) {
     res.status(413).json({ ok: false, error: "Project data too large." });
     return;
   }
+  const venueId = linkedId(venue_id);
+  const clientId = linkedId(client_id);
+  const clonedFromProjectId = linkedId(cloned_from_project_id);
+  if (venueId === "invalid" || clientId === "invalid" || clonedFromProjectId === "invalid") {
+    res.status(400).json({ ok: false, error: "Linked ids must be valid UUIDs or null." });
+    return;
+  }
   try {
+    const links = await resolveLinks(userId2, venueId, clientId, clonedFromProjectId);
+    if (!links) {
+      res.status(400).json({ ok: false, error: "A linked venue, client, or source project does not exist." });
+      return;
+    }
     const [row] = await db.insert(projectsTable).values({
       userId: userId2,
       name: typeof name === "string" ? name.slice(0, 200) : "Untitled",
-      venue: typeof venue === "string" ? venue.slice(0, 200) : "",
-      client: typeof client === "string" ? client.slice(0, 200) : "",
+      venue: links.venueName ?? (typeof venue === "string" ? venue.slice(0, 200) : ""),
+      client: links.clientName ?? (typeof client === "string" ? client.slice(0, 200) : ""),
+      venueId: links.venueId,
+      clientId: links.clientId,
+      clonedFromProjectId: links.clonedFromProjectId,
       easyjobNumber: typeof easyjob_number === "string" ? easyjob_number.trim().slice(0, 100) || null : null,
       data: data ?? {}
     }).returning();
     res.json({
       ok: true,
-      project: row ? { ...row, easyjob_number: row.easyjobNumber } : row
+      project: row ? projectResponse(row) : row
     });
   } catch (err) {
     req.log.error(err, "Failed to create project");
@@ -81309,13 +81582,29 @@ router12.post("/projects", requireSignedIn10, async (req, res) => {
 router12.patch("/projects/:id", requireSignedIn10, async (req, res) => {
   const userId2 = req._userId;
   const { id } = req.params;
-  const { name, venue, client, easyjob_number, data } = req.body ?? {};
+  const {
+    name,
+    venue,
+    client,
+    easyjob_number,
+    data,
+    venue_id,
+    client_id,
+    cloned_from_project_id
+  } = req.body ?? {};
   if (!UUID_PATTERN.test(String(id))) {
     res.status(404).json({ ok: false, error: "Project not found." });
     return;
   }
   if (data && JSON.stringify(data).length > MAX_DATA_BYTES2) {
     res.status(413).json({ ok: false, error: "Project data too large." });
+    return;
+  }
+  const venueId = linkedId(venue_id);
+  const clientId = linkedId(client_id);
+  const clonedFromProjectId = linkedId(cloned_from_project_id);
+  if (venueId === "invalid" || clientId === "invalid" || clonedFromProjectId === "invalid") {
+    res.status(400).json({ ok: false, error: "Linked ids must be valid UUIDs or null." });
     return;
   }
   const updates = {
@@ -81339,12 +81628,29 @@ router12.patch("/projects/:id", requireSignedIn10, async (req, res) => {
       res.status(403).json({ ok: false, error: "Project is read-only." });
       return;
     }
+    const links = await resolveLinks(userId2, venueId, clientId, clonedFromProjectId);
+    if (!links) {
+      res.status(400).json({ ok: false, error: "A linked venue, client, or source project does not exist." });
+      return;
+    }
+    if (venueId !== void 0) {
+      updates.venueId = venueId;
+      if (links.venueName !== void 0) updates.venue = links.venueName;
+    }
+    if (clientId !== void 0) {
+      updates.clientId = clientId;
+      if (links.clientName !== void 0) updates.client = links.clientName;
+    }
+    if (clonedFromProjectId !== void 0) updates.clonedFromProjectId = clonedFromProjectId;
     const [row] = await db.update(projectsTable).set(updates).where(eq(projectsTable.id, String(id))).returning({
       id: projectsTable.id,
       name: projectsTable.name,
       venue: projectsTable.venue,
       client: projectsTable.client,
       easyjob_number: projectsTable.easyjobNumber,
+      venue_id: projectsTable.venueId,
+      client_id: projectsTable.clientId,
+      cloned_from_project_id: projectsTable.clonedFromProjectId,
       updatedAt: projectsTable.updatedAt
     });
     if (!row) {
@@ -83248,40 +83554,445 @@ router21.get(
 );
 var economy_default = router21;
 
-// src/routes/index.ts
+// src/routes/masterData.ts
+var import_express28 = __toESM(require_express2(), 1);
 var router22 = (0, import_express28.Router)();
-router22.use(health_default);
-router22.use(devAutoSignIn_default);
-router22.use("/rigplan", requireEmployee);
-router22.use(rigplanAnalyze_default);
-router22.use(venueMemory_default);
-router22.use("/storage", requireEmployee);
-router22.use(storage_default);
-router22.use("/projects", requireEmployee);
-router22.use(projectTasks_default);
-router22.use(projectMembers_default);
-router22.use(projectMessages_default);
-router22.use(projects_default);
-router22.use("/transport", requireEmployee);
-router22.use(transport_default);
-router22.use("/tasks", requireEmployee);
-router22.use(globalTasks_default);
-router22.use("/economy", requireEmployee);
-router22.use(economy_default);
-router22.use("/inspection", requireEmployee);
-router22.use(inspectionExtract_default);
-router22.use(admin_default);
-router22.use(feedback_default);
-router22.use(portalProfile_default);
-router22.use(portalBriefs_default);
-router22.use(portalGigs_default);
-router22.use(portalTimeEntries_default);
-router22.use(portalCalendar_default);
-router22.use(portalWork_default);
-var routes_default = router22;
+var MAX_JSON_BYTES = 128 * 1024;
+function idParam(raw) {
+  return String(Array.isArray(raw) ? raw[0] ?? "" : raw ?? "");
+}
+function plainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function strictBody(raw, allowed) {
+  if (!plainObject(raw)) return { error: "Request body must be a JSON object." };
+  const unexpected = Object.keys(raw).filter((key2) => !allowed.has(key2));
+  if (unexpected.length) {
+    return { error: `Unexpected field(s): ${unexpected.join(", ")}.` };
+  }
+  return { body: raw };
+}
+function textField(body, key2, max, required2 = false) {
+  if (!(key2 in body)) return required2 ? { error: `${key2} is required.` } : {};
+  if (typeof body[key2] !== "string") return { error: `${key2} must be a string.` };
+  const value = body[key2].trim().slice(0, max);
+  if (required2 && !value) return { error: `${key2} must not be empty.` };
+  return { value };
+}
+function jsonField(body, key2) {
+  if (!(key2 in body)) return {};
+  const value = body[key2];
+  if (!plainObject(value) && !Array.isArray(value)) {
+    return { error: `${key2} must be a JSON object or array.` };
+  }
+  if (Buffer.byteLength(JSON.stringify(value), "utf8") > MAX_JSON_BYTES) {
+    return { error: `${key2} is too large.` };
+  }
+  return { value };
+}
+function searchQuery(req) {
+  const unexpected = Object.keys(req.query).filter((key2) => key2 !== "q");
+  if (unexpected.length) return { error: `Unexpected query field(s): ${unexpected.join(", ")}.` };
+  if (req.query.q === void 0) return { q: "" };
+  if (typeof req.query.q !== "string") return { error: "q must be a string." };
+  if (req.query.q.length > 200) return { error: "q must be at most 200 characters." };
+  return { q: req.query.q.trim() };
+}
+var VENUE_KEYS = /* @__PURE__ */ new Set([
+  "name",
+  "address",
+  "website",
+  "technicalContactName",
+  "technicalContactPhone",
+  "technicalContactEmail",
+  "riggingSpecs",
+  "powerInfrastructure",
+  "logisticsAccess",
+  "siteFacilities"
+]);
+function venueValues(raw, partial2) {
+  const parsed = strictBody(raw, VENUE_KEYS);
+  if (!parsed.body) return { error: parsed.error };
+  const body = parsed.body;
+  if (partial2 && Object.keys(body).length === 0) return { error: "At least one field is required." };
+  const values = {};
+  for (const [key2, max, required2] of [
+    ["name", 280, !partial2],
+    ["address", 2e3, false],
+    ["website", 500, false],
+    ["technicalContactName", 280, false],
+    ["technicalContactPhone", 100, false],
+    ["technicalContactEmail", 320, false]
+  ]) {
+    const field = textField(body, key2, max, required2);
+    if (field.error) return { error: field.error };
+    if (field.value !== void 0) values[key2] = field.value;
+  }
+  if (typeof values.website === "string" && values.website) {
+    try {
+      const url2 = new URL(values.website);
+      if (url2.protocol !== "http:" && url2.protocol !== "https:") throw new Error();
+    } catch {
+      return { error: "website must be an http(s) URL." };
+    }
+  }
+  if (typeof values.technicalContactEmail === "string" && values.technicalContactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.technicalContactEmail)) {
+    return { error: "technicalContactEmail must be a valid email address." };
+  }
+  for (const key2 of ["riggingSpecs", "powerInfrastructure", "logisticsAccess", "siteFacilities"]) {
+    const field = jsonField(body, key2);
+    if (field.error) return { error: field.error };
+    if (field.value !== void 0) values[key2] = field.value;
+  }
+  return { values };
+}
+router22.get("/venues", async (req, res) => {
+  const query = searchQuery(req);
+  if (query.error) {
+    res.status(400).json({ ok: false, error: query.error });
+    return;
+  }
+  const q = query.q ?? "";
+  try {
+    const rows = await db.select().from(venuesTable).where(q ? or(ilike(venuesTable.name, `%${q}%`), ilike(venuesTable.address, `%${q}%`)) : void 0).orderBy(venuesTable.name).limit(200);
+    res.json({ ok: true, venues: rows });
+  } catch (err) {
+    req.log.error(err, "Failed to list venues");
+    res.status(500).json({ ok: false, error: "Failed to list venues." });
+  }
+});
+router22.post("/venues", async (req, res) => {
+  const parsed = venueValues(req.body, false);
+  if (!parsed.values) {
+    res.status(400).json({ ok: false, error: parsed.error });
+    return;
+  }
+  try {
+    const [venue] = await db.insert(venuesTable).values(parsed.values).returning();
+    res.status(201).json({ ok: true, venue });
+  } catch (err) {
+    req.log.error(err, "Failed to create venue");
+    res.status(500).json({ ok: false, error: "Failed to create venue." });
+  }
+});
+router22.get("/venues/:id", async (req, res) => {
+  const id = idParam(req.params.id);
+  if (!UUID_PATTERN.test(id)) {
+    res.status(404).json({ ok: false, error: "Venue not found." });
+    return;
+  }
+  const [venue] = await db.select().from(venuesTable).where(eq(venuesTable.id, id)).limit(1);
+  if (!venue) {
+    res.status(404).json({ ok: false, error: "Venue not found." });
+    return;
+  }
+  res.json({ ok: true, venue });
+});
+router22.patch("/venues/:id", async (req, res) => {
+  const id = idParam(req.params.id);
+  if (!UUID_PATTERN.test(id)) {
+    res.status(404).json({ ok: false, error: "Venue not found." });
+    return;
+  }
+  const parsed = venueValues(req.body, true);
+  if (!parsed.values) {
+    res.status(400).json({ ok: false, error: parsed.error });
+    return;
+  }
+  const [venue] = await db.update(venuesTable).set({ ...parsed.values, updatedAt: sql`now()` }).where(eq(venuesTable.id, id)).returning();
+  if (!venue) {
+    res.status(404).json({ ok: false, error: "Venue not found." });
+    return;
+  }
+  if (typeof parsed.values.name === "string") {
+    await db.update(projectsTable).set({ venue: parsed.values.name, updatedAt: sql`now()` }).where(eq(projectsTable.venueId, id));
+  }
+  res.json({ ok: true, venue });
+});
+router22.delete("/venues/:id", async (req, res) => {
+  const id = idParam(req.params.id);
+  if (!UUID_PATTERN.test(id)) {
+    res.status(404).json({ ok: false, error: "Venue not found." });
+    return;
+  }
+  const [venue] = await db.delete(venuesTable).where(eq(venuesTable.id, id)).returning({ id: venuesTable.id });
+  if (!venue) {
+    res.status(404).json({ ok: false, error: "Venue not found." });
+    return;
+  }
+  res.json({ ok: true });
+});
+var CLIENT_KEYS = /* @__PURE__ */ new Set([
+  "companyName",
+  "billingAddress",
+  "organizationNumber",
+  "primaryContacts",
+  "defaultPaymentTermsDays"
+]);
+function clientValues(raw, partial2) {
+  const parsed = strictBody(raw, CLIENT_KEYS);
+  if (!parsed.body) return { error: parsed.error };
+  const body = parsed.body;
+  if (partial2 && Object.keys(body).length === 0) return { error: "At least one field is required." };
+  const values = {};
+  for (const [key2, max, required2] of [
+    ["companyName", 280, !partial2],
+    ["billingAddress", 2e3, false],
+    ["organizationNumber", 100, false]
+  ]) {
+    const field = textField(body, key2, max, required2);
+    if (field.error) return { error: field.error };
+    if (field.value !== void 0) values[key2] = field.value;
+  }
+  const contacts = jsonField(body, "primaryContacts");
+  if (contacts.error) return { error: contacts.error };
+  if (contacts.value !== void 0) {
+    if (!Array.isArray(contacts.value)) return { error: "primaryContacts must be an array." };
+    const contactKeys = /* @__PURE__ */ new Set(["name", "role", "phone", "email"]);
+    for (const contact of contacts.value) {
+      if (!plainObject(contact)) return { error: "Each primary contact must be an object." };
+      const unknown2 = Object.keys(contact).filter((key2) => !contactKeys.has(key2));
+      if (unknown2.length) return { error: `Unexpected primary contact field(s): ${unknown2.join(", ")}.` };
+      for (const key2 of contactKeys) {
+        if (key2 in contact && typeof contact[key2] !== "string") {
+          return { error: `primaryContacts.${key2} must be a string.` };
+        }
+      }
+      if (typeof contact.email === "string" && contact.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email)) {
+        return { error: "primaryContacts.email must be a valid email address." };
+      }
+    }
+    values.primaryContacts = contacts.value;
+  }
+  if ("defaultPaymentTermsDays" in body) {
+    const days = body.defaultPaymentTermsDays;
+    if (!Number.isInteger(days) || Number(days) < 0 || Number(days) > 365) {
+      return { error: "defaultPaymentTermsDays must be an integer from 0 to 365." };
+    }
+    values.defaultPaymentTermsDays = days;
+  }
+  return { values };
+}
+router22.get("/clients", async (req, res) => {
+  const query = searchQuery(req);
+  if (query.error) {
+    res.status(400).json({ ok: false, error: query.error });
+    return;
+  }
+  const q = query.q ?? "";
+  try {
+    const rows = await db.select().from(clientsTable).where(q ? or(ilike(clientsTable.companyName, `%${q}%`), ilike(clientsTable.organizationNumber, `%${q}%`)) : void 0).orderBy(clientsTable.companyName).limit(200);
+    res.json({ ok: true, clients: rows });
+  } catch (err) {
+    req.log.error(err, "Failed to list clients");
+    res.status(500).json({ ok: false, error: "Failed to list clients." });
+  }
+});
+router22.post("/clients", async (req, res) => {
+  const parsed = clientValues(req.body, false);
+  if (!parsed.values) {
+    res.status(400).json({ ok: false, error: parsed.error });
+    return;
+  }
+  try {
+    const [client] = await db.insert(clientsTable).values(parsed.values).returning();
+    res.status(201).json({ ok: true, client });
+  } catch (err) {
+    req.log.error(err, "Failed to create client");
+    res.status(500).json({ ok: false, error: "Failed to create client." });
+  }
+});
+router22.get("/clients/:id", async (req, res) => {
+  const id = idParam(req.params.id);
+  if (!UUID_PATTERN.test(id)) {
+    res.status(404).json({ ok: false, error: "Client not found." });
+    return;
+  }
+  const userId2 = req._userId;
+  try {
+    const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id)).limit(1);
+    if (!client) {
+      res.status(404).json({ ok: false, error: "Client not found." });
+      return;
+    }
+    const projects = await db.select({
+      id: projectsTable.id,
+      name: projectsTable.name,
+      venue: projectsTable.venue,
+      easyjob_number: projectsTable.easyjobNumber,
+      status: sql`coalesce(nullif(${projectsTable.data}->>'status', ''), 'draft')`,
+      start_date: sql`${projectsTable.data}->>'reportDate'`,
+      end_date: sql`${projectsTable.data}->>'reportEndDate'`,
+      updatedAt: projectsTable.updatedAt
+    }).from(projectsTable).leftJoin(projectMembersTable, and(
+      eq(projectMembersTable.projectId, projectsTable.id),
+      eq(projectMembersTable.userId, userId2)
+    )).where(and(
+      eq(projectsTable.clientId, id),
+      or(eq(projectsTable.userId, userId2), eq(projectMembersTable.userId, userId2)),
+      or(
+        sql`lower(coalesce(${projectsTable.data}->>'status', '')) in ('completed', 'complete', 'archived')`,
+        sql`case when (${projectsTable.data}->>'reportEndDate') ~ '^\\d{4}-\\d{2}-\\d{2}$' then (${projectsTable.data}->>'reportEndDate') < to_char(current_date, 'YYYY-MM-DD') else false end`
+      )
+    )).orderBy(desc(projectsTable.updatedAt));
+    res.json({ ok: true, client, projects });
+  } catch (err) {
+    req.log.error(err, "Failed to load client");
+    res.status(500).json({ ok: false, error: "Failed to load client." });
+  }
+});
+router22.patch("/clients/:id", async (req, res) => {
+  const id = idParam(req.params.id);
+  if (!UUID_PATTERN.test(id)) {
+    res.status(404).json({ ok: false, error: "Client not found." });
+    return;
+  }
+  const parsed = clientValues(req.body, true);
+  if (!parsed.values) {
+    res.status(400).json({ ok: false, error: parsed.error });
+    return;
+  }
+  const [client] = await db.update(clientsTable).set({ ...parsed.values, updatedAt: sql`now()` }).where(eq(clientsTable.id, id)).returning();
+  if (!client) {
+    res.status(404).json({ ok: false, error: "Client not found." });
+    return;
+  }
+  if (typeof parsed.values.companyName === "string") {
+    await db.update(projectsTable).set({ client: parsed.values.companyName, updatedAt: sql`now()` }).where(eq(projectsTable.clientId, id));
+  }
+  res.json({ ok: true, client });
+});
+router22.delete("/clients/:id", async (req, res) => {
+  const id = idParam(req.params.id);
+  if (!UUID_PATTERN.test(id)) {
+    res.status(404).json({ ok: false, error: "Client not found." });
+    return;
+  }
+  const [client] = await db.delete(clientsTable).where(eq(clientsTable.id, id)).returning({ id: clientsTable.id });
+  if (!client) {
+    res.status(404).json({ ok: false, error: "Client not found." });
+    return;
+  }
+  res.json({ ok: true });
+});
+var CLONE_DATA_KEYS = /* @__PURE__ */ new Set([
+  "reportDate",
+  "reportEndDate",
+  "schedule",
+  "rooms",
+  "riggingPlan",
+  "loadPlan",
+  "equipment",
+  "departments",
+  "notes",
+  "currency",
+  "timezone"
+]);
+router22.post("/clients/:clientId/projects/:projectId/clone", async (req, res) => {
+  const clientId = idParam(req.params.clientId);
+  const projectId = idParam(req.params.projectId);
+  if (!UUID_PATTERN.test(clientId) || !UUID_PATTERN.test(projectId)) {
+    res.status(404).json({ ok: false, error: "Project not found." });
+    return;
+  }
+  const parsed = strictBody(req.body ?? {}, /* @__PURE__ */ new Set(["name", "easyjob_number"]));
+  if (!parsed.body) {
+    res.status(400).json({ ok: false, error: parsed.error });
+    return;
+  }
+  const name = textField(parsed.body, "name", 200);
+  const easyjob = textField(parsed.body, "easyjob_number", 100);
+  if (name.error || easyjob.error) {
+    res.status(400).json({ ok: false, error: name.error ?? easyjob.error });
+    return;
+  }
+  const userId2 = req._userId;
+  try {
+    const access = await getProjectAccess(projectId, userId2);
+    if (!access) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    if (!isProjectWriter(access)) {
+      res.status(403).json({ ok: false, error: "Project is read-only." });
+      return;
+    }
+    const [source] = await db.select().from(projectsTable).where(and(
+      eq(projectsTable.id, projectId),
+      eq(projectsTable.clientId, clientId)
+    )).limit(1);
+    if (!source) {
+      res.status(404).json({ ok: false, error: "Project not found for this client." });
+      return;
+    }
+    const sourceData = plainObject(source.data) ? source.data : {};
+    const data = { status: "draft" };
+    for (const key2 of CLONE_DATA_KEYS) if (key2 in sourceData) data[key2] = sourceData[key2];
+    const [project] = await db.insert(projectsTable).values({
+      userId: userId2,
+      name: name.value ?? `${source.name} (copy)`,
+      venue: source.venue,
+      client: source.client,
+      venueId: source.venueId,
+      clientId: source.clientId,
+      clonedFromProjectId: source.id,
+      easyjobNumber: easyjob.value || null,
+      data
+    }).returning();
+    res.status(201).json({
+      ok: true,
+      project: project ? {
+        ...project,
+        easyjob_number: project.easyjobNumber,
+        venue_id: project.venueId,
+        client_id: project.clientId,
+        cloned_from_project_id: project.clonedFromProjectId
+      } : project
+    });
+  } catch (err) {
+    req.log.error(err, "Failed to clone project");
+    res.status(500).json({ ok: false, error: "Failed to clone project." });
+  }
+});
+var masterData_default = router22;
+
+// src/routes/index.ts
+var router23 = (0, import_express29.Router)();
+router23.use(health_default);
+router23.use(devAutoSignIn_default);
+router23.use("/rigplan", requireEmployee);
+router23.use(rigplanAnalyze_default);
+router23.use(venueMemory_default);
+router23.use("/storage", requireEmployee);
+router23.use(storage_default);
+router23.use("/projects", requireEmployee);
+router23.use(projectTasks_default);
+router23.use(projectMembers_default);
+router23.use(projectMessages_default);
+router23.use(projects_default);
+router23.use("/venues", requireEmployee);
+router23.use("/clients", requireEmployee);
+router23.use(masterData_default);
+router23.use("/transport", requireEmployee);
+router23.use(transport_default);
+router23.use("/tasks", requireEmployee);
+router23.use(globalTasks_default);
+router23.use("/economy", requireEmployee);
+router23.use(economy_default);
+router23.use("/inspection", requireEmployee);
+router23.use(inspectionExtract_default);
+router23.use(admin_default);
+router23.use(feedback_default);
+router23.use(portalProfile_default);
+router23.use(portalBriefs_default);
+router23.use(portalGigs_default);
+router23.use(portalTimeEntries_default);
+router23.use(portalCalendar_default);
+router23.use(portalWork_default);
+var routes_default = router23;
 
 // src/app.ts
-var app = (0, import_express29.default)();
+var app = (0, import_express30.default)();
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -83306,12 +84017,12 @@ app.use((0, import_cors.default)());
 var PATHS_WITHOUT_GLOBAL_JSON = /* @__PURE__ */ new Set([
   "/api/rigplan/analyze"
 ]);
-var globalJsonParser = import_express29.default.json({ limit: "256kb" });
+var globalJsonParser = import_express30.default.json({ limit: "256kb" });
 app.use((req, res, next) => {
   if (PATHS_WITHOUT_GLOBAL_JSON.has(req.path)) return next();
   return globalJsonParser(req, res, next);
 });
-app.use(import_express29.default.urlencoded({ extended: true }));
+app.use(import_express30.default.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 app.use("/api", routes_default);
 var app_default = app;

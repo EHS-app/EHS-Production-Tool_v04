@@ -1,0 +1,24 @@
+Please implement Step 2 (System Settings & Organization Defaults) and Step 3 (Full Localization EN/NO):
+
+====================================================================
+1. SYSTEM SETTINGS & ORGANIZATION DEFAULTS (/settings)
+====================================================================
+- Replace the static placeholder at `/settings` with a fully functional admin settings interface:
+  * General & Branding: Company name ("EHS Lyd · Lys · Bilder"), contact details, default currency (NOK), logo setup.
+  * Finance & Overtime Defaults: Default VAT rate, payment terms (e.g., 14 days), fallback day/hourly rates, overtime threshold rules for timecard approvals.
+  * Department Management: Editable list of global departments (Rigging, Lights, LED, Sound, Stage, Inspection, Logistics).
+- Create an `organization_settings` database model with GET and PUT `/api/settings` endpoints secured with strict admin/employee authorization (`403` for non-admins).
+
+====================================================================
+2. FULL LOCALIZATION & TRANSLATION PASS (EN / NO)
+====================================================================
+- Locale Toggle: Ensure clicking the top-right language toggle (EN / NO) dynamically updates active locale and persists across sessions.
+- Full Translation Coverage: Wire i18n hooks across ALL UI strings for English and Norwegian (Bokmål):
+  * Main Employee App: Sidebars, headers, dashboard, Master Calendar, Fleet/Transport, Global Tasks, Economy, Venues, Clients, and Settings.
+  * Freelancer Portal: Hub dashboard, "My Runs (Transport)", "My Tasks", Availability, Hours, Earnings, Profile, Help, "Log Hours (Clock In)", "View Brief & Logistics", and status badges ("In Progress", "Urgent", "To Do", "High", "Confirmed").
+
+====================================================================
+3. VERIFICATION & BUILD
+====================================================================
+- Ensure non-employee users get 403 on `/api/settings`.
+- Run `pnpm build` across the workspace to confirm zero TypeScript or build errors.

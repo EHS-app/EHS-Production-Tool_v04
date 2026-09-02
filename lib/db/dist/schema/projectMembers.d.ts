@@ -93,8 +93,8 @@ export declare const projectMembersTable: import("drizzle-orm/pg-core").PgTableW
 }>;
 export declare const insertProjectMemberSchema: z.ZodObject<{
     userId: z.ZodString;
-    projectId: z.ZodUUID;
     role: z.ZodOptional<z.ZodString>;
+    projectId: z.ZodUUID;
 }, {
     out: {};
     in: {};

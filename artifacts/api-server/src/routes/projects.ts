@@ -1,6 +1,12 @@
 import { Router, type IRouter, type RequestHandler } from "express";
 import { and, desc, eq, or, sql } from "drizzle-orm";
-import { db, projectMembersTable, projectsTable } from "@workspace/db";
+import {
+  clientsTable,
+  db,
+  projectMembersTable,
+  projectsTable,
+  venuesTable,
+} from "@workspace/db";
 import {
   getProjectAccess,
   isProjectWriter,
@@ -24,6 +30,59 @@ const requireSignedIn: RequestHandler = (req, res, next) => {
 
 const MAX_DATA_BYTES = 2 * 1024 * 1024;
 
+function linkedId(value: unknown): string | null | undefined | "invalid" {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+  return typeof value === "string" && UUID_PATTERN.test(value) ? value : "invalid";
+}
+
+async function resolveLinks(
+  userId: string,
+  venueId: string | null | undefined,
+  clientId: string | null | undefined,
+  clonedFromProjectId: string | null | undefined,
+): Promise<
+  | { venueId: string | null | undefined; venueName?: string; clientId: string | null | undefined; clientName?: string; clonedFromProjectId: string | null | undefined }
+  | null
+> {
+  let venueName: string | undefined;
+  let clientName: string | undefined;
+  if (venueId) {
+    const [venue] = await db.select({ name: venuesTable.name }).from(venuesTable).where(eq(venuesTable.id, venueId)).limit(1);
+    if (!venue) return null;
+    venueName = venue.name;
+  }
+  if (clientId) {
+    const [client] = await db.select({ name: clientsTable.companyName }).from(clientsTable).where(eq(clientsTable.id, clientId)).limit(1);
+    if (!client) return null;
+    clientName = client.name;
+  }
+  if (clonedFromProjectId) {
+    if (!(await getProjectAccess(clonedFromProjectId, userId))) return null;
+  }
+  return { venueId, venueName, clientId, clientName, clonedFromProjectId };
+}
+
+function projectResponse<T extends {
+  easyjobNumber?: string | null;
+  venueId?: string | null;
+  clientId?: string | null;
+  clonedFromProjectId?: string | null;
+}>(row: T): T & {
+  easyjob_number: string | null | undefined;
+  venue_id: string | null | undefined;
+  client_id: string | null | undefined;
+  cloned_from_project_id: string | null | undefined;
+} {
+  return {
+    ...row,
+    easyjob_number: row.easyjobNumber,
+    venue_id: row.venueId,
+    client_id: row.clientId,
+    cloned_from_project_id: row.clonedFromProjectId,
+  };
+}
+
 router.get("/projects", requireSignedIn, async (req, res) => {
   const userId = (req as unknown as { _userId: string })._userId;
   try {
@@ -34,6 +93,9 @@ router.get("/projects", requireSignedIn, async (req, res) => {
         venue: projectsTable.venue,
         client: projectsTable.client,
         easyjob_number: projectsTable.easyjobNumber,
+        venue_id: projectsTable.venueId,
+        client_id: projectsTable.clientId,
+        cloned_from_project_id: projectsTable.clonedFromProjectId,
         reportDate: sql<unknown>`${projectsTable.data}->>'reportDate'`,
         reportEndDate: sql<unknown>`${projectsTable.data}->>'reportEndDate'`,
         crewCount: sql<number>`case when jsonb_typeof(${projectsTable.data}->'crew') = 'array' then jsonb_array_length(${projectsTable.data}->'crew') else 0 end`,
@@ -116,8 +178,7 @@ router.get("/projects/:id", requireSignedIn, async (req, res) => {
     res.json({
       ok: true,
       project: {
-        ...row,
-        easyjob_number: row.easyjobNumber,
+        ...projectResponse(row),
         accessRole,
       },
     });
@@ -129,19 +190,37 @@ router.get("/projects/:id", requireSignedIn, async (req, res) => {
 
 router.post("/projects", requireSignedIn, async (req, res) => {
   const userId = (req as unknown as { _userId: string })._userId;
-  const { name, venue, client, easyjob_number, data } = req.body ?? {};
+  const {
+    name, venue, client, easyjob_number, data,
+    venue_id, client_id, cloned_from_project_id,
+  } = req.body ?? {};
   if (data && JSON.stringify(data).length > MAX_DATA_BYTES) {
     res.status(413).json({ ok: false, error: "Project data too large." });
     return;
   }
+  const venueId = linkedId(venue_id);
+  const clientId = linkedId(client_id);
+  const clonedFromProjectId = linkedId(cloned_from_project_id);
+  if (venueId === "invalid" || clientId === "invalid" || clonedFromProjectId === "invalid") {
+    res.status(400).json({ ok: false, error: "Linked ids must be valid UUIDs or null." });
+    return;
+  }
   try {
+    const links = await resolveLinks(userId, venueId, clientId, clonedFromProjectId);
+    if (!links) {
+      res.status(400).json({ ok: false, error: "A linked venue, client, or source project does not exist." });
+      return;
+    }
     const [row] = await db
       .insert(projectsTable)
       .values({
         userId,
         name: typeof name === "string" ? name.slice(0, 200) : "Untitled",
-        venue: typeof venue === "string" ? venue.slice(0, 200) : "",
-        client: typeof client === "string" ? client.slice(0, 200) : "",
+        venue: links.venueName ?? (typeof venue === "string" ? venue.slice(0, 200) : ""),
+        client: links.clientName ?? (typeof client === "string" ? client.slice(0, 200) : ""),
+        venueId: links.venueId,
+        clientId: links.clientId,
+        clonedFromProjectId: links.clonedFromProjectId,
         easyjobNumber:
           typeof easyjob_number === "string"
             ? easyjob_number.trim().slice(0, 100) || null
@@ -152,7 +231,7 @@ router.post("/projects", requireSignedIn, async (req, res) => {
     res.json({
       ok: true,
       project: row
-        ? { ...row, easyjob_number: row.easyjobNumber }
+        ? projectResponse(row)
         : row,
     });
   } catch (err) {
@@ -164,13 +243,23 @@ router.post("/projects", requireSignedIn, async (req, res) => {
 router.patch("/projects/:id", requireSignedIn, async (req, res) => {
   const userId = (req as unknown as { _userId: string })._userId;
   const { id } = req.params;
-  const { name, venue, client, easyjob_number, data } = req.body ?? {};
+  const {
+    name, venue, client, easyjob_number, data,
+    venue_id, client_id, cloned_from_project_id,
+  } = req.body ?? {};
   if (!UUID_PATTERN.test(String(id))) {
     res.status(404).json({ ok: false, error: "Project not found." });
     return;
   }
   if (data && JSON.stringify(data).length > MAX_DATA_BYTES) {
     res.status(413).json({ ok: false, error: "Project data too large." });
+    return;
+  }
+  const venueId = linkedId(venue_id);
+  const clientId = linkedId(client_id);
+  const clonedFromProjectId = linkedId(cloned_from_project_id);
+  if (venueId === "invalid" || clientId === "invalid" || clonedFromProjectId === "invalid") {
+    res.status(400).json({ ok: false, error: "Linked ids must be valid UUIDs or null." });
     return;
   }
 
@@ -196,6 +285,20 @@ router.patch("/projects/:id", requireSignedIn, async (req, res) => {
       res.status(403).json({ ok: false, error: "Project is read-only." });
       return;
     }
+    const links = await resolveLinks(userId, venueId, clientId, clonedFromProjectId);
+    if (!links) {
+      res.status(400).json({ ok: false, error: "A linked venue, client, or source project does not exist." });
+      return;
+    }
+    if (venueId !== undefined) {
+      updates.venueId = venueId;
+      if (links.venueName !== undefined) updates.venue = links.venueName;
+    }
+    if (clientId !== undefined) {
+      updates.clientId = clientId;
+      if (links.clientName !== undefined) updates.client = links.clientName;
+    }
+    if (clonedFromProjectId !== undefined) updates.clonedFromProjectId = clonedFromProjectId;
     const [row] = await db
       .update(projectsTable)
       .set(updates)
@@ -206,6 +309,9 @@ router.patch("/projects/:id", requireSignedIn, async (req, res) => {
         venue: projectsTable.venue,
         client: projectsTable.client,
         easyjob_number: projectsTable.easyjobNumber,
+        venue_id: projectsTable.venueId,
+        client_id: projectsTable.clientId,
+        cloned_from_project_id: projectsTable.clonedFromProjectId,
         updatedAt: projectsTable.updatedAt,
       });
     if (!row) {

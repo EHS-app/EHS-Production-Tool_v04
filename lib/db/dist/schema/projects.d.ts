@@ -105,6 +105,57 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        venueId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "venue_id";
+            tableName: "projects";
+            dataType: "string";
+            columnType: "PgUUID";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        clientId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "client_id";
+            tableName: "projects";
+            dataType: "string";
+            columnType: "PgUUID";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        clonedFromProjectId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "cloned_from_project_id";
+            tableName: "projects";
+            dataType: "string";
+            columnType: "PgUUID";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         data: import("drizzle-orm/pg-core").PgColumn<{
             name: "data";
             tableName: "projects";
@@ -161,11 +212,14 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
 }>;
 export declare const insertProjectSchema: z.ZodObject<{
     userId: z.ZodString;
-    name: z.ZodOptional<z.ZodString>;
     data: z.ZodOptional<z.ZodType<import("drizzle-zod").Json, unknown, z.core.$ZodTypeInternals<import("drizzle-zod").Json, unknown>>>;
-    venue: z.ZodOptional<z.ZodString>;
+    name: z.ZodOptional<z.ZodString>;
     client: z.ZodOptional<z.ZodString>;
+    venue: z.ZodOptional<z.ZodString>;
     easyjobNumber: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    venueId: z.ZodOptional<z.ZodNullable<z.ZodUUID>>;
+    clientId: z.ZodOptional<z.ZodNullable<z.ZodUUID>>;
+    clonedFromProjectId: z.ZodOptional<z.ZodNullable<z.ZodUUID>>;
 }, {
     out: {};
     in: {};

@@ -7668,6 +7668,7 @@ html[data-shell="linear"] .container {
   top: 0;
   height: 100dvh;
   z-index: 30;
+  overflow: visible;
 }
 
 [data-theme="dark"] .ehs-shell-aside {
@@ -7680,6 +7681,7 @@ html[data-shell="linear"] .container {
   gap: 10px;
   padding: 0 16px;
   height: 56px;
+  flex-shrink: 0;
   border-bottom: 1px solid var(--border-color);
   cursor: pointer;
   color: var(--text-main);
@@ -7843,6 +7845,7 @@ html[data-shell="linear"] .container {
   align-items: center;
   gap: 10px;
   padding: 14px 16px;
+  flex-shrink: 0;
   border-top: 1px solid var(--border-color);
 }
 .ehs-shell-user-avatar {
@@ -7892,16 +7895,14 @@ html[data-shell="linear"] .container {
 }
 
 .ehs-shell-menu {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 0;
-  min-width: 180px;
+  min-width: 220px;
+  max-width: calc(100vw - 32px);
   padding: 6px;
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-  z-index: 50;
+  z-index: 12000 !important;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -8948,7 +8949,8 @@ html[data-shell="linear"] .container {
     transform: translateX(-100%);
     transition: transform 220ms ease;
     box-shadow: 8px 0 24px rgba(0, 0, 0, 0.35);
-    z-index: 60;
+    z-index: 10000;
+    overflow: visible;
   }
   .ehs-shell-aside.is-open {
     transform: translateX(0);
@@ -8958,7 +8960,7 @@ html[data-shell="linear"] .container {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.45);
-    z-index: 55;
+    z-index: 9000;
     animation: ehs-mobile-fade 180ms ease both;
   }
   @keyframes ehs-mobile-fade {

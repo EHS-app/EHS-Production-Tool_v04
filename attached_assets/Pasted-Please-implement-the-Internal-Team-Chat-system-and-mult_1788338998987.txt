@@ -1,0 +1,55 @@
+Please implement the Internal Team Chat system and multi-user Project Membership following these STRICT NON-DESTRUCTIVE SAFETY RULES.
+
+====================================================================
+CRITICAL SAFETY & NON-BREAKING RULES (MUST FOLLOW)
+====================================================================
+1. DO NOT DELETE OR OVERWRITE existing code, routes, or tables. Every addition must be strictly additive.
+2. DO NOT CHANGE the existing `projects` or `project_tasks` table structures or alter existing backend project routes (`/api/projects`).
+3. BACKWARD COMPATIBILITY: Existing projects where `projects.user_id === currentUserId` MUST continue to load and function exactly as they do now. Project ownership checks must check:
+   (projects.userId === authenticatedUserId OR project_members.userId === authenticatedUserId).
+4. ISOLATED STATE: The Chat system and state MUST NOT be stored in `projects.data` JSONB or touch the main project autosave pipeline. Chat must run in its own isolated state.
+5. NO COMPILATION ERRORS: Before finishing, run `pnpm build` to verify zero TypeScript or build errors.
+
+====================================================================
+IMPLEMENTATION STEPS
+====================================================================
+
+1. DATABASE SCHEMAS (ADDITIVE ONLY):
+   - Create `lib/db/src/schema/projectMembers.ts`:
+     - `projectId`: uuid referencing `projects.id` with onDelete: "cascade"
+     - `userId`: text not null
+     - `role`: text not null default 'editor' ('owner', 'editor', 'viewer')
+     - `addedAt`: timestamp with timezone defaultNow()
+     - Unique constraint/index on (projectId, userId)
+   - Create `lib/db/src/schema/projectMessages.ts`:
+     - `id`: uuid primary key (default random)
+     - `projectId`: uuid referencing `projects.id` with onDelete: "cascade"
+     - `authorUserId`: text not null
+     - `authorName`: text not null
+     - `authorEmail`: text not null
+     - `body`: text not null
+     - `createdAt`: timestamp with timezone defaultNow()
+     - Compound index on (projectId, createdAt, id)
+   - Export both files in `lib/db/src/schema/index.ts` alongside existing exports.
+
+2. API ENDPOINTS & AUTHORIZATION:
+   - Create router `artifacts/api-server/src/routes/projectMessages.ts`:
+     - `GET /api/projects/:projectId/messages`: Fetch message history for authorized members (supports limit & cursor-based pagination).
+     - `POST /api/projects/:projectId/messages`: Create a new message using server-verified Clerk user context (authorName, authorEmail derived securely on server).
+   - Create router `artifacts/api-server/src/routes/projectMembers.ts`:
+     - Endpoints to list project members and add/remove colleagues by user ID/email.
+   - Mount these routers safely in the main API server file without disrupting existing routes.
+
+3. FRONTEND UI & CHAT INTEGRATION:
+   - In `AppShell.tsx`, safely add `"chat"` to the `ShellView` type union and append a "Chat" / "Diskusjon" tab to the sidebar navigation without changing existing tab options.
+   - In `App.tsx`, render `ProjectChat` when `mainView === "chat"`.
+   - Create `artifacts/rigging-load-report/src/components/ProjectChat.tsx`:
+     - Clean message feed showing author names, avatars/initials, timestamps, and message bubbles.
+     - Auto-scroll to the bottom when new messages arrive.
+     - Input composer supporting Enter to send and Shift+Enter for new lines.
+     - Lightweight polling (every 4-5 seconds) that is active ONLY when the Chat tab is open and visible.
+     - Friendly fallback state if a project is unsaved, prompting the user to save the project first.
+
+4. VERIFICATION:
+   - Apply schema additions to the development database safely.
+   - Execute `pnpm build` to guarantee all existing views (Overview, Rigging, Stage, Crew, Tasks, etc.) compile cleanly without regressions.

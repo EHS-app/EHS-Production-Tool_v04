@@ -59,6 +59,7 @@ import { ProjectsDatabasePage } from "./components/global/ProjectsDatabasePage";
 import { CrewDirectoryPage } from "./components/global/CrewDirectoryPage";
 import { MasterCalendarPage } from "./components/global/MasterCalendarPage";
 import { GlobalPlaceholderPage } from "./components/global/GlobalPlaceholderPage";
+import { TransportDashboard } from "./components/global/TransportDashboard";
 import { FolderOpen as ShellFolderOpen, Copy as ShellCopy } from "lucide-react";
 import { useI18n } from "./lib/i18n/I18nContext";
 import { buildBrief, type BuildBriefInput } from "./lib/projectBrief";
@@ -5905,6 +5906,16 @@ function App() {
             <CrewDirectoryPage getToken={getToken} />
           ) : globalView === "calendar" ? (
             <MasterCalendarPage
+              getToken={getToken}
+              onOpenProject={(id) => {
+                void loadProject(id).then(() => {
+                  setGlobalView(null);
+                  navigate(`/project/${id}`);
+                });
+              }}
+            />
+          ) : globalView === "transport" ? (
+            <TransportDashboard
               getToken={getToken}
               onOpenProject={(id) => {
                 void loadProject(id).then(() => {

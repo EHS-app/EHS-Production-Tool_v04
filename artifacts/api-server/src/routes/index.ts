@@ -16,6 +16,7 @@ import feedbackRouter from "./feedback";
 import projectTasksRouter from "./projectTasks";
 import projectMembersRouter from "./projectMembers";
 import projectMessagesRouter from "./projectMessages";
+import transportRouter from "./transport";
 import { requireEmployee } from "../middleware/userType";
 
 const router: IRouter = Router();
@@ -42,6 +43,8 @@ router.use(projectTasksRouter);
 router.use(projectMembersRouter);
 router.use(projectMessagesRouter);
 router.use(projectsRouter);
+router.use("/transport", requireEmployee);
+router.use(transportRouter);
 router.use("/inspection", requireEmployee);
 router.use(inspectionExtractRouter);
 

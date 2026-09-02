@@ -20488,27 +20488,27 @@ var require_router = __commonJS({
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module.exports = Router19;
+    module.exports = Router20;
     module.exports.Route = Route;
-    function Router19(options) {
-      if (!(this instanceof Router19)) {
-        return new Router19(options);
+    function Router20(options) {
+      if (!(this instanceof Router20)) {
+        return new Router20(options);
       }
       const opts = options || {};
-      function router19(req, res, next) {
-        router19.handle(req, res, next);
+      function router20(req, res, next) {
+        router20.handle(req, res, next);
       }
-      Object.setPrototypeOf(router19, this);
-      router19.caseSensitive = opts.caseSensitive;
-      router19.mergeParams = opts.mergeParams;
-      router19.params = {};
-      router19.strict = opts.strict;
-      router19.stack = [];
-      return router19;
+      Object.setPrototypeOf(router20, this);
+      router20.caseSensitive = opts.caseSensitive;
+      router20.mergeParams = opts.mergeParams;
+      router20.params = {};
+      router20.strict = opts.strict;
+      router20.stack = [];
+      return router20;
     }
-    Router19.prototype = function() {
+    Router20.prototype = function() {
     };
-    Router19.prototype.param = function param4(name, fn) {
+    Router20.prototype.param = function param4(name, fn) {
       if (!name) {
         throw new TypeError("argument name is required");
       }
@@ -20528,7 +20528,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router19.prototype.handle = function handle(req, res, callback) {
+    Router20.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -20655,7 +20655,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router19.prototype.use = function use(handler) {
+    Router20.prototype.use = function use(handler) {
       let offset = 0;
       let path2 = "/";
       if (typeof handler !== "function") {
@@ -20688,7 +20688,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router19.prototype.route = function route(path2) {
+    Router20.prototype.route = function route(path2) {
       const route2 = new Route(path2);
       const layer = new Layer(path2, {
         sensitive: this.caseSensitive,
@@ -20703,7 +20703,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router19.prototype[method] = function(path2) {
+      Router20.prototype[method] = function(path2) {
         const route = this.route(path2);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
@@ -20886,13 +20886,13 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = __require("node:path").resolve;
     var once = require_once();
-    var Router19 = require_router();
+    var Router20 = require_router();
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app2 = exports = module.exports = {};
     var trustProxyDefaultSymbol = "@@symbol:trust_proxy_default";
     app2.init = function init() {
-      var router19 = null;
+      var router20 = null;
       this.cache = /* @__PURE__ */ Object.create(null);
       this.engines = /* @__PURE__ */ Object.create(null);
       this.settings = /* @__PURE__ */ Object.create(null);
@@ -20901,13 +20901,13 @@ var require_application = __commonJS({
         configurable: true,
         enumerable: true,
         get: function getrouter() {
-          if (router19 === null) {
-            router19 = new Router19({
+          if (router20 === null) {
+            router20 = new Router20({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
           }
-          return router19;
+          return router20;
         }
       });
     };
@@ -20978,15 +20978,15 @@ var require_application = __commonJS({
       if (fns.length === 0) {
         throw new TypeError("app.use() requires a middleware function");
       }
-      var router19 = this.router;
+      var router20 = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router19.use(path2, fn2);
+          return router20.use(path2, fn2);
         }
         debug(".use app under %s", path2);
         fn2.mountpath = path2;
         fn2.parent = this;
-        router19.use(path2, function mounted_app(req, res, next) {
+        router20.use(path2, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -23513,7 +23513,7 @@ var require_express = __commonJS({
     var EventEmitter = __require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router19 = require_router();
+    var Router20 = require_router();
     var req = require_request();
     var res = require_response();
     exports = module.exports = createApplication;
@@ -23535,8 +23535,8 @@ var require_express = __commonJS({
     exports.application = proto;
     exports.request = req;
     exports.response = res;
-    exports.Route = Router19.Route;
-    exports.Router = Router19;
+    exports.Route = Router20.Route;
+    exports.Router = Router20;
     exports.json = bodyParser.json;
     exports.raw = bodyParser.raw;
     exports.static = require_serve_static();
@@ -33123,11 +33123,11 @@ var require_router2 = __commonJS({
     var debug = debug_1.Debug.extend("router");
     async function getTarget(req, config3) {
       let newTarget;
-      const router19 = config3.router;
-      if ((0, is_plain_object_1.isPlainObject)(router19)) {
-        newTarget = getTargetFromProxyTable(req, router19);
-      } else if (typeof router19 === "function") {
-        newTarget = await router19(req);
+      const router20 = config3.router;
+      if ((0, is_plain_object_1.isPlainObject)(router20)) {
+        newTarget = getTargetFromProxyTable(req, router20);
+      } else if (typeof router20 === "function") {
+        newTarget = await router20(req);
       }
       return newTarget;
     }
@@ -33170,7 +33170,7 @@ var require_http_proxy_middleware = __commonJS({
     var get_plugins_1 = require_get_plugins();
     var path_filter_1 = require_path_filter();
     var PathRewriter = require_path_rewriter();
-    var Router19 = require_router2();
+    var Router20 = require_router2();
     var debug_1 = require_debug2();
     var function_1 = require_function();
     var logger_1 = require_logger2();
@@ -33241,7 +33241,7 @@ var require_http_proxy_middleware = __commonJS({
         this.applyRouter = async (req, options2) => {
           let newTarget;
           if (options2.router) {
-            newTarget = await Router19.getTarget(req, options2);
+            newTarget = await Router20.getTarget(req, options2);
             if (newTarget) {
               (0, debug_1.Debug)('router new target: "%s"', newTarget);
               options2.target = newTarget;
@@ -39055,7 +39055,7 @@ var init_calendarCrypto = __esm({
 });
 
 // src/app.ts
-var import_express25 = __toESM(require_express2(), 1);
+var import_express26 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 
@@ -47229,7 +47229,7 @@ function clerkProxyMiddleware() {
 }
 
 // src/routes/index.ts
-var import_express24 = __toESM(require_express2(), 1);
+var import_express25 = __toESM(require_express2(), 1);
 
 // src/routes/health.ts
 var import_express = __toESM(require_express2(), 1);
@@ -62798,6 +62798,8 @@ __export(schema_exports, {
   insertProjectSchema: () => insertProjectSchema,
   insertProjectTaskSchema: () => insertProjectTaskSchema,
   insertTimeEntrySchema: () => insertTimeEntrySchema,
+  insertTransportRunSchema: () => insertTransportRunSchema,
+  insertTransportVehicleSchema: () => insertTransportVehicleSchema,
   insertVenueMemorySchema: () => insertVenueMemorySchema,
   profilePhotoUploadsTable: () => profilePhotoUploadsTable,
   projectBriefsTable: () => projectBriefsTable,
@@ -62806,6 +62808,8 @@ __export(schema_exports, {
   projectTasksTable: () => projectTasksTable,
   projectsTable: () => projectsTable,
   timeEntriesTable: () => timeEntriesTable,
+  transportRunsTable: () => transportRunsTable,
+  transportVehiclesTable: () => transportVehiclesTable,
   venueMemoryTable: () => venueMemoryTable
 });
 
@@ -74744,6 +74748,67 @@ var insertProjectMessageSchema = createInsertSchema(
   projectMessagesTable
 ).omit({ id: true, createdAt: true });
 
+// ../../lib/db/src/schema/transport.ts
+var transportVehiclesTable = pgTable(
+  "transport_vehicles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    vehicleType: text("vehicle_type").notNull(),
+    licensePlate: text("license_plate").notNull(),
+    capacityKg: integer("capacity_kg"),
+    volumeM3: integer("volume_m3"),
+    primaryDriverUserId: text("primary_driver_user_id").references(
+      () => freelancerProfilesTable.userId,
+      { onDelete: "set null" }
+    ),
+    availabilityStatus: text("availability_status").notNull().default("available"),
+    notes: text("notes").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => /* @__PURE__ */ new Date())
+  },
+  (t) => [
+    uniqueIndex("transport_vehicles_plate_idx").on(t.licensePlate),
+    index("transport_vehicles_availability_idx").on(t.availabilityStatus)
+  ]
+);
+var transportRunsTable = pgTable(
+  "transport_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projectsTable.id, { onDelete: "cascade" }),
+    vehicleId: uuid("vehicle_id").notNull().references(() => transportVehiclesTable.id, { onDelete: "restrict" }),
+    driverUserId: text("driver_user_id").references(
+      () => freelancerProfilesTable.userId,
+      { onDelete: "set null" }
+    ),
+    title: text("title").notNull(),
+    origin: text("origin").notNull().default(""),
+    destination: text("destination").notNull().default(""),
+    departureAt: timestamp("departure_at", { withTimezone: true }).notNull(),
+    loadInAt: timestamp("load_in_at", { withTimezone: true }),
+    loadOutAt: timestamp("load_out_at", { withTimezone: true }),
+    status: text("status").notNull().default("scheduled"),
+    cargoNotes: text("cargo_notes").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => /* @__PURE__ */ new Date())
+  },
+  (t) => [
+    index("transport_runs_project_idx").on(t.projectId),
+    index("transport_runs_departure_idx").on(t.departureAt),
+    index("transport_runs_vehicle_idx").on(t.vehicleId),
+    index("transport_runs_driver_idx").on(t.driverUserId)
+  ]
+);
+var insertTransportVehicleSchema = createInsertSchema(
+  transportVehiclesTable
+).omit({ id: true, createdAt: true, updatedAt: true });
+var insertTransportRunSchema = createInsertSchema(transportRunsTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
 // ../../lib/db/src/index.ts
 var { Pool: Pool3 } = esm_default;
 if (!process.env.DATABASE_URL) {
@@ -81896,33 +81961,328 @@ router17.post("/projects/:projectId/messages", async (req, res) => {
 });
 var projectMessages_default = router17;
 
-// src/routes/index.ts
+// src/routes/transport.ts
+var import_express24 = __toESM(require_express2(), 1);
 var router18 = (0, import_express24.Router)();
-router18.use(health_default);
-router18.use(devAutoSignIn_default);
-router18.use("/rigplan", requireEmployee);
-router18.use(rigplanAnalyze_default);
-router18.use(venueMemory_default);
-router18.use("/storage", requireEmployee);
-router18.use(storage_default);
-router18.use("/projects", requireEmployee);
-router18.use(projectTasks_default);
-router18.use(projectMembers_default);
-router18.use(projectMessages_default);
-router18.use(projects_default);
-router18.use("/inspection", requireEmployee);
-router18.use(inspectionExtract_default);
-router18.use(admin_default);
-router18.use(feedback_default);
-router18.use(portalProfile_default);
-router18.use(portalBriefs_default);
-router18.use(portalGigs_default);
-router18.use(portalTimeEntries_default);
-router18.use(portalCalendar_default);
-var routes_default = router18;
+var VEHICLE_TYPES = /* @__PURE__ */ new Set(["truck", "van", "trailer", "rental"]);
+var AVAILABILITY = /* @__PURE__ */ new Set(["available", "assigned", "maintenance", "unavailable"]);
+var RUN_STATUSES = /* @__PURE__ */ new Set(["scheduled", "in_transit", "delivered", "returned"]);
+function textValue(raw, max, required2 = false) {
+  if (typeof raw !== "string") return required2 ? null : "";
+  const value = raw.trim().slice(0, max);
+  return required2 && !value ? null : value;
+}
+function nullableId(raw) {
+  if (raw === null || raw === "") return null;
+  if (typeof raw !== "string" || raw.length > 200) return void 0;
+  return raw;
+}
+function nullableInt(raw) {
+  if (raw === null || raw === "") return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0 || value > 1e6) return void 0;
+  return value;
+}
+function instant(raw, required2 = false) {
+  if (raw === null || raw === "") return required2 ? void 0 : null;
+  if (typeof raw !== "string") return void 0;
+  const value = new Date(raw);
+  return Number.isNaN(value.getTime()) ? void 0 : value;
+}
+async function canWriteProject(projectId, userId) {
+  if (!UUID_PATTERN.test(projectId)) return "missing";
+  const access = await getProjectAccess(projectId, userId);
+  if (!access) return "missing";
+  return isProjectWriter(access) ? "ok" : "readonly";
+}
+router18.get("/transport", async (req, res) => {
+  const userId = req._userId;
+  try {
+    const accessibleProjects = await db.select({ id: projectsTable.id }).from(projectsTable).leftJoin(
+      projectMembersTable,
+      and(
+        eq(projectMembersTable.projectId, projectsTable.id),
+        eq(projectMembersTable.userId, userId)
+      )
+    ).where(
+      or(
+        eq(projectsTable.userId, userId),
+        eq(projectMembersTable.userId, userId)
+      )
+    );
+    const projectIds = accessibleProjects.map((row) => row.id);
+    const vehicles = await db.select({
+      id: transportVehiclesTable.id,
+      name: transportVehiclesTable.name,
+      vehicleType: transportVehiclesTable.vehicleType,
+      licensePlate: transportVehiclesTable.licensePlate,
+      capacityKg: transportVehiclesTable.capacityKg,
+      volumeM3: transportVehiclesTable.volumeM3,
+      primaryDriverUserId: transportVehiclesTable.primaryDriverUserId,
+      primaryDriverName: freelancerProfilesTable.fullName,
+      availabilityStatus: transportVehiclesTable.availabilityStatus,
+      notes: transportVehiclesTable.notes
+    }).from(transportVehiclesTable).leftJoin(
+      freelancerProfilesTable,
+      eq(transportVehiclesTable.primaryDriverUserId, freelancerProfilesTable.userId)
+    ).orderBy(asc(transportVehiclesTable.name));
+    const runs = projectIds.length === 0 ? [] : await db.select({
+      id: transportRunsTable.id,
+      projectId: transportRunsTable.projectId,
+      projectName: projectsTable.name,
+      vehicleId: transportRunsTable.vehicleId,
+      vehicleName: transportVehiclesTable.name,
+      vehicleLicensePlate: transportVehiclesTable.licensePlate,
+      driverUserId: transportRunsTable.driverUserId,
+      driverName: freelancerProfilesTable.fullName,
+      title: transportRunsTable.title,
+      origin: transportRunsTable.origin,
+      destination: transportRunsTable.destination,
+      departureAt: transportRunsTable.departureAt,
+      loadInAt: transportRunsTable.loadInAt,
+      loadOutAt: transportRunsTable.loadOutAt,
+      status: transportRunsTable.status,
+      cargoNotes: transportRunsTable.cargoNotes
+    }).from(transportRunsTable).innerJoin(projectsTable, eq(transportRunsTable.projectId, projectsTable.id)).innerJoin(
+      transportVehiclesTable,
+      eq(transportRunsTable.vehicleId, transportVehiclesTable.id)
+    ).leftJoin(
+      freelancerProfilesTable,
+      eq(transportRunsTable.driverUserId, freelancerProfilesTable.userId)
+    ).where(inArray(transportRunsTable.projectId, projectIds)).orderBy(asc(transportRunsTable.departureAt));
+    res.json({ ok: true, vehicles, runs });
+  } catch (err) {
+    req.log.error({ err }, "transport dashboard GET failed");
+    res.status(500).json({ ok: false, error: "Could not load transport data." });
+  }
+});
+router18.post("/transport/vehicles", async (req, res) => {
+  const body = req.body ?? {};
+  const name = textValue(body.name, 120, true);
+  const licensePlate = textValue(body.licensePlate, 32, true);
+  const vehicleType = textValue(body.vehicleType, 20, true);
+  const availabilityStatus = textValue(body.availabilityStatus, 20) || "available";
+  const capacityKg = nullableInt(body.capacityKg);
+  const volumeM3 = nullableInt(body.volumeM3);
+  const primaryDriverUserId = nullableId(body.primaryDriverUserId);
+  if (!name || !licensePlate || !vehicleType || !VEHICLE_TYPES.has(vehicleType) || !AVAILABILITY.has(availabilityStatus) || capacityKg === void 0 || volumeM3 === void 0 || primaryDriverUserId === void 0) {
+    res.status(400).json({ ok: false, error: "Invalid vehicle details." });
+    return;
+  }
+  try {
+    const [vehicle] = await db.insert(transportVehiclesTable).values({
+      name,
+      licensePlate,
+      vehicleType,
+      availabilityStatus,
+      capacityKg,
+      volumeM3,
+      primaryDriverUserId,
+      notes: textValue(body.notes, 1e3) ?? ""
+    }).returning();
+    res.status(201).json({ ok: true, vehicle });
+  } catch (err) {
+    req.log.error({ err }, "transport vehicle POST failed");
+    res.status(500).json({ ok: false, error: "Could not create vehicle." });
+  }
+});
+router18.patch("/transport/vehicles/:id", async (req, res) => {
+  const id = String(req.params.id ?? "");
+  if (!UUID_PATTERN.test(id)) {
+    res.status(404).json({ ok: false, error: "Vehicle not found." });
+    return;
+  }
+  const body = req.body ?? {};
+  const updates = {};
+  if ("availabilityStatus" in body) {
+    const status = textValue(body.availabilityStatus, 20, true);
+    if (!status || !AVAILABILITY.has(status)) {
+      res.status(400).json({ ok: false, error: "Invalid availability status." });
+      return;
+    }
+    updates.availabilityStatus = status;
+  }
+  if ("primaryDriverUserId" in body) {
+    const driver = nullableId(body.primaryDriverUserId);
+    if (driver === void 0) {
+      res.status(400).json({ ok: false, error: "Invalid driver." });
+      return;
+    }
+    updates.primaryDriverUserId = driver;
+  }
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ ok: false, error: "No editable fields supplied." });
+    return;
+  }
+  try {
+    if (updates.primaryDriverUserId) {
+      const [driver] = await db.select({ userId: freelancerProfilesTable.userId }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, String(updates.primaryDriverUserId))).limit(1);
+      if (!driver) {
+        res.status(400).json({ ok: false, error: "Driver is not in the Global Crew Directory." });
+        return;
+      }
+    }
+    if (updates.availabilityStatus === "maintenance" || updates.availabilityStatus === "unavailable") {
+      const [futureRun] = await db.select({ id: transportRunsTable.id }).from(transportRunsTable).where(
+        and(
+          eq(transportRunsTable.vehicleId, id),
+          gt(transportRunsTable.departureAt, /* @__PURE__ */ new Date()),
+          inArray(transportRunsTable.status, ["scheduled", "in_transit"])
+        )
+      ).limit(1);
+      if (futureRun) {
+        res.status(409).json({
+          ok: false,
+          error: "This vehicle has an upcoming active transport run."
+        });
+        return;
+      }
+    }
+    const [vehicle] = await db.update(transportVehiclesTable).set({ ...updates, updatedAt: /* @__PURE__ */ new Date() }).where(eq(transportVehiclesTable.id, id)).returning();
+    if (!vehicle) {
+      res.status(404).json({ ok: false, error: "Vehicle not found." });
+      return;
+    }
+    res.json({ ok: true, vehicle });
+  } catch (err) {
+    req.log.error({ err }, "transport vehicle PATCH failed");
+    res.status(500).json({ ok: false, error: "Could not update vehicle." });
+  }
+});
+router18.post("/transport/runs", async (req, res) => {
+  const body = req.body ?? {};
+  const projectId = textValue(body.projectId, 40, true);
+  const vehicleId = textValue(body.vehicleId, 40, true);
+  const title = textValue(body.title, 120, true);
+  const driverUserId = nullableId(body.driverUserId);
+  const departureAt = instant(body.departureAt, true);
+  const loadInAt = instant(body.loadInAt);
+  const loadOutAt = instant(body.loadOutAt);
+  const status = textValue(body.status, 20) || "scheduled";
+  if (!projectId || !vehicleId || !UUID_PATTERN.test(vehicleId) || !title || driverUserId === void 0 || !departureAt || loadInAt === void 0 || loadOutAt === void 0 || !RUN_STATUSES.has(status)) {
+    res.status(400).json({ ok: false, error: "Invalid transport run details." });
+    return;
+  }
+  const access = await canWriteProject(projectId, req._userId);
+  if (access === "missing") {
+    res.status(404).json({ ok: false, error: "Project not found." });
+    return;
+  }
+  if (access === "readonly") {
+    res.status(403).json({ ok: false, error: "Project is read-only." });
+    return;
+  }
+  try {
+    const [vehicle] = await db.select({ status: transportVehiclesTable.availabilityStatus }).from(transportVehiclesTable).where(eq(transportVehiclesTable.id, vehicleId)).limit(1);
+    if (!vehicle) {
+      res.status(400).json({ ok: false, error: "Vehicle not found." });
+      return;
+    }
+    if (vehicle.status === "maintenance" || vehicle.status === "unavailable") {
+      res.status(409).json({ ok: false, error: "Vehicle is not available for dispatch." });
+      return;
+    }
+    if (driverUserId) {
+      const [driver] = await db.select({ userId: freelancerProfilesTable.userId }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, driverUserId)).limit(1);
+      if (!driver) {
+        res.status(400).json({ ok: false, error: "Driver is not in the Global Crew Directory." });
+        return;
+      }
+    }
+    if (loadInAt && loadOutAt && loadOutAt < loadInAt) {
+      res.status(400).json({ ok: false, error: "Load-out time cannot be before load-in time." });
+      return;
+    }
+    const [run] = await db.insert(transportRunsTable).values({
+      projectId,
+      vehicleId,
+      driverUserId,
+      title,
+      departureAt,
+      loadInAt,
+      loadOutAt,
+      status,
+      origin: textValue(body.origin, 200) ?? "",
+      destination: textValue(body.destination, 200) ?? "",
+      cargoNotes: textValue(body.cargoNotes, 2e3) ?? ""
+    }).returning();
+    res.status(201).json({ ok: true, run });
+  } catch (err) {
+    req.log.error({ err }, "transport run POST failed");
+    res.status(500).json({ ok: false, error: "Could not schedule transport run." });
+  }
+});
+router18.patch("/transport/runs/:id", async (req, res) => {
+  const id = String(req.params.id ?? "");
+  const status = textValue(req.body?.status, 20, true);
+  if (!UUID_PATTERN.test(id)) {
+    res.status(404).json({ ok: false, error: "Transport run not found." });
+    return;
+  }
+  if (!status || !RUN_STATUSES.has(status)) {
+    res.status(400).json({ ok: false, error: "Invalid load status." });
+    return;
+  }
+  try {
+    const [existing] = await db.select({ projectId: transportRunsTable.projectId }).from(transportRunsTable).where(eq(transportRunsTable.id, id)).limit(1);
+    if (!existing) {
+      res.status(404).json({ ok: false, error: "Transport run not found." });
+      return;
+    }
+    const access = await canWriteProject(
+      existing.projectId,
+      req._userId
+    );
+    if (access !== "ok") {
+      res.status(access === "readonly" ? 403 : 404).json({
+        ok: false,
+        error: access === "readonly" ? "Project is read-only." : "Project not found."
+      });
+      return;
+    }
+    const [run] = await db.update(transportRunsTable).set({ status, updatedAt: /* @__PURE__ */ new Date() }).where(
+      and(
+        eq(transportRunsTable.id, id),
+        eq(transportRunsTable.projectId, existing.projectId)
+      )
+    ).returning();
+    res.json({ ok: true, run });
+  } catch (err) {
+    req.log.error({ err }, "transport run PATCH failed");
+    res.status(500).json({ ok: false, error: "Could not update transport run." });
+  }
+});
+var transport_default = router18;
+
+// src/routes/index.ts
+var router19 = (0, import_express25.Router)();
+router19.use(health_default);
+router19.use(devAutoSignIn_default);
+router19.use("/rigplan", requireEmployee);
+router19.use(rigplanAnalyze_default);
+router19.use(venueMemory_default);
+router19.use("/storage", requireEmployee);
+router19.use(storage_default);
+router19.use("/projects", requireEmployee);
+router19.use(projectTasks_default);
+router19.use(projectMembers_default);
+router19.use(projectMessages_default);
+router19.use(projects_default);
+router19.use("/transport", requireEmployee);
+router19.use(transport_default);
+router19.use("/inspection", requireEmployee);
+router19.use(inspectionExtract_default);
+router19.use(admin_default);
+router19.use(feedback_default);
+router19.use(portalProfile_default);
+router19.use(portalBriefs_default);
+router19.use(portalGigs_default);
+router19.use(portalTimeEntries_default);
+router19.use(portalCalendar_default);
+var routes_default = router19;
 
 // src/app.ts
-var app = (0, import_express25.default)();
+var app = (0, import_express26.default)();
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -81947,12 +82307,12 @@ app.use((0, import_cors.default)());
 var PATHS_WITHOUT_GLOBAL_JSON = /* @__PURE__ */ new Set([
   "/api/rigplan/analyze"
 ]);
-var globalJsonParser = import_express25.default.json({ limit: "256kb" });
+var globalJsonParser = import_express26.default.json({ limit: "256kb" });
 app.use((req, res, next) => {
   if (PATHS_WITHOUT_GLOBAL_JSON.has(req.path)) return next();
   return globalJsonParser(req, res, next);
 });
-app.use(import_express25.default.urlencoded({ extended: true }));
+app.use(import_express26.default.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 app.use("/api", routes_default);
 var app_default = app;

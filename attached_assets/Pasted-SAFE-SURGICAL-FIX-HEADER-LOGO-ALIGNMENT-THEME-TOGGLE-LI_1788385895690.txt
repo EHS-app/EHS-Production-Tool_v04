@@ -1,0 +1,28 @@
+SAFE SURGICAL FIX — HEADER LOGO, ALIGNMENT, THEME TOGGLE & LIGHT DRAWER
+
+Target File: `PortalLayout.tsx` (and dedicated mobile header sub-component if applicable). Do NOT modify desktop sidebar or desktop navigation layouts (`md:` components).
+
+1. ADD LOGO TO TOP LEFT & FIX HEADER ALIGNMENT:
+   - In the top-left section of the mobile header (where "Hub" or section titles currently render), render the site logo image (`/logo.svg` or your primary logo asset path) with appropriate mobile sizing (e.g., `h-7 w-auto object-contain`).
+   - Wrap the entire header in a flexible, responsive container to prevent horizontal scroll/clipping:
+     `flex justify-between items-center px-4 py-3 w-full max-w-full overflow-hidden`
+   - Ensure the right utility button cluster (?, EN, Theme, Notifications, Logout) stays safely inside the right margin:
+     `flex items-center gap-1.5 sm:gap-2 pr-2 sm:pr-4 shrink-0`
+
+2. ADD THEME TOGGLE BUTTON IN HEADER:
+   - Place a theme toggle icon button inside the header utility group (alongside ?, EN, Notifications, Logout).
+   - Display a Moon icon when in light mode and a Sun icon when in dark mode.
+   - Style it consistently with neighboring header buttons using proper contrast in both light and dark modes.
+
+3. LIGHT/DARK THEME DRAWER & NAV ADAPTATION:
+   - Make the "More" drawer theme-aware using Tailwind `dark:` classes:
+     - Background: `bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800`
+     - Title Text: `text-slate-900 dark:text-white`
+     - Inactive Items: `text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60`
+     - Drag Handle: `bg-slate-300 dark:bg-slate-700/60`
+     - Close Button: `bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300`
+   - Ensure bottom navigation inactive labels are clear in light mode (`text-zinc-600 dark:text-slate-400`).
+
+4. DESKTOP SAFETY GUARANTEE & BUILD:
+   - Verify that all mobile navigation wrappers retain `block md:hidden` or equivalent responsive guards so the desktop view remains completely untouched.
+   - Run `pnpm build` to verify 0 TypeScript errors.

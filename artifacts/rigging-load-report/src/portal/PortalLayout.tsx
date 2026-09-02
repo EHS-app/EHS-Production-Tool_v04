@@ -18,6 +18,8 @@ import {
   TrendingUp,
   Truck,
   ListChecks,
+  Moon,
+  Sun,
   User,
   Wallet,
   X,
@@ -307,7 +309,23 @@ export function PortalLayout({
 
       {/* MAIN */}
       <main className="ehs-shell-main">
-        <header className="ehs-shell-topbar">
+        <header
+          className="ehs-shell-topbar flex justify-between items-center px-4 py-3 w-full max-w-full overflow-hidden"
+          style={{ width: "100%", maxWidth: "100%", overflow: "hidden", boxSizing: "border-box" }}
+        >
+          <Link
+            href="/portal"
+            className="ehs-portal-only-mobile"
+            aria-label={t("portal.header.title")}
+            style={{ flexShrink: 0, lineHeight: 0 }}
+          >
+            <img
+              src={ehsLogo}
+              alt="EHS"
+              className="h-7 w-auto object-contain"
+              style={{ display: "block", width: "auto", height: 28, objectFit: "contain" }}
+            />
+          </Link>
           <div className="ehs-shell-crumbs">
             <Link href="/portal" className="ehs-shell-crumb-link">
               {t("portal.header.title")}
@@ -316,7 +334,10 @@ export function PortalLayout({
             <span className="ehs-shell-crumb-current">{activeLabel}</span>
           </div>
 
-          <div className="ehs-shell-topbar-actions">
+          <div
+            className="ehs-shell-topbar-actions flex items-center gap-1.5 sm:gap-2 pr-2 sm:pr-4 shrink-0"
+            style={{ display: "flex", alignItems: "center", gap: 6, paddingRight: 8, flexShrink: 0 }}
+          >
             <Link
               href="/portal/help"
               className="ehs-shell-action ehs-shell-help-action"
@@ -329,6 +350,19 @@ export function PortalLayout({
             <div style={{ marginRight: 8, display: "flex" }}>
               <LanguageSelector />
             </div>
+            <button
+              type="button"
+              className="ehs-shell-icon-btn ehs-portal-only-mobile"
+              onClick={() => setPref(theme === "dark" ? "light" : "dark")}
+              aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"}
+              title={theme === "dark" ? "Use light theme" : "Use dark theme"}
+            >
+              {theme === "dark" ? (
+                <Sun size={14} strokeWidth={1.75} />
+              ) : (
+                <Moon size={14} strokeWidth={1.75} />
+              )}
+            </button>
             <button
               type="button"
               className="ehs-shell-icon-btn"
@@ -397,6 +431,7 @@ export function PortalLayout({
               href={item.href}
               className="ehs-portal-bottomnav-item"
               data-active={isActive}
+              style={{ color: isActive ? "var(--primary, #f88000)" : theme === "dark" ? "#94a3b8" : "#52525b" }}
             >
               <span style={{ position: "relative", display: "inline-flex" }}>
                 <Icon size={22} strokeWidth={isActive ? 2.25 : 1.75} />
@@ -419,6 +454,11 @@ export function PortalLayout({
             font: "inherit",
             pointerEvents: "auto",
             cursor: "pointer",
+            color: !["hub", "gigs", "hours", "profile"].includes(active)
+              ? "var(--primary, #f88000)"
+              : theme === "dark"
+                ? "#94a3b8"
+                : "#52525b",
           }}
         >
           <span style={{ position: "relative", display: "inline-flex" }}>
@@ -453,7 +493,7 @@ export function PortalLayout({
                 role="dialog"
                 aria-modal="true"
                 aria-label={t("portal.nav.more")}
-                className="fixed bottom-0 left-0 right-0 z-50"
+                className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800"
                 onClick={(event) => event.stopPropagation()}
                 style={{
                   position: "fixed",
@@ -463,20 +503,21 @@ export function PortalLayout({
                   zIndex: 51,
                   borderRadius: "16px 16px 0 0",
                   padding: "24px 16px 32px",
-                  background: "#111827",
-                  color: "#f8fafc",
+                  background: theme === "dark" ? "#111827" : "#ffffff",
+                  color: theme === "dark" ? "#ffffff" : "#0f172a",
+                  borderTop: `1px solid ${theme === "dark" ? "#1e293b" : "#e2e8f0"}`,
                   boxShadow: "0 -12px 36px rgba(0, 0, 0, 0.24)",
                 }}
               >
                 <div
-                  className="w-10 h-1 bg-slate-700/60 rounded-full mx-auto mb-4"
+                  className="w-10 h-1 bg-slate-300 dark:bg-slate-700/60 rounded-full mx-auto mb-4"
                   aria-hidden="true"
                   style={{
                     width: 40,
                     height: 4,
                     margin: "0 auto 16px",
                     borderRadius: 999,
-                    background: "rgba(51, 65, 85, 0.6)",
+                    background: theme === "dark" ? "rgba(51, 65, 85, 0.6)" : "#cbd5e1",
                   }}
                 />
                 <div
@@ -487,11 +528,15 @@ export function PortalLayout({
                     marginBottom: 16,
                   }}
                 >
-                  <h2 style={{ margin: 0, fontSize: 18 }}>
+                  <h2
+                    className="text-slate-900 dark:text-white"
+                    style={{ margin: 0, fontSize: 18, color: theme === "dark" ? "#ffffff" : "#0f172a" }}
+                  >
                     {t("portal.nav.more")}
                   </h2>
                   <button
                     type="button"
+                    className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
                     aria-label="Close"
                     onClick={() => setIsMoreOpen(false)}
                     style={{
@@ -503,8 +548,8 @@ export function PortalLayout({
                       padding: 0,
                       border: 0,
                       borderRadius: 999,
-                      background: "rgba(51, 65, 85, 0.6)",
-                      color: "#cbd5e1",
+                      background: theme === "dark" ? "#1e293b" : "#f1f5f9",
+                      color: theme === "dark" ? "#cbd5e1" : "#334155",
                       cursor: "pointer",
                     }}
                   >
@@ -526,7 +571,7 @@ export function PortalLayout({
                           className={
                             isActive
                               ? "flex items-center gap-3 px-4 py-3 rounded-xl bg-orange-500/10 text-orange-400 font-semibold border border-orange-500/20 no-underline hover:no-underline"
-                              : "flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-800/60 transition-colors no-underline hover:no-underline font-medium"
+                              : "flex items-center gap-3 px-4 py-3 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors no-underline hover:no-underline font-medium"
                           }
                           onClick={() => setIsMoreOpen(false)}
                           style={{
@@ -535,7 +580,7 @@ export function PortalLayout({
                             gap: 12,
                             padding: "12px 16px",
                             borderRadius: 12,
-                            color: isActive ? "#fb923c" : "#cbd5e1",
+                            color: isActive ? "#fb923c" : theme === "dark" ? "#cbd5e1" : "#334155",
                             background: isActive ? "rgba(249, 115, 22, 0.1)" : "transparent",
                             border: isActive
                               ? "1px solid rgba(249, 115, 22, 0.2)"
@@ -567,6 +612,7 @@ export function PortalLayout({
         @media (max-width: 899px) {
           .ehs-portal-aside { display: none !important; }
           .ehs-portal-only-desktop { display: none !important; }
+          .ehs-shell-crumbs { display: none !important; }
         }
         @media (min-width: 900px) {
           .ehs-portal-only-mobile { display: none !important; }

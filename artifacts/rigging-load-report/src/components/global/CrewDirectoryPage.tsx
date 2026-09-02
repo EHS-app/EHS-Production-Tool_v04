@@ -24,6 +24,7 @@ export function CrewDirectoryPage({ getToken }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [locationSearch, setLocationSearch] = useState("");
   const [editingUser, setEditingUser] = useState<FreelancerRow | null>(null);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -75,8 +76,12 @@ export function CrewDirectoryPage({ getToken }: Props) {
         (f.skills && f.skills.some(s => s.toLowerCase().includes(q)))
       );
     }
+    if (locationSearch.trim()) {
+      const location = locationSearch.trim().toLowerCase();
+      list = list.filter(f => (f.city || "").toLowerCase().includes(location));
+    }
     return list;
-  }, [freelancers, search]);
+  }, [freelancers, search, locationSearch]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,14 +157,24 @@ export function CrewDirectoryPage({ getToken }: Props) {
         </div>
       </div>
 
-      <div style={{ marginBottom: 24 }}>
-        <div className="ehs-search-input" style={{ maxWidth: 400 }}>
+      <div style={{ marginBottom: 24, display: "flex", flexWrap: "wrap", gap: 12 }}>
+        <div className="ehs-search-input" style={{ width: "100%", maxWidth: 400 }}>
           <Search size={16} color="var(--text-muted)" />
           <input 
             type="text" 
             placeholder="Search by name, role, city, or skills..." 
             value={search}
             onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="ehs-search-input" style={{ width: "100%", maxWidth: 320 }}>
+          <MapPin size={16} color="var(--text-muted)" />
+          <input
+            type="text"
+            aria-label="Filter crew by home city or region"
+            placeholder="Filter by city or region..."
+            value={locationSearch}
+            onChange={e => setLocationSearch(e.target.value)}
           />
         </div>
       </div>

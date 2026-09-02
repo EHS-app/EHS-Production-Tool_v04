@@ -136,6 +136,8 @@ export type Profile = {
    *  freelancer can route booking enquiries to a different inbox. */
   email: string;
   primaryRole: string;
+  /** Home city or region shown to producers in the crew directory. */
+  city: string;
   insurance: string;
   languages: string[];
   /** Dietary requirements (vegetarian, halal, gluten-free…). Surfaces
@@ -181,6 +183,7 @@ export const EMPTY_PROFILE: Profile = {
   phone: "",
   email: "",
   primaryRole: "",
+  city: "",
   insurance: "",
   languages: [],
   dietary: "",
@@ -225,6 +228,7 @@ function normalizeProfile(input: unknown): Profile {
     phone: typeof p.phone === "string" ? p.phone : "",
     email: typeof p.email === "string" ? p.email : "",
     primaryRole: typeof p.primaryRole === "string" ? p.primaryRole : "",
+    city: typeof p.city === "string" ? p.city : "",
     insurance: typeof p.insurance === "string" ? p.insurance : "",
     languages: Array.isArray(p.languages)
       ? p.languages.filter((x): x is string => typeof x === "string")

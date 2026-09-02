@@ -229,6 +229,7 @@ export function Portal({ theme, pref, setPref }: PortalProps) {
             email: typeof sp.email === "string" ? sp.email : prev.profile.email,
             primaryRole:
               typeof sp.primaryRole === "string" ? sp.primaryRole : prev.profile.primaryRole,
+            city: typeof sp.city === "string" ? sp.city : prev.profile.city,
             insurance:
               typeof sp.insurance === "string" ? sp.insurance : prev.profile.insurance,
             languages: Array.isArray(sp.languages)
@@ -434,6 +435,7 @@ type ServerProfileRow = {
   phone?: unknown;
   email?: unknown;
   primaryRole?: unknown;
+  city?: unknown;
   insurance?: unknown;
   languages?: unknown;
   dietary?: unknown;

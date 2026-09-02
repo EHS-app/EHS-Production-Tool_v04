@@ -1193,6 +1193,8 @@ export const no: Translations = {
   "portal.profile.field.phone": "Telefon",
   "portal.profile.field.email": "E-post",
   "portal.profile.field.primaryRole": "Hovedrolle",
+  "portal.profile.field.homeCity": "Hjemby / region",
+  "portal.profile.homeCityPh": "f.eks. Oslo, Viken, Bergen",
   "portal.profile.cateringHint": "Produsenter ser dette på kjøkkenets bestillingsliste. Hold kostbehov og allergener atskilt — allergener varsler om krysskontaminering, kostbehov styrer antall måltider.",
   "portal.profile.field.dietary": "Kostbehov",
   "portal.profile.field.allergies": "Allergier",

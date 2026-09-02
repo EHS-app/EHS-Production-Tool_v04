@@ -85,6 +85,7 @@ export function Profile({
           phone: nextDraft.phone,
           email: nextDraft.email,
           primaryRole: nextDraft.primaryRole,
+          city: nextDraft.city,
           insurance: nextDraft.insurance,
           languages: nextDraft.languages,
           dietaryRequirements: nextDraft.dietary,
@@ -355,6 +356,15 @@ export function Profile({
               onChange={(e) => patch("primaryRole", e.target.value)}
               style={inputStyle(theme)}
               placeholder=""
+            />
+          </Field>
+          <Field theme={theme} label={t("portal.profile.field.homeCity")}>
+            <input
+              type="text"
+              value={draft.city}
+              onChange={(e) => patch("city", e.target.value)}
+              style={inputStyle(theme)}
+              placeholder={t("portal.profile.homeCityPh")}
             />
           </Field>
         </Grid2>

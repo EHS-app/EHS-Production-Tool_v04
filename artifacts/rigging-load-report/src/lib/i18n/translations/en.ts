@@ -1174,6 +1174,8 @@ export const en = {
   "portal.profile.field.phone": "Phone",
   "portal.profile.field.email": "Email",
   "portal.profile.field.primaryRole": "Primary role",
+  "portal.profile.field.homeCity": "Home City / Region",
+  "portal.profile.homeCityPh": "e.g. Oslo, Viken, Bergen",
   "portal.profile.cateringHint": "Producers see this on the kitchen Order List. Keep dietary needs and allergens separate — allergens flag cross-contamination warnings, dietary needs drive meal counts.",
   "portal.profile.field.dietary": "Dietary requirements",
   "portal.profile.field.allergies": "Allergies",

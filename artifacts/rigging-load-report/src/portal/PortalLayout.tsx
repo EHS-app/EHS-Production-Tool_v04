@@ -28,6 +28,14 @@ import { LanguageSelector } from "../components/LanguageSelector";
 import { FeedbackDialog } from "../components/FeedbackDialog";
 import { Toaster } from "../components/ui/sonner";
 import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "../components/ui/sheet";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -383,10 +391,11 @@ export function PortalLayout({
         className="ehs-portal-bottomnav"
         aria-label={t("portal.header.sectionsAria")}
       >
-        {allItems.map((item) => {
+        {["hub", "gigs", "hours", "profile"].map((key) => {
+          const item = allItems.find((i) => i.key === key);
+          if (!item) return null;
           const Icon = item.icon;
           const isActive = active === item.key;
-          const showBadge = item.key === "briefs" && pendingBriefCount > 0;
           return (
             <Link
               key={item.key}
@@ -396,16 +405,63 @@ export function PortalLayout({
             >
               <span style={{ position: "relative", display: "inline-flex" }}>
                 <Icon size={22} strokeWidth={isActive ? 2.25 : 1.75} />
-                {showBadge ? (
-                  <span className="ehs-portal-bottomnav-badge">
-                    {pendingBriefCount}
-                  </span>
-                ) : null}
               </span>
               <span>{t(item.labelKey)}</span>
             </Link>
           );
         })}
+
+        <Sheet>
+          <SheetTrigger asChild>
+            <button
+              type="button"
+              className="ehs-portal-bottomnav-item"
+              data-active={!["hub", "gigs", "hours", "profile"].includes(active)}
+            >
+              <span style={{ position: "relative", display: "inline-flex" }}>
+                <MoreHorizontal size={22} strokeWidth={1.75} />
+                {pendingBriefCount > 0 ? (
+                  <span className="ehs-portal-bottomnav-badge">
+                    {pendingBriefCount}
+                  </span>
+                ) : null}
+              </span>
+              <span>{t("portal.nav.more")}</span>
+            </button>
+          </SheetTrigger>
+          <SheetContent side="bottom" style={{ borderRadius: "16px 16px 0 0", padding: "24px 16px 32px" }}>
+            <SheetHeader style={{ textAlign: "left", marginBottom: 16 }}>
+              <SheetTitle>{t("portal.nav.more")}</SheetTitle>
+            </SheetHeader>
+            <div style={{ display: "grid", gap: 12 }}>
+              {allItems
+                .filter((i) => !["hub", "gigs", "hours", "profile", "help"].includes(i.key))
+                .map((item) => {
+                  const Icon = item.icon;
+                  const isActive = active === item.key;
+                  const showBadge = item.key === "briefs" && pendingBriefCount > 0;
+                  return (
+                    <SheetClose asChild key={item.key}>
+                      <Link
+                        href={item.href}
+                        className={`ehs-shell-nav-item${isActive ? " is-active" : ""}`}
+                      >
+                        <Icon size={18} strokeWidth={1.75} />
+                        <span style={{ flex: 1, textAlign: "left", fontSize: 16 }}>
+                          {t(item.labelKey)}
+                        </span>
+                        {showBadge ? (
+                          <span className="ehs-shell-nav-badge">
+                            {pendingBriefCount}
+                          </span>
+                        ) : null}
+                      </Link>
+                    </SheetClose>
+                  );
+                })}
+            </div>
+          </SheetContent>
+        </Sheet>
       </nav>
 
       <style>{`

@@ -284,15 +284,14 @@ export function Hours({
       <header
         style={{
           display: "flex",
-          alignItems: "center",
-          gap: 10,
-          flexWrap: "wrap",
+          flexDirection: "column",
+          gap: 6,
         }}
       >
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, flex: 1 }}>
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>
           {t("portal.hours.title")}
         </h1>
-        <span style={{ color: c.muted, fontSize: 13 }}>
+        <span style={{ color: c.muted, fontSize: 13, lineHeight: 1.4, whiteSpace: "normal", wordWrap: "break-word" }}>
           {t("portal.hours.intro")}
         </span>
       </header>
@@ -370,6 +369,14 @@ function GigBlock({
   locale: string;
 }) {
   const c = PALETTE[theme];
+  const rawProjectName = gig.projectName?.trim();
+  const projectName =
+    !rawProjectName ||
+    rawProjectName.toLocaleLowerCase() === "untitled project" ||
+    rawProjectName.toLocaleLowerCase() === "untitled" ||
+    rawProjectName.toLocaleLowerCase() === "uten tittel"
+      ? t("portal.hours.generalShift")
+      : rawProjectName;
 
   const totalSubmitted = useMemo(() => {
     let sum = 0;
@@ -401,7 +408,7 @@ function GigBlock({
         }}
       >
         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, flex: 1 }}>
-          {gig.projectName || t("portal.hours.untitledProject")}
+          {projectName}
         </h2>
         <span style={{ fontSize: 12, color: c.muted }}>
           {gig.role}
@@ -436,140 +443,153 @@ function GigBlock({
             <div
               key={date}
               style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "minmax(120px, 1fr) auto auto auto auto auto auto",
-                gap: 8,
-                alignItems: "center",
-                padding: "8px 10px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+                padding: "12px",
                 background: c.cardBgSubtle,
                 border: `1px solid ${c.border}`,
                 borderRadius: 10,
-                flexWrap: "wrap",
               }}
             >
-              <div style={{ minWidth: 110 }}>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>
-                  {fmtDate(date, locale)}
+              {/* Top Row: Date, Hours, Status */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>
+                    {fmtDate(date, locale)}
+                  </div>
+                  <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
+                    {date}
+                  </div>
                 </div>
-                <div style={{ fontSize: 11, color: c.muted, marginTop: 1 }}>
-                  {date}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      textAlign: "right",
+                    }}
+                  >
+                    {editable || !row
+                      ? `${computedH}h`
+                      : `${Math.round((row.payableMinutes / 60) * 100) / 100}h`}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: "4px 10px",
+                      borderRadius: 999,
+                      background: pill.bg,
+                      color: pill.fg,
+                      textAlign: "center",
+                    }}
+                  >
+                    {pill.label}
+                  </span>
                 </div>
               </div>
-              <TimeField
-                theme={theme}
-                value={d.start}
-                disabled={!editable}
-                onChange={(v) => patchDraft(date, { start: v })}
-                placeholder={t("portal.hours.start")}
-              />
-              <TimeField
-                theme={theme}
-                value={d.end}
-                disabled={!editable}
-                onChange={(v) => patchDraft(date, { end: v })}
-                placeholder={t("portal.hours.end")}
-              />
-              <NumField
-                theme={theme}
-                value={d.breakMinutes}
-                disabled={!editable}
-                onChange={(v) => patchDraft(date, { breakMinutes: v })}
-                label={t("portal.hours.minBreak")}
-              />
-              <span
-                style={{
-                  fontSize: 13,
-                  fontWeight: 700,
-                  minWidth: 56,
-                  textAlign: "right",
-                }}
-              >
-                {editable || !row
-                  ? `${computedH}h`
-                  : `${Math.round((row.payableMinutes / 60) * 100) / 100}h payable`}
-              </span>
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: "3px 8px",
-                  borderRadius: 999,
-                  background: pill.bg,
-                  color: pill.fg,
-                  minWidth: 70,
-                  textAlign: "center",
-                }}
-              >
-                {pill.label}
-              </span>
-              {editable ? (
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button
-                    type="button"
-                    onClick={() => saveDraft(date)}
-                    disabled={isSaving}
-                    style={{
-                      padding: "6px 10px",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      background: c.cardBg,
-                      color: c.text,
-                      border: `1px solid ${c.border}`,
-                      borderRadius: 8,
-                      cursor: isSaving ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {t("portal.hours.save")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => submitDay(date)}
-                    disabled={
-                      isSaving ||
-                      hhmmToMin(d.start) == null ||
-                      hhmmToMin(d.end) == null
-                    }
-                    style={{
-                      padding: "6px 10px",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      background: c.accent,
-                      color: "#0b0b0b",
-                      border: "none",
-                      borderRadius: 8,
-                      cursor:
+
+              {/* Middle Row: Inputs */}
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+                <TimeField
+                  theme={theme}
+                  value={d.start}
+                  disabled={!editable}
+                  onChange={(v) => patchDraft(date, { start: v })}
+                  label={t("portal.hours.start")}
+                />
+                <TimeField
+                  theme={theme}
+                  value={d.end}
+                  disabled={!editable}
+                  onChange={(v) => patchDraft(date, { end: v })}
+                  label={t("portal.hours.end")}
+                />
+                <NumField
+                  theme={theme}
+                  value={d.breakMinutes}
+                  disabled={!editable}
+                  onChange={(v) => patchDraft(date, { breakMinutes: v })}
+                  label={t("portal.hours.minBreak")}
+                />
+              </div>
+
+              {/* Bottom Row: Actions & Status Message */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                {editable ? (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => saveDraft(date)}
+                      disabled={isSaving}
+                      style={{
+                        padding: "8px 12px",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        background: c.cardBg,
+                        color: c.text,
+                        border: `1px solid ${c.border}`,
+                        borderRadius: 8,
+                        cursor: isSaving ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {t("portal.hours.save")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => submitDay(date)}
+                      disabled={
                         isSaving ||
                         hhmmToMin(d.start) == null ||
                         hhmmToMin(d.end) == null
-                          ? "not-allowed"
-                          : "pointer",
-                      opacity:
-                        isSaving ||
-                        hhmmToMin(d.start) == null ||
-                        hhmmToMin(d.end) == null
-                          ? 0.5
-                          : 1,
-                    }}
-                  >
-                    {t("portal.hours.submit")}
-                  </button>
-                </div>
-              ) : (
-                <span style={{ fontSize: 11, color: c.muted, minWidth: 110 }}>
-                  {status === "approved"
-                    ? t("portal.hours.approvedBy")
-                    : status === "locked"
-                      ? t("portal.hours.lockedPayroll")
-                      : t("portal.hours.awaiting")}
-                </span>
-              )}
+                      }
+                      style={{
+                        padding: "8px 12px",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        background: c.accent,
+                        color: "#0b0b0b",
+                        border: "none",
+                        borderRadius: 8,
+                        cursor:
+                          isSaving ||
+                          hhmmToMin(d.start) == null ||
+                          hhmmToMin(d.end) == null
+                            ? "not-allowed"
+                            : "pointer",
+                        opacity:
+                          isSaving ||
+                          hhmmToMin(d.start) == null ||
+                          hhmmToMin(d.end) == null
+                            ? 0.5
+                            : 1,
+                      }}
+                    >
+                      {t("portal.hours.submit")}
+                    </button>
+                  </div>
+                ) : (
+                  <span style={{ fontSize: 13, color: c.muted, fontWeight: 500 }}>
+                    {status === "approved"
+                      ? t("portal.hours.approvedBy")
+                      : status === "locked"
+                        ? t("portal.hours.lockedPayroll")
+                        : t("portal.hours.awaiting")}
+                  </span>
+                )}
+              </div>
+
               {(row?.rejectionReason || row?.flagReason) ? (
                 <div
                   style={{
-                    gridColumn: "1 / -1",
                     color: "#ef4444",
-                    fontSize: 11,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    marginTop: 4,
+                    padding: "8px 10px",
+                    background: "rgba(239,68,68,0.1)",
+                    borderRadius: 6,
                   }}
                 >
                   {row.flagReason
@@ -590,34 +610,45 @@ function TimeField({
   value,
   disabled,
   onChange,
-  placeholder,
+  label,
 }: {
   theme: ThemeMode;
   value: string;
   disabled: boolean;
   onChange: (v: string) => void;
-  placeholder: string;
+  label: string;
 }) {
   const c = PALETTE[theme];
   return (
-    <input
-      type="time"
-      value={value}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
+    <label
       style={{
-        width: 96,
-        padding: "5px 8px",
-        background: c.cardBg,
-        color: c.text,
-        border: `1px solid ${c.border}`,
-        borderRadius: 8,
-        fontSize: 13,
-        fontFamily: "inherit",
-        opacity: disabled ? 0.6 : 1,
+        display: "inline-flex",
+        flexDirection: "column",
+        gap: 4,
+        fontSize: 11,
+        fontWeight: 600,
+        color: c.muted,
       }}
-    />
+    >
+      {label}
+      <input
+        type="time"
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          width: 96,
+          padding: "7px 10px",
+          background: c.cardBg,
+          color: c.text,
+          border: `1px solid ${c.border}`,
+          borderRadius: 8,
+          fontSize: 14,
+          fontFamily: "inherit",
+          opacity: disabled ? 0.6 : 1,
+        }}
+      />
+    </label>
   );
 }
 
@@ -639,12 +670,14 @@ function NumField({
     <label
       style={{
         display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        fontSize: 12,
+        flexDirection: "column",
+        gap: 4,
+        fontSize: 11,
+        fontWeight: 600,
         color: c.muted,
       }}
     >
+      {label}
       <input
         type="number"
         min={0}
@@ -654,18 +687,17 @@ function NumField({
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         style={{
-          width: 64,
-          padding: "5px 8px",
+          width: 80,
+          padding: "7px 10px",
           background: c.cardBg,
           color: c.text,
           border: `1px solid ${c.border}`,
           borderRadius: 8,
-          fontSize: 13,
+          fontSize: 14,
           fontFamily: "inherit",
           opacity: disabled ? 0.6 : 1,
         }}
       />
-      {label}
     </label>
   );
 }

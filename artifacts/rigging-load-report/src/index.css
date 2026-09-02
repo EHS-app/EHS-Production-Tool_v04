@@ -6482,13 +6482,9 @@ textarea:focus {
   color: var(--primary, #f88000);
 }
 .ehs-portal-bottomnav-item > span:last-child {
-  /* Label — clip with ellipsis instead of wrapping so 8 items still
-   * fit edge-to-edge on a 360px viewport. */
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Display full labels since we now have exactly 5 items instead of 8 */
   display: block;
+  white-space: nowrap;
 }
 .ehs-portal-bottomnav-badge {
   position: absolute;
@@ -6523,10 +6519,9 @@ textarea:focus {
   }
 }
 @media (max-width: 380px) {
-  /* Sub-380 iPhones (SE 1st gen, etc.) — drop labels entirely; the
-   * icons still convey the section. */
+  /* Sub-380 iPhones: Keep labels but make them slightly smaller */
   .ehs-portal-bottomnav-item > span:last-child {
-    display: none;
+    font-size: 10px;
   }
 }
 

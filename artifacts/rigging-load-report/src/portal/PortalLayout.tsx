@@ -310,7 +310,7 @@ export function PortalLayout({
       {/* MAIN */}
       <main className="ehs-shell-main">
         <header
-          className="ehs-shell-topbar flex justify-between items-center px-4 py-3 w-full max-w-full overflow-hidden"
+          className="ehs-shell-topbar ehs-portal-mobile-header flex justify-between items-center px-2 sm:px-4 py-3 w-full max-w-full overflow-hidden"
           style={{ width: "100%", maxWidth: "100%", overflow: "hidden", boxSizing: "border-box" }}
         >
           <Link
@@ -335,24 +335,24 @@ export function PortalLayout({
           </div>
 
           <div
-            className="ehs-shell-topbar-actions flex items-center gap-1.5 sm:gap-2 pr-2 sm:pr-4 shrink-0"
-            style={{ display: "flex", alignItems: "center", gap: 6, paddingRight: 8, flexShrink: 0 }}
+            className="ehs-shell-topbar-actions ehs-portal-mobile-utilities flex items-center gap-1.5 ml-auto pr-1 shrink-0"
+            style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto", paddingRight: 4, flexShrink: 0 }}
           >
             <Link
               href="/portal/help"
-              className="ehs-shell-action ehs-shell-help-action"
+              className="ehs-shell-action ehs-shell-help-action ehs-portal-mobile-utility"
               aria-label={t("portal.header.helpAria")}
               title={t("portal.header.helpTitle")}
             >
               <HelpCircle size={14} />
               <span>{t("portal.nav.help")}</span>
             </Link>
-            <div style={{ marginRight: 8, display: "flex" }}>
+            <div className="ehs-portal-mobile-language" style={{ display: "flex" }}>
               <LanguageSelector />
             </div>
             <button
               type="button"
-              className="ehs-shell-icon-btn ehs-portal-only-mobile"
+              className="ehs-shell-icon-btn ehs-portal-only-mobile ehs-portal-mobile-utility"
               onClick={() => setPref(theme === "dark" ? "light" : "dark")}
               aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"}
               title={theme === "dark" ? "Use light theme" : "Use dark theme"}
@@ -365,7 +365,7 @@ export function PortalLayout({
             </button>
             <button
               type="button"
-              className="ehs-shell-icon-btn"
+              className="ehs-shell-icon-btn ehs-portal-mobile-utility"
               aria-label="Notifications"
               title="Notifications"
             >
@@ -373,7 +373,7 @@ export function PortalLayout({
             </button>
             <button
               type="button"
-              className="ehs-shell-signout-btn"
+              className="ehs-shell-signout-btn ehs-portal-mobile-utility"
               onClick={() => {
                 try {
                   sessionStorage.setItem("ehs-skip-dev-auto-signin", "1");
@@ -613,6 +613,48 @@ export function PortalLayout({
           .ehs-portal-aside { display: none !important; }
           .ehs-portal-only-desktop { display: none !important; }
           .ehs-shell-crumbs { display: none !important; }
+          .ehs-portal-mobile-header {
+            padding-left: 8px !important;
+            padding-right: 8px !important;
+          }
+          .ehs-portal-mobile-utilities {
+            margin-left: auto !important;
+            padding-right: 4px !important;
+            gap: 6px !important;
+          }
+          .ehs-portal-mobile-utility,
+          .ehs-portal-mobile-language .lang-fab-trigger {
+            box-sizing: border-box !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            height: 32px !important;
+            min-width: 32px !important;
+            padding: 0 8px !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 6px !important;
+            background: #f1f5f9 !important;
+            color: #1e293b !important;
+            font-size: 12px !important;
+            font-weight: 600 !important;
+            line-height: 1 !important;
+            text-decoration: none !important;
+            transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease !important;
+          }
+          .ehs-portal-mobile-utility:hover,
+          .ehs-portal-mobile-language .lang-fab-trigger:hover {
+            background: #e2e8f0 !important;
+          }
+          [data-theme="dark"] .ehs-portal-mobile-utility,
+          [data-theme="dark"] .ehs-portal-mobile-language .lang-fab-trigger {
+            border-color: rgba(51, 65, 85, 0.6) !important;
+            background: rgba(30, 41, 59, 0.8) !important;
+            color: #e2e8f0 !important;
+          }
+          [data-theme="dark"] .ehs-portal-mobile-utility:hover,
+          [data-theme="dark"] .ehs-portal-mobile-language .lang-fab-trigger:hover {
+            background: #334155 !important;
+          }
         }
         @media (min-width: 900px) {
           .ehs-portal-only-mobile { display: none !important; }

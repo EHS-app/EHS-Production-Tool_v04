@@ -33,7 +33,6 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from "../components/ui/sheet";
 import {
   DropdownMenu,
@@ -140,6 +139,7 @@ export function PortalLayout({
 
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [feedbackOpen, setFeedbackOpen] = React.useState(false);
+  const [isMoreOpen, setIsMoreOpen] = React.useState(false);
 
   const allItems = [...NAV_WORK, ...NAV_ACCOUNT];
   const activeItem = allItems.find((i) => i.key === active);
@@ -411,25 +411,26 @@ export function PortalLayout({
           );
         })}
 
-        <Sheet>
-          <SheetTrigger asChild>
-            <button
-              type="button"
-              className="ehs-portal-bottomnav-item"
-              data-active={!["hub", "gigs", "hours", "profile"].includes(active)}
-            >
-              <span style={{ position: "relative", display: "inline-flex" }}>
-                <MoreHorizontal size={22} strokeWidth={1.75} />
-                {pendingBriefCount > 0 ? (
-                  <span className="ehs-portal-bottomnav-badge">
-                    {pendingBriefCount}
-                  </span>
-                ) : null}
-              </span>
-              <span>{t("portal.nav.more")}</span>
-            </button>
-          </SheetTrigger>
-          <SheetContent side="bottom" style={{ borderRadius: "16px 16px 0 0", padding: "24px 16px 32px" }}>
+        <Sheet open={isMoreOpen} onOpenChange={setIsMoreOpen}>
+          <button
+            type="button"
+            className="ehs-portal-bottomnav-item"
+            data-active={!["hub", "gigs", "hours", "profile"].includes(active)}
+            aria-expanded={isMoreOpen}
+            onClick={() => setIsMoreOpen(!isMoreOpen)}
+            style={{ background: "transparent", border: 0, font: "inherit" }}
+          >
+            <span style={{ position: "relative", display: "inline-flex" }}>
+              <MoreHorizontal size={22} strokeWidth={1.75} />
+              {pendingBriefCount > 0 ? (
+                <span className="ehs-portal-bottomnav-badge">
+                  {pendingBriefCount}
+                </span>
+              ) : null}
+            </span>
+            <span>{t("portal.nav.more")}</span>
+          </button>
+          <SheetContent className="z-50" side="bottom" style={{ borderRadius: "16px 16px 0 0", padding: "24px 16px 32px" }}>
             <SheetHeader style={{ textAlign: "left", marginBottom: 16 }}>
               <SheetTitle>{t("portal.nav.more")}</SheetTitle>
             </SheetHeader>

@@ -7254,7 +7254,7 @@ input:focus {
 }
 .crew-name-options {
   position: absolute;
-  z-index: 80;
+  z-index: 1000;
   top: calc(100% + 5px);
   left: 0;
   width: min(320px, 75vw);
@@ -7452,11 +7452,19 @@ input:focus {
  * screen. The columns will compress to fit the available width;
  * `white-space: nowrap` on headers still reserves a sensible minimum. */
 .led-table-wrap:has(.master-sheet-table) {
-  overflow-x: hidden;
+  overflow: visible;
 }
 .master-sheet-table {
   table-layout: auto;
   font-size: 0.78rem;
+}
+.master-sheet-table td:has(.crew-name-combobox) {
+  position: relative;
+  z-index: 1;
+  overflow: visible;
+}
+.master-sheet-table td:has(.crew-name-combobox:focus-within) {
+  z-index: 100;
 }
 .master-sheet-table th,
 .master-sheet-table td {

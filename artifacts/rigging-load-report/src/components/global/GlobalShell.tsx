@@ -6,6 +6,7 @@ import {
   Truck,
   CheckSquare,
   DollarSign,
+  FolderKanban,
   Settings,
   ChevronDown,
   LogOut,
@@ -56,6 +57,7 @@ const NAV_GROUPS = [
     emoji: "🚧",
     items: [
       { id: "home", key: "global.nav.home", icon: Activity },
+      { id: "projects", key: "global.nav.projects", icon: FolderKanban },
       { id: "calendar", key: "global.nav.calendar", icon: Calendar },
       { id: "crew", key: "global.nav.crew", icon: Users },
       { id: "transport", key: "global.nav.transport", icon: Truck },

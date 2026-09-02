@@ -1,5 +1,6 @@
 import {
   pgTable,
+  integer,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
@@ -32,6 +33,7 @@ export const freelancerProfilesTable = pgTable("freelancer_profiles", {
   /** Contact email — distinct from Clerk's identity email so freelancers
    *  can route booking enquiries to a different inbox if they like. */
   email: text("email").notNull().default(""),
+  defaultDayRate: integer("default_day_rate").notNull().default(0),
   /** Free text — vegetarian, halal, gluten-free, etc. Surfaced on the
    *  producer's catering Order List view. */
   dietary: text("dietary").notNull().default(""),

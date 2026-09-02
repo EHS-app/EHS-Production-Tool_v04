@@ -25,6 +25,7 @@ import {
   Users,
   Zap,
   HelpCircle,
+  Home,
   LayoutGrid,
   RotateCcw,
 } from "lucide-react";
@@ -117,6 +118,7 @@ interface AppShellProps {
   onSignOut: () => void;
   onHelp?: () => void;
   onOpenProjects?: () => void;
+  onHome?: () => void;
   cloudSavedAt?: string;
   /** Optional compact reset-project handler. When provided the topbar
    *  renders a small ghost pill next to the cloud-saved indicator so
@@ -233,6 +235,7 @@ export function AppShell({
   onSignOut,
   onHelp,
   onOpenProjects,
+  onHome,
   cloudSavedAt,
   onResetProject,
   readOnly = false,
@@ -523,6 +526,17 @@ export function AppShell({
           >
             <Menu size={18} />
           </button>
+          {onHome ? (
+            <button
+              type="button"
+              className="ehs-shell-home-button"
+              onClick={onHome}
+              title="Return to Home Dashboard"
+            >
+              <Home size={14} />
+              <span>Home</span>
+            </button>
+          ) : null}
           <div className="ehs-shell-crumbs">
             <button
               type="button"

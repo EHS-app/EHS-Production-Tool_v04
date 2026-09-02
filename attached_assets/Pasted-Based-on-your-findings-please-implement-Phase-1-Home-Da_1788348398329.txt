@@ -1,0 +1,43 @@
+Based on your findings, please implement Phase 1 (Home Dashboard, Master Projects Database, Easyjob Number Foundation, and Admin Crew Directory Editing) following these instructions:
+
+====================================================================
+1. DATABASE SCHEMA & EASYJOB NUMBER EXTENSION
+====================================================================
+- Add an optional string column `easyjob_number` to the `projects` table schema (`lib/db/src/schema/projects.ts`).
+- Index `easyjob_number` for fast lookups.
+- Update project API routes (`artifacts/api-server/src/routes/projects.ts`) so `GET /api/projects`, `POST`, and `PATCH` accept and return `easyjob_number`.
+
+====================================================================
+2. CENTRAL HOME DASHBOARD & TOP-LEVEL ROUTING
+====================================================================
+- Set the default post-login view for `@ehs.no` employees to a central "Home Dashboard" hub instead of automatically opening the last `localStorage` project.
+- Build a main Dashboard layout with top navigation/sidebar items:
+  * 📁 Projects Database
+  * 👥 Global Crew Directory
+  * 📅 Master Calendar (Placeholder for Phase 2)
+  * 🚚 Transport & Logistics
+  * 📋 Task Management
+  * 💰 Economy
+  * ⚙️ System Settings
+- Include a permanent "Home" / "Dashboard" button in the top navigation bar so producers can return to this main hub from inside any project.
+
+====================================================================
+3. MASTER PROJECTS DATABASE VIEW
+====================================================================
+- Create a dedicated top-level "Projects Database" page (expanding on `ProjectListModal.tsx`).
+- Display a full table of all shows with columns: Project Name, Client, Venue, Easyjob Number, Crew Count, Updated Date, and Status Badge.
+- Add real-time search and filters for Name, Client, Venue, and Easyjob Number.
+- Provide an "Easyjob ID" editable input inside the Project Overview header within individual projects so it saves automatically.
+
+====================================================================
+4. GLOBAL CREW DIRECTORY & ADMIN PROFILE EDITING
+====================================================================
+- Create a dedicated top-level "Crew Directory" page for producers/employees.
+- Build an admin API endpoint (`PATCH /api/portal/freelancers/:userId`) allowing authorized `@ehs.no` employees to edit freelancer profiles (e.g., correct misspelled email addresses, update phone numbers, edit default day rates, adjust roles, or update skills).
+- Provide an "Edit Profile" modal in the global Crew Directory so admins can modify and save these details directly.
+
+====================================================================
+5. COMPILATION & VERIFICATION
+====================================================================
+- Ensure all changes are purely additive and preserve existing project JSON structure and task boards.
+- Run `pnpm build` to confirm zero TypeScript compilation errors across all packages.

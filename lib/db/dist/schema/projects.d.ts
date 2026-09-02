@@ -88,6 +88,23 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        easyjobNumber: import("drizzle-orm/pg-core").PgColumn<{
+            name: "easyjob_number";
+            tableName: "projects";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         data: import("drizzle-orm/pg-core").PgColumn<{
             name: "data";
             tableName: "projects";
@@ -143,11 +160,12 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
     dialect: "pg";
 }>;
 export declare const insertProjectSchema: z.ZodObject<{
+    userId: z.ZodString;
     name: z.ZodOptional<z.ZodString>;
     data: z.ZodOptional<z.ZodType<import("drizzle-zod").Json, unknown, z.core.$ZodTypeInternals<import("drizzle-zod").Json, unknown>>>;
-    userId: z.ZodString;
     venue: z.ZodOptional<z.ZodString>;
     client: z.ZodOptional<z.ZodString>;
+    easyjobNumber: z.ZodOptional<z.ZodNullable<z.ZodString>>;
 }, {
     out: {};
     in: {};

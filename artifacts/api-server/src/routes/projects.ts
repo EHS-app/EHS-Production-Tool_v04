@@ -33,6 +33,9 @@ router.get("/projects", requireSignedIn, async (req, res) => {
         name: projectsTable.name,
         venue: projectsTable.venue,
         client: projectsTable.client,
+        easyjob_number: projectsTable.easyjobNumber,
+        crewCount: sql<number>`case when jsonb_typeof(${projectsTable.data}->'crew') = 'array' then jsonb_array_length(${projectsTable.data}->'crew') else 0 end`,
+        status: sql<"active" | "planning" | "draft">`case when nullif(${projectsTable.data}->>'activeBriefId', '') is not null then 'active' when nullif(${projectsTable.venue}, '') is not null or nullif(${projectsTable.client}, '') is not null then 'planning' else 'draft' end`,
         createdAt: projectsTable.createdAt,
         updatedAt: projectsTable.updatedAt,
         accessRole: sql<"owner" | "editor" | "viewer">`case when ${projectsTable.userId} = ${userId} then 'owner' else ${projectMembersTable.role} end`,
@@ -81,7 +84,14 @@ router.get("/projects/:id", requireSignedIn, async (req, res) => {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
-    res.json({ ok: true, project: { ...row, accessRole } });
+    res.json({
+      ok: true,
+      project: {
+        ...row,
+        easyjob_number: row.easyjobNumber,
+        accessRole,
+      },
+    });
   } catch (err) {
     req.log.error(err, "Failed to load project");
     res.status(500).json({ ok: false, error: "Failed to load project." });
@@ -90,7 +100,7 @@ router.get("/projects/:id", requireSignedIn, async (req, res) => {
 
 router.post("/projects", requireSignedIn, async (req, res) => {
   const userId = (req as unknown as { _userId: string })._userId;
-  const { name, venue, client, data } = req.body ?? {};
+  const { name, venue, client, easyjob_number, data } = req.body ?? {};
   if (data && JSON.stringify(data).length > MAX_DATA_BYTES) {
     res.status(413).json({ ok: false, error: "Project data too large." });
     return;
@@ -103,10 +113,19 @@ router.post("/projects", requireSignedIn, async (req, res) => {
         name: typeof name === "string" ? name.slice(0, 200) : "Untitled",
         venue: typeof venue === "string" ? venue.slice(0, 200) : "",
         client: typeof client === "string" ? client.slice(0, 200) : "",
+        easyjobNumber:
+          typeof easyjob_number === "string"
+            ? easyjob_number.trim().slice(0, 100) || null
+            : null,
         data: data ?? {},
       })
       .returning();
-    res.json({ ok: true, project: row });
+    res.json({
+      ok: true,
+      project: row
+        ? { ...row, easyjob_number: row.easyjobNumber }
+        : row,
+    });
   } catch (err) {
     req.log.error(err, "Failed to create project");
     res.status(500).json({ ok: false, error: "Failed to create project." });
@@ -116,7 +135,7 @@ router.post("/projects", requireSignedIn, async (req, res) => {
 router.patch("/projects/:id", requireSignedIn, async (req, res) => {
   const userId = (req as unknown as { _userId: string })._userId;
   const { id } = req.params;
-  const { name, venue, client, data } = req.body ?? {};
+  const { name, venue, client, easyjob_number, data } = req.body ?? {};
   if (!UUID_PATTERN.test(String(id))) {
     res.status(404).json({ ok: false, error: "Project not found." });
     return;
@@ -132,6 +151,10 @@ router.patch("/projects/:id", requireSignedIn, async (req, res) => {
   if (typeof name === "string") updates.name = name.slice(0, 200);
   if (typeof venue === "string") updates.venue = venue.slice(0, 200);
   if (typeof client === "string") updates.client = client.slice(0, 200);
+  if (easyjob_number === null) updates.easyjobNumber = null;
+  if (typeof easyjob_number === "string") {
+    updates.easyjobNumber = easyjob_number.trim().slice(0, 100) || null;
+  }
   if (data !== undefined) updates.data = data;
 
   try {
@@ -153,6 +176,7 @@ router.patch("/projects/:id", requireSignedIn, async (req, res) => {
         name: projectsTable.name,
         venue: projectsTable.venue,
         client: projectsTable.client,
+        easyjob_number: projectsTable.easyjobNumber,
         updatedAt: projectsTable.updatedAt,
       });
     if (!row) {

@@ -74241,6 +74241,7 @@ var freelancerProfilesTable = pgTable("freelancer_profiles", {
   /** Contact email — distinct from Clerk's identity email so freelancers
    *  can route booking enquiries to a different inbox if they like. */
   email: text("email").notNull().default(""),
+  defaultDayRate: integer("default_day_rate").notNull().default(0),
   /** Free text — vegetarian, halal, gluten-free, etc. Surfaced on the
    *  producer's catering Order List view. */
   dietary: text("dietary").notNull().default(""),
@@ -74483,11 +74484,15 @@ var projectsTable = pgTable(
     name: text("name").notNull().default("Untitled"),
     venue: text("venue").notNull().default(""),
     client: text("client").notNull().default(""),
+    easyjobNumber: text("easyjob_number"),
     data: jsonb("data").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },
-  (t) => [index("projects_user_id_idx").on(t.userId)]
+  (t) => [
+    index("projects_user_id_idx").on(t.userId),
+    index("projects_easyjob_number_idx").on(t.easyjobNumber)
+  ]
 );
 var insertProjectSchema = createInsertSchema(projectsTable).omit({
   id: true,
@@ -76582,7 +76587,7 @@ function clampStr(raw, cap = MAX_TEXT) {
   if (typeof raw !== "string") return "";
   return raw.trim().slice(0, cap);
 }
-function normaliseProfile(body) {
+function normaliseProfile(body, existingDefaultDayRate = 0) {
   const primaryRole = clampStr(body.primaryRole);
   const dietary = clampStr(body.dietaryRequirements ?? body.dietary);
   const skills = sanitizeSkills(
@@ -76593,6 +76598,7 @@ function normaliseProfile(body) {
     fullName: clampStr(body.fullName),
     phone: clampStr(body.phone),
     email: clampStr(body.email),
+    defaultDayRate: typeof body.defaultDayRate === "number" && Number.isFinite(body.defaultDayRate) ? Math.max(0, Math.min(1e6, Math.round(body.defaultDayRate))) : existingDefaultDayRate,
     primaryRole,
     city: clampStr(body.city),
     bio: clampStr(body.bio, MAX_BIO),
@@ -76660,8 +76666,9 @@ router6.get("/portal/profile/me", requireSignedIn4, async (req, res) => {
 router6.put("/portal/profile/me", requireSignedIn4, async (req, res) => {
   const body = req.body ?? {};
   const userId = req._userId;
-  const fields = normaliseProfile(body);
   try {
+    const [existing] = await db.select({ defaultDayRate: freelancerProfilesTable.defaultDayRate }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId)).limit(1);
+    const fields = normaliseProfile(body, existing?.defaultDayRate ?? 0);
     const inserted = await db.insert(freelancerProfilesTable).values({ userId, ...fields }).onConflictDoUpdate({
       target: freelancerProfilesTable.userId,
       set: { ...fields, updatedAt: sql`now()` }
@@ -76679,6 +76686,77 @@ router6.put("/portal/profile/me", requireSignedIn4, async (req, res) => {
     res.status(500).json({ ok: false, error: "Could not save profile." });
   }
 });
+router6.patch(
+  "/portal/freelancers/:userId",
+  requireEmployee,
+  async (req, res) => {
+    const userId = String(req.params.userId ?? "").trim();
+    if (!userId || userId.length > 200) {
+      res.status(400).json({ ok: false, error: "Invalid freelancer ID." });
+      return;
+    }
+    const body = req.body ?? {};
+    const updates = {};
+    if ("fullName" in body) updates.fullName = clampStr(body.fullName);
+    if ("email" in body) updates.email = clampStr(body.email);
+    if ("phone" in body) updates.phone = clampStr(body.phone);
+    if ("primaryRole" in body) updates.primaryRole = clampStr(body.primaryRole);
+    if ("city" in body) updates.city = clampStr(body.city);
+    if ("bio" in body) updates.bio = clampStr(body.bio, MAX_BIO);
+    if ("languages" in body) {
+      updates.languages = sanitizeSkills(
+        Array.isArray(body.languages) ? body.languages.filter((x) => typeof x === "string") : []
+      );
+    }
+    if ("skills" in body) {
+      const skills = sanitizeSkills(
+        Array.isArray(body.skills) ? body.skills.filter((x) => typeof x === "string") : []
+      );
+      const grouped = groupSkills(skills);
+      updates.skills = skills;
+      updates.workTypes = grouped.workTypes;
+      updates.consoles = grouped.consoles;
+      updates.certs = grouped.certs;
+    }
+    if ("defaultDayRate" in body) {
+      const rate = typeof body.defaultDayRate === "number" ? body.defaultDayRate : Number(body.defaultDayRate);
+      if (!Number.isFinite(rate) || rate < 0 || rate > 1e6) {
+        res.status(400).json({ ok: false, error: "Invalid default day rate." });
+        return;
+      }
+      updates.defaultDayRate = Math.round(rate);
+    }
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ ok: false, error: "No editable fields supplied." });
+      return;
+    }
+    try {
+      const [saved] = await db.update(freelancerProfilesTable).set({ ...updates, updatedAt: sql`now()` }).where(eq(freelancerProfilesTable.userId, userId)).returning();
+      if (!saved) {
+        res.status(404).json({ ok: false, error: "Freelancer not found." });
+        return;
+      }
+      res.json({
+        ok: true,
+        freelancer: {
+          userId: saved.userId,
+          fullName: saved.fullName,
+          email: saved.email,
+          phone: saved.phone,
+          defaultDayRate: saved.defaultDayRate,
+          primaryRole: saved.primaryRole,
+          city: saved.city,
+          bio: saved.bio,
+          skills: saved.skills,
+          languages: saved.languages
+        }
+      });
+    } catch (err) {
+      req.log.error({ err, userId }, "admin freelancer profile PATCH failed");
+      res.status(500).json({ ok: false, error: "Could not update freelancer." });
+    }
+  }
+);
 router6.post(
   "/portal/profile/photo/upload-url",
   requireSignedIn4,
@@ -76882,6 +76960,8 @@ router6.get("/portal/freelancers", requireEmployee, async (req, res) => {
       skills: freelancerProfilesTable.skills,
       languages: freelancerProfilesTable.languages,
       phone: freelancerProfilesTable.phone,
+      email: freelancerProfilesTable.email,
+      defaultDayRate: freelancerProfilesTable.defaultDayRate,
       dietary: freelancerProfilesTable.dietary,
       allergies: freelancerProfilesTable.allergies,
       status: statusExpr.as("status"),
@@ -80446,6 +80526,9 @@ router11.get("/projects", requireSignedIn9, async (req, res) => {
       name: projectsTable.name,
       venue: projectsTable.venue,
       client: projectsTable.client,
+      easyjob_number: projectsTable.easyjobNumber,
+      crewCount: sql`case when jsonb_typeof(${projectsTable.data}->'crew') = 'array' then jsonb_array_length(${projectsTable.data}->'crew') else 0 end`,
+      status: sql`case when nullif(${projectsTable.data}->>'activeBriefId', '') is not null then 'active' when nullif(${projectsTable.venue}, '') is not null or nullif(${projectsTable.client}, '') is not null then 'planning' else 'draft' end`,
       createdAt: projectsTable.createdAt,
       updatedAt: projectsTable.updatedAt,
       accessRole: sql`case when ${projectsTable.userId} = ${userId} then 'owner' else ${projectMembersTable.role} end`
@@ -80485,7 +80568,14 @@ router11.get("/projects/:id", requireSignedIn9, async (req, res) => {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
-    res.json({ ok: true, project: { ...row, accessRole } });
+    res.json({
+      ok: true,
+      project: {
+        ...row,
+        easyjob_number: row.easyjobNumber,
+        accessRole
+      }
+    });
   } catch (err) {
     req.log.error(err, "Failed to load project");
     res.status(500).json({ ok: false, error: "Failed to load project." });
@@ -80493,7 +80583,7 @@ router11.get("/projects/:id", requireSignedIn9, async (req, res) => {
 });
 router11.post("/projects", requireSignedIn9, async (req, res) => {
   const userId = req._userId;
-  const { name, venue, client, data } = req.body ?? {};
+  const { name, venue, client, easyjob_number, data } = req.body ?? {};
   if (data && JSON.stringify(data).length > MAX_DATA_BYTES2) {
     res.status(413).json({ ok: false, error: "Project data too large." });
     return;
@@ -80504,9 +80594,13 @@ router11.post("/projects", requireSignedIn9, async (req, res) => {
       name: typeof name === "string" ? name.slice(0, 200) : "Untitled",
       venue: typeof venue === "string" ? venue.slice(0, 200) : "",
       client: typeof client === "string" ? client.slice(0, 200) : "",
+      easyjobNumber: typeof easyjob_number === "string" ? easyjob_number.trim().slice(0, 100) || null : null,
       data: data ?? {}
     }).returning();
-    res.json({ ok: true, project: row });
+    res.json({
+      ok: true,
+      project: row ? { ...row, easyjob_number: row.easyjobNumber } : row
+    });
   } catch (err) {
     req.log.error(err, "Failed to create project");
     res.status(500).json({ ok: false, error: "Failed to create project." });
@@ -80515,7 +80609,7 @@ router11.post("/projects", requireSignedIn9, async (req, res) => {
 router11.patch("/projects/:id", requireSignedIn9, async (req, res) => {
   const userId = req._userId;
   const { id } = req.params;
-  const { name, venue, client, data } = req.body ?? {};
+  const { name, venue, client, easyjob_number, data } = req.body ?? {};
   if (!UUID_PATTERN.test(String(id))) {
     res.status(404).json({ ok: false, error: "Project not found." });
     return;
@@ -80530,6 +80624,10 @@ router11.patch("/projects/:id", requireSignedIn9, async (req, res) => {
   if (typeof name === "string") updates.name = name.slice(0, 200);
   if (typeof venue === "string") updates.venue = venue.slice(0, 200);
   if (typeof client === "string") updates.client = client.slice(0, 200);
+  if (easyjob_number === null) updates.easyjobNumber = null;
+  if (typeof easyjob_number === "string") {
+    updates.easyjobNumber = easyjob_number.trim().slice(0, 100) || null;
+  }
   if (data !== void 0) updates.data = data;
   try {
     const accessRole = await getProjectAccess(String(id), userId);
@@ -80546,6 +80644,7 @@ router11.patch("/projects/:id", requireSignedIn9, async (req, res) => {
       name: projectsTable.name,
       venue: projectsTable.venue,
       client: projectsTable.client,
+      easyjob_number: projectsTable.easyjobNumber,
       updatedAt: projectsTable.updatedAt
     });
     if (!row) {

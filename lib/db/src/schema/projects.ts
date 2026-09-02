@@ -17,6 +17,7 @@ export const projectsTable = pgTable(
     name: text("name").notNull().default("Untitled"),
     venue: text("venue").notNull().default(""),
     client: text("client").notNull().default(""),
+    easyjobNumber: text("easyjob_number"),
     data: jsonb("data").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -25,7 +26,10 @@ export const projectsTable = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("projects_user_id_idx").on(t.userId)],
+  (t) => [
+    index("projects_user_id_idx").on(t.userId),
+    index("projects_easyjob_number_idx").on(t.easyjobNumber),
+  ],
 );
 
 export const insertProjectSchema = createInsertSchema(projectsTable).omit({

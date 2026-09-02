@@ -88,6 +88,7 @@ function clampStr(raw: unknown, cap: number = MAX_TEXT): string {
  *  defence). */
 function normaliseProfile(
   body: Record<string, unknown>,
+  existingDefaultDayRate = 0,
 ): Omit<
   FreelancerProfileRow,
   "userId" | "createdAt" | "updatedAt" | "photoObjectPath"
@@ -119,6 +120,11 @@ function normaliseProfile(
     fullName: clampStr(body.fullName),
     phone: clampStr(body.phone),
     email: clampStr(body.email),
+    defaultDayRate:
+      typeof body.defaultDayRate === "number" &&
+      Number.isFinite(body.defaultDayRate)
+        ? Math.max(0, Math.min(1_000_000, Math.round(body.defaultDayRate)))
+        : existingDefaultDayRate,
     primaryRole,
     city: clampStr(body.city),
     bio: clampStr(body.bio, MAX_BIO),
@@ -217,8 +223,13 @@ router.get("/portal/profile/me", requireSignedIn, async (req, res) => {
 router.put("/portal/profile/me", requireSignedIn, async (req, res) => {
   const body = (req.body ?? {}) as Record<string, unknown>;
   const userId = (req as unknown as { _userId: string })._userId;
-  const fields = normaliseProfile(body);
   try {
+    const [existing] = await db
+      .select({ defaultDayRate: freelancerProfilesTable.defaultDayRate })
+      .from(freelancerProfilesTable)
+      .where(eq(freelancerProfilesTable.userId, userId))
+      .limit(1);
+    const fields = normaliseProfile(body, existing?.defaultDayRate ?? 0);
     const inserted = await db
       .insert(freelancerProfilesTable)
       .values({ userId, ...fields })
@@ -248,6 +259,94 @@ router.put("/portal/profile/me", requireSignedIn, async (req, res) => {
     res.status(500).json({ ok: false, error: "Could not save profile." });
   }
 });
+
+/** PATCH /api/portal/freelancers/:userId
+ *  Employee-only correction endpoint for the global Crew Directory.
+ *  Only operational profile fields are writable; banking, organisation,
+ *  insurance, travel preferences and profile-photo ownership stay outside
+ *  the admin surface. */
+router.patch(
+  "/portal/freelancers/:userId",
+  requireEmployee,
+  async (req, res): Promise<void> => {
+    const userId = String(req.params.userId ?? "").trim();
+    if (!userId || userId.length > 200) {
+      res.status(400).json({ ok: false, error: "Invalid freelancer ID." });
+      return;
+    }
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const updates: Partial<FreelancerProfileRow> = {};
+    if ("fullName" in body) updates.fullName = clampStr(body.fullName);
+    if ("email" in body) updates.email = clampStr(body.email);
+    if ("phone" in body) updates.phone = clampStr(body.phone);
+    if ("primaryRole" in body) updates.primaryRole = clampStr(body.primaryRole);
+    if ("city" in body) updates.city = clampStr(body.city);
+    if ("bio" in body) updates.bio = clampStr(body.bio, MAX_BIO);
+    if ("languages" in body) {
+      updates.languages = sanitizeSkills(
+        Array.isArray(body.languages)
+          ? body.languages.filter((x): x is string => typeof x === "string")
+          : [],
+      );
+    }
+    if ("skills" in body) {
+      const skills = sanitizeSkills(
+        Array.isArray(body.skills)
+          ? body.skills.filter((x): x is string => typeof x === "string")
+          : [],
+      );
+      const grouped = groupSkills(skills);
+      updates.skills = skills;
+      updates.workTypes = grouped.workTypes;
+      updates.consoles = grouped.consoles;
+      updates.certs = grouped.certs;
+    }
+    if ("defaultDayRate" in body) {
+      const rate =
+        typeof body.defaultDayRate === "number"
+          ? body.defaultDayRate
+          : Number(body.defaultDayRate);
+      if (!Number.isFinite(rate) || rate < 0 || rate > 1_000_000) {
+        res.status(400).json({ ok: false, error: "Invalid default day rate." });
+        return;
+      }
+      updates.defaultDayRate = Math.round(rate);
+    }
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ ok: false, error: "No editable fields supplied." });
+      return;
+    }
+    try {
+      const [saved] = await db
+        .update(freelancerProfilesTable)
+        .set({ ...updates, updatedAt: sql`now()` })
+        .where(eq(freelancerProfilesTable.userId, userId))
+        .returning();
+      if (!saved) {
+        res.status(404).json({ ok: false, error: "Freelancer not found." });
+        return;
+      }
+      res.json({
+        ok: true,
+        freelancer: {
+          userId: saved.userId,
+          fullName: saved.fullName,
+          email: saved.email,
+          phone: saved.phone,
+          defaultDayRate: saved.defaultDayRate,
+          primaryRole: saved.primaryRole,
+          city: saved.city,
+          bio: saved.bio,
+          skills: saved.skills,
+          languages: saved.languages,
+        },
+      });
+    } catch (err) {
+      req.log.error({ err, userId }, "admin freelancer profile PATCH failed");
+      res.status(500).json({ ok: false, error: "Could not update freelancer." });
+    }
+  },
+);
 
 /** POST /api/portal/profile/photo/upload-url
  *  Gives any signed-in user a tightly-scoped image upload URL. The browser
@@ -446,12 +545,8 @@ router.get(
  *
  *  Without dates, status defaults to `"available"`.
  *
- *  Phone numbers are intentionally excluded from the projection: until
- *  the platform has a producer-vs-freelancer role distinction, this
- *  endpoint is reachable by any signed-in user, and we don't want
- *  freelancers to scrape contact info on each other. The producer
- *  reaches a freelancer through the brief / gig flow (which the
- *  recipient explicitly accepts), where full contact info surfaces. */
+ *  Contact details are included because the endpoint is employee-only.
+ *  Financial and private operational fields remain excluded. */
 router.get("/portal/freelancers", requireEmployee, async (req, res) => {
   const callerUserId = (req as unknown as { _userId: string })._userId;
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
@@ -566,6 +661,8 @@ router.get("/portal/freelancers", requireEmployee, async (req, res) => {
         skills: freelancerProfilesTable.skills,
         languages: freelancerProfilesTable.languages,
         phone: freelancerProfilesTable.phone,
+        email: freelancerProfilesTable.email,
+        defaultDayRate: freelancerProfilesTable.defaultDayRate,
         dietary: freelancerProfilesTable.dietary,
         allergies: freelancerProfilesTable.allergies,
         status: statusExpr.as("status"),

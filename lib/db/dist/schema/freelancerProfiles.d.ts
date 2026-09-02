@@ -165,6 +165,23 @@ export declare const freelancerProfilesTable: import("drizzle-orm/pg-core").PgTa
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        defaultDayRate: import("drizzle-orm/pg-core").PgColumn<{
+            name: "default_day_rate";
+            tableName: "freelancer_profiles";
+            dataType: "number";
+            columnType: "PgInteger";
+            data: number;
+            driverParam: string | number;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         dietary: import("drizzle-orm/pg-core").PgColumn<{
             name: "dietary";
             tableName: "freelancer_profiles";
@@ -607,6 +624,7 @@ export declare const insertFreelancerProfileSchema: z.ZodObject<{
     photoObjectPath: z.ZodOptional<z.ZodString>;
     insurance: z.ZodOptional<z.ZodString>;
     email: z.ZodOptional<z.ZodString>;
+    defaultDayRate: z.ZodOptional<z.ZodInt>;
     dietary: z.ZodOptional<z.ZodString>;
     allergies: z.ZodOptional<z.ZodString>;
     bankAccount: z.ZodOptional<z.ZodString>;

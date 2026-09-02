@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth, useClerk, useUser } from "@clerk/react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import "./index.css";
 import ehsLogo from "./assets/ehs-logo.png";
 import { AppShell, type ShellView, type ShellAction } from "./components/AppShell";
@@ -53,6 +53,11 @@ import { NumberField } from "./components/NumberField";
 import { ShareBriefModal } from "./components/ShareBriefModal";
 import { HelpModal } from "./components/HelpModal";
 import { ProjectListModal } from "./components/ProjectListModal";
+import { GlobalShell, type GlobalView } from "./components/global/GlobalShell";
+import { HomeDashboard, type DashboardStats } from "./components/global/HomeDashboard";
+import { ProjectsDatabasePage } from "./components/global/ProjectsDatabasePage";
+import { CrewDirectoryPage } from "./components/global/CrewDirectoryPage";
+import { GlobalPlaceholderPage } from "./components/global/GlobalPlaceholderPage";
 import { FolderOpen as ShellFolderOpen, Copy as ShellCopy } from "lucide-react";
 import { useI18n } from "./lib/i18n/I18nContext";
 import { buildBrief, type BuildBriefInput } from "./lib/projectBrief";
@@ -730,6 +735,23 @@ type MainView =
   | "tasks"
   | "chat";
 
+const GLOBAL_VIEW_PATHS: Record<GlobalView, string> = {
+  home: "/home",
+  projects: "/projects",
+  crew: "/crew",
+  calendar: "/calendar",
+  transport: "/transport",
+  tasks: "/tasks",
+  economy: "/economy",
+  settings: "/settings",
+};
+
+function globalViewFromPath(path: string): GlobalView | null {
+  const entry = (Object.entries(GLOBAL_VIEW_PATHS) as Array<[GlobalView, string]>)
+    .find(([, candidate]) => path === candidate || path.startsWith(`${candidate}/`));
+  return entry?.[0] ?? null;
+}
+
 type ShowFixture = {
   id: string;
   name: string;
@@ -908,6 +930,8 @@ type ThemePref = "light" | "dark" | "system";
 type PersistedV2 = {
   theme: ThemePref;
   venue: string;
+  /** External Easyjob reference. Optional for backwards compatibility. */
+  easyjobNumber?: string;
   /** Client / customer name. Optional — empty string when not yet set.
    *  Lives next to the venue in the project meta card and flows through
    *  to the Client Pack cover, the Show Simulation cover, and every
@@ -1255,6 +1279,7 @@ function ThemeSegmentedControl({
 }
 
 function App() {
+  const [location, navigate] = useLocation();
   const persisted = useRef<Partial<PersistedV2> | null>(loadPersisted()).current;
   const initialSystem = makeSystem("LX1");
   // Aliased to `tr` because this file already uses `t` as a local variable
@@ -1289,6 +1314,7 @@ function App() {
   const theme: "light" | "dark" =
     themePref === "system" ? systemTheme : themePref;
   const [venue, setVenue] = useState(persisted?.venue ?? "");
+  const [easyjobNumber, setEasyjobNumber] = useState(persisted?.easyjobNumber ?? "");
   const [client, setClient] = useState(persisted?.client ?? "");
   const [reportDate, setReportDate] = useState(
     persisted?.reportDate ?? new Date().toISOString().slice(0, 10),
@@ -1323,6 +1349,17 @@ function App() {
   });
 
   const [mainView, setMainView] = useState<MainView>(persisted?.mainView ?? "oversikt");
+  const [globalView, setGlobalView] = useState<GlobalView | null>(
+    () => globalViewFromPath(location) ?? "home",
+  );
+  const navigateGlobalView = useCallback((view: GlobalView) => {
+    setGlobalView(view);
+    navigate(GLOBAL_VIEW_PATHS[view]);
+  }, [navigate]);
+  useEffect(() => {
+    const next = globalViewFromPath(location);
+    if (next) setGlobalView(next);
+  }, [location]);
   const clerk = useClerk();
   const { user } = useUser();
 
@@ -1476,6 +1513,12 @@ function App() {
   const [currentProjectAccessRole, setCurrentProjectAccessRole] = useState<
     "owner" | "editor" | "viewer" | null
   >(null);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+    activeProjects: 0,
+    planningProjects: 0,
+    totalFreelancers: 0,
+    unassignedTasks: 0,
+  });
   const projectSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectSaveVersion = useRef(0);
   const cloudSaveInFlight = useRef(false);
@@ -1501,6 +1544,7 @@ function App() {
         name: data.venue || "",
         venue: data.venue || "",
         client: data.client || "",
+        easyjob_number: data.easyjobNumber || null,
         data,
       };
       let res: Response;
@@ -1568,6 +1612,41 @@ function App() {
       cancelled = true;
     };
   }, [currentProjectId, getToken]);
+
+  useEffect(() => {
+    if (globalView !== "home") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const headers = { Authorization: `Bearer ${token}` };
+        const [projectsRes, crewRes] = await Promise.all([
+          fetch("/api/projects", { headers }),
+          fetch("/api/portal/freelancers", { headers }),
+        ]);
+        if (!projectsRes.ok || !crewRes.ok) return;
+        const [projectsJson, crewJson] = await Promise.all([
+          projectsRes.json(),
+          crewRes.json(),
+        ]);
+        if (cancelled) return;
+        const projects = Array.isArray(projectsJson.projects) ? projectsJson.projects : [];
+        const freelancers = Array.isArray(crewJson.freelancers) ? crewJson.freelancers : [];
+        setDashboardStats({
+          activeProjects: projects.filter((p: { status?: string }) => p.status === "active").length,
+          planningProjects: projects.filter((p: { status?: string }) => p.status === "planning").length,
+          totalFreelancers: freelancers.length,
+          unassignedTasks: 0,
+        });
+      } catch {
+        // The dedicated pages surface fetch errors; the hub keeps neutral counts.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, globalView]);
 
   // Expose a generic parent-window handler that the Client Pack and
   // Show Simulation popups can invoke for "Download PDF". We render the
@@ -1774,6 +1853,7 @@ function App() {
   const buildPersistedData = useCallback((): PersistedV2 => ({
     theme: themePref,
     venue,
+    easyjobNumber,
     client,
     reportDate,
     reportEndDate,
@@ -1798,7 +1878,7 @@ function App() {
     riggPlan,
     inspection,
   }), [
-    themePref, venue, client, reportDate, reportEndDate, extraSchedule,
+    themePref, venue, easyjobNumber, client, reportDate, reportEndDate, extraSchedule,
     engineer, briefDescription, clientContact, systems, activeSystemId, showFixtures, mainView, linkedMeta,
     ledScreens, ledLinkedMeta, ledSettings, ledSystemState, stages, crew, soundItems,
     power, activeBriefId, riggPlan, inspection,
@@ -4778,6 +4858,7 @@ function App() {
     // pre-seeded "4× FD34" row + first hoist.
     const fresh = makeEmptySystem("LX1");
     setVenue("");
+    setEasyjobNumber("");
     setClient("");
     setReportDate(new Date().toISOString().slice(0, 10));
     setReportEndDate("");
@@ -4825,6 +4906,7 @@ function App() {
   const hydrateFromData = useCallback((d: Partial<PersistedV2>) => {
     if (d.theme) setThemePref(d.theme);
     setVenue(d.venue ?? "");
+    setEasyjobNumber(typeof d.easyjobNumber === "string" ? d.easyjobNumber : "");
     setClient(d.client ?? "");
     setReportDate(d.reportDate ?? new Date().toISOString().slice(0, 10));
     setReportEndDate(d.reportEndDate ?? "");
@@ -4887,7 +4969,15 @@ function App() {
       const json = await res.json();
       const p = json.project;
       if (!p?.data) return;
-      hydrateFromData(p.data as Partial<PersistedV2>);
+      hydrateFromData({
+        ...(p.data as Partial<PersistedV2>),
+        easyjobNumber:
+          typeof p.easyjob_number === "string"
+            ? p.easyjob_number
+            : typeof p.easyjobNumber === "string"
+              ? p.easyjobNumber
+            : (p.data as Partial<PersistedV2>).easyjobNumber,
+      });
       setCurrentProjectId(id);
       setCurrentProjectAccessRole(p.accessRole ?? null);
       setCloudSavedAt(
@@ -4901,6 +4991,7 @@ function App() {
     await flushPendingSave();
     const fresh = makeEmptySystem("LX1");
     setVenue("");
+    setEasyjobNumber("");
     setClient("");
     setReportDate(new Date().toISOString().slice(0, 10));
     setReportEndDate("");
@@ -4954,6 +5045,7 @@ function App() {
           name: venue || "",
           venue: venue || "",
           client: client || "",
+          easyjob_number: easyjobNumber || null,
           data,
         }),
       });
@@ -4969,7 +5061,7 @@ function App() {
         }
       }
     } catch { /* network error */ }
-  }, [getToken, buildPersistedData, venue, client]);
+  }, [getToken, buildPersistedData, venue, client, easyjobNumber]);
 
   const handleProjectDelete = useCallback((deletedId: string) => {
     if (currentProjectId === deletedId) {
@@ -5666,6 +5758,16 @@ function App() {
   const projectMetaSlot = (
     <>
       <div className="meta-field">
+        <label>Easyjob ID</label>
+        <input
+          type="text"
+          value={easyjobNumber}
+          onChange={(e) => setEasyjobNumber(e.target.value)}
+          placeholder="e.g. EJ-2026-001"
+          maxLength={100}
+        />
+      </div>
+      <div className="meta-field">
         <label>{tr("project.venueProject")}</label>
         <input
           type="text"
@@ -5742,6 +5844,72 @@ function App() {
     </>
   );
 
+  if (globalView) {
+    const placeholderCopy: Record<
+      Exclude<GlobalView, "home" | "projects" | "crew">,
+      { title: string; description: string }
+    > = {
+      calendar: {
+        title: "Master Calendar",
+        description: "Cross-project scheduling, crew availability, and production milestones will arrive in Phase 2.",
+      },
+      transport: {
+        title: "Transport & Logistics",
+        description: "Fleet planning, transport runs, manifests, and logistics coordination are prepared for the next phase.",
+      },
+      tasks: {
+        title: "Task Management",
+        description: "A consolidated view of tasks across every production is planned for the next phase.",
+      },
+      economy: {
+        title: "Economy",
+        description: "Global budgets, purchasing, invoicing, and financial reporting will be introduced in a later phase.",
+      },
+      settings: {
+        title: "System Settings",
+        description: "Organization-wide configuration and operational defaults will be introduced in a later phase.",
+      },
+    };
+    return (
+      <div className="container">
+        <GlobalShell
+          view={globalView}
+          onChangeView={navigateGlobalView}
+          userInitial={userInitial}
+          userName={userName}
+          userRole={tr("shell.userRole.producer")}
+          themePref={themePref}
+          onChangeTheme={setThemePref}
+          onSignOut={handleShellSignOut}
+        >
+          {globalView === "home" ? (
+            <HomeDashboard stats={dashboardStats} onNavigate={navigateGlobalView} />
+          ) : globalView === "projects" ? (
+            <ProjectsDatabasePage
+              getToken={getToken}
+              onOpenProject={(id) => {
+                void loadProject(id).then(() => {
+                  setGlobalView(null);
+                  navigate(`/project/${id}`);
+                });
+              }}
+              onNewProject={() => {
+                void newProject().then(() => {
+                  setGlobalView(null);
+                  navigate("/project/new");
+                });
+              }}
+            />
+          ) : globalView === "crew" ? (
+            <CrewDirectoryPage getToken={getToken} />
+          ) : (
+            <GlobalPlaceholderPage {...placeholderCopy[globalView]} />
+          )}
+        </GlobalShell>
+      </div>
+    );
+  }
+
   return (
     <div className="container">
       <AppShell
@@ -5766,7 +5934,8 @@ function App() {
         userEmail={userEmail}
         onSignOut={handleShellSignOut}
         onHelp={() => setHelpOpen(true)}
-        onOpenProjects={() => setProjectsOpen(true)}
+        onHome={() => navigateGlobalView("home")}
+        onOpenProjects={() => navigateGlobalView("projects")}
         cloudSavedAt={cloudSavedAt}
         onResetProject={currentProjectAccessRole === "viewer" ? undefined : resetAll}
         readOnly={currentProjectAccessRole === "viewer" && mainView !== "chat"}

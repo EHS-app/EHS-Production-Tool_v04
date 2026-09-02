@@ -11,6 +11,7 @@ type TimeEntryStatus =
   | "submitted"
   | "approved"
   | "rejected"
+  | "flagged"
   | "locked";
 
 type TimeEntryRow = {
@@ -20,9 +21,13 @@ type TimeEntryRow = {
   startMinute: number | null;
   endMinute: number | null;
   breakMinutes: number;
+  workedMinutes: number;
+  payableMinutes: number;
+  overtimeMinutes: number;
   status: TimeEntryStatus;
   notes: string;
   rejectionReason: string | null;
+  flagReason: string | null;
   submittedAt: string | null;
   decidedAt: string | null;
   lockedAt: string | null;
@@ -91,6 +96,8 @@ function statusPill(
       return { bg: "rgba(46,160,67,0.18)", fg: "#2ea043", label: t("portal.hours.statusPill.approved") };
     case "rejected":
       return { bg: "rgba(239,68,68,0.18)", fg: "#ef4444", label: t("portal.hours.statusPill.rejected") };
+    case "flagged":
+      return { bg: "rgba(239,68,68,0.18)", fg: "#ef4444", label: "Flagged" };
     case "locked":
       return { bg: "rgba(120,120,120,0.22)", fg: c.muted, label: t("portal.hours.statusPill.locked") };
     default:
@@ -368,18 +375,8 @@ function GigBlock({
     let sum = 0;
     for (const date of gig.assignedDates) {
       const row = entries[date];
-      if (
-        !row ||
-        row.startMinute == null ||
-        row.endMinute == null ||
-        row.status === "rejected"
-      )
-        continue;
-      const s = row.startMinute;
-      const e = row.endMinute;
-      const span = e >= s ? e - s : 24 * 60 - s + e;
-      const net = Math.max(0, span - (row.breakMinutes ?? 0));
-      sum += net / 60;
+      if (!row || row.status === "rejected" || row.status === "flagged") continue;
+      sum += row.payableMinutes / 60;
     }
     return Math.round(sum * 100) / 100;
   }, [entries, gig.assignedDates]);
@@ -429,7 +426,8 @@ function GigBlock({
         {gig.assignedDates.map((date) => {
           const row = entries[date];
           const status: TimeEntryStatus = row?.status ?? "draft";
-          const editable = status === "draft" || status === "rejected";
+          const editable =
+            status === "draft" || status === "rejected" || status === "flagged";
           const pill = statusPill(status, c, t);
           const d = draftFor(date);
           const computedH = computeHours(d);
@@ -487,7 +485,9 @@ function GigBlock({
                   textAlign: "right",
                 }}
               >
-                {computedH}h
+                {editable || !row
+                  ? `${computedH}h`
+                  : `${Math.round((row.payableMinutes / 60) * 100) / 100}h payable`}
               </span>
               <span
                 style={{
@@ -564,6 +564,19 @@ function GigBlock({
                       : t("portal.hours.awaiting")}
                 </span>
               )}
+              {(row?.rejectionReason || row?.flagReason) ? (
+                <div
+                  style={{
+                    gridColumn: "1 / -1",
+                    color: "#ef4444",
+                    fontSize: 11,
+                  }}
+                >
+                  {row.flagReason
+                    ? `Flag: ${row.flagReason}`
+                    : `Reason: ${row.rejectionReason}`}
+                </div>
+              ) : null}
             </div>
           );
         })}

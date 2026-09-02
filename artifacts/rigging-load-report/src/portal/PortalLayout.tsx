@@ -15,6 +15,8 @@ import {
   MoreHorizontal,
   Search,
   TrendingUp,
+  Truck,
+  ListChecks,
   User,
   Wallet,
 } from "lucide-react";
@@ -35,6 +37,8 @@ export type PortalNavKey =
   | "hub"
   | "briefs"
   | "gigs"
+  | "runs"
+  | "tasks"
   | "availability"
   | "hours"
   | "earnings"
@@ -56,6 +60,8 @@ const NAV_WORK: NavItem[] = [
   { key: "hub", labelKey: "portal.nav.hub", href: "/portal", icon: Activity },
   { key: "briefs", labelKey: "portal.nav.briefs", href: "/portal/briefs", icon: Inbox },
   { key: "gigs", labelKey: "portal.nav.gigs", href: "/portal/gigs", icon: Calendar },
+  { key: "runs", labelKey: "portal.nav.runs", href: "/portal/my-runs", icon: Truck },
+  { key: "tasks", labelKey: "portal.nav.tasks", href: "/portal/my-tasks", icon: ListChecks },
   {
     key: "availability",
     labelKey: "portal.nav.availability",

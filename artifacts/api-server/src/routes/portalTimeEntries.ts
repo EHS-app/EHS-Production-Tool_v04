@@ -10,6 +10,7 @@ import {
   type TimeEntryRow,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
+import { requireEmployee } from "../middleware/userType";
 
 const router: IRouter = Router();
 
@@ -29,11 +30,21 @@ const requireSignedIn: RequestHandler = (req, res, next) => {
 const MAX_NOTES = 4000;
 const MAX_REASON = 1000;
 const STATUS_SET = new Set<string>(TIME_ENTRY_STATUSES);
-const SUBMITTABLE = new Set(["draft", "rejected"]);
+const SUBMITTABLE = new Set(["draft", "rejected", "flagged"]);
 
 function clampStr(raw: unknown, cap = 280): string {
   if (typeof raw !== "string") return "";
   return raw.trim().slice(0, cap);
+}
+
+function majorNokToMinor(raw: string): number {
+  const match = raw.trim().match(/^(\d+)(?:\.(\d+))?$/);
+  if (!match) throw new Error("Invalid gig compensation.");
+  const amount = Number(match[1]) * 100 + Number(`${match[2] ?? ""}00`.slice(0, 2));
+  if (!Number.isSafeInteger(amount) || amount < 0 || amount > 2_147_483_647) {
+    throw new Error("Gig compensation is outside the supported range.");
+  }
+  return amount;
 }
 
 function pickDate(raw: unknown): string | null {
@@ -56,13 +67,48 @@ function pickBreak(raw: unknown): number {
   return Math.min(Math.round(n), 24 * 60);
 }
 
-/** Compute net worked minutes for an entry (handles overnight). */
-function workedMinutes(row: Pick<TimeEntryRow, "startMinute" | "endMinute" | "breakMinutes">): number {
+function pickInteger(raw: unknown, min: number, max: number): number | null {
+  if (typeof raw !== "number" || !Number.isFinite(raw) || !Number.isInteger(raw)) {
+    return null;
+  }
+  return raw < min || raw > max ? null : raw;
+}
+
+function hasOnlyKeys(body: Record<string, unknown>, allowed: readonly string[]) {
+  const set = new Set(allowed);
+  return Object.keys(body).every((key) => set.has(key));
+}
+
+function grossMinutes(
+  row: Pick<TimeEntryRow, "startMinute" | "endMinute">,
+): number {
   if (row.startMinute == null || row.endMinute == null) return 0;
   let span = row.endMinute - row.startMinute;
   if (span < 0) span += 24 * 60;
-  const net = span - (row.breakMinutes ?? 0);
+  return span;
+}
+
+/** Compute net worked minutes for an entry (handles overnight). */
+function workedMinutes(row: Pick<TimeEntryRow, "startMinute" | "endMinute" | "breakMinutes">): number {
+  const net = grossMinutes(row) - (row.breakMinutes ?? 0);
   return net > 0 ? net : 0;
+}
+
+function payableMinutes(
+  row: Pick<
+    TimeEntryRow,
+    | "startMinute"
+    | "endMinute"
+    | "breakMinutes"
+    | "producerBreakMinutes"
+    | "producerAdjustmentMinutes"
+  >,
+): number {
+  const breakMinutes = row.producerBreakMinutes ?? row.breakMinutes ?? 0;
+  return Math.max(
+    0,
+    grossMinutes(row) - breakMinutes + row.producerAdjustmentMinutes,
+  );
 }
 
 function serialize(row: TimeEntryRow) {
@@ -76,6 +122,14 @@ function serialize(row: TimeEntryRow) {
     endMinute: row.endMinute,
     breakMinutes: row.breakMinutes,
     workedMinutes: workedMinutes(row),
+    producerBreakMinutes: row.producerBreakMinutes,
+    producerAdjustmentMinutes: row.producerAdjustmentMinutes,
+    overtimeMinutes: row.overtimeMinutes,
+    payableMinutes: payableMinutes(row),
+    adjustmentReason: row.adjustmentReason,
+    adjustedByUserId: row.adjustedByUserId,
+    adjustedAt: row.adjustedAt,
+    flagReason: row.flagReason,
     notes: row.notes,
     status: row.status,
     decidedByUserId: row.decidedByUserId,
@@ -96,7 +150,7 @@ async function loadOwnGig(gigId: string, userId: string) {
   return rows[0] ?? null;
 }
 
-/** Verify the signed-in user owns the brief tied to this gig (producer-side). */
+/** Verify the signed-in employee owns the brief tied to this gig. */
 async function loadGigForProducer(gigId: string, userId: string) {
   const rows = await db
     .select({
@@ -179,6 +233,20 @@ router.put(
     }
 
     const body = (req.body ?? {}) as Record<string, unknown>;
+    if (
+      !hasOnlyKeys(body, [
+        "startMinute",
+        "endMinute",
+        "breakMinutes",
+        "notes",
+      ])
+    ) {
+      res.status(400).json({
+        ok: false,
+        error: "Unexpected or protected fields in time entry update.",
+      });
+      return;
+    }
     const startMinute = pickMinute(body.startMinute);
     const endMinute = pickMinute(body.endMinute);
     const breakMinutes = pickBreak(body.breakMinutes);
@@ -240,12 +308,19 @@ router.put(
         decidedByUserId: null,
         decidedAt: null,
         rejectionReason: "",
+        flagReason: "",
+        producerAdjustmentMinutes: 0,
+        producerBreakMinutes: null,
+        overtimeMinutes: 0,
+        adjustmentReason: "",
+        adjustedByUserId: null,
+        adjustedAt: null,
         updatedAt: sql`now()`,
       })
       .where(
         and(
           eq(timeEntriesTable.id, prior.id),
-          inArray(timeEntriesTable.status, ["draft", "rejected"]),
+          inArray(timeEntriesTable.status, ["draft", "rejected", "flagged"]),
         ),
       )
       .returning();
@@ -277,6 +352,14 @@ router.post(
     const gig = await loadOwnGig(gigId, userId);
     if (!gig) {
       res.status(403).json({ ok: false, error: "Forbidden" });
+      return;
+    }
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    if (!hasOnlyKeys(body, [])) {
+      res.status(400).json({
+        ok: false,
+        error: "Submit does not accept identity, project, rate, or time fields.",
+      });
       return;
     }
     const existing = await db
@@ -315,6 +398,13 @@ router.post(
       .set({
         status: "submitted",
         rejectionReason: "",
+        flagReason: "",
+        producerAdjustmentMinutes: 0,
+        producerBreakMinutes: null,
+        overtimeMinutes: 0,
+        adjustmentReason: "",
+        adjustedByUserId: null,
+        adjustedAt: null,
         decidedByUserId: null,
         decidedAt: null,
         updatedAt: sql`now()`,
@@ -322,7 +412,7 @@ router.post(
       .where(
         and(
           eq(timeEntriesTable.id, prior.id),
-          inArray(timeEntriesTable.status, ["draft", "rejected"]),
+          inArray(timeEntriesTable.status, ["draft", "rejected", "flagged"]),
         ),
       )
       .returning();
@@ -391,10 +481,12 @@ router.get(
 
 /** POST /api/portal/time-entries/:id/decide
  *  Producer approves or rejects a submitted entry. Body:
- *    { decision: "approve" } or { decision: "reject", reason: string } */
+ *    { decision: "approve" }, { decision: "reject", reason }, or
+ *    { decision: "flag", reason }. */
 router.post(
   "/portal/time-entries/:id/decide",
   requireSignedIn,
+  requireEmployee,
   async (req, res) => {
     const userId = (req as unknown as { _userId: string })._userId;
     const id = String(req.params.id ?? "");
@@ -426,11 +518,30 @@ router.post(
       return;
     }
     const body = (req.body ?? {}) as Record<string, unknown>;
-    const decision = clampStr(body.decision);
-    if (decision !== "approve" && decision !== "reject") {
+    if (!hasOnlyKeys(body, ["decision", "reason"])) {
       res.status(400).json({
         ok: false,
-        error: 'decision must be "approve" or "reject".',
+        error: "Unexpected fields in producer decision.",
+      });
+      return;
+    }
+    const decision = clampStr(body.decision);
+    if (
+      decision !== "approve" &&
+      decision !== "reject" &&
+      decision !== "flag"
+    ) {
+      res.status(400).json({
+        ok: false,
+        error: 'decision must be "approve", "reject", or "flag".',
+      });
+      return;
+    }
+    const reason = clampStr(body.reason, MAX_REASON);
+    if (decision !== "approve" && !reason) {
+      res.status(400).json({
+        ok: false,
+        error: "A reason is required when rejecting or flagging an entry.",
       });
       return;
     }
@@ -441,11 +552,20 @@ router.post(
     const updated = await db
       .update(timeEntriesTable)
       .set({
-        status: decision === "approve" ? "approved" : "rejected",
+        status:
+          decision === "approve"
+            ? "approved"
+            : decision === "flag"
+              ? "flagged"
+              : "rejected",
         decidedByUserId: userId,
         decidedAt: sql`now()`,
-        rejectionReason:
-          decision === "reject" ? clampStr(body.reason, MAX_REASON) : "",
+        rejectionReason: decision === "reject" ? reason : "",
+        flagReason: decision === "flag" ? reason : "",
+        approvedRateMinor:
+          decision === "approve" ? majorNokToMinor(gig.gig.rate) : null,
+        approvedFlatFeeMinor:
+          decision === "approve" ? majorNokToMinor(gig.gig.flatFee) : null,
         updatedAt: sql`now()`,
       })
       .where(
@@ -466,17 +586,136 @@ router.post(
   },
 );
 
+/** POST /api/portal/time-entries/:id/adjust
+ * Producer changes payable meal-break/minute classification without changing
+ * the freelancer's observed start/end/break. Only submitted rows are mutable. */
+router.post(
+  "/portal/time-entries/:id/adjust",
+  requireSignedIn,
+  requireEmployee,
+  async (req, res) => {
+    const userId = (req as unknown as { _userId: string })._userId;
+    const id = String(req.params.id ?? "");
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    if (
+      !id ||
+      !hasOnlyKeys(body, [
+        "adjustmentMinutes",
+        "breakMinutes",
+        "overtimeMinutes",
+        "reason",
+      ])
+    ) {
+      res.status(400).json({
+        ok: false,
+        error: id ? "Unexpected fields in producer adjustment." : "id required",
+      });
+      return;
+    }
+    const rows = await db
+      .select()
+      .from(timeEntriesTable)
+      .where(eq(timeEntriesTable.id, id))
+      .limit(1);
+    const entry = rows[0];
+    if (!entry) {
+      res.status(404).json({ ok: false, error: "Entry not found" });
+      return;
+    }
+    if (!(await loadGigForProducer(entry.gigId, userId))) {
+      res.status(403).json({ ok: false, error: "Forbidden" });
+      return;
+    }
+    if (entry.status !== "submitted") {
+      res.status(409).json({
+        ok: false,
+        error: "Only submitted entries can be adjusted.",
+      });
+      return;
+    }
+    const adjustmentMinutes = pickInteger(body.adjustmentMinutes, -1440, 1440);
+    const breakMinutes = pickInteger(body.breakMinutes, 0, 1440);
+    const overtimeMinutes = pickInteger(body.overtimeMinutes, 0, 1440);
+    const reason = clampStr(body.reason, MAX_REASON);
+    if (
+      adjustmentMinutes == null ||
+      breakMinutes == null ||
+      overtimeMinutes == null ||
+      !reason
+    ) {
+      res.status(400).json({
+        ok: false,
+        error:
+          "Whole-minute adjustment, break, overtime, and a reason are required.",
+      });
+      return;
+    }
+    const gross = grossMinutes(entry);
+    if (breakMinutes > gross) {
+      res.status(400).json({
+        ok: false,
+        error: "Adjusted break cannot exceed the observed shift.",
+      });
+      return;
+    }
+    const payable = Math.max(0, gross - breakMinutes + adjustmentMinutes);
+    if (payable > 1440 || overtimeMinutes > payable) {
+      res.status(400).json({
+        ok: false,
+        error:
+          "Payable time must be at most 24 hours and overtime cannot exceed payable time.",
+      });
+      return;
+    }
+    const updated = await db
+      .update(timeEntriesTable)
+      .set({
+        producerAdjustmentMinutes: adjustmentMinutes,
+        producerBreakMinutes: breakMinutes,
+        overtimeMinutes,
+        adjustmentReason: reason,
+        adjustedByUserId: userId,
+        adjustedAt: sql`now()`,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(timeEntriesTable.id, id),
+          eq(timeEntriesTable.status, "submitted"),
+        ),
+      )
+      .returning();
+    if (!updated[0]) {
+      res.status(409).json({
+        ok: false,
+        error: "Entry status changed before the adjustment landed. Reload.",
+      });
+      return;
+    }
+    res.json({ ok: true, entry: serialize(updated[0]) });
+  },
+);
+
 /** POST /api/portal/time-entries/:id/lock
  *  Producer locks an approved entry (payroll exported). Immutable after.
  *  Locking a non-approved entry is rejected. */
 router.post(
   "/portal/time-entries/:id/lock",
   requireSignedIn,
+  requireEmployee,
   async (req, res) => {
     const userId = (req as unknown as { _userId: string })._userId;
     const id = String(req.params.id ?? "");
     if (!id) {
       res.status(400).json({ ok: false, error: "id required" });
+      return;
+    }
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    if (!hasOnlyKeys(body, [])) {
+      res.status(400).json({
+        ok: false,
+        error: "Lock does not accept identity, project, rate, or time fields.",
+      });
       return;
     }
     const rows = await db

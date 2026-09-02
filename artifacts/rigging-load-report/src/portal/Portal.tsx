@@ -12,6 +12,8 @@ import { Briefs } from "./screens/Briefs";
 import { BriefDetail } from "./screens/BriefDetail";
 import { BriefImport } from "./screens/BriefImport";
 import { Help } from "./screens/Help";
+import { MyRuns } from "./screens/MyRuns";
+import { MyTasks } from "./screens/MyTasks";
 import {
   loadPortalData,
   savePortalData,
@@ -148,6 +150,8 @@ export function Portal({ theme, pref, setPref }: PortalProps) {
   const active: PortalNavKey = useMemo(() => {
     const path = location.replace(/\/+$/, "");
     if (path.endsWith("/gigs")) return "gigs";
+    if (path.endsWith("/my-runs")) return "runs";
+    if (path.endsWith("/my-tasks")) return "tasks";
     if (path.endsWith("/availability")) return "availability";
     if (path.endsWith("/hours")) return "hours";
     if (path.endsWith("/earnings")) return "earnings";
@@ -283,6 +287,12 @@ export function Portal({ theme, pref, setPref }: PortalProps) {
       <Switch>
         <Route path="/portal/gigs">
           <Gigs theme={theme} data={data} setData={setData} />
+        </Route>
+        <Route path="/portal/my-runs">
+          <MyRuns theme={theme} />
+        </Route>
+        <Route path="/portal/my-tasks">
+          <MyTasks theme={theme} />
         </Route>
         <Route path="/portal/availability">
           <Availability theme={theme} data={data} setData={setData} />

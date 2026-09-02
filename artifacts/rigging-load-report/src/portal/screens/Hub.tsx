@@ -279,7 +279,7 @@ export function Hub({ theme, data }: { theme: ThemeMode; data: PortalData }) {
         ) : (
           <Stack>
             {todaysGigs.map((g) => (
-              <GigRow key={g.id} g={g} theme={theme} locale={locale} />
+              <GigRow key={g.id} g={g} theme={theme} locale={locale} todayActions />
             ))}
           </Stack>
         )}
@@ -453,54 +453,104 @@ function GigRow({
   g,
   theme,
   locale,
+  todayActions = false,
 }: {
   g: Gig;
   theme: ThemeMode;
   locale: string;
+  todayActions?: boolean;
 }) {
   const c = PALETTE[theme];
   const t = useT();
   const sc = statusColor(g.status);
   return (
-    <Link
-      href="/portal/gigs"
+    <div
       style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 12,
         padding: "10px 12px",
         background: c.cardBgSubtle,
         border: `1px solid ${c.border}`,
         borderRadius: 10,
-        textDecoration: "none",
         color: c.text,
       }}
     >
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {g.projectName}
-        </div>
-        <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
-          {g.role || "—"} · {formatDayShort(g.startDate, locale)}
-          {g.endDate && g.endDate !== g.startDate
-            ? ` → ${formatDayShort(g.endDate, locale)}`
-            : ""}
-        </div>
-      </div>
-      <span
+      <Link
+        href="/portal/gigs"
         style={{
-          fontSize: 11,
-          fontWeight: 700,
-          padding: "4px 8px",
-          borderRadius: 999,
-          background: sc.bg,
-          color: sc.fg,
-          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          color: c.text,
+          textDecoration: "none",
         }}
       >
-        {t(STATUS_KEY[g.status])}
-      </span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {g.projectName}
+          </div>
+          <div style={{ fontSize: 12, color: c.muted, marginTop: 2 }}>
+            {g.role || "—"} · {formatDayShort(g.startDate, locale)}
+            {g.endDate && g.endDate !== g.startDate
+              ? ` → ${formatDayShort(g.endDate, locale)}`
+              : ""}
+          </div>
+        </div>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            padding: "4px 8px",
+            borderRadius: 999,
+            background: sc.bg,
+            color: sc.fg,
+            flexShrink: 0,
+          }}
+        >
+          {t(STATUS_KEY[g.status])}
+        </span>
+      </Link>
+      {todayActions ? (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12, paddingTop: 10, borderTop: `1px solid ${c.border}` }}>
+          <GigAction href="/portal/hours" label={t("portal.hub.action.logHours")} theme={theme} primary />
+          <GigAction
+            href={g.briefId ? `/portal/briefs/${g.briefId}` : "/portal/gigs"}
+            label={t("portal.hub.action.briefLogistics")}
+            theme={theme}
+          />
+          <GigAction href="/portal/hours" label={t("portal.hub.action.submitTimecard")} theme={theme} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function GigAction({
+  href,
+  label,
+  theme,
+  primary = false,
+}: {
+  href: string;
+  label: string;
+  theme: ThemeMode;
+  primary?: boolean;
+}) {
+  const c = PALETTE[theme];
+  return (
+    <Link
+      href={href}
+      style={{
+        padding: "7px 10px",
+        borderRadius: 8,
+        background: primary ? c.accent : c.cardBg,
+        border: `1px solid ${primary ? c.accent : c.border}`,
+        color: primary ? "#0b0b0b" : c.text,
+        textDecoration: "none",
+        fontSize: 12,
+        fontWeight: 700,
+      }}
+    >
+      {label}
     </Link>
   );
 }

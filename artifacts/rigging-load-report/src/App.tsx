@@ -61,6 +61,7 @@ import { MasterCalendarPage } from "./components/global/MasterCalendarPage";
 import { GlobalPlaceholderPage } from "./components/global/GlobalPlaceholderPage";
 import { GlobalTaskBoard } from "./components/global/GlobalTaskBoard";
 import { TransportDashboard } from "./components/global/TransportDashboard";
+import { EconomyDashboard } from "./components/global/EconomyDashboard";
 import { FolderOpen as ShellFolderOpen, Copy as ShellCopy } from "lucide-react";
 import { useI18n } from "./lib/i18n/I18nContext";
 import { buildBrief, type BuildBriefInput } from "./lib/projectBrief";
@@ -5927,6 +5928,16 @@ function App() {
             />
           ) : globalView === "tasks" ? (
             <GlobalTaskBoard
+              getToken={getToken}
+              onOpenProject={(id) => {
+                void loadProject(id).then(() => {
+                  setGlobalView(null);
+                  navigate(`/project/${id}`);
+                });
+              }}
+            />
+          ) : globalView === "economy" ? (
+            <EconomyDashboard
               getToken={getToken}
               onOpenProject={(id) => {
                 void loadProject(id).then(() => {

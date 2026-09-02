@@ -177,11 +177,16 @@ export const no: Translations = {
   "portal.nav.hub": "Hub",
   "portal.nav.briefs": "Briefer",
   "portal.nav.gigs": "Oppdrag",
+  "portal.nav.runs": "Mine kjøreruter",
+  "portal.nav.tasks": "Mine oppgaver",
   "portal.nav.availability": "Tilgjengelighet",
   "portal.nav.hours": "Timer",
   "portal.nav.earnings": "Inntjening",
   "portal.nav.profile": "Profil",
   "portal.nav.help": "Hjelp",
+  "portal.hub.action.logHours": "Før timer / stempl inn",
+  "portal.hub.action.briefLogistics": "Se brief og logistikk",
+  "portal.hub.action.submitTimecard": "Send timeliste / timer",
 
   // ---------- Portal: header chrome ----------
   "portal.header.title": "Frilansportal",

@@ -1,0 +1,37 @@
+Please implement Phase 5 (Global Economy, Timecard Approval, Staffing Costs, and Easyjob Financial Reconciliation) following these instructions:
+
+====================================================================
+1. GLOBAL FINANCIAL & TIMECARD HUB (/economy)
+====================================================================
+- Replace the Phase 5 placeholder view at `/economy` with a multi-tab financial dashboard:
+  * Overview: Financial summary showing Gross Revenue, Total Expenses, and Net Profit Margin (%).
+  * Timecards & Hours: Master approval queue for freelancer submitted timecards/hours across all productions.
+  * Expense Breakdown: Category breakdown (Crew, Hotels, Catering, Transport, Sub-Rentals) with visual budget vs. actual charts.
+  * Easyjob Reconciliation: Exportable overview matching project costs against indexed `easyjob_number` records.
+
+====================================================================
+2. TIMECARD APPROVAL & EXPENSE CATEGORIZATION
+====================================================================
+- Timecards Queue: Allow producers to approve, adjust, or flag submitted freelancer hours, meal breaks, and overtime per gig.
+- Category Breakdown: Track and display per-project expenses broken down by:
+  * Crew / Labor (based on approved timecards & day rates)
+  * Accommodation / Hotels
+  * Catering / Per Diems
+  * Transport / Fleet (fuel, vehicle rentals, tolls)
+  * Equipment / Sub-Rentals
+- Income & Margin Tracking: Support project contract price (revenue) input to automatically calculate Net Margin (%) and flag budget overruns.
+
+====================================================================
+3. FREELANCER PORTAL HUB ENHANCEMENT
+====================================================================
+- Update the Freelancer Portal Hub view (`/freelance-portal` or `/hub`) with:
+  * "My Runs (Transport)" and "My Tasks" menu links in the sidebar navigation.
+  * Quick-action buttons directly on the TODAY active gig card ("Log Hours / Clock In", "View Brief & Logistics").
+  * Dedicated "Submit Timecard / Hours" action connected to Phase 5 approval queues.
+
+====================================================================
+4. AUTHORIZATION, INTEGRITY & SAFETY
+====================================================================
+- Enforce strict employee-only access (`403` for freelancers) on `/api/economy` and timecard approval endpoints.
+- Ensure all cost calculations pull directly from trusted database records without trusting client-side overrides.
+- Run `pnpm build` to verify zero TypeScript compilation errors across all workspace packages.

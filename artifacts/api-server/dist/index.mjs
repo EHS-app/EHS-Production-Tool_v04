@@ -20488,27 +20488,27 @@ var require_router = __commonJS({
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module.exports = Router21;
+    module.exports = Router23;
     module.exports.Route = Route;
-    function Router21(options) {
-      if (!(this instanceof Router21)) {
-        return new Router21(options);
+    function Router23(options) {
+      if (!(this instanceof Router23)) {
+        return new Router23(options);
       }
       const opts = options || {};
-      function router21(req, res, next) {
-        router21.handle(req, res, next);
+      function router23(req, res, next) {
+        router23.handle(req, res, next);
       }
-      Object.setPrototypeOf(router21, this);
-      router21.caseSensitive = opts.caseSensitive;
-      router21.mergeParams = opts.mergeParams;
-      router21.params = {};
-      router21.strict = opts.strict;
-      router21.stack = [];
-      return router21;
+      Object.setPrototypeOf(router23, this);
+      router23.caseSensitive = opts.caseSensitive;
+      router23.mergeParams = opts.mergeParams;
+      router23.params = {};
+      router23.strict = opts.strict;
+      router23.stack = [];
+      return router23;
     }
-    Router21.prototype = function() {
+    Router23.prototype = function() {
     };
-    Router21.prototype.param = function param4(name, fn) {
+    Router23.prototype.param = function param4(name, fn) {
       if (!name) {
         throw new TypeError("argument name is required");
       }
@@ -20528,7 +20528,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router21.prototype.handle = function handle(req, res, callback) {
+    Router23.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -20655,7 +20655,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router21.prototype.use = function use(handler) {
+    Router23.prototype.use = function use(handler) {
       let offset = 0;
       let path2 = "/";
       if (typeof handler !== "function") {
@@ -20688,7 +20688,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router21.prototype.route = function route(path2) {
+    Router23.prototype.route = function route(path2) {
       const route2 = new Route(path2);
       const layer = new Layer(path2, {
         sensitive: this.caseSensitive,
@@ -20703,7 +20703,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router21.prototype[method] = function(path2) {
+      Router23.prototype[method] = function(path2) {
         const route = this.route(path2);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
@@ -20886,13 +20886,13 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = __require("node:path").resolve;
     var once = require_once();
-    var Router21 = require_router();
+    var Router23 = require_router();
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app2 = exports = module.exports = {};
     var trustProxyDefaultSymbol = "@@symbol:trust_proxy_default";
     app2.init = function init() {
-      var router21 = null;
+      var router23 = null;
       this.cache = /* @__PURE__ */ Object.create(null);
       this.engines = /* @__PURE__ */ Object.create(null);
       this.settings = /* @__PURE__ */ Object.create(null);
@@ -20901,13 +20901,13 @@ var require_application = __commonJS({
         configurable: true,
         enumerable: true,
         get: function getrouter() {
-          if (router21 === null) {
-            router21 = new Router21({
+          if (router23 === null) {
+            router23 = new Router23({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
           }
-          return router21;
+          return router23;
         }
       });
     };
@@ -20978,15 +20978,15 @@ var require_application = __commonJS({
       if (fns.length === 0) {
         throw new TypeError("app.use() requires a middleware function");
       }
-      var router21 = this.router;
+      var router23 = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router21.use(path2, fn2);
+          return router23.use(path2, fn2);
         }
         debug(".use app under %s", path2);
         fn2.mountpath = path2;
         fn2.parent = this;
-        router21.use(path2, function mounted_app(req, res, next) {
+        router23.use(path2, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -23513,7 +23513,7 @@ var require_express = __commonJS({
     var EventEmitter = __require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router21 = require_router();
+    var Router23 = require_router();
     var req = require_request();
     var res = require_response();
     exports = module.exports = createApplication;
@@ -23535,8 +23535,8 @@ var require_express = __commonJS({
     exports.application = proto;
     exports.request = req;
     exports.response = res;
-    exports.Route = Router21.Route;
-    exports.Router = Router21;
+    exports.Route = Router23.Route;
+    exports.Router = Router23;
     exports.json = bodyParser.json;
     exports.raw = bodyParser.raw;
     exports.static = require_serve_static();
@@ -33123,11 +33123,11 @@ var require_router2 = __commonJS({
     var debug = debug_1.Debug.extend("router");
     async function getTarget(req, config3) {
       let newTarget;
-      const router21 = config3.router;
-      if ((0, is_plain_object_1.isPlainObject)(router21)) {
-        newTarget = getTargetFromProxyTable(req, router21);
-      } else if (typeof router21 === "function") {
-        newTarget = await router21(req);
+      const router23 = config3.router;
+      if ((0, is_plain_object_1.isPlainObject)(router23)) {
+        newTarget = getTargetFromProxyTable(req, router23);
+      } else if (typeof router23 === "function") {
+        newTarget = await router23(req);
       }
       return newTarget;
     }
@@ -33170,7 +33170,7 @@ var require_http_proxy_middleware = __commonJS({
     var get_plugins_1 = require_get_plugins();
     var path_filter_1 = require_path_filter();
     var PathRewriter = require_path_rewriter();
-    var Router21 = require_router2();
+    var Router23 = require_router2();
     var debug_1 = require_debug2();
     var function_1 = require_function();
     var logger_1 = require_logger2();
@@ -33241,7 +33241,7 @@ var require_http_proxy_middleware = __commonJS({
         this.applyRouter = async (req, options2) => {
           let newTarget;
           if (options2.router) {
-            newTarget = await Router21.getTarget(req, options2);
+            newTarget = await Router23.getTarget(req, options2);
             if (newTarget) {
               (0, debug_1.Debug)('router new target: "%s"', newTarget);
               options2.target = newTarget;
@@ -39055,7 +39055,7 @@ var init_calendarCrypto = __esm({
 });
 
 // src/app.ts
-var import_express27 = __toESM(require_express2(), 1);
+var import_express29 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 
@@ -42138,28 +42138,28 @@ var OrganizationAPI = class extends AbstractAPI {
     });
   }
   async updateOrganizationMembership(params) {
-    const { organizationId, userId, ...bodyParams } = params;
+    const { organizationId, userId: userId2, ...bodyParams } = params;
     this.requireId(organizationId);
     return this.request({
       method: "PATCH",
-      path: joinPaths(basePath19, organizationId, "memberships", userId),
+      path: joinPaths(basePath19, organizationId, "memberships", userId2),
       bodyParams
     });
   }
   async updateOrganizationMembershipMetadata(params) {
-    const { organizationId, userId, ...bodyParams } = params;
+    const { organizationId, userId: userId2, ...bodyParams } = params;
     return this.request({
       method: "PATCH",
-      path: joinPaths(basePath19, organizationId, "memberships", userId, "metadata"),
+      path: joinPaths(basePath19, organizationId, "memberships", userId2, "metadata"),
       bodyParams
     });
   }
   async deleteOrganizationMembership(params) {
-    const { organizationId, userId } = params;
+    const { organizationId, userId: userId2 } = params;
     this.requireId(organizationId);
     return this.request({
       method: "DELETE",
-      path: joinPaths(basePath19, organizationId, "memberships", userId)
+      path: joinPaths(basePath19, organizationId, "memberships", userId2)
     });
   }
   async getOrganizationInvitationList(params) {
@@ -42543,11 +42543,11 @@ var UserAPI = class extends AbstractAPI {
     ]);
     return { data, totalCount };
   }
-  async getUser(userId) {
-    this.requireId(userId);
+  async getUser(userId2) {
+    this.requireId(userId2);
     return this.request({
       method: "GET",
-      path: joinPaths(basePath29, userId)
+      path: joinPaths(basePath29, userId2)
     });
   }
   async createUser(params) {
@@ -42557,37 +42557,37 @@ var UserAPI = class extends AbstractAPI {
       bodyParams: params
     });
   }
-  async updateUser(userId, params = {}) {
-    this.requireId(userId);
+  async updateUser(userId2, params = {}) {
+    this.requireId(userId2);
     return this.request({
       method: "PATCH",
-      path: joinPaths(basePath29, userId),
+      path: joinPaths(basePath29, userId2),
       bodyParams: params
     });
   }
-  async updateUserProfileImage(userId, params) {
-    this.requireId(userId);
+  async updateUserProfileImage(userId2, params) {
+    this.requireId(userId2);
     const formData = new runtime.FormData();
     formData.append("file", params?.file);
     return this.request({
       method: "POST",
-      path: joinPaths(basePath29, userId, "profile_image"),
+      path: joinPaths(basePath29, userId2, "profile_image"),
       formData
     });
   }
-  async updateUserMetadata(userId, params) {
-    this.requireId(userId);
+  async updateUserMetadata(userId2, params) {
+    this.requireId(userId2);
     return this.request({
       method: "PATCH",
-      path: joinPaths(basePath29, userId, "metadata"),
+      path: joinPaths(basePath29, userId2, "metadata"),
       bodyParams: params
     });
   }
-  async deleteUser(userId) {
-    this.requireId(userId);
+  async deleteUser(userId2) {
+    this.requireId(userId2);
     return this.request({
       method: "DELETE",
-      path: joinPaths(basePath29, userId)
+      path: joinPaths(basePath29, userId2)
     });
   }
   async getCount(params = {}) {
@@ -42597,8 +42597,8 @@ var UserAPI = class extends AbstractAPI {
       queryParams: params
     });
   }
-  async getUserOauthAccessToken(userId, provider) {
-    this.requireId(userId);
+  async getUserOauthAccessToken(userId2, provider) {
+    this.requireId(userId2);
     const hasPrefix = provider.startsWith("oauth_");
     const _provider = hasPrefix ? provider : `oauth_${provider}`;
     if (hasPrefix) {
@@ -42609,86 +42609,86 @@ var UserAPI = class extends AbstractAPI {
     }
     return this.request({
       method: "GET",
-      path: joinPaths(basePath29, userId, "oauth_access_tokens", _provider),
+      path: joinPaths(basePath29, userId2, "oauth_access_tokens", _provider),
       queryParams: { paginated: true }
     });
   }
-  async disableUserMFA(userId) {
-    this.requireId(userId);
+  async disableUserMFA(userId2) {
+    this.requireId(userId2);
     return this.request({
       method: "DELETE",
-      path: joinPaths(basePath29, userId, "mfa")
+      path: joinPaths(basePath29, userId2, "mfa")
     });
   }
   async getOrganizationMembershipList(params) {
-    const { userId, limit, offset } = params;
-    this.requireId(userId);
+    const { userId: userId2, limit, offset } = params;
+    this.requireId(userId2);
     return this.request({
       method: "GET",
-      path: joinPaths(basePath29, userId, "organization_memberships"),
+      path: joinPaths(basePath29, userId2, "organization_memberships"),
       queryParams: { limit, offset }
     });
   }
   async getOrganizationInvitationList(params) {
-    const { userId, ...queryParams } = params;
-    this.requireId(userId);
+    const { userId: userId2, ...queryParams } = params;
+    this.requireId(userId2);
     return this.request({
       method: "GET",
-      path: joinPaths(basePath29, userId, "organization_invitations"),
+      path: joinPaths(basePath29, userId2, "organization_invitations"),
       queryParams
     });
   }
   async verifyPassword(params) {
-    const { userId, password } = params;
-    this.requireId(userId);
+    const { userId: userId2, password } = params;
+    this.requireId(userId2);
     return this.request({
       method: "POST",
-      path: joinPaths(basePath29, userId, "verify_password"),
+      path: joinPaths(basePath29, userId2, "verify_password"),
       bodyParams: { password }
     });
   }
   async verifyTOTP(params) {
-    const { userId, code } = params;
-    this.requireId(userId);
+    const { userId: userId2, code } = params;
+    this.requireId(userId2);
     return this.request({
       method: "POST",
-      path: joinPaths(basePath29, userId, "verify_totp"),
+      path: joinPaths(basePath29, userId2, "verify_totp"),
       bodyParams: { code }
     });
   }
-  async banUser(userId) {
-    this.requireId(userId);
+  async banUser(userId2) {
+    this.requireId(userId2);
     return this.request({
       method: "POST",
-      path: joinPaths(basePath29, userId, "ban")
+      path: joinPaths(basePath29, userId2, "ban")
     });
   }
-  async unbanUser(userId) {
-    this.requireId(userId);
+  async unbanUser(userId2) {
+    this.requireId(userId2);
     return this.request({
       method: "POST",
-      path: joinPaths(basePath29, userId, "unban")
+      path: joinPaths(basePath29, userId2, "unban")
     });
   }
-  async lockUser(userId) {
-    this.requireId(userId);
+  async lockUser(userId2) {
+    this.requireId(userId2);
     return this.request({
       method: "POST",
-      path: joinPaths(basePath29, userId, "lock")
+      path: joinPaths(basePath29, userId2, "lock")
     });
   }
-  async unlockUser(userId) {
-    this.requireId(userId);
+  async unlockUser(userId2) {
+    this.requireId(userId2);
     return this.request({
       method: "POST",
-      path: joinPaths(basePath29, userId, "unlock")
+      path: joinPaths(basePath29, userId2, "unlock")
     });
   }
-  async deleteUserProfileImage(userId) {
-    this.requireId(userId);
+  async deleteUserProfileImage(userId2) {
+    this.requireId(userId2);
     return this.request({
       method: "DELETE",
-      path: joinPaths(basePath29, userId, "profile_image")
+      path: joinPaths(basePath29, userId2, "profile_image")
     });
   }
   async deleteUserPasskey(params) {
@@ -42715,35 +42715,35 @@ var UserAPI = class extends AbstractAPI {
       path: joinPaths(basePath29, params.userId, "external_accounts", params.externalAccountId)
     });
   }
-  async deleteUserBackupCodes(userId) {
-    this.requireId(userId);
+  async deleteUserBackupCodes(userId2) {
+    this.requireId(userId2);
     return this.request({
       method: "DELETE",
-      path: joinPaths(basePath29, userId, "backup_code")
+      path: joinPaths(basePath29, userId2, "backup_code")
     });
   }
-  async deleteUserTOTP(userId) {
-    this.requireId(userId);
+  async deleteUserTOTP(userId2) {
+    this.requireId(userId2);
     return this.request({
       method: "DELETE",
-      path: joinPaths(basePath29, userId, "totp")
+      path: joinPaths(basePath29, userId2, "totp")
     });
   }
-  async setPasswordCompromised(userId, params = {
+  async setPasswordCompromised(userId2, params = {
     revokeAllSessions: false
   }) {
-    this.requireId(userId);
+    this.requireId(userId2);
     return this.request({
       method: "POST",
-      path: joinPaths(basePath29, userId, "password", "set_compromised"),
+      path: joinPaths(basePath29, userId2, "password", "set_compromised"),
       bodyParams: params
     });
   }
-  async unsetPasswordCompromised(userId) {
-    this.requireId(userId);
+  async unsetPasswordCompromised(userId2) {
+    this.requireId(userId2);
     return this.request({
       method: "POST",
-      path: joinPaths(basePath29, userId, "password", "unset_compromised")
+      path: joinPaths(basePath29, userId2, "password", "unset_compromised")
     });
   }
 };
@@ -42888,11 +42888,11 @@ var BillingAPI = class extends AbstractAPI {
   /**
    * @experimental This is an experimental API for the Billing feature that is available under a public beta, and the API is subject to change. It is advised to [pin](https://clerk.com/docs/pinning) the SDK version and the clerk-js version to avoid breaking changes.
    */
-  async getUserBillingSubscription(userId) {
-    this.requireId(userId);
+  async getUserBillingSubscription(userId2) {
+    this.requireId(userId2);
     return this.request({
       method: "GET",
-      path: joinPaths(userBasePath, userId, "billing", "subscription")
+      path: joinPaths(userBasePath, userId2, "billing", "subscription")
     });
   }
 };
@@ -43076,10 +43076,10 @@ var AgentTask = class _AgentTask {
   }
 };
 var ActorToken = class _ActorToken {
-  constructor(id, status, userId, actor, token, url2, createdAt, updatedAt) {
+  constructor(id, status, userId2, actor, token, url2, createdAt, updatedAt) {
     this.id = id;
     this.status = status;
-    this.userId = userId;
+    this.userId = userId2;
     this.actor = actor;
     this.token = token;
     this.url = url2;
@@ -43206,10 +43206,10 @@ var SessionActivity = class _SessionActivity {
   }
 };
 var Session = class _Session {
-  constructor(id, clientId, userId, status, lastActiveAt, expireAt, abandonAt, createdAt, updatedAt, lastActiveOrganizationId, latestActivity, actor = null) {
+  constructor(id, clientId, userId2, status, lastActiveAt, expireAt, abandonAt, createdAt, updatedAt, lastActiveOrganizationId, latestActivity, actor = null) {
     this.id = id;
     this.clientId = clientId;
-    this.userId = userId;
+    this.userId = userId2;
     this.status = status;
     this.lastActiveAt = lastActiveAt;
     this.expireAt = expireAt;
@@ -44137,13 +44137,13 @@ var OrganizationMembership = class _OrganizationMembership {
   }
 };
 var OrganizationMembershipPublicUserData = class _OrganizationMembershipPublicUserData {
-  constructor(identifier, firstName, lastName, imageUrl, hasImage, userId) {
+  constructor(identifier, firstName, lastName, imageUrl, hasImage, userId2) {
     this.identifier = identifier;
     this.firstName = firstName;
     this.lastName = lastName;
     this.imageUrl = imageUrl;
     this.hasImage = hasImage;
-    this.userId = userId;
+    this.userId = userId2;
   }
   static fromJSON(data) {
     return new _OrganizationMembershipPublicUserData(
@@ -44288,8 +44288,8 @@ var SamlConnection = class _SamlConnection {
   }
 };
 var AttributeMapping = class _AttributeMapping {
-  constructor(userId, emailAddress, firstName, lastName) {
-    this.userId = userId;
+  constructor(userId2, emailAddress, firstName, lastName) {
+    this.userId = userId2;
     this.emailAddress = emailAddress;
     this.firstName = firstName;
     this.lastName = lastName;
@@ -44299,9 +44299,9 @@ var AttributeMapping = class _AttributeMapping {
   }
 };
 var SignInToken = class _SignInToken {
-  constructor(id, userId, token, status, url2, createdAt, updatedAt) {
+  constructor(id, userId2, token, status, url2, createdAt, updatedAt) {
     this.id = id;
-    this.userId = userId;
+    this.userId = userId2;
     this.token = token;
     this.status = status;
     this.url = url2;
@@ -44916,7 +44916,7 @@ var createDebug = (data) => {
   };
 };
 function signedInAuthObject(authenticateContext, sessionToken, sessionClaims) {
-  const { actor, sessionId, sessionStatus, userId, orgId, orgRole, orgSlug, orgPermissions, factorVerificationAge } = __experimental_JWTPayloadToAuthObjectProperties(sessionClaims);
+  const { actor, sessionId, sessionStatus, userId: userId2, orgId, orgRole, orgSlug, orgPermissions, factorVerificationAge } = __experimental_JWTPayloadToAuthObjectProperties(sessionClaims);
   const apiClient = createBackendApiClient(authenticateContext);
   const getToken = createGetToken({
     sessionId,
@@ -44929,7 +44929,7 @@ function signedInAuthObject(authenticateContext, sessionToken, sessionClaims) {
     sessionClaims,
     sessionId,
     sessionStatus,
-    userId,
+    userId: userId2,
     orgId,
     orgRole,
     orgSlug,
@@ -44940,7 +44940,7 @@ function signedInAuthObject(authenticateContext, sessionToken, sessionClaims) {
       orgId,
       orgRole,
       orgPermissions,
-      userId,
+      userId: userId2,
       factorVerificationAge,
       features: sessionClaims.fea || "",
       plans: sessionClaims.pla || ""
@@ -47229,7 +47229,7 @@ function clerkProxyMiddleware() {
 }
 
 // src/routes/index.ts
-var import_express26 = __toESM(require_express2(), 1);
+var import_express28 = __toESM(require_express2(), 1);
 
 // src/routes/health.ts
 var import_express = __toESM(require_express2(), 1);
@@ -62773,6 +62773,8 @@ function drizzle(...params) {
 // ../../lib/db/src/schema/index.ts
 var schema_exports = {};
 __export(schema_exports, {
+  FINANCE_CATEGORIES: () => FINANCE_CATEGORIES,
+  MANUAL_EXPENSE_CATEGORIES: () => MANUAL_EXPENSE_CATEGORIES,
   TIME_ENTRY_STATUSES: () => TIME_ENTRY_STATUSES,
   briefAssignmentsTable: () => briefAssignmentsTable,
   briefRoomAssignmentsTable: () => briefRoomAssignmentsTable,
@@ -62793,6 +62795,8 @@ __export(schema_exports, {
   insertFreelancerProfileSchema: () => insertFreelancerProfileSchema,
   insertGigSchema: () => insertGigSchema,
   insertProjectBriefSchema: () => insertProjectBriefSchema,
+  insertProjectExpenseSchema: () => insertProjectExpenseSchema,
+  insertProjectFinanceSettingsSchema: () => insertProjectFinanceSettingsSchema,
   insertProjectMemberSchema: () => insertProjectMemberSchema,
   insertProjectMessageSchema: () => insertProjectMessageSchema,
   insertProjectSchema: () => insertProjectSchema,
@@ -62803,6 +62807,8 @@ __export(schema_exports, {
   insertVenueMemorySchema: () => insertVenueMemorySchema,
   profilePhotoUploadsTable: () => profilePhotoUploadsTable,
   projectBriefsTable: () => projectBriefsTable,
+  projectExpensesTable: () => projectExpensesTable,
+  projectFinanceSettingsTable: () => projectFinanceSettingsTable,
   projectMembersTable: () => projectMembersTable,
   projectMessagesTable: () => projectMessagesTable,
   projectTasksTable: () => projectTasksTable,
@@ -74534,7 +74540,7 @@ var timeEntriesTable = pgTable(
     breakMinutes: integer("break_minutes").notNull().default(0),
     /** Free-form notes the freelancer can leave for the producer. */
     notes: text("notes").notNull().default(""),
-    /** "draft" | "submitted" | "approved" | "rejected" | "locked". */
+    /** "draft" | "submitted" | "approved" | "rejected" | "flagged" | "locked". */
     status: text("status").notNull().default("draft"),
     /** Clerk user id of the producer who approved / rejected. */
     decidedByUserId: text("decided_by_user_id"),
@@ -74542,6 +74548,23 @@ var timeEntriesTable = pgTable(
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     /** Producer's note when rejecting (defaults to empty string). */
     rejectionReason: text("rejection_reason").notNull().default(""),
+    /** Producer-only payable-time adjustment. The freelancer's observed
+     * start/end/break values above are never overwritten by review. */
+    producerAdjustmentMinutes: integer("producer_adjustment_minutes").notNull().default(0),
+    /** Optional producer override for the unpaid meal break. */
+    producerBreakMinutes: integer("producer_break_minutes"),
+    /** Portion of payable time classified as overtime (not added twice). */
+    overtimeMinutes: integer("overtime_minutes").notNull().default(0),
+    /** Required audit explanation when producer adjustments are made. */
+    adjustmentReason: text("adjustment_reason").notNull().default(""),
+    /** Required reason for a flagged entry. */
+    flagReason: text("flag_reason").notNull().default(""),
+    /** Clerk user id and timestamp for the latest producer adjustment. */
+    adjustedByUserId: text("adjusted_by_user_id"),
+    adjustedAt: timestamp("adjusted_at", { withTimezone: true }),
+    /** Immutable compensation snapshot captured at producer approval. */
+    approvedRateMinor: integer("approved_rate_minor"),
+    approvedFlatFeeMinor: integer("approved_flat_fee_minor"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },
@@ -74564,6 +74587,7 @@ var TIME_ENTRY_STATUSES = [
   "submitted",
   "approved",
   "rejected",
+  "flagged",
   "locked"
 ];
 
@@ -74815,6 +74839,63 @@ var insertTransportRunSchema = createInsertSchema(transportRunsTable).omit({
   createdAt: true,
   updatedAt: true
 });
+
+// ../../lib/db/src/schema/projectFinance.ts
+var projectFinanceSettingsTable = pgTable(
+  "project_finance_settings",
+  {
+    projectId: uuid("project_id").primaryKey().references(() => projectsTable.id, { onDelete: "cascade" }),
+    contractRevenueMinor: integer("contract_revenue_minor").notNull().default(0),
+    /** Revenue currently recorded in EasyJob, when it has been reconciled. */
+    easyjobRevenueMinor: integer("easyjob_revenue_minor"),
+    laborBudgetMinor: integer("labor_budget_minor").notNull().default(0),
+    hotelBudgetMinor: integer("hotel_budget_minor").notNull().default(0),
+    cateringBudgetMinor: integer("catering_budget_minor").notNull().default(0),
+    transportBudgetMinor: integer("transport_budget_minor").notNull().default(0),
+    subRentalsBudgetMinor: integer("sub_rentals_budget_minor").notNull().default(0),
+    updatedByUserId: text("updated_by_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  }
+);
+var projectExpensesTable = pgTable(
+  "project_expenses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projectsTable.id, { onDelete: "cascade" }),
+    category: text("category").notNull(),
+    amountMinor: integer("amount_minor").notNull(),
+    incurredOn: date("incurred_on").notNull(),
+    description: text("description").notNull().default(""),
+    vendor: text("vendor").notNull().default(""),
+    reference: text("reference").notNull().default(""),
+    createdByUserId: text("created_by_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => [
+    index("project_expenses_project_idx").on(t.projectId),
+    index("project_expenses_project_category_idx").on(t.projectId, t.category)
+  ]
+);
+var FINANCE_CATEGORIES = [
+  "labor",
+  "hotel",
+  "catering",
+  "transport",
+  "subRentals"
+];
+var MANUAL_EXPENSE_CATEGORIES = [
+  "hotel",
+  "catering",
+  "transport",
+  "subRentals"
+];
+var insertProjectFinanceSettingsSchema = createInsertSchema(
+  projectFinanceSettingsTable
+).omit({ createdAt: true, updatedAt: true });
+var insertProjectExpenseSchema = createInsertSchema(
+  projectExpensesTable
+).omit({ id: true, createdAt: true });
 
 // ../../lib/db/src/index.ts
 var { Pool: Pool3 } = esm_default;
@@ -75136,14 +75217,14 @@ function maybeSweepRateLimitMap(now) {
   }
 }
 var rateLimit = (req, res, next) => {
-  const userId = req._userId;
-  if (!userId) {
+  const userId2 = req._userId;
+  if (!userId2) {
     next();
     return;
   }
   const now = Date.now();
   maybeSweepRateLimitMap(now);
-  const arr2 = (recentByUser.get(userId) ?? []).filter(
+  const arr2 = (recentByUser.get(userId2) ?? []).filter(
     (t) => now - t < RATE_WINDOW_MS
   );
   if (arr2.length >= RATE_MAX) {
@@ -75158,7 +75239,7 @@ var rateLimit = (req, res, next) => {
     return;
   }
   arr2.push(now);
-  recentByUser.set(userId, arr2);
+  recentByUser.set(userId2, arr2);
   next();
 };
 var ANTHROPIC_BASE_URL = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
@@ -75540,12 +75621,12 @@ router3.post("/rigplan/analyze", requireSignedIn, rateLimit, (0, import_express3
   let venueMemoryHint;
   if (incomingCtx && typeof incomingCtx.venueName === "string") {
     const venueName = incomingCtx.venueName.trim();
-    const userId = req._userId ?? "";
-    if (venueName && userId) {
+    const userId2 = req._userId ?? "";
+    if (venueName && userId2) {
       try {
         const rows = await db.select({ data: venueMemoryTable.data }).from(venueMemoryTable).where(
           and(
-            eq(venueMemoryTable.userId, userId),
+            eq(venueMemoryTable.userId, userId2),
             eq(venueMemoryTable.venueKey, venueKeyFor(venueName))
           )
         ).limit(1);
@@ -75663,7 +75744,7 @@ router4.get("/rigplan/memory", requireSignedIn2, async (req, res) => {
     res.status(400).json({ ok: false, error: "venue is required" });
     return;
   }
-  const userId = req._userId;
+  const userId2 = req._userId;
   try {
     const rows = await db.select({
       data: venueMemoryTable.data,
@@ -75671,7 +75752,7 @@ router4.get("/rigplan/memory", requireSignedIn2, async (req, res) => {
       updatedAt: venueMemoryTable.updatedAt
     }).from(venueMemoryTable).where(
       and(
-        eq(venueMemoryTable.userId, userId),
+        eq(venueMemoryTable.userId, userId2),
         eq(venueMemoryTable.venueKey, venueKeyFor(venueName))
       )
     ).limit(1);
@@ -75709,11 +75790,11 @@ router4.put("/rigplan/memory", requireSignedIn2, async (req, res) => {
     res.status(413).json({ ok: false, error: "Memory blob too large." });
     return;
   }
-  const userId = req._userId;
+  const userId2 = req._userId;
   const venueKey = venueKeyFor(venueName);
   try {
     const inserted = await db.insert(venueMemoryTable).values({
-      userId,
+      userId: userId2,
       venueName,
       venueKey,
       data: body.data
@@ -75789,7 +75870,7 @@ async function getObjectAclPolicy(objectFile) {
   return JSON.parse(aclPolicy);
 }
 async function canAccessObject({
-  userId,
+  userId: userId2,
   objectFile,
   requestedPermission
 }) {
@@ -75800,15 +75881,15 @@ async function canAccessObject({
   if (aclPolicy.visibility === "public" && requestedPermission === "read" /* READ */) {
     return true;
   }
-  if (!userId) {
+  if (!userId2) {
     return false;
   }
-  if (aclPolicy.owner === userId) {
+  if (aclPolicy.owner === userId2) {
     return true;
   }
   for (const rule of aclPolicy.aclRules || []) {
     const accessGroup = createObjectAccessGroup(rule.group);
-    if (await accessGroup.hasMember(userId) && isPermissionAllowed(requestedPermission, rule.permission)) {
+    if (await accessGroup.hasMember(userId2) && isPermissionAllowed(requestedPermission, rule.permission)) {
       return true;
     }
   }
@@ -75961,12 +76042,12 @@ var ObjectStorageService = class {
     return normalizedPath;
   }
   async canAccessObjectEntity({
-    userId,
+    userId: userId2,
     objectFile,
     requestedPermission
   }) {
     return canAccessObject({
-      userId,
+      userId: userId2,
       objectFile,
       requestedPermission: requestedPermission ?? "read" /* READ */
     });
@@ -76395,13 +76476,13 @@ function hasVerifiedPrimaryEhsEmail(user) {
   );
   return primary?.verification?.status === "verified" && primary.emailAddress?.trim().toLowerCase().endsWith("@ehs.no") === true;
 }
-async function tagAsFreelancer(userId) {
+async function tagAsFreelancer(userId2) {
   if (!clerk) return;
   try {
-    const current = await clerk.users.getUser(userId);
+    const current = await clerk.users.getUser(userId2);
     if (hasVerifiedPrimaryEhsEmail(current)) {
       if (current.publicMetadata?.userType !== "employee") {
-        await clerk.users.updateUserMetadata(userId, {
+        await clerk.users.updateUserMetadata(userId2, {
           publicMetadata: {
             ...current.publicMetadata,
             userType: "employee"
@@ -76414,7 +76495,7 @@ async function tagAsFreelancer(userId) {
     if (currentType === "freelancer") {
       return;
     }
-    await clerk.users.updateUserMetadata(userId, {
+    await clerk.users.updateUserMetadata(userId2, {
       publicMetadata: {
         ...current.publicMetadata,
         userType: "freelancer"
@@ -76424,24 +76505,24 @@ async function tagAsFreelancer(userId) {
     logger.warn(
       {
         scope: "userType",
-        userId,
+        userId: userId2,
         err: err instanceof Error ? err.message : String(err)
       },
       "failed to tag user as freelancer"
     );
   }
 }
-async function getUserType(userId) {
+async function getUserType(userId2) {
   let clerkLookupFailed = !clerk;
   if (clerk) {
     try {
-      const user = await clerk.users.getUser(userId);
+      const user = await clerk.users.getUser(userId2);
       clerkLookupFailed = false;
       const eligibleEmployee = hasVerifiedPrimaryEhsEmail(user);
       const expectedType = eligibleEmployee ? "employee" : "freelancer";
       const raw = user.publicMetadata?.userType;
       if (raw !== expectedType) {
-        await clerk.users.updateUserMetadata(userId, {
+        await clerk.users.updateUserMetadata(userId2, {
           publicMetadata: {
             ...user.publicMetadata,
             userType: expectedType
@@ -76456,7 +76537,7 @@ async function getUserType(userId) {
       logger.warn(
         {
           scope: "userType",
-          userId,
+          userId: userId2,
           err: err instanceof Error ? err.message : String(err)
         },
         "Clerk getUser failed \u2014 falling back to DB inference"
@@ -76465,9 +76546,9 @@ async function getUserType(userId) {
   }
   let dbLookupFailed = false;
   try {
-    const rows = await db.select({ userId: freelancerProfilesTable.userId }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId)).limit(1);
+    const rows = await db.select({ userId: freelancerProfilesTable.userId }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId2)).limit(1);
     if (rows.length > 0) {
-      void tagAsFreelancer(userId);
+      void tagAsFreelancer(userId2);
       return "freelancer";
     }
   } catch (err) {
@@ -76475,7 +76556,7 @@ async function getUserType(userId) {
     logger.warn(
       {
         scope: "userType",
-        userId,
+        userId: userId2,
         err: err instanceof Error ? err.message : String(err)
       },
       "DB userType inference failed"
@@ -76484,18 +76565,18 @@ async function getUserType(userId) {
   if (clerkLookupFailed || dbLookupFailed) {
     throw new Error("Unable to resolve user type safely.");
   }
-  await tagAsFreelancer(userId);
+  await tagAsFreelancer(userId2);
   return "freelancer";
 }
 var requireEmployee = async (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
-  const userId = auth?.userId ?? null;
-  if (!userId) {
+  const userId2 = auth?.userId ?? null;
+  if (!userId2) {
     res.status(401).json({ ok: false, error: "Sign in required." });
     return;
   }
   try {
-    const type = await getUserType(userId);
+    const type = await getUserType(userId2);
     if (type === "freelancer") {
       res.status(403).json({
         ok: false,
@@ -76508,7 +76589,7 @@ var requireEmployee = async (req, res, next) => {
     logger.error(
       {
         scope: "userType",
-        userId,
+        userId: userId2,
         err: err instanceof Error ? err.message : String(err)
       },
       "requireEmployee middleware threw \u2014 denying access"
@@ -76519,7 +76600,7 @@ var requireEmployee = async (req, res, next) => {
     });
     return;
   }
-  req._userId = userId;
+  req._userId = userId2;
   next();
 };
 
@@ -76759,14 +76840,14 @@ function inclusiveDayCount(startDate, endDate) {
   return Math.min(366, Math.floor((end - start) / 864e5) + 1);
 }
 router6.post("/portal/me/tag-as-freelancer", requireSignedIn4, async (req, res) => {
-  const userId = req._userId;
+  const userId2 = req._userId;
   try {
-    await tagAsFreelancer(userId);
+    await tagAsFreelancer(userId2);
   } catch (err) {
     logger.warn(
       {
         scope: "userType",
-        userId,
+        userId: userId2,
         err: err instanceof Error ? err.message : String(err)
       },
       "tag-as-freelancer endpoint encountered an error"
@@ -76775,9 +76856,9 @@ router6.post("/portal/me/tag-as-freelancer", requireSignedIn4, async (req, res) 
   res.json({ ok: true });
 });
 router6.get("/portal/profile/me", requireSignedIn4, async (req, res) => {
-  const userId = req._userId;
+  const userId2 = req._userId;
   try {
-    const rows = await db.select().from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId)).limit(1);
+    const rows = await db.select().from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId2)).limit(1);
     res.json({
       ok: true,
       profile: rows[0] ? projectProfile(rows[0]) : null
@@ -76792,15 +76873,15 @@ router6.get("/portal/profile/me", requireSignedIn4, async (req, res) => {
 });
 router6.put("/portal/profile/me", requireSignedIn4, async (req, res) => {
   const body = req.body ?? {};
-  const userId = req._userId;
+  const userId2 = req._userId;
   try {
-    const [existing] = await db.select({ defaultDayRate: freelancerProfilesTable.defaultDayRate }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId)).limit(1);
+    const [existing] = await db.select({ defaultDayRate: freelancerProfilesTable.defaultDayRate }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId2)).limit(1);
     const fields = normaliseProfile(body, existing?.defaultDayRate ?? 0);
-    const inserted = await db.insert(freelancerProfilesTable).values({ userId, ...fields }).onConflictDoUpdate({
+    const inserted = await db.insert(freelancerProfilesTable).values({ userId: userId2, ...fields }).onConflictDoUpdate({
       target: freelancerProfilesTable.userId,
       set: { ...fields, updatedAt: sql`now()` }
     }).returning();
-    void tagAsFreelancer(userId);
+    void tagAsFreelancer(userId2);
     res.json({
       ok: true,
       profile: inserted[0] ? projectProfile(inserted[0]) : null
@@ -76817,8 +76898,8 @@ router6.patch(
   "/portal/freelancers/:userId",
   requireEmployee,
   async (req, res) => {
-    const userId = String(req.params.userId ?? "").trim();
-    if (!userId || userId.length > 200) {
+    const userId2 = String(req.params.userId ?? "").trim();
+    if (!userId2 || userId2.length > 200) {
       res.status(400).json({ ok: false, error: "Invalid freelancer ID." });
       return;
     }
@@ -76858,7 +76939,7 @@ router6.patch(
       return;
     }
     try {
-      const [saved] = await db.update(freelancerProfilesTable).set({ ...updates, updatedAt: sql`now()` }).where(eq(freelancerProfilesTable.userId, userId)).returning();
+      const [saved] = await db.update(freelancerProfilesTable).set({ ...updates, updatedAt: sql`now()` }).where(eq(freelancerProfilesTable.userId, userId2)).returning();
       if (!saved) {
         res.status(404).json({ ok: false, error: "Freelancer not found." });
         return;
@@ -76879,7 +76960,7 @@ router6.patch(
         }
       });
     } catch (err) {
-      req.log.error({ err, userId }, "admin freelancer profile PATCH failed");
+      req.log.error({ err, userId: userId2 }, "admin freelancer profile PATCH failed");
       res.status(500).json({ ok: false, error: "Could not update freelancer." });
     }
   }
@@ -76888,8 +76969,8 @@ router6.get(
   "/portal/freelancers/:userId/profile-history",
   requireEmployee,
   async (req, res) => {
-    const userId = String(req.params.userId ?? "").trim();
-    if (!userId || userId.length > 200) {
+    const userId2 = String(req.params.userId ?? "").trim();
+    if (!userId2 || userId2.length > 200) {
       res.status(400).json({ ok: false, error: "Invalid freelancer ID." });
       return;
     }
@@ -76908,7 +76989,7 @@ router6.get(
         defaultDayRate: freelancerProfilesTable.defaultDayRate,
         dietary: freelancerProfilesTable.dietary,
         allergies: freelancerProfilesTable.allergies
-      }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId)).limit(1);
+      }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId2)).limit(1);
       if (!profile) {
         res.status(404).json({ ok: false, error: "Freelancer not found." });
         return;
@@ -76927,7 +77008,7 @@ router6.get(
         eq(briefAssignmentsTable.briefId, projectBriefsTable.id)
       ).where(
         and(
-          eq(briefAssignmentsTable.freelancerUserId, userId),
+          eq(briefAssignmentsTable.freelancerUserId, userId2),
           eq(briefAssignmentsTable.decision, "accepted")
         )
       ).orderBy(asc(projectBriefsTable.startDate));
@@ -76936,7 +77017,7 @@ router6.get(
       );
       const acceptedGigs = acceptedGigIds.size === 0 ? [] : await db.select().from(gigsTable).where(
         and(
-          eq(gigsTable.freelancerUserId, userId),
+          eq(gigsTable.freelancerUserId, userId2),
           inArray(gigsTable.id, Array.from(acceptedGigIds))
         )
       );
@@ -76948,7 +77029,7 @@ router6.get(
         breakMinutes: timeEntriesTable.breakMinutes
       }).from(timeEntriesTable).where(
         and(
-          eq(timeEntriesTable.freelancerUserId, userId),
+          eq(timeEntriesTable.freelancerUserId, userId2),
           inArray(timeEntriesTable.gigId, gigIds)
         )
       );
@@ -77041,7 +77122,7 @@ router6.get(
         }
       });
     } catch (err) {
-      req.log.error({ err, userId }, "freelancer profile history GET failed");
+      req.log.error({ err, userId: userId2 }, "freelancer profile history GET failed");
       res.status(500).json({ ok: false, error: "Could not load freelancer history." });
     }
   }
@@ -77084,7 +77165,7 @@ router6.patch(
   "/portal/profile/photo",
   requireSignedIn4,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const body = req.body ?? {};
     const photoObjectPath = body.photoObjectPath === "" ? "" : typeof body.photoObjectPath === "string" && PROFILE_OBJECT_PATH.test(body.photoObjectPath) ? body.photoObjectPath : null;
     if (photoObjectPath === null) {
@@ -77096,7 +77177,7 @@ router6.patch(
         const [permit] = await db.select({ objectPath: profilePhotoUploadsTable.objectPath }).from(profilePhotoUploadsTable).where(
           and(
             eq(profilePhotoUploadsTable.objectPath, photoObjectPath),
-            eq(profilePhotoUploadsTable.userId, userId)
+            eq(profilePhotoUploadsTable.userId, userId2)
           )
         ).limit(1);
         if (!permit) {
@@ -77107,7 +77188,7 @@ router6.patch(
           return;
         }
       }
-      const [saved] = await db.insert(freelancerProfilesTable).values({ userId, photoObjectPath }).onConflictDoUpdate({
+      const [saved] = await db.insert(freelancerProfilesTable).values({ userId: userId2, photoObjectPath }).onConflictDoUpdate({
         target: freelancerProfilesTable.userId,
         set: { photoObjectPath, updatedAt: sql`now()` }
       }).returning();
@@ -77124,13 +77205,13 @@ router6.get(
   async (req, res) => {
     const rawUserId = req.params.userId;
     const requestedUserId = Array.isArray(rawUserId) ? rawUserId[0] : rawUserId;
-    const userId = requestedUserId === "me" ? req._userId : requestedUserId;
-    if (!userId) {
+    const userId2 = requestedUserId === "me" ? req._userId : requestedUserId;
+    if (!userId2) {
       res.status(404).end();
       return;
     }
     try {
-      const [profile] = await db.select({ photoObjectPath: freelancerProfilesTable.photoObjectPath }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId)).limit(1);
+      const [profile] = await db.select({ photoObjectPath: freelancerProfilesTable.photoObjectPath }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId2)).limit(1);
       if (!profile?.photoObjectPath || !PROFILE_OBJECT_PATH.test(profile.photoObjectPath)) {
         res.status(404).end();
         return;
@@ -77161,7 +77242,7 @@ router6.get(
         res.status(404).end();
         return;
       }
-      req.log.error({ err, userId }, "profile photo read failed");
+      req.log.error({ err, userId: userId2 }, "profile photo read failed");
       res.status(500).end();
     }
   }
@@ -77538,10 +77619,10 @@ function pickPortalBaseUrl() {
   if (dev && dev.trim()) return `https://${dev.trim()}`;
   return "";
 }
-async function lookupProducerName(userId) {
+async function lookupProducerName(userId2) {
   if (!clerk2) return "produsent";
   try {
-    const user = await clerk2.users.getUser(userId);
+    const user = await clerk2.users.getUser(userId2);
     const name = [user.firstName ?? "", user.lastName ?? ""].join(" ").trim();
     if (name) return name;
     const primary = user.emailAddresses?.find(
@@ -77550,7 +77631,7 @@ async function lookupProducerName(userId) {
     return primary ?? "produsent";
   } catch (err) {
     logger.warn(
-      { userId, err: err instanceof Error ? err.message : String(err) },
+      { userId: userId2, err: err instanceof Error ? err.message : String(err) },
       "could not resolve producer name from Clerk"
     );
     return "produsent";
@@ -77995,7 +78076,7 @@ function readRecipients(data, topLevelRecipients) {
   }));
 }
 router7.get("/portal/briefs/mine", requireSignedIn5, async (req, res) => {
-  const userId = req._userId;
+  const userId2 = req._userId;
   try {
     const rows = await db.select({
       assignmentId: briefAssignmentsTable.id,
@@ -78015,7 +78096,7 @@ router7.get("/portal/briefs/mine", requireSignedIn5, async (req, res) => {
     }).from(briefAssignmentsTable).innerJoin(
       projectBriefsTable,
       eq(briefAssignmentsTable.briefId, projectBriefsTable.id)
-    ).where(eq(briefAssignmentsTable.freelancerUserId, userId)).orderBy(desc(briefAssignmentsTable.createdAt));
+    ).where(eq(briefAssignmentsTable.freelancerUserId, userId2)).orderBy(desc(briefAssignmentsTable.createdAt));
     res.json({ ok: true, briefs: rows });
   } catch (err) {
     logger.error(
@@ -78026,9 +78107,9 @@ router7.get("/portal/briefs/mine", requireSignedIn5, async (req, res) => {
   }
 });
 router7.get("/portal/briefs", requireEmployee, async (req, res) => {
-  const userId = req._userId;
+  const userId2 = req._userId;
   try {
-    const rows = await db.select().from(projectBriefsTable).where(eq(projectBriefsTable.ownerUserId, userId)).orderBy(desc(projectBriefsTable.updatedAt)).limit(200);
+    const rows = await db.select().from(projectBriefsTable).where(eq(projectBriefsTable.ownerUserId, userId2)).orderBy(desc(projectBriefsTable.updatedAt)).limit(200);
     res.json({ ok: true, briefs: rows });
   } catch (err) {
     logger.error(
@@ -78039,7 +78120,7 @@ router7.get("/portal/briefs", requireEmployee, async (req, res) => {
   }
 });
 router7.get("/portal/briefs/:id", requireSignedIn5, async (req, res) => {
-  const userId = req._userId;
+  const userId2 = req._userId;
   const id = String(req.params.id ?? "");
   try {
     const briefRows = await db.select().from(projectBriefsTable).where(eq(projectBriefsTable.id, id)).limit(1);
@@ -78048,11 +78129,11 @@ router7.get("/portal/briefs/:id", requireSignedIn5, async (req, res) => {
       res.status(404).json({ ok: false, error: "Brief not found." });
       return;
     }
-    if (brief.ownerUserId !== userId) {
+    if (brief.ownerUserId !== userId2) {
       const assigned = await db.select({ id: briefAssignmentsTable.id }).from(briefAssignmentsTable).where(
         and(
           eq(briefAssignmentsTable.briefId, id),
-          eq(briefAssignmentsTable.freelancerUserId, userId)
+          eq(briefAssignmentsTable.freelancerUserId, userId2)
         )
       ).limit(1);
       if (assigned.length === 0) {
@@ -78070,7 +78151,7 @@ router7.get("/portal/briefs/:id", requireSignedIn5, async (req, res) => {
   }
 });
 router7.post("/portal/briefs", requireEmployee, async (req, res) => {
-  const userId = req._userId;
+  const userId2 = req._userId;
   const body = req.body ?? {};
   const data = body.data;
   if (!data || typeof data !== "object" || Array.isArray(data)) {
@@ -78091,12 +78172,12 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
   try {
     const result = await db.transaction(async (tx) => {
       const existing = await tx.select({ ownerUserId: projectBriefsTable.ownerUserId }).from(projectBriefsTable).where(eq(projectBriefsTable.id, id)).limit(1);
-      if (existing[0] && existing[0].ownerUserId !== userId) {
+      if (existing[0] && existing[0].ownerUserId !== userId2) {
         return { forbidden: true };
       }
       const inserted = await tx.insert(projectBriefsTable).values({
         id,
-        ownerUserId: userId,
+        ownerUserId: userId2,
         ...indexed,
         data
       }).onConflictDoUpdate({
@@ -78138,7 +78219,7 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
     }
     void dispatchBriefRequestEmails({
       briefId: id,
-      ownerUserId: userId,
+      ownerUserId: userId2,
       newRecipientUserIds: result.newRecipientUserIds,
       projectName: indexed.projectName,
       venue: indexed.venue,
@@ -78159,7 +78240,7 @@ router7.get(
   "/portal/briefs/:id/assignments",
   requireEmployee,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const id = String(req.params.id ?? "");
     try {
       const briefRows = await db.select({ ownerUserId: projectBriefsTable.ownerUserId }).from(projectBriefsTable).where(eq(projectBriefsTable.id, id)).limit(1);
@@ -78167,7 +78248,7 @@ router7.get(
         res.status(404).json({ ok: false, error: "Brief not found." });
         return;
       }
-      if (briefRows[0].ownerUserId !== userId) {
+      if (briefRows[0].ownerUserId !== userId2) {
         res.status(403).json({ ok: false, error: "Not your brief." });
         return;
       }
@@ -78195,7 +78276,7 @@ router7.post(
   "/portal/briefs/:id/respond",
   requireSignedIn5,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const briefId = String(req.params.id ?? "");
     const body = req.body ?? {};
     const decision = typeof body.decision === "string" ? body.decision : "";
@@ -78224,7 +78305,7 @@ router7.post(
           decision: briefAssignmentsTable.decision,
           crewId: briefAssignmentsTable.crewId
         }).from(briefAssignmentsTable).where(eq(briefAssignmentsTable.briefId, briefId));
-        const myRow = siblings.find((s2) => s2.freelancerUserId === userId);
+        const myRow = siblings.find((s2) => s2.freelancerUserId === userId2);
         if (!myRow) return { kind: "no_assignment" };
         if (myRow.decision === "too_late") {
           return {
@@ -78260,7 +78341,7 @@ router7.post(
             await tx.delete(gigsTable).where(
               and(
                 eq(gigsTable.briefId, briefId),
-                eq(gigsTable.freelancerUserId, userId)
+                eq(gigsTable.freelancerUserId, userId2)
               )
             );
           }
@@ -78272,7 +78353,7 @@ router7.post(
           };
         }
         const winner = siblings.find(
-          (s2) => s2.decision === "accepted" && s2.freelancerUserId !== userId
+          (s2) => s2.decision === "accepted" && s2.freelancerUserId !== userId2
         );
         if (winner) {
           const updated2 = await tx.update(briefAssignmentsTable).set({
@@ -78305,7 +78386,7 @@ router7.post(
         const existingGig = await tx.select({ id: gigsTable.id, status: gigsTable.status }).from(gigsTable).where(
           and(
             eq(gigsTable.briefId, briefId),
-            eq(gigsTable.freelancerUserId, userId)
+            eq(gigsTable.freelancerUserId, userId2)
           )
         ).limit(1);
         let gigRow;
@@ -78324,7 +78405,7 @@ router7.post(
           const newId = `gig_${randomUUID2()}`;
           const insertedGig = await tx.insert(gigsTable).values({
             id: newId,
-            freelancerUserId: userId,
+            freelancerUserId: userId2,
             briefId,
             ...gigFields,
             status: "confirmed"
@@ -78393,7 +78474,7 @@ router7.get(
   "/portal/briefs/:id/catering",
   requireEmployee,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const id = String(req.params.id ?? "");
     try {
       const briefRows = await db.select({
@@ -78407,7 +78488,7 @@ router7.get(
         res.status(404).json({ ok: false, error: "Brief not found." });
         return;
       }
-      if (brief.ownerUserId !== userId) {
+      if (brief.ownerUserId !== userId2) {
         res.status(403).json({ ok: false, error: "Not your brief." });
         return;
       }
@@ -78519,7 +78600,7 @@ router7.get(
   "/portal/briefs/:id/hotel",
   requireEmployee,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const id = String(req.params.id ?? "");
     try {
       const briefRows = await db.select({
@@ -78533,7 +78614,7 @@ router7.get(
         res.status(404).json({ ok: false, error: "Brief not found." });
         return;
       }
-      if (brief.ownerUserId !== userId) {
+      if (brief.ownerUserId !== userId2) {
         res.status(403).json({ ok: false, error: "Not your brief." });
         return;
       }
@@ -78670,7 +78751,7 @@ router7.patch(
   "/portal/briefs/:id/hotel/:gigId",
   requireEmployee,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const briefId = String(req.params.id ?? "");
     const gigId = String(req.params.gigId ?? "");
     const body = req.body ?? {};
@@ -78767,7 +78848,7 @@ router7.patch(
         res.status(404).json({ ok: false, error: "Brief not found." });
         return;
       }
-      if (brief.ownerUserId !== userId) {
+      if (brief.ownerUserId !== userId2) {
         res.status(403).json({ ok: false, error: "Not your brief." });
         return;
       }
@@ -78812,7 +78893,7 @@ router7.patch(
   "/portal/briefs/:id/roster/:gigId/dates",
   requireEmployee,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const briefId = String(req.params.id ?? "");
     const gigId = String(req.params.gigId ?? "");
     const body = req.body ?? {};
@@ -78863,7 +78944,7 @@ router7.patch(
         res.status(404).json({ ok: false, error: "Brief not found." });
         return;
       }
-      if (brief.ownerUserId !== userId) {
+      if (brief.ownerUserId !== userId2) {
         res.status(403).json({ ok: false, error: "Not your brief." });
         return;
       }
@@ -78918,14 +78999,14 @@ router7.patch(
     }
   }
 );
-async function loadHotelCrewForOwner(briefId, userId, res) {
+async function loadHotelCrewForOwner(briefId, userId2, res) {
   const briefRows = await db.select({ ownerUserId: projectBriefsTable.ownerUserId }).from(projectBriefsTable).where(eq(projectBriefsTable.id, briefId)).limit(1);
   const brief = briefRows[0];
   if (!brief) {
     res.status(404).json({ ok: false, error: "Brief not found." });
     return null;
   }
-  if (brief.ownerUserId !== userId) {
+  if (brief.ownerUserId !== userId2) {
     res.status(403).json({ ok: false, error: "Not your brief." });
     return null;
   }
@@ -78968,7 +79049,7 @@ router7.get(
   "/portal/briefs/:id/roster",
   requireEmployee,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const id = String(req.params.id ?? "");
     try {
       const briefRows = await db.select({
@@ -78984,7 +79065,7 @@ router7.get(
         res.status(404).json({ ok: false, error: "Brief not found." });
         return;
       }
-      if (brief.ownerUserId !== userId) {
+      if (brief.ownerUserId !== userId2) {
         res.status(403).json({ ok: false, error: "Not your brief." });
         return;
       }
@@ -79150,7 +79231,7 @@ router7.post(
   "/portal/briefs/:id/hotel/lock",
   requireEmployee,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const briefId = String(req.params.id ?? "");
     const body = req.body ?? {};
     const ids = body.freelancerUserIds;
@@ -79167,7 +79248,7 @@ router7.post(
       return;
     }
     try {
-      const eligible = await loadHotelCrewForOwner(briefId, userId, res);
+      const eligible = await loadHotelCrewForOwner(briefId, userId2, res);
       if (!eligible) return;
       for (const id of unique) {
         if (!eligible.has(id)) {
@@ -79238,7 +79319,7 @@ router7.post(
   "/portal/briefs/:id/hotel/unlock",
   requireEmployee,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const briefId = String(req.params.id ?? "");
     const body = req.body ?? {};
     const ids = body.freelancerUserIds;
@@ -79251,7 +79332,7 @@ router7.post(
     }
     const unique = Array.from(new Set(ids));
     try {
-      const eligible = await loadHotelCrewForOwner(briefId, userId, res);
+      const eligible = await loadHotelCrewForOwner(briefId, userId2, res);
       if (!eligible) return;
       await db.delete(briefRoomAssignmentsTable).where(
         and(
@@ -79276,7 +79357,7 @@ router7.post(
   "/portal/briefs/:id/hotel/swap",
   requireEmployee,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const briefId = String(req.params.id ?? "");
     const body = req.body ?? {};
     const a = body.freelancerUserIdA;
@@ -79289,7 +79370,7 @@ router7.post(
       return;
     }
     try {
-      const eligible = await loadHotelCrewForOwner(briefId, userId, res);
+      const eligible = await loadHotelCrewForOwner(briefId, userId2, res);
       if (!eligible) return;
       if (!eligible.has(a) || !eligible.has(b)) {
         res.status(400).json({
@@ -79416,7 +79497,7 @@ router7.get(
   "/portal/briefs/:id/itinerary",
   requireSignedIn5,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const id = String(req.params.id ?? "");
     try {
       const assignmentRows = await db.select({
@@ -79425,7 +79506,7 @@ router7.get(
       }).from(briefAssignmentsTable).where(
         and(
           eq(briefAssignmentsTable.briefId, id),
-          eq(briefAssignmentsTable.freelancerUserId, userId)
+          eq(briefAssignmentsTable.freelancerUserId, userId2)
         )
       ).limit(1);
       const assignment = assignmentRows[0];
@@ -79467,7 +79548,7 @@ router7.get(
       }).from(gigsTable).where(
         and(
           eq(gigsTable.briefId, id),
-          eq(gigsTable.freelancerUserId, userId),
+          eq(gigsTable.freelancerUserId, userId2),
           inArray(
             gigsTable.status,
             Array.from(COUNTABLE_GIG_STATUSES)
@@ -79505,7 +79586,7 @@ router7.get(
           }).from(briefRoomAssignmentsTable).where(
             and(
               eq(briefRoomAssignmentsTable.briefId, id),
-              eq(briefRoomAssignmentsTable.freelancerUserId, userId)
+              eq(briefRoomAssignmentsTable.freelancerUserId, userId2)
             )
           ).limit(1);
           let roomKey = null;
@@ -79536,7 +79617,7 @@ router7.get(
                 eq(briefAssignmentsTable.decision, "accepted")
               )
             );
-            const otherIds = sameRoomRows.map((r) => r.freelancerUserId).filter((u) => u !== userId).sort();
+            const otherIds = sameRoomRows.map((r) => r.freelancerUserId).filter((u) => u !== userId2).sort();
             const firstOther = otherIds[0];
             if (firstOther) {
               const otherProfile = await db.select({ fullName: freelancerProfilesTable.fullName }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, firstOther)).limit(1);
@@ -79656,7 +79737,7 @@ function normaliseGig(body) {
   };
 }
 router8.get("/portal/gigs", requireSignedIn6, async (req, res) => {
-  const userId = req._userId;
+  const userId2 = req._userId;
   try {
     const rows = await db.select({
       gig: gigsTable,
@@ -79666,8 +79747,8 @@ router8.get("/portal/gigs", requireSignedIn6, async (req, res) => {
       eq(gigsTable.briefId, projectBriefsTable.id)
     ).where(
       or(
-        eq(gigsTable.freelancerUserId, userId),
-        eq(projectBriefsTable.ownerUserId, userId)
+        eq(gigsTable.freelancerUserId, userId2),
+        eq(projectBriefsTable.ownerUserId, userId2)
       )
     ).orderBy(desc(gigsTable.startDate), desc(gigsTable.createdAt)).limit(500);
     res.json({
@@ -79688,20 +79769,36 @@ router8.get("/portal/gigs", requireSignedIn6, async (req, res) => {
   }
 });
 router8.post("/portal/gigs", requireSignedIn6, async (req, res) => {
-  const userId = req._userId;
+  const userId2 = req._userId;
   const body = req.body ?? {};
   const clientId = typeof body.id === "string" && body.id.trim() ? body.id.trim().slice(0, 64) : "";
   const id = clientId || randomUUID3();
   const fields = normaliseGig(body);
   try {
     if (clientId) {
-      const existing = await db.select({ freelancerUserId: gigsTable.freelancerUserId }).from(gigsTable).where(eq(gigsTable.id, clientId)).limit(1);
-      if (existing[0] && existing[0].freelancerUserId !== userId) {
+      const existing = await db.select({
+        freelancerUserId: gigsTable.freelancerUserId,
+        briefId: gigsTable.briefId
+      }).from(gigsTable).where(eq(gigsTable.id, clientId)).limit(1);
+      if (existing[0] && existing[0].freelancerUserId !== userId2) {
         res.status(403).json({ ok: false, error: "Not your gig." });
         return;
       }
+      if (existing[0]?.briefId) {
+        res.status(403).json({
+          ok: false,
+          error: "Producer-assigned gigs cannot be overwritten from the portal."
+        });
+        return;
+      }
+    } else if (fields.briefId) {
+      res.status(400).json({
+        ok: false,
+        error: "Project assignments must be created by a producer."
+      });
+      return;
     }
-    const inserted = await db.insert(gigsTable).values({ id, freelancerUserId: userId, ...fields }).onConflictDoUpdate({
+    const inserted = await db.insert(gigsTable).values({ id, freelancerUserId: userId2, ...fields }).onConflictDoUpdate({
       target: gigsTable.id,
       set: { ...fields, updatedAt: sql`now()` }
     }).returning();
@@ -79715,10 +79812,24 @@ router8.post("/portal/gigs", requireSignedIn6, async (req, res) => {
   }
 });
 router8.patch("/portal/gigs/:id", requireSignedIn6, async (req, res) => {
-  const userId = req._userId;
+  const userId2 = req._userId;
   const id = String(req.params.id ?? "");
   const body = req.body ?? {};
   const patch = { updatedAt: sql`now()` };
+  const existing = await db.select({ briefId: gigsTable.briefId }).from(gigsTable).where(and(eq(gigsTable.id, id), eq(gigsTable.freelancerUserId, userId2))).limit(1);
+  if (!existing[0]) {
+    res.status(404).json({ ok: false, error: "Gig not found." });
+    return;
+  }
+  if (existing[0].briefId && Object.keys(body).some(
+    (key2) => !["status", "checkIn", "notes"].includes(key2)
+  )) {
+    res.status(403).json({
+      ok: false,
+      error: "Producer-owned assignment terms cannot be changed from the portal."
+    });
+    return;
+  }
   if (body.status !== void 0) {
     const s2 = clampStr2(body.status);
     if (!VALID_STATUSES.has(s2)) {
@@ -79739,7 +79850,7 @@ router8.patch("/portal/gigs/:id", requireSignedIn6, async (req, res) => {
   }
   try {
     const updated = await db.update(gigsTable).set(patch).where(
-      and(eq(gigsTable.id, id), eq(gigsTable.freelancerUserId, userId))
+      and(eq(gigsTable.id, id), eq(gigsTable.freelancerUserId, userId2))
     ).returning();
     if (updated.length === 0) {
       res.status(404).json({ ok: false, error: "Gig not found." });
@@ -79755,11 +79866,23 @@ router8.patch("/portal/gigs/:id", requireSignedIn6, async (req, res) => {
   }
 });
 router8.delete("/portal/gigs/:id", requireSignedIn6, async (req, res) => {
-  const userId = req._userId;
+  const userId2 = req._userId;
   const id = String(req.params.id ?? "");
   try {
+    const [existing] = await db.select({ briefId: gigsTable.briefId }).from(gigsTable).where(and(eq(gigsTable.id, id), eq(gigsTable.freelancerUserId, userId2))).limit(1);
+    if (!existing) {
+      res.status(404).json({ ok: false, error: "Gig not found." });
+      return;
+    }
+    if (existing.briefId) {
+      res.status(403).json({
+        ok: false,
+        error: "Producer-assigned gigs cannot be deleted from the portal."
+      });
+      return;
+    }
     const removed = await db.delete(gigsTable).where(
-      and(eq(gigsTable.id, id), eq(gigsTable.freelancerUserId, userId))
+      and(eq(gigsTable.id, id), eq(gigsTable.freelancerUserId, userId2))
     ).returning({ id: gigsTable.id });
     if (removed.length === 0) {
       res.status(404).json({ ok: false, error: "Gig not found." });
@@ -79792,10 +79915,19 @@ var requireSignedIn7 = (req, res, next) => {
 var MAX_NOTES2 = 4e3;
 var MAX_REASON = 1e3;
 var STATUS_SET = new Set(TIME_ENTRY_STATUSES);
-var SUBMITTABLE = /* @__PURE__ */ new Set(["draft", "rejected"]);
+var SUBMITTABLE = /* @__PURE__ */ new Set(["draft", "rejected", "flagged"]);
 function clampStr3(raw, cap = 280) {
   if (typeof raw !== "string") return "";
   return raw.trim().slice(0, cap);
+}
+function majorNokToMinor(raw) {
+  const match2 = raw.trim().match(/^(\d+)(?:\.(\d+))?$/);
+  if (!match2) throw new Error("Invalid gig compensation.");
+  const amount = Number(match2[1]) * 100 + Number(`${match2[2] ?? ""}00`.slice(0, 2));
+  if (!Number.isSafeInteger(amount) || amount < 0 || amount > 2147483647) {
+    throw new Error("Gig compensation is outside the supported range.");
+  }
+  return amount;
 }
 function pickDate4(raw) {
   if (typeof raw !== "string") return null;
@@ -79814,12 +79946,32 @@ function pickBreak(raw) {
   if (!Number.isFinite(n) || n < 0) return 0;
   return Math.min(Math.round(n), 24 * 60);
 }
-function workedMinutes(row) {
+function pickInteger(raw, min, max) {
+  if (typeof raw !== "number" || !Number.isFinite(raw) || !Number.isInteger(raw)) {
+    return null;
+  }
+  return raw < min || raw > max ? null : raw;
+}
+function hasOnlyKeys(body, allowed) {
+  const set2 = new Set(allowed);
+  return Object.keys(body).every((key2) => set2.has(key2));
+}
+function grossMinutes(row) {
   if (row.startMinute == null || row.endMinute == null) return 0;
   let span = row.endMinute - row.startMinute;
   if (span < 0) span += 24 * 60;
-  const net2 = span - (row.breakMinutes ?? 0);
+  return span;
+}
+function workedMinutes(row) {
+  const net2 = grossMinutes(row) - (row.breakMinutes ?? 0);
   return net2 > 0 ? net2 : 0;
+}
+function payableMinutes(row) {
+  const breakMinutes = row.producerBreakMinutes ?? row.breakMinutes ?? 0;
+  return Math.max(
+    0,
+    grossMinutes(row) - breakMinutes + row.producerAdjustmentMinutes
+  );
 }
 function serialize(row) {
   return {
@@ -79832,6 +79984,14 @@ function serialize(row) {
     endMinute: row.endMinute,
     breakMinutes: row.breakMinutes,
     workedMinutes: workedMinutes(row),
+    producerBreakMinutes: row.producerBreakMinutes,
+    producerAdjustmentMinutes: row.producerAdjustmentMinutes,
+    overtimeMinutes: row.overtimeMinutes,
+    payableMinutes: payableMinutes(row),
+    adjustmentReason: row.adjustmentReason,
+    adjustedByUserId: row.adjustedByUserId,
+    adjustedAt: row.adjustedAt,
+    flagReason: row.flagReason,
     notes: row.notes,
     status: row.status,
     decidedByUserId: row.decidedByUserId,
@@ -79841,24 +80001,24 @@ function serialize(row) {
     updatedAt: row.updatedAt
   };
 }
-async function loadOwnGig(gigId, userId) {
-  const rows = await db.select().from(gigsTable).where(and(eq(gigsTable.id, gigId), eq(gigsTable.freelancerUserId, userId))).limit(1);
+async function loadOwnGig(gigId, userId2) {
+  const rows = await db.select().from(gigsTable).where(and(eq(gigsTable.id, gigId), eq(gigsTable.freelancerUserId, userId2))).limit(1);
   return rows[0] ?? null;
 }
-async function loadGigForProducer(gigId, userId) {
+async function loadGigForProducer(gigId, userId2) {
   const rows = await db.select({
     gig: gigsTable,
     brief: projectBriefsTable
   }).from(gigsTable).leftJoin(projectBriefsTable, eq(gigsTable.briefId, projectBriefsTable.id)).where(eq(gigsTable.id, gigId)).limit(1);
   const row = rows[0];
-  if (!row || !row.brief || row.brief.ownerUserId !== userId) return null;
+  if (!row || !row.brief || row.brief.ownerUserId !== userId2) return null;
   return row;
 }
 router9.get(
   "/portal/gigs/:gigId/time-entries",
   requireSignedIn7,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const gigId = String(req.params.gigId ?? "");
     if (!gigId) {
       res.status(400).json({ ok: false, error: "gigId required" });
@@ -79870,8 +80030,8 @@ router9.get(
       res.status(404).json({ ok: false, error: "Gig not found" });
       return;
     }
-    const isFreelancer = row.gigs.freelancerUserId === userId;
-    const isProducer = row.project_briefs?.ownerUserId === userId;
+    const isFreelancer = row.gigs.freelancerUserId === userId2;
+    const isProducer = row.project_briefs?.ownerUserId === userId2;
     if (!isFreelancer && !isProducer) {
       res.status(403).json({ ok: false, error: "Forbidden" });
       return;
@@ -79884,19 +80044,31 @@ router9.put(
   "/portal/gigs/:gigId/time-entries/:workDate",
   requireSignedIn7,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const gigId = String(req.params.gigId ?? "");
     const workDate = pickDate4(req.params.workDate);
     if (!gigId || !workDate) {
       res.status(400).json({ ok: false, error: "gigId and workDate required" });
       return;
     }
-    const gig = await loadOwnGig(gigId, userId);
+    const gig = await loadOwnGig(gigId, userId2);
     if (!gig) {
       res.status(403).json({ ok: false, error: "Forbidden" });
       return;
     }
     const body = req.body ?? {};
+    if (!hasOnlyKeys(body, [
+      "startMinute",
+      "endMinute",
+      "breakMinutes",
+      "notes"
+    ])) {
+      res.status(400).json({
+        ok: false,
+        error: "Unexpected or protected fields in time entry update."
+      });
+      return;
+    }
     const startMinute = pickMinute(body.startMinute);
     const endMinute = pickMinute(body.endMinute);
     const breakMinutes = pickBreak(body.breakMinutes);
@@ -79921,7 +80093,7 @@ router9.put(
         id,
         gigId,
         briefId: gig.briefId,
-        freelancerUserId: userId,
+        freelancerUserId: userId2,
         workDate,
         startMinute,
         endMinute,
@@ -79941,11 +80113,18 @@ router9.put(
       decidedByUserId: null,
       decidedAt: null,
       rejectionReason: "",
+      flagReason: "",
+      producerAdjustmentMinutes: 0,
+      producerBreakMinutes: null,
+      overtimeMinutes: 0,
+      adjustmentReason: "",
+      adjustedByUserId: null,
+      adjustedAt: null,
       updatedAt: sql`now()`
     }).where(
       and(
         eq(timeEntriesTable.id, prior.id),
-        inArray(timeEntriesTable.status, ["draft", "rejected"])
+        inArray(timeEntriesTable.status, ["draft", "rejected", "flagged"])
       )
     ).returning();
     if (updated.length === 0) {
@@ -79962,16 +80141,24 @@ router9.post(
   "/portal/gigs/:gigId/time-entries/:workDate/submit",
   requireSignedIn7,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const gigId = String(req.params.gigId ?? "");
     const workDate = pickDate4(req.params.workDate);
     if (!gigId || !workDate) {
       res.status(400).json({ ok: false, error: "gigId and workDate required" });
       return;
     }
-    const gig = await loadOwnGig(gigId, userId);
+    const gig = await loadOwnGig(gigId, userId2);
     if (!gig) {
       res.status(403).json({ ok: false, error: "Forbidden" });
+      return;
+    }
+    const body = req.body ?? {};
+    if (!hasOnlyKeys(body, [])) {
+      res.status(400).json({
+        ok: false,
+        error: "Submit does not accept identity, project, rate, or time fields."
+      });
       return;
     }
     const existing = await db.select().from(timeEntriesTable).where(
@@ -80002,13 +80189,20 @@ router9.post(
     const updated = await db.update(timeEntriesTable).set({
       status: "submitted",
       rejectionReason: "",
+      flagReason: "",
+      producerAdjustmentMinutes: 0,
+      producerBreakMinutes: null,
+      overtimeMinutes: 0,
+      adjustmentReason: "",
+      adjustedByUserId: null,
+      adjustedAt: null,
       decidedByUserId: null,
       decidedAt: null,
       updatedAt: sql`now()`
     }).where(
       and(
         eq(timeEntriesTable.id, prior.id),
-        inArray(timeEntriesTable.status, ["draft", "rejected"])
+        inArray(timeEntriesTable.status, ["draft", "rejected", "flagged"])
       )
     ).returning();
     if (updated.length === 0) {
@@ -80025,14 +80219,14 @@ router9.get(
   "/portal/briefs/:briefId/time-entries",
   requireSignedIn7,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const briefId = String(req.params.briefId ?? "");
     if (!briefId) {
       res.status(400).json({ ok: false, error: "briefId required" });
       return;
     }
     const briefs = await db.select().from(projectBriefsTable).where(eq(projectBriefsTable.id, briefId)).limit(1);
-    if (!briefs[0] || briefs[0].ownerUserId !== userId) {
+    if (!briefs[0] || briefs[0].ownerUserId !== userId2) {
       res.status(403).json({ ok: false, error: "Forbidden" });
       return;
     }
@@ -80057,8 +80251,9 @@ router9.get(
 router9.post(
   "/portal/time-entries/:id/decide",
   requireSignedIn7,
+  requireEmployee,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const id = String(req.params.id ?? "");
     if (!id) {
       res.status(400).json({ ok: false, error: "id required" });
@@ -80070,7 +80265,7 @@ router9.post(
       res.status(404).json({ ok: false, error: "Entry not found" });
       return;
     }
-    const gig = await loadGigForProducer(entry.gigId, userId);
+    const gig = await loadGigForProducer(entry.gigId, userId2);
     if (!gig) {
       res.status(403).json({ ok: false, error: "Forbidden" });
       return;
@@ -80083,19 +80278,37 @@ router9.post(
       return;
     }
     const body = req.body ?? {};
-    const decision = clampStr3(body.decision);
-    if (decision !== "approve" && decision !== "reject") {
+    if (!hasOnlyKeys(body, ["decision", "reason"])) {
       res.status(400).json({
         ok: false,
-        error: 'decision must be "approve" or "reject".'
+        error: "Unexpected fields in producer decision."
+      });
+      return;
+    }
+    const decision = clampStr3(body.decision);
+    if (decision !== "approve" && decision !== "reject" && decision !== "flag") {
+      res.status(400).json({
+        ok: false,
+        error: 'decision must be "approve", "reject", or "flag".'
+      });
+      return;
+    }
+    const reason = clampStr3(body.reason, MAX_REASON);
+    if (decision !== "approve" && !reason) {
+      res.status(400).json({
+        ok: false,
+        error: "A reason is required when rejecting or flagging an entry."
       });
       return;
     }
     const updated = await db.update(timeEntriesTable).set({
-      status: decision === "approve" ? "approved" : "rejected",
-      decidedByUserId: userId,
+      status: decision === "approve" ? "approved" : decision === "flag" ? "flagged" : "rejected",
+      decidedByUserId: userId2,
       decidedAt: sql`now()`,
-      rejectionReason: decision === "reject" ? clampStr3(body.reason, MAX_REASON) : "",
+      rejectionReason: decision === "reject" ? reason : "",
+      flagReason: decision === "flag" ? reason : "",
+      approvedRateMinor: decision === "approve" ? majorNokToMinor(gig.gig.rate) : null,
+      approvedFlatFeeMinor: decision === "approve" ? majorNokToMinor(gig.gig.flatFee) : null,
       updatedAt: sql`now()`
     }).where(
       and(
@@ -80114,13 +80327,23 @@ router9.post(
   }
 );
 router9.post(
-  "/portal/time-entries/:id/lock",
+  "/portal/time-entries/:id/adjust",
   requireSignedIn7,
+  requireEmployee,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const id = String(req.params.id ?? "");
-    if (!id) {
-      res.status(400).json({ ok: false, error: "id required" });
+    const body = req.body ?? {};
+    if (!id || !hasOnlyKeys(body, [
+      "adjustmentMinutes",
+      "breakMinutes",
+      "overtimeMinutes",
+      "reason"
+    ])) {
+      res.status(400).json({
+        ok: false,
+        error: id ? "Unexpected fields in producer adjustment." : "id required"
+      });
       return;
     }
     const rows = await db.select().from(timeEntriesTable).where(eq(timeEntriesTable.id, id)).limit(1);
@@ -80129,7 +80352,94 @@ router9.post(
       res.status(404).json({ ok: false, error: "Entry not found" });
       return;
     }
-    const gig = await loadGigForProducer(entry.gigId, userId);
+    if (!await loadGigForProducer(entry.gigId, userId2)) {
+      res.status(403).json({ ok: false, error: "Forbidden" });
+      return;
+    }
+    if (entry.status !== "submitted") {
+      res.status(409).json({
+        ok: false,
+        error: "Only submitted entries can be adjusted."
+      });
+      return;
+    }
+    const adjustmentMinutes = pickInteger(body.adjustmentMinutes, -1440, 1440);
+    const breakMinutes = pickInteger(body.breakMinutes, 0, 1440);
+    const overtimeMinutes = pickInteger(body.overtimeMinutes, 0, 1440);
+    const reason = clampStr3(body.reason, MAX_REASON);
+    if (adjustmentMinutes == null || breakMinutes == null || overtimeMinutes == null || !reason) {
+      res.status(400).json({
+        ok: false,
+        error: "Whole-minute adjustment, break, overtime, and a reason are required."
+      });
+      return;
+    }
+    const gross = grossMinutes(entry);
+    if (breakMinutes > gross) {
+      res.status(400).json({
+        ok: false,
+        error: "Adjusted break cannot exceed the observed shift."
+      });
+      return;
+    }
+    const payable = Math.max(0, gross - breakMinutes + adjustmentMinutes);
+    if (payable > 1440 || overtimeMinutes > payable) {
+      res.status(400).json({
+        ok: false,
+        error: "Payable time must be at most 24 hours and overtime cannot exceed payable time."
+      });
+      return;
+    }
+    const updated = await db.update(timeEntriesTable).set({
+      producerAdjustmentMinutes: adjustmentMinutes,
+      producerBreakMinutes: breakMinutes,
+      overtimeMinutes,
+      adjustmentReason: reason,
+      adjustedByUserId: userId2,
+      adjustedAt: sql`now()`,
+      updatedAt: sql`now()`
+    }).where(
+      and(
+        eq(timeEntriesTable.id, id),
+        eq(timeEntriesTable.status, "submitted")
+      )
+    ).returning();
+    if (!updated[0]) {
+      res.status(409).json({
+        ok: false,
+        error: "Entry status changed before the adjustment landed. Reload."
+      });
+      return;
+    }
+    res.json({ ok: true, entry: serialize(updated[0]) });
+  }
+);
+router9.post(
+  "/portal/time-entries/:id/lock",
+  requireSignedIn7,
+  requireEmployee,
+  async (req, res) => {
+    const userId2 = req._userId;
+    const id = String(req.params.id ?? "");
+    if (!id) {
+      res.status(400).json({ ok: false, error: "id required" });
+      return;
+    }
+    const body = req.body ?? {};
+    if (!hasOnlyKeys(body, [])) {
+      res.status(400).json({
+        ok: false,
+        error: "Lock does not accept identity, project, rate, or time fields."
+      });
+      return;
+    }
+    const rows = await db.select().from(timeEntriesTable).where(eq(timeEntriesTable.id, id)).limit(1);
+    const entry = rows[0];
+    if (!entry) {
+      res.status(404).json({ ok: false, error: "Entry not found" });
+      return;
+    }
+    const gig = await loadGigForProducer(entry.gigId, userId2);
     if (!gig) {
       res.status(403).json({ ok: false, error: "Forbidden" });
       return;
@@ -80456,10 +80766,10 @@ router10.delete(
     res.json({ ok: true });
   }
 );
-async function subscription(userId) {
+async function subscription(userId2) {
   const token = randomBytes2(32).toString("base64url");
   await db.insert(calendarSubscriptionsTable).values({
-    userId,
+    userId: userId2,
     tokenHash: tokenHash(token),
     encryptedToken: seal(token)
   }).onConflictDoUpdate({
@@ -80498,12 +80808,12 @@ router10.post(
     });
   }
 );
-async function renderFeed(userId) {
+async function renderFeed(userId2) {
   const [gigs, holds] = await Promise.all([
-    db.select().from(gigsTable).where(eq(gigsTable.freelancerUserId, userId)),
+    db.select().from(gigsTable).where(eq(gigsTable.freelancerUserId, userId2)),
     db.select().from(calendarHoldsTable).where(
       and(
-        eq(calendarHoldsTable.freelancerUserId, userId),
+        eq(calendarHoldsTable.freelancerUserId, userId2),
         gt(calendarHoldsTable.expiresAt, /* @__PURE__ */ new Date())
       )
     )
@@ -80791,30 +81101,90 @@ router10.delete(
 );
 var portalCalendar_default = router10;
 
-// src/routes/projects.ts
+// src/routes/portalWork.ts
 var import_express13 = __toESM(require_express2(), 1);
+var router11 = (0, import_express13.Router)();
+var requireSignedIn9 = (req, res, next) => {
+  const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
+  if (!auth.userId) {
+    res.status(401).json({ ok: false, error: "Sign in required." });
+    return;
+  }
+  req._userId = auth.userId;
+  next();
+};
+router11.get("/portal/my-runs", requireSignedIn9, async (req, res) => {
+  const userId2 = req._userId;
+  try {
+    const runs = await db.select({
+      id: transportRunsTable.id,
+      projectName: projectsTable.name,
+      title: transportRunsTable.title,
+      origin: transportRunsTable.origin,
+      destination: transportRunsTable.destination,
+      departureAt: transportRunsTable.departureAt,
+      loadInAt: transportRunsTable.loadInAt,
+      loadOutAt: transportRunsTable.loadOutAt,
+      status: transportRunsTable.status,
+      cargoNotes: transportRunsTable.cargoNotes,
+      vehicleName: transportVehiclesTable.name,
+      vehicleLicensePlate: transportVehiclesTable.licensePlate
+    }).from(transportRunsTable).innerJoin(projectsTable, eq(transportRunsTable.projectId, projectsTable.id)).innerJoin(
+      transportVehiclesTable,
+      eq(transportRunsTable.vehicleId, transportVehiclesTable.id)
+    ).where(eq(transportRunsTable.driverUserId, userId2)).orderBy(asc(transportRunsTable.departureAt));
+    res.json({ ok: true, runs });
+  } catch (error40) {
+    req.log.error({ error: error40 }, "portal my-runs GET failed");
+    res.status(500).json({ ok: false, error: "Could not load your transport runs." });
+  }
+});
+router11.get("/portal/my-tasks", requireSignedIn9, async (req, res) => {
+  const userId2 = req._userId;
+  try {
+    const tasks = await db.select({
+      id: projectTasksTable.id,
+      projectName: projectsTable.name,
+      projectVenue: projectsTable.venue,
+      title: projectTasksTable.title,
+      status: projectTasksTable.status,
+      priority: projectTasksTable.priority,
+      department: projectTasksTable.department,
+      dueDate: projectTasksTable.dueDate,
+      description: projectTasksTable.description
+    }).from(projectTasksTable).innerJoin(projectsTable, eq(projectTasksTable.projectId, projectsTable.id)).where(eq(projectTasksTable.assignedUserId, userId2)).orderBy(asc(projectTasksTable.dueDate), asc(projectTasksTable.createdAt));
+    res.json({ ok: true, tasks });
+  } catch (error40) {
+    req.log.error({ error: error40 }, "portal my-tasks GET failed");
+    res.status(500).json({ ok: false, error: "Could not load your tasks." });
+  }
+});
+var portalWork_default = router11;
+
+// src/routes/projects.ts
+var import_express14 = __toESM(require_express2(), 1);
 
 // src/lib/projectAccess.ts
 var UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function isProjectWriter(role) {
   return role === "owner" || role === "editor";
 }
-async function getProjectAccess(projectId, userId) {
+async function getProjectAccess(projectId, userId2) {
   const [project] = await db.select({ ownerId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
   if (!project) return null;
-  if (project.ownerId === userId) return "owner";
+  if (project.ownerId === userId2) return "owner";
   const [membership] = await db.select({ role: projectMembersTable.role }).from(projectMembersTable).where(
     and(
       eq(projectMembersTable.projectId, projectId),
-      eq(projectMembersTable.userId, userId)
+      eq(projectMembersTable.userId, userId2)
     )
   ).limit(1);
   return membership?.role === "editor" || membership?.role === "viewer" ? membership.role : null;
 }
 
 // src/routes/projects.ts
-var router11 = (0, import_express13.Router)();
-var requireSignedIn9 = (req, res, next) => {
+var router12 = (0, import_express14.Router)();
+var requireSignedIn10 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
     res.status(401).json({ ok: false, error: "Sign in required." });
@@ -80824,8 +81194,8 @@ var requireSignedIn9 = (req, res, next) => {
   next();
 };
 var MAX_DATA_BYTES2 = 2 * 1024 * 1024;
-router11.get("/projects", requireSignedIn9, async (req, res) => {
-  const userId = req._userId;
+router12.get("/projects", requireSignedIn10, async (req, res) => {
+  const userId2 = req._userId;
   try {
     const rows = await db.select({
       id: projectsTable.id,
@@ -80839,17 +81209,17 @@ router11.get("/projects", requireSignedIn9, async (req, res) => {
       status: sql`case when nullif(${projectsTable.data}->>'activeBriefId', '') is not null then 'active' when nullif(${projectsTable.venue}, '') is not null or nullif(${projectsTable.client}, '') is not null then 'planning' else 'draft' end`,
       createdAt: projectsTable.createdAt,
       updatedAt: projectsTable.updatedAt,
-      accessRole: sql`case when ${projectsTable.userId} = ${userId} then 'owner' else ${projectMembersTable.role} end`
+      accessRole: sql`case when ${projectsTable.userId} = ${userId2} then 'owner' else ${projectMembersTable.role} end`
     }).from(projectsTable).leftJoin(
       projectMembersTable,
       and(
         eq(projectMembersTable.projectId, projectsTable.id),
-        eq(projectMembersTable.userId, userId)
+        eq(projectMembersTable.userId, userId2)
       )
     ).where(
       or(
-        eq(projectsTable.userId, userId),
-        eq(projectMembersTable.userId, userId)
+        eq(projectsTable.userId, userId2),
+        eq(projectMembersTable.userId, userId2)
       )
     ).orderBy(desc(projectsTable.updatedAt));
     const normaliseDate = (raw) => {
@@ -80880,15 +81250,15 @@ router11.get("/projects", requireSignedIn9, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to list projects." });
   }
 });
-router11.get("/projects/:id", requireSignedIn9, async (req, res) => {
-  const userId = req._userId;
+router12.get("/projects/:id", requireSignedIn10, async (req, res) => {
+  const userId2 = req._userId;
   const { id } = req.params;
   if (!UUID_PATTERN.test(String(id))) {
     res.status(404).json({ ok: false, error: "Project not found." });
     return;
   }
   try {
-    const accessRole = await getProjectAccess(String(id), userId);
+    const accessRole = await getProjectAccess(String(id), userId2);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -80911,8 +81281,8 @@ router11.get("/projects/:id", requireSignedIn9, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to load project." });
   }
 });
-router11.post("/projects", requireSignedIn9, async (req, res) => {
-  const userId = req._userId;
+router12.post("/projects", requireSignedIn10, async (req, res) => {
+  const userId2 = req._userId;
   const { name, venue, client, easyjob_number, data } = req.body ?? {};
   if (data && JSON.stringify(data).length > MAX_DATA_BYTES2) {
     res.status(413).json({ ok: false, error: "Project data too large." });
@@ -80920,7 +81290,7 @@ router11.post("/projects", requireSignedIn9, async (req, res) => {
   }
   try {
     const [row] = await db.insert(projectsTable).values({
-      userId,
+      userId: userId2,
       name: typeof name === "string" ? name.slice(0, 200) : "Untitled",
       venue: typeof venue === "string" ? venue.slice(0, 200) : "",
       client: typeof client === "string" ? client.slice(0, 200) : "",
@@ -80936,8 +81306,8 @@ router11.post("/projects", requireSignedIn9, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to create project." });
   }
 });
-router11.patch("/projects/:id", requireSignedIn9, async (req, res) => {
-  const userId = req._userId;
+router12.patch("/projects/:id", requireSignedIn10, async (req, res) => {
+  const userId2 = req._userId;
   const { id } = req.params;
   const { name, venue, client, easyjob_number, data } = req.body ?? {};
   if (!UUID_PATTERN.test(String(id))) {
@@ -80960,7 +81330,7 @@ router11.patch("/projects/:id", requireSignedIn9, async (req, res) => {
   }
   if (data !== void 0) updates.data = data;
   try {
-    const accessRole = await getProjectAccess(String(id), userId);
+    const accessRole = await getProjectAccess(String(id), userId2);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -80987,15 +81357,15 @@ router11.patch("/projects/:id", requireSignedIn9, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to update project." });
   }
 });
-router11.delete("/projects/:id", requireSignedIn9, async (req, res) => {
-  const userId = req._userId;
+router12.delete("/projects/:id", requireSignedIn10, async (req, res) => {
+  const userId2 = req._userId;
   const { id } = req.params;
   if (!UUID_PATTERN.test(String(id))) {
     res.status(404).json({ ok: false, error: "Project not found." });
     return;
   }
   try {
-    const result = await db.delete(projectsTable).where(and(eq(projectsTable.id, String(id)), eq(projectsTable.userId, userId)));
+    const result = await db.delete(projectsTable).where(and(eq(projectsTable.id, String(id)), eq(projectsTable.userId, userId2)));
     if (result.rowCount === 0) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -81006,12 +81376,12 @@ router11.delete("/projects/:id", requireSignedIn9, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to delete project." });
   }
 });
-var projects_default = router11;
+var projects_default = router12;
 
 // src/routes/inspectionExtract.ts
-var import_express14 = __toESM(require_express2(), 1);
-var router12 = (0, import_express14.Router)();
-var requireSignedIn10 = (req, res, next) => {
+var import_express15 = __toESM(require_express2(), 1);
+var router13 = (0, import_express15.Router)();
+var requireSignedIn11 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
     res.status(401).json({ ok: false, error: "Sign in required." });
@@ -81026,16 +81396,16 @@ var RATE_LIMIT = 10;
 var SWEEP_INTERVAL_MS = 5 * 6e4;
 setInterval(() => {
   const now = Date.now();
-  for (const [userId, arr2] of recentByUser2) {
+  for (const [userId2, arr2] of recentByUser2) {
     const live = arr2.filter((t) => now - t < RATE_WINDOW_MS2);
-    if (live.length === 0) recentByUser2.delete(userId);
-    else recentByUser2.set(userId, live);
+    if (live.length === 0) recentByUser2.delete(userId2);
+    else recentByUser2.set(userId2, live);
   }
 }, SWEEP_INTERVAL_MS);
 var rateLimit2 = (req, res, next) => {
-  const userId = req._userId;
+  const userId2 = req._userId;
   const now = Date.now();
-  const arr2 = (recentByUser2.get(userId) ?? []).filter(
+  const arr2 = (recentByUser2.get(userId2) ?? []).filter(
     (t) => now - t < RATE_WINDOW_MS2
   );
   if (arr2.length >= RATE_LIMIT) {
@@ -81046,7 +81416,7 @@ var rateLimit2 = (req, res, next) => {
     return;
   }
   arr2.push(now);
-  recentByUser2.set(userId, arr2);
+  recentByUser2.set(userId2, arr2);
   next();
 };
 var ANTHROPIC_BASE_URL2 = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
@@ -81128,10 +81498,10 @@ function normalizeResult(raw) {
     general: normalizeItems(obj.general)
   };
 }
-router12.post(
+router13.post(
   "/inspection/extract",
-  (0, import_express14.json)({ limit: "100kb" }),
-  requireSignedIn10,
+  (0, import_express15.json)({ limit: "100kb" }),
+  requireSignedIn11,
   rateLimit2,
   async (req, res) => {
     if (!anthropic2) {
@@ -81179,10 +81549,10 @@ router12.post(
     }
   }
 );
-var inspectionExtract_default = router12;
+var inspectionExtract_default = router13;
 
 // src/routes/admin.ts
-var import_express15 = __toESM(require_express2(), 1);
+var import_express16 = __toESM(require_express2(), 1);
 var clerk3 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
 var ADMIN_EMAIL_DOMAIN = "@ehs.no";
 function getEmailFromUser(user) {
@@ -81212,13 +81582,13 @@ var requireAdmin = async (req, res, next) => {
     return;
   }
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
-  const userId = auth?.userId ?? null;
-  if (!userId) {
+  const userId2 = auth?.userId ?? null;
+  if (!userId2) {
     res.status(401).json({ ok: false, error: "Sign in required." });
     return;
   }
   try {
-    const caller = await clerk3.users.getUser(userId);
+    const caller = await clerk3.users.getUser(userId2);
     const email3 = getVerifiedPrimaryEhsEmail(caller);
     if (!email3) {
       res.status(403).json({
@@ -81233,7 +81603,7 @@ var requireAdmin = async (req, res, next) => {
     logger.warn(
       {
         scope: "admin",
-        userId,
+        userId: userId2,
         err: err instanceof Error ? err.message : String(err)
       },
       "admin gate: Clerk getUser failed"
@@ -81241,33 +81611,33 @@ var requireAdmin = async (req, res, next) => {
     res.status(500).json({ ok: false, error: "Admin auth check failed." });
   }
 };
-var router13 = (0, import_express15.Router)();
-router13.post("/admin/claim-employee", requireAdmin, async (req, res) => {
+var router14 = (0, import_express16.Router)();
+router14.post("/admin/claim-employee", requireAdmin, async (req, res) => {
   if (!clerk3) {
     res.status(503).json({ ok: false, error: "Clerk not configured." });
     return;
   }
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
-  const userId = auth?.userId ?? null;
-  if (!userId) {
+  const userId2 = auth?.userId ?? null;
+  if (!userId2) {
     res.status(401).json({ ok: false, error: "Sign in required." });
     return;
   }
   try {
-    const user = await clerk3.users.getUser(userId);
-    await clerk3.users.updateUserMetadata(userId, {
+    const user = await clerk3.users.getUser(userId2);
+    await clerk3.users.updateUserMetadata(userId2, {
       publicMetadata: {
         ...user.publicMetadata ?? {},
         userType: "employee"
       }
     });
-    await db.delete(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId));
+    await db.delete(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId2));
     res.json({ ok: true, userType: "employee" });
   } catch (err) {
     logger.error(
       {
         scope: "admin",
-        userId,
+        userId: userId2,
         err: err instanceof Error ? err.message : String(err)
       },
       "admin: self-service employee classification failed"
@@ -81275,7 +81645,7 @@ router13.post("/admin/claim-employee", requireAdmin, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to update user type." });
   }
 });
-router13.post("/admin/set-user-type", requireAdmin, async (req, res) => {
+router14.post("/admin/set-user-type", requireAdmin, async (req, res) => {
   if (!clerk3) {
     res.status(503).json({ ok: false, error: "Clerk not configured." });
     return;
@@ -81342,7 +81712,7 @@ router13.post("/admin/set-user-type", requireAdmin, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to update user." });
   }
 });
-router13.post("/admin/delete-user", requireAdmin, async (req, res) => {
+router14.post("/admin/delete-user", requireAdmin, async (req, res) => {
   if (!clerk3) {
     res.status(503).json({ ok: false, error: "Clerk not configured." });
     return;
@@ -81399,22 +81769,22 @@ router13.post("/admin/delete-user", requireAdmin, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to delete user." });
   }
 });
-var admin_default = router13;
+var admin_default = router14;
 
 // src/routes/feedback.ts
-var import_express18 = __toESM(require_express2(), 1);
-var router14 = (0, import_express18.Router)();
+var import_express19 = __toESM(require_express2(), 1);
+var router15 = (0, import_express19.Router)();
 var clerk4 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
 var feedbackTypes = /* @__PURE__ */ new Set(["bug", "feature_request"]);
 var feedbackStatuses = /* @__PURE__ */ new Set(["open", "in_progress", "resolved"]);
-var requireSignedIn11 = (req, res, next) => {
+var requireSignedIn12 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
-  const userId = auth?.userId ?? null;
-  if (!userId) {
+  const userId2 = auth?.userId ?? null;
+  if (!userId2) {
     res.status(401).json({ ok: false, error: "Sign in required." });
     return;
   }
-  req._userId = userId;
+  req._userId = userId2;
   next();
 };
 function getVerifiedPrimaryEmail(user) {
@@ -81439,11 +81809,11 @@ function isSafePageUrl(value) {
     return false;
   }
 }
-router14.post(
+router15.post(
   "/feedback",
-  requireSignedIn11,
+  requireSignedIn12,
   async (req, res) => {
-    const userId = req._userId;
+    const userId2 = req._userId;
     const body = req.body;
     const type = typeof body.type === "string" ? body.type : "";
     const title = typeof body.title === "string" ? body.title.trim() : "";
@@ -81484,12 +81854,12 @@ router14.post(
     }
     try {
       const [user, userRole] = await Promise.all([
-        clerk4.users.getUser(userId),
-        getUserType(userId)
+        clerk4.users.getUser(userId2),
+        getUserType(userId2)
       ]);
       const userEmail = getVerifiedPrimaryEmail(user);
       const [created] = await db.insert(feedbackReportsTable).values({
-        userId,
+        userId: userId2,
         userEmail,
         userRole,
         type,
@@ -81503,7 +81873,7 @@ router14.post(
     } catch (error40) {
       req.log.error(
         {
-          userId,
+          userId: userId2,
           err: error40 instanceof Error ? error40.message : String(error40)
         },
         "Failed to create feedback report"
@@ -81512,7 +81882,7 @@ router14.post(
     }
   }
 );
-router14.get(
+router15.get(
   "/admin/feedback",
   requireAdmin,
   async (_req, res) => {
@@ -81520,7 +81890,7 @@ router14.get(
     res.json(reports.map(serializeFeedback));
   }
 );
-router14.patch(
+router15.patch(
   "/admin/feedback/:id",
   requireAdmin,
   async (req, res) => {
@@ -81544,11 +81914,11 @@ router14.patch(
     res.json(serializeFeedback(updated));
   }
 );
-var feedback_default = router14;
+var feedback_default = router15;
 
 // src/routes/projectTasks.ts
-var import_express19 = __toESM(require_express2(), 1);
-var router15 = (0, import_express19.Router)();
+var import_express20 = __toESM(require_express2(), 1);
+var router16 = (0, import_express20.Router)();
 var TASK_STATUSES = [
   "Not Started",
   "Working on it",
@@ -81572,15 +81942,15 @@ function userIdFor(req) {
 function param(value) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
-router15.get("/projects/:projectId/tasks", async (req, res) => {
+router16.get("/projects/:projectId/tasks", async (req, res) => {
   const projectId = param(req.params.projectId);
-  const userId = userIdFor(req);
+  const userId2 = userIdFor(req);
   if (!UUID_PATTERN.test(projectId)) {
     res.status(404).json({ ok: false, error: "Project not found." });
     return;
   }
   try {
-    if (!await getProjectAccess(projectId, userId)) {
+    if (!await getProjectAccess(projectId, userId2)) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
@@ -81591,9 +81961,9 @@ router15.get("/projects/:projectId/tasks", async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to list project tasks." });
   }
 });
-router15.post("/projects/:projectId/tasks", async (req, res) => {
+router16.post("/projects/:projectId/tasks", async (req, res) => {
   const projectId = param(req.params.projectId);
-  const userId = userIdFor(req);
+  const userId2 = userIdFor(req);
   if (!UUID_PATTERN.test(projectId)) {
     res.status(404).json({ ok: false, error: "Project not found." });
     return;
@@ -81604,7 +81974,7 @@ router15.post("/projects/:projectId/tasks", async (req, res) => {
     return;
   }
   try {
-    const accessRole = await getProjectAccess(projectId, userId);
+    const accessRole = await getProjectAccess(projectId, userId2);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -81620,9 +81990,9 @@ router15.post("/projects/:projectId/tasks", async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to create project task." });
   }
 });
-router15.patch("/projects/tasks/:id", async (req, res) => {
+router16.patch("/projects/tasks/:id", async (req, res) => {
   const id = param(req.params.id);
-  const userId = userIdFor(req);
+  const userId2 = userIdFor(req);
   if (!UUID_PATTERN.test(id)) {
     res.status(404).json({ ok: false, error: "Task not found." });
     return;
@@ -81633,7 +82003,7 @@ router15.patch("/projects/tasks/:id", async (req, res) => {
     return;
   }
   const [taskForAccess] = await db.select({ projectId: projectTasksTable.projectId }).from(projectTasksTable).where(eq(projectTasksTable.id, id)).limit(1);
-  const accessRole = taskForAccess ? await getProjectAccess(taskForAccess.projectId, userId) : null;
+  const accessRole = taskForAccess ? await getProjectAccess(taskForAccess.projectId, userId2) : null;
   if (!accessRole) {
     res.status(404).json({ ok: false, error: "Task not found." });
     return;
@@ -81719,9 +82089,9 @@ router15.patch("/projects/tasks/:id", async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to update project task." });
   }
 });
-router15.delete("/projects/tasks/:id", async (req, res) => {
+router16.delete("/projects/tasks/:id", async (req, res) => {
   const id = param(req.params.id);
-  const userId = userIdFor(req);
+  const userId2 = userIdFor(req);
   if (!UUID_PATTERN.test(id)) {
     res.status(404).json({ ok: false, error: "Task not found." });
     return;
@@ -81732,7 +82102,7 @@ router15.delete("/projects/tasks/:id", async (req, res) => {
       res.status(404).json({ ok: false, error: "Task not found." });
       return;
     }
-    const accessRole = await getProjectAccess(ownedTask.projectId, userId);
+    const accessRole = await getProjectAccess(ownedTask.projectId, userId2);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Task not found." });
       return;
@@ -81748,11 +82118,11 @@ router15.delete("/projects/tasks/:id", async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to delete project task." });
   }
 });
-var projectTasks_default = router15;
+var projectTasks_default = router16;
 
 // src/routes/projectMembers.ts
-var import_express20 = __toESM(require_express2(), 1);
-var router16 = (0, import_express20.Router)();
+var import_express21 = __toESM(require_express2(), 1);
+var router17 = (0, import_express21.Router)();
 var clerk5 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
 function param2(value) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -81772,13 +82142,13 @@ function verifiedEhsIdentity(user) {
   const result = identity(user);
   return primary?.verification?.status === "verified" && result.email?.endsWith("@ehs.no") ? result : null;
 }
-async function ownerProject(projectId, userId) {
+async function ownerProject(projectId, userId2) {
   const [project] = await db.select({ ownerId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
-  return project?.ownerId === userId ? project : null;
+  return project?.ownerId === userId2 ? project : null;
 }
-router16.get("/projects/:projectId/members", async (req, res) => {
+router17.get("/projects/:projectId/members", async (req, res) => {
   const projectId = param2(req.params.projectId);
-  const userId = req._userId;
+  const userId2 = req._userId;
   if (!UUID_PATTERN.test(projectId)) {
     res.status(404).json({ ok: false, error: "Project not found." });
     return;
@@ -81788,7 +82158,7 @@ router16.get("/projects/:projectId/members", async (req, res) => {
     return;
   }
   try {
-    const currentRole = await getProjectAccess(projectId, userId);
+    const currentRole = await getProjectAccess(projectId, userId2);
     if (!currentRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -81811,7 +82181,7 @@ router16.get("/projects/:projectId/members", async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to list project members." });
   }
 });
-router16.post("/projects/:projectId/members", async (req, res) => {
+router17.post("/projects/:projectId/members", async (req, res) => {
   const projectId = param2(req.params.projectId);
   const callerId = req._userId;
   const email3 = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
@@ -81857,7 +82227,7 @@ router16.post("/projects/:projectId/members", async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to add project member." });
   }
 });
-router16.delete("/projects/:projectId/members/:userId", async (req, res) => {
+router17.delete("/projects/:projectId/members/:userId", async (req, res) => {
   const projectId = param2(req.params.projectId);
   const removeUserId = param2(req.params.userId);
   const callerId = req._userId;
@@ -81889,18 +82259,18 @@ router16.delete("/projects/:projectId/members/:userId", async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to remove project member." });
   }
 });
-var projectMembers_default = router16;
+var projectMembers_default = router17;
 
 // src/routes/projectMessages.ts
-var import_express22 = __toESM(require_express2(), 1);
-var router17 = (0, import_express22.Router)();
+var import_express23 = __toESM(require_express2(), 1);
+var router18 = (0, import_express23.Router)();
 var clerk6 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
 function param3(value) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
-router17.get("/projects/:projectId/messages", async (req, res) => {
+router18.get("/projects/:projectId/messages", async (req, res) => {
   const projectId = param3(req.params.projectId);
-  const userId = req._userId;
+  const userId2 = req._userId;
   if (!UUID_PATTERN.test(projectId)) {
     res.status(404).json({ ok: false, error: "Project not found." });
     return;
@@ -81914,7 +82284,7 @@ router17.get("/projects/:projectId/messages", async (req, res) => {
     return;
   }
   try {
-    if (!await getProjectAccess(projectId, userId)) {
+    if (!await getProjectAccess(projectId, userId2)) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
@@ -81959,9 +82329,9 @@ router17.get("/projects/:projectId/messages", async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to list project messages." });
   }
 });
-router17.post("/projects/:projectId/messages", async (req, res) => {
+router18.post("/projects/:projectId/messages", async (req, res) => {
   const projectId = param3(req.params.projectId);
-  const userId = req._userId;
+  const userId2 = req._userId;
   const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
   if (!UUID_PATTERN.test(projectId)) {
     res.status(404).json({ ok: false, error: "Project not found." });
@@ -81976,7 +82346,7 @@ router17.post("/projects/:projectId/messages", async (req, res) => {
     return;
   }
   try {
-    const role = await getProjectAccess(projectId, userId);
+    const role = await getProjectAccess(projectId, userId2);
     if (!role) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -81985,7 +82355,7 @@ router17.post("/projects/:projectId/messages", async (req, res) => {
       res.status(403).json({ ok: false, error: "Project is read-only." });
       return;
     }
-    const user = await clerk6.users.getUser(userId);
+    const user = await clerk6.users.getUser(userId2);
     const primary = user.emailAddresses.find((email4) => email4.id === user.primaryEmailAddressId);
     const email3 = primary?.emailAddress?.trim().toLowerCase();
     if (!email3 || primary?.verification?.status !== "verified") {
@@ -81993,18 +82363,18 @@ router17.post("/projects/:projectId/messages", async (req, res) => {
       return;
     }
     const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || user.username || email3;
-    const [message] = await db.insert(projectMessagesTable).values({ projectId, authorUserId: userId, authorName: name.slice(0, 200), authorEmail: email3, body }).returning();
+    const [message] = await db.insert(projectMessagesTable).values({ projectId, authorUserId: userId2, authorName: name.slice(0, 200), authorEmail: email3, body }).returning();
     res.status(201).json({ ok: true, message });
   } catch (error40) {
     req.log.error(error40, "Failed to create project message");
     res.status(500).json({ ok: false, error: "Failed to create project message." });
   }
 });
-var projectMessages_default = router17;
+var projectMessages_default = router18;
 
 // src/routes/transport.ts
-var import_express24 = __toESM(require_express2(), 1);
-var router18 = (0, import_express24.Router)();
+var import_express25 = __toESM(require_express2(), 1);
+var router19 = (0, import_express25.Router)();
 var VEHICLE_TYPES = /* @__PURE__ */ new Set(["truck", "van", "trailer", "rental"]);
 var AVAILABILITY = /* @__PURE__ */ new Set(["available", "assigned", "maintenance", "unavailable"]);
 var RUN_STATUSES = /* @__PURE__ */ new Set(["scheduled", "in_transit", "delivered", "returned"]);
@@ -82030,25 +82400,25 @@ function instant(raw, required2 = false) {
   const value = new Date(raw);
   return Number.isNaN(value.getTime()) ? void 0 : value;
 }
-async function canWriteProject(projectId, userId) {
+async function canWriteProject(projectId, userId2) {
   if (!UUID_PATTERN.test(projectId)) return "missing";
-  const access = await getProjectAccess(projectId, userId);
+  const access = await getProjectAccess(projectId, userId2);
   if (!access) return "missing";
   return isProjectWriter(access) ? "ok" : "readonly";
 }
-router18.get("/transport", async (req, res) => {
-  const userId = req._userId;
+router19.get("/transport", async (req, res) => {
+  const userId2 = req._userId;
   try {
     const accessibleProjects = await db.select({ id: projectsTable.id }).from(projectsTable).leftJoin(
       projectMembersTable,
       and(
         eq(projectMembersTable.projectId, projectsTable.id),
-        eq(projectMembersTable.userId, userId)
+        eq(projectMembersTable.userId, userId2)
       )
     ).where(
       or(
-        eq(projectsTable.userId, userId),
-        eq(projectMembersTable.userId, userId)
+        eq(projectsTable.userId, userId2),
+        eq(projectMembersTable.userId, userId2)
       )
     );
     const projectIds = accessibleProjects.map((row) => row.id);
@@ -82097,7 +82467,7 @@ router18.get("/transport", async (req, res) => {
     res.status(500).json({ ok: false, error: "Could not load transport data." });
   }
 });
-router18.post("/transport/vehicles", async (req, res) => {
+router19.post("/transport/vehicles", async (req, res) => {
   const body = req.body ?? {};
   const name = textValue(body.name, 120, true);
   const licensePlate = textValue(body.licensePlate, 32, true);
@@ -82127,7 +82497,7 @@ router18.post("/transport/vehicles", async (req, res) => {
     res.status(500).json({ ok: false, error: "Could not create vehicle." });
   }
 });
-router18.patch("/transport/vehicles/:id", async (req, res) => {
+router19.patch("/transport/vehicles/:id", async (req, res) => {
   const id = String(req.params.id ?? "");
   if (!UUID_PATTERN.test(id)) {
     res.status(404).json({ ok: false, error: "Vehicle not found." });
@@ -82190,7 +82560,7 @@ router18.patch("/transport/vehicles/:id", async (req, res) => {
     res.status(500).json({ ok: false, error: "Could not update vehicle." });
   }
 });
-router18.post("/transport/runs", async (req, res) => {
+router19.post("/transport/runs", async (req, res) => {
   const body = req.body ?? {};
   const projectId = textValue(body.projectId, 40, true);
   const vehicleId = textValue(body.vehicleId, 40, true);
@@ -82253,7 +82623,7 @@ router18.post("/transport/runs", async (req, res) => {
     res.status(500).json({ ok: false, error: "Could not schedule transport run." });
   }
 });
-router18.patch("/transport/runs/:id", async (req, res) => {
+router19.patch("/transport/runs/:id", async (req, res) => {
   const id = String(req.params.id ?? "");
   const status = textValue(req.body?.status, 20, true);
   if (!UUID_PATTERN.test(id)) {
@@ -82293,11 +82663,11 @@ router18.patch("/transport/runs/:id", async (req, res) => {
     res.status(500).json({ ok: false, error: "Could not update transport run." });
   }
 });
-var transport_default = router18;
+var transport_default = router19;
 
 // src/routes/globalTasks.ts
-var import_express25 = __toESM(require_express2(), 1);
-var router19 = (0, import_express25.Router)();
+var import_express26 = __toESM(require_express2(), 1);
+var router20 = (0, import_express26.Router)();
 var STATUSES = ["Not Started", "Working on it", "Stuck", "Done"];
 var PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 var DEPARTMENTS = [
@@ -82314,8 +82684,8 @@ function optionalEnum(raw, values, fallback) {
   const value = raw == null ? fallback : raw;
   return typeof value === "string" && values.includes(value) ? value : null;
 }
-router19.get("/tasks", async (req, res) => {
-  const userId = req._userId;
+router20.get("/tasks", async (req, res) => {
+  const userId2 = req._userId;
   try {
     const tasks = await db.select({
       id: projectTasksTable.id,
@@ -82332,12 +82702,12 @@ router19.get("/tasks", async (req, res) => {
       description: projectTasksTable.description,
       createdAt: projectTasksTable.createdAt,
       updatedAt: projectTasksTable.updatedAt,
-      accessRole: sql`case when ${projectsTable.userId} = ${userId} then 'owner' else ${projectMembersTable.role} end`
+      accessRole: sql`case when ${projectsTable.userId} = ${userId2} then 'owner' else ${projectMembersTable.role} end`
     }).from(projectTasksTable).innerJoin(projectsTable, eq(projectTasksTable.projectId, projectsTable.id)).leftJoin(
       projectMembersTable,
       and(
         eq(projectMembersTable.projectId, projectsTable.id),
-        eq(projectMembersTable.userId, userId)
+        eq(projectMembersTable.userId, userId2)
       )
     ).leftJoin(
       freelancerProfilesTable,
@@ -82346,8 +82716,8 @@ router19.get("/tasks", async (req, res) => {
       and(
         isNotNull(sql`nullif(${projectsTable.data}->>'activeBriefId', '')`),
         or(
-          eq(projectsTable.userId, userId),
-          eq(projectMembersTable.userId, userId)
+          eq(projectsTable.userId, userId2),
+          eq(projectMembersTable.userId, userId2)
         )
       )
     ).orderBy(asc(projectTasksTable.createdAt));
@@ -82357,8 +82727,8 @@ router19.get("/tasks", async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to list global tasks." });
   }
 });
-router19.post("/tasks", async (req, res) => {
-  const userId = req._userId;
+router20.post("/tasks", async (req, res) => {
+  const userId2 = req._userId;
   const body = req.body ?? {};
   const projectId = typeof body.projectId === "string" ? body.projectId : "";
   const title = typeof body.title === "string" ? body.title.trim().slice(0, 300) : "";
@@ -82372,7 +82742,7 @@ router19.post("/tasks", async (req, res) => {
     return;
   }
   try {
-    const accessRole = await getProjectAccess(projectId, userId);
+    const accessRole = await getProjectAccess(projectId, userId2);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -82412,39 +82782,506 @@ router19.post("/tasks", async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to create global task." });
   }
 });
-var globalTasks_default = router19;
+var globalTasks_default = router20;
+
+// src/routes/economy.ts
+var import_express27 = __toESM(require_express2(), 1);
+var router21 = (0, import_express27.Router)();
+var MAX_MINOR_UNITS = 2147483647;
+var DATE_PATTERN3 = /^\d{4}-\d{2}-\d{2}$/;
+var SETTING_KEYS = [
+  "contractRevenueMinor",
+  "easyjobRevenueMinor",
+  "laborBudgetMinor",
+  "hotelBudgetMinor",
+  "cateringBudgetMinor",
+  "transportBudgetMinor",
+  "subRentalsBudgetMinor"
+];
+function userId(req) {
+  return req._userId;
+}
+function isMinorUnits(value) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= MAX_MINOR_UNITS;
+}
+function isCalendarDate(value) {
+  if (typeof value !== "string" || !DATE_PATTERN3.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
+}
+function majorNokToMinor2(raw) {
+  const match2 = raw.trim().match(/^(\d+)(?:\.(\d+))?$/);
+  if (!match2) throw new Error("Invalid trusted gig compensation value.");
+  const whole = Number(match2[1]);
+  const fractional = `${match2[2] ?? ""}00`.slice(0, 2);
+  const amount = whole * 100 + Number(fractional);
+  if (!Number.isSafeInteger(amount) || amount > MAX_MINOR_UNITS) {
+    throw new Error("Trusted gig compensation is outside supported range.");
+  }
+  return amount;
+}
+function csvCell(value) {
+  const initial = value == null ? "" : String(value);
+  const raw = /^[=+\-@]/.test(initial) ? `'${initial}` : initial;
+  return /[",\r\n]/.test(raw) ? `"${raw.replaceAll('"', '""')}"` : raw;
+}
+async function loadEconomy(callerUserId) {
+  const projects = await db.select({
+    id: projectsTable.id,
+    name: projectsTable.name,
+    client: projectsTable.client,
+    easyjobNumber: projectsTable.easyjobNumber,
+    activeBriefId: sql`${projectsTable.data}->>'activeBriefId'`,
+    accessRole: sql`case when ${projectsTable.userId} = ${callerUserId} then 'owner' else ${projectMembersTable.role} end`,
+    contractRevenueMinor: projectFinanceSettingsTable.contractRevenueMinor,
+    easyjobRevenueMinor: projectFinanceSettingsTable.easyjobRevenueMinor,
+    laborBudgetMinor: projectFinanceSettingsTable.laborBudgetMinor,
+    hotelBudgetMinor: projectFinanceSettingsTable.hotelBudgetMinor,
+    cateringBudgetMinor: projectFinanceSettingsTable.cateringBudgetMinor,
+    transportBudgetMinor: projectFinanceSettingsTable.transportBudgetMinor,
+    subRentalsBudgetMinor: projectFinanceSettingsTable.subRentalsBudgetMinor
+  }).from(projectsTable).leftJoin(
+    projectMembersTable,
+    and(
+      eq(projectMembersTable.projectId, projectsTable.id),
+      eq(projectMembersTable.userId, callerUserId)
+    )
+  ).leftJoin(
+    projectFinanceSettingsTable,
+    eq(projectFinanceSettingsTable.projectId, projectsTable.id)
+  ).where(
+    and(
+      isNotNull(sql`nullif(${projectsTable.data}->>'activeBriefId', '')`),
+      or(
+        eq(projectsTable.userId, callerUserId),
+        eq(projectMembersTable.userId, callerUserId)
+      )
+    )
+  );
+  const projectIds = projects.map((project) => project.id);
+  const activeBriefIds = projects.map((project) => project.activeBriefId);
+  const [expenses, laborRows] = await Promise.all([
+    db.select({
+      id: projectExpensesTable.id,
+      projectId: projectExpensesTable.projectId,
+      category: projectExpensesTable.category,
+      amountMinor: projectExpensesTable.amountMinor,
+      incurredOn: projectExpensesTable.incurredOn,
+      description: projectExpensesTable.description,
+      vendor: projectExpensesTable.vendor,
+      reference: projectExpensesTable.reference,
+      createdAt: projectExpensesTable.createdAt
+    }).from(projectExpensesTable).where(inArray(projectExpensesTable.projectId, projectIds)),
+    db.select({
+      briefId: timeEntriesTable.briefId,
+      gigId: gigsTable.id,
+      startMinute: timeEntriesTable.startMinute,
+      endMinute: timeEntriesTable.endMinute,
+      breakMinutes: timeEntriesTable.breakMinutes,
+      producerBreakMinutes: timeEntriesTable.producerBreakMinutes,
+      producerAdjustmentMinutes: timeEntriesTable.producerAdjustmentMinutes,
+      overtimeMinutes: timeEntriesTable.overtimeMinutes,
+      approvedRateMinor: timeEntriesTable.approvedRateMinor,
+      approvedFlatFeeMinor: timeEntriesTable.approvedFlatFeeMinor,
+      rate: gigsTable.rate,
+      flatFee: gigsTable.flatFee
+    }).from(timeEntriesTable).innerJoin(gigsTable, eq(timeEntriesTable.gigId, gigsTable.id)).where(
+      and(
+        inArray(timeEntriesTable.briefId, activeBriefIds),
+        inArray(timeEntriesTable.status, ["approved", "locked"])
+      )
+    )
+  ]);
+  const projectByBrief = new Map(
+    projects.map((project) => [project.activeBriefId, project.id])
+  );
+  const actualByProject = /* @__PURE__ */ new Map();
+  for (const project of projects) {
+    actualByProject.set(project.id, {
+      labor: 0,
+      hotel: 0,
+      catering: 0,
+      transport: 0,
+      subRentals: 0
+    });
+  }
+  for (const expense of expenses) {
+    if (!MANUAL_EXPENSE_CATEGORIES.includes(
+      expense.category
+    )) {
+      throw new Error(`Invalid stored expense category: ${expense.category}`);
+    }
+    actualByProject.get(expense.projectId)[expense.category] += expense.amountMinor;
+  }
+  const gigs = /* @__PURE__ */ new Map();
+  for (const row of laborRows) {
+    if (!row.briefId) continue;
+    const projectId = projectByBrief.get(row.briefId);
+    if (!projectId) continue;
+    const current = gigs.get(row.gigId) ?? {
+      projectId,
+      minutes: 0,
+      rateMinor: row.approvedRateMinor ?? majorNokToMinor2(row.rate),
+      flatFeeMinor: row.approvedFlatFeeMinor ?? majorNokToMinor2(row.flatFee)
+    };
+    if (row.startMinute != null && row.endMinute != null) {
+      const elapsed = (row.endMinute - row.startMinute + 1440) % 1440;
+      const reviewedBreak = row.producerBreakMinutes ?? row.breakMinutes;
+      current.minutes += Math.max(
+        0,
+        elapsed - reviewedBreak + row.producerAdjustmentMinutes
+      );
+    }
+    gigs.set(row.gigId, current);
+  }
+  for (const gig of gigs.values()) {
+    const actual = gig.flatFeeMinor > 0 ? gig.flatFeeMinor : Math.ceil(gig.minutes * gig.rateMinor / 60);
+    actualByProject.get(gig.projectId).labor += actual;
+  }
+  const summaries = projects.map((project) => {
+    const actual = actualByProject.get(project.id);
+    const budget = {
+      labor: project.laborBudgetMinor ?? 0,
+      hotel: project.hotelBudgetMinor ?? 0,
+      catering: project.cateringBudgetMinor ?? 0,
+      transport: project.transportBudgetMinor ?? 0,
+      subRentals: project.subRentalsBudgetMinor ?? 0
+    };
+    const categories = Object.keys(budget).map((category) => ({
+      category,
+      budgetMinor: budget[category],
+      actualMinor: actual[category],
+      varianceMinor: budget[category] - actual[category]
+    }));
+    const revenueMinor = project.contractRevenueMinor ?? 0;
+    const totalExpensesMinor = categories.reduce(
+      (sum, category) => sum + category.actualMinor,
+      0
+    );
+    const netProfitMinor = revenueMinor - totalExpensesMinor;
+    const differenceMinor = project.easyjobRevenueMinor == null ? null : revenueMinor - project.easyjobRevenueMinor;
+    return {
+      projectId: project.id,
+      projectName: project.name,
+      client: project.client,
+      accessRole: project.accessRole,
+      revenueMinor,
+      totalExpensesMinor,
+      netProfitMinor,
+      netMarginBasisPoints: revenueMinor === 0 ? null : Math.trunc(netProfitMinor * 1e4 / revenueMinor),
+      categories,
+      easyjob: {
+        number: project.easyjobNumber,
+        recordedRevenueMinor: project.easyjobRevenueMinor,
+        differenceMinor,
+        status: !project.easyjobNumber ? "unlinked" : differenceMinor == null ? "pending" : differenceMinor === 0 ? "matched" : "mismatch"
+      }
+    };
+  });
+  const allTimecards = projectIds.length === 0 ? [] : await db.select({
+    id: timeEntriesTable.id,
+    gigId: timeEntriesTable.gigId,
+    briefId: timeEntriesTable.briefId,
+    freelancerUserId: timeEntriesTable.freelancerUserId,
+    freelancerName: freelancerProfilesTable.fullName,
+    workDate: timeEntriesTable.workDate,
+    startMinute: timeEntriesTable.startMinute,
+    endMinute: timeEntriesTable.endMinute,
+    breakMinutes: timeEntriesTable.breakMinutes,
+    producerBreakMinutes: timeEntriesTable.producerBreakMinutes,
+    producerAdjustmentMinutes: timeEntriesTable.producerAdjustmentMinutes,
+    overtimeMinutes: timeEntriesTable.overtimeMinutes,
+    notes: timeEntriesTable.notes,
+    status: timeEntriesTable.status,
+    rejectionReason: timeEntriesTable.rejectionReason,
+    adjustmentReason: timeEntriesTable.adjustmentReason,
+    flagReason: timeEntriesTable.flagReason,
+    rate: gigsTable.rate,
+    flatFee: gigsTable.flatFee,
+    approvedRateMinor: timeEntriesTable.approvedRateMinor,
+    approvedFlatFeeMinor: timeEntriesTable.approvedFlatFeeMinor,
+    createdAt: timeEntriesTable.createdAt,
+    updatedAt: timeEntriesTable.updatedAt
+  }).from(timeEntriesTable).innerJoin(gigsTable, eq(timeEntriesTable.gigId, gigsTable.id)).leftJoin(
+    freelancerProfilesTable,
+    eq(timeEntriesTable.freelancerUserId, freelancerProfilesTable.userId)
+  ).where(inArray(timeEntriesTable.briefId, activeBriefIds));
+  const timecards = allTimecards.flatMap((row) => {
+    if (!row.briefId) return [];
+    const projectId = projectByBrief.get(row.briefId);
+    const project = summaries.find((item) => item.projectId === projectId);
+    if (!project || row.startMinute == null || row.endMinute == null) return [];
+    const elapsed = (row.endMinute - row.startMinute + 1440) % 1440;
+    const reviewedBreak = row.producerBreakMinutes ?? row.breakMinutes;
+    const workedMinutes2 = Math.max(0, elapsed - row.breakMinutes);
+    const payableMinutes2 = Math.max(
+      0,
+      elapsed - reviewedBreak + row.producerAdjustmentMinutes
+    );
+    return [{
+      ...row,
+      projectId: project.projectId,
+      projectName: project.projectName,
+      accessRole: project.accessRole,
+      freelancerName: row.freelancerName || "Freelancer",
+      workedMinutes: workedMinutes2,
+      payableMinutes: payableMinutes2,
+      rateMinor: row.approvedRateMinor ?? majorNokToMinor2(row.rate),
+      flatFeeMinor: row.approvedFlatFeeMinor ?? majorNokToMinor2(row.flatFee)
+    }];
+  });
+  const expenseRows = expenses.map((expense) => {
+    const project = summaries.find((item) => item.projectId === expense.projectId);
+    return {
+      ...expense,
+      projectName: project?.projectName ?? "Unknown project",
+      accessRole: project?.accessRole ?? "viewer"
+    };
+  });
+  return {
+    projects: summaries,
+    expenses: expenseRows,
+    timecards,
+    totals: {
+      revenueMinor: summaries.reduce((sum, row) => sum + row.revenueMinor, 0),
+      expensesMinor: summaries.reduce(
+        (sum, row) => sum + row.totalExpensesMinor,
+        0
+      ),
+      netProfitMinor: summaries.reduce(
+        (sum, row) => sum + row.netProfitMinor,
+        0
+      )
+    },
+    laborMethod: "Approved/locked entries only; positive flat fee once per gig, otherwise approved payable minutes \xD7 trusted hourly rate, rounded up to \xF8re."
+  };
+}
+router21.get("/economy", requireEmployee, async (req, res) => {
+  try {
+    res.json({ ok: true, ...await loadEconomy(userId(req)) });
+  } catch (error40) {
+    req.log.error({ error: error40 }, "Failed to load economy");
+    res.status(500).json({ ok: false, error: "Failed to load economy." });
+  }
+});
+router21.patch(
+  "/economy/projects/:projectId/settings",
+  requireEmployee,
+  async (req, res) => {
+    const projectId = String(req.params.projectId);
+    if (!UUID_PATTERN.test(projectId)) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    const body = req.body ?? {};
+    const keys = Object.keys(body);
+    if (keys.length === 0 || keys.some((key2) => !SETTING_KEYS.includes(key2)) || keys.some(
+      (key2) => !isMinorUnits(body[key2]) && !(key2 === "easyjobRevenueMinor" && body[key2] === null)
+    )) {
+      res.status(400).json({ ok: false, error: "Invalid financial settings." });
+      return;
+    }
+    try {
+      const callerUserId = userId(req);
+      const access = await getProjectAccess(projectId, callerUserId);
+      if (!access) {
+        res.status(404).json({ ok: false, error: "Project not found." });
+        return;
+      }
+      if (!isProjectWriter(access)) {
+        res.status(403).json({ ok: false, error: "Project is read-only." });
+        return;
+      }
+      const existing = await db.select().from(projectFinanceSettingsTable).where(eq(projectFinanceSettingsTable.projectId, projectId)).limit(1);
+      const defaults2 = {
+        contractRevenueMinor: 0,
+        easyjobRevenueMinor: null,
+        laborBudgetMinor: 0,
+        hotelBudgetMinor: 0,
+        cateringBudgetMinor: 0,
+        transportBudgetMinor: 0,
+        subRentalsBudgetMinor: 0
+      };
+      const stored = existing[0];
+      const value = (key2) => key2 in body ? body[key2] : stored?.[key2] ?? defaults2[key2];
+      const [settings] = await db.insert(projectFinanceSettingsTable).values({
+        projectId,
+        contractRevenueMinor: value("contractRevenueMinor"),
+        easyjobRevenueMinor: value("easyjobRevenueMinor"),
+        laborBudgetMinor: value("laborBudgetMinor"),
+        hotelBudgetMinor: value("hotelBudgetMinor"),
+        cateringBudgetMinor: value("cateringBudgetMinor"),
+        transportBudgetMinor: value("transportBudgetMinor"),
+        subRentalsBudgetMinor: value("subRentalsBudgetMinor"),
+        updatedByUserId: callerUserId
+      }).onConflictDoUpdate({
+        target: projectFinanceSettingsTable.projectId,
+        set: {
+          contractRevenueMinor: value("contractRevenueMinor"),
+          easyjobRevenueMinor: value("easyjobRevenueMinor"),
+          laborBudgetMinor: value("laborBudgetMinor"),
+          hotelBudgetMinor: value("hotelBudgetMinor"),
+          cateringBudgetMinor: value("cateringBudgetMinor"),
+          transportBudgetMinor: value("transportBudgetMinor"),
+          subRentalsBudgetMinor: value("subRentalsBudgetMinor"),
+          updatedByUserId: callerUserId,
+          updatedAt: sql`now()`
+        }
+      }).returning();
+      res.json({ ok: true, settings });
+    } catch (error40) {
+      req.log.error({ error: error40 }, "Failed to update financial settings");
+      res.status(500).json({ ok: false, error: "Failed to update financial settings." });
+    }
+  }
+);
+router21.post(
+  "/economy/projects/:projectId/expenses",
+  requireEmployee,
+  async (req, res) => {
+    const projectId = String(req.params.projectId);
+    if (!UUID_PATTERN.test(projectId)) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    const body = req.body ?? {};
+    const allowed = [
+      "category",
+      "amountMinor",
+      "incurredOn",
+      "description",
+      "vendor",
+      "reference"
+    ];
+    const validCategory = typeof body.category === "string" && MANUAL_EXPENSE_CATEGORIES.includes(
+      body.category
+    );
+    const validText = (key2, max) => body[key2] == null || typeof body[key2] === "string" && body[key2].length <= max;
+    if (Object.keys(body).some((key2) => !allowed.includes(key2)) || !validCategory || !isMinorUnits(body.amountMinor) || body.amountMinor === 0 || !isCalendarDate(body.incurredOn) || !validText("description", 2e3) || !validText("vendor", 300) || !validText("reference", 300)) {
+      res.status(400).json({ ok: false, error: "Invalid expense." });
+      return;
+    }
+    try {
+      const callerUserId = userId(req);
+      const access = await getProjectAccess(projectId, callerUserId);
+      if (!access) {
+        res.status(404).json({ ok: false, error: "Project not found." });
+        return;
+      }
+      if (!isProjectWriter(access)) {
+        res.status(403).json({ ok: false, error: "Project is read-only." });
+        return;
+      }
+      const [expense] = await db.insert(projectExpensesTable).values({
+        projectId,
+        category: body.category,
+        amountMinor: body.amountMinor,
+        incurredOn: body.incurredOn,
+        description: typeof body.description === "string" ? body.description.trim() : "",
+        vendor: typeof body.vendor === "string" ? body.vendor.trim() : "",
+        reference: typeof body.reference === "string" ? body.reference.trim() : "",
+        createdByUserId: callerUserId
+      }).returning();
+      res.status(201).json({ ok: true, expense });
+    } catch (error40) {
+      req.log.error({ error: error40 }, "Failed to create project expense");
+      res.status(500).json({ ok: false, error: "Failed to create expense." });
+    }
+  }
+);
+router21.get(
+  "/economy/export.csv",
+  requireEmployee,
+  async (req, res) => {
+    try {
+      const economy = await loadEconomy(userId(req));
+      const rows = [
+        [
+          "project_id",
+          "project",
+          "client",
+          "easyjob_number",
+          "easyjob_status",
+          "category",
+          "revenue_minor",
+          "budget_minor",
+          "actual_minor",
+          "variance_minor",
+          "total_expenses_minor",
+          "net_profit_minor",
+          "net_margin_basis_points"
+        ]
+      ];
+      for (const project of economy.projects) {
+        for (const category of project.categories) {
+          rows.push([
+            project.projectId,
+            project.projectName,
+            project.client,
+            project.easyjob.number,
+            project.easyjob.status,
+            category.category,
+            project.revenueMinor,
+            category.budgetMinor,
+            category.actualMinor,
+            category.varianceMinor,
+            project.totalExpensesMinor,
+            project.netProfitMinor,
+            project.netMarginBasisPoints
+          ]);
+        }
+      }
+      const csv = `${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}\r
+`;
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        'attachment; filename="economy-export.csv"'
+      );
+      res.send(csv);
+    } catch (error40) {
+      req.log.error({ error: error40 }, "Failed to export economy");
+      res.status(500).json({ ok: false, error: "Failed to export economy." });
+    }
+  }
+);
+var economy_default = router21;
 
 // src/routes/index.ts
-var router20 = (0, import_express26.Router)();
-router20.use(health_default);
-router20.use(devAutoSignIn_default);
-router20.use("/rigplan", requireEmployee);
-router20.use(rigplanAnalyze_default);
-router20.use(venueMemory_default);
-router20.use("/storage", requireEmployee);
-router20.use(storage_default);
-router20.use("/projects", requireEmployee);
-router20.use(projectTasks_default);
-router20.use(projectMembers_default);
-router20.use(projectMessages_default);
-router20.use(projects_default);
-router20.use("/transport", requireEmployee);
-router20.use(transport_default);
-router20.use("/tasks", requireEmployee);
-router20.use(globalTasks_default);
-router20.use("/inspection", requireEmployee);
-router20.use(inspectionExtract_default);
-router20.use(admin_default);
-router20.use(feedback_default);
-router20.use(portalProfile_default);
-router20.use(portalBriefs_default);
-router20.use(portalGigs_default);
-router20.use(portalTimeEntries_default);
-router20.use(portalCalendar_default);
-var routes_default = router20;
+var router22 = (0, import_express28.Router)();
+router22.use(health_default);
+router22.use(devAutoSignIn_default);
+router22.use("/rigplan", requireEmployee);
+router22.use(rigplanAnalyze_default);
+router22.use(venueMemory_default);
+router22.use("/storage", requireEmployee);
+router22.use(storage_default);
+router22.use("/projects", requireEmployee);
+router22.use(projectTasks_default);
+router22.use(projectMembers_default);
+router22.use(projectMessages_default);
+router22.use(projects_default);
+router22.use("/transport", requireEmployee);
+router22.use(transport_default);
+router22.use("/tasks", requireEmployee);
+router22.use(globalTasks_default);
+router22.use("/economy", requireEmployee);
+router22.use(economy_default);
+router22.use("/inspection", requireEmployee);
+router22.use(inspectionExtract_default);
+router22.use(admin_default);
+router22.use(feedback_default);
+router22.use(portalProfile_default);
+router22.use(portalBriefs_default);
+router22.use(portalGigs_default);
+router22.use(portalTimeEntries_default);
+router22.use(portalCalendar_default);
+router22.use(portalWork_default);
+var routes_default = router22;
 
 // src/app.ts
-var app = (0, import_express27.default)();
+var app = (0, import_express29.default)();
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -82469,12 +83306,12 @@ app.use((0, import_cors.default)());
 var PATHS_WITHOUT_GLOBAL_JSON = /* @__PURE__ */ new Set([
   "/api/rigplan/analyze"
 ]);
-var globalJsonParser = import_express27.default.json({ limit: "256kb" });
+var globalJsonParser = import_express29.default.json({ limit: "256kb" });
 app.use((req, res, next) => {
   if (PATHS_WITHOUT_GLOBAL_JSON.has(req.path)) return next();
   return globalJsonParser(req, res, next);
 });
-app.use(import_express27.default.urlencoded({ extended: true }));
+app.use(import_express29.default.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 app.use("/api", routes_default);
 var app_default = app;

@@ -5,6 +5,7 @@ type TimeEntryStatus =
   | "submitted"
   | "approved"
   | "rejected"
+  | "flagged"
   | "locked";
 
 type ProducerTimeEntry = {
@@ -17,6 +18,14 @@ type ProducerTimeEntry = {
   endMinute: number | null;
   breakMinutes: number;
   workedMinutes: number;
+  producerBreakMinutes: number | null;
+  producerAdjustmentMinutes: number;
+  overtimeMinutes: number;
+  payableMinutes: number;
+  adjustmentReason: string;
+  adjustedByUserId: string | null;
+  adjustedAt: string | null;
+  flagReason: string;
   notes: string;
   status: TimeEntryStatus;
   decidedByUserId: string | null;
@@ -62,6 +71,8 @@ function statusInfo(s: TimeEntryStatus): { label: string; cls: string } {
       return { label: "Approved", cls: "acs-status-ok" };
     case "rejected":
       return { label: "Rejected", cls: "acs-status-bad" };
+    case "flagged":
+      return { label: "Flagged", cls: "acs-status-bad" };
     case "locked":
       return { label: "Locked", cls: "acs-status-ok" };
     default:
@@ -85,7 +96,11 @@ function buildPayrollCsv(entries: ProducerTimeEntry[]): string {
     "Start",
     "End",
     "Break (min)",
-    "Net hours",
+    "Observed hours",
+    "Payable break (min)",
+    "Adjustment (min)",
+    "Overtime (min)",
+    "Payable hours",
     "Status",
     "Decided at",
     "Notes",
@@ -100,6 +115,10 @@ function buildPayrollCsv(entries: ProducerTimeEntry[]): string {
       minToHHMM(e.endMinute),
       String(e.breakMinutes),
       String(Math.round((e.workedMinutes / 60) * 100) / 100),
+      String(e.producerBreakMinutes ?? e.breakMinutes),
+      String(e.producerAdjustmentMinutes),
+      String(e.overtimeMinutes),
+      String(Math.round((e.payableMinutes / 60) * 100) / 100),
       e.status,
       e.decidedAt ?? "",
       e.notes,
@@ -202,13 +221,13 @@ export function ProducerHoursPanel({ briefId, getToken, resolveName }: Props) {
     for (const e of entries) {
       if (e.status === "submitted") {
         pending += 1;
-        pendingMin += e.workedMinutes;
+        pendingMin += e.payableMinutes;
       } else if (e.status === "approved") {
         approved += 1;
-        approvedMin += e.workedMinutes;
+        approvedMin += e.payableMinutes;
       } else if (e.status === "locked") {
         locked += 1;
-        lockedMin += e.workedMinutes;
+        lockedMin += e.payableMinutes;
       }
     }
     return { pending, approved, locked, pendingMin, approvedMin, lockedMin };
@@ -216,8 +235,13 @@ export function ProducerHoursPanel({ briefId, getToken, resolveName }: Props) {
 
   async function act(
     id: string,
-    action: "approve" | "reject" | "lock",
+    action: "approve" | "reject" | "flag" | "adjust" | "lock",
     reason?: string,
+    adjustment?: {
+      adjustmentMinutes: number;
+      breakMinutes: number;
+      overtimeMinutes: number;
+    },
   ) {
     // Snapshot the brief context this action was fired in. If the
     // producer switches briefs mid-request the patch / reload must
@@ -234,6 +258,8 @@ export function ProducerHoursPanel({ briefId, getToken, resolveName }: Props) {
       const url =
         action === "lock"
           ? `${BASE_URL}api/portal/time-entries/${encodeURIComponent(id)}/lock`
+          : action === "adjust"
+            ? `${BASE_URL}api/portal/time-entries/${encodeURIComponent(id)}/adjust`
           : `${BASE_URL}api/portal/time-entries/${encodeURIComponent(id)}/decide`;
       const res = await fetch(url, {
         method: "POST",
@@ -244,10 +270,12 @@ export function ProducerHoursPanel({ briefId, getToken, resolveName }: Props) {
         body:
           action === "lock"
             ? undefined
-            : JSON.stringify({
-                decision: action,
-                reason: reason ?? "",
-              }),
+            : action === "adjust"
+              ? JSON.stringify({ ...adjustment, reason: reason ?? "" })
+              : JSON.stringify({
+                  decision: action,
+                  reason: reason ?? "",
+                }),
       });
       if (!stillCurrent()) return;
       const json = (await res.json()) as {
@@ -297,6 +325,51 @@ export function ProducerHoursPanel({ briefId, getToken, resolveName }: Props) {
     );
     if (reason == null) return;
     void act(id, "reject", reason.trim());
+  }
+
+  function onFlag(id: string) {
+    const reason = window.prompt(
+      "Flag reason (visible to the freelancer):",
+      "",
+    );
+    if (!reason?.trim()) return;
+    void act(id, "flag", reason.trim());
+  }
+
+  function onAdjust(entry: ProducerTimeEntry) {
+    const breakRaw = window.prompt(
+      "Payable meal break in minutes (observed time remains unchanged):",
+      String(entry.producerBreakMinutes ?? entry.breakMinutes),
+    );
+    if (breakRaw == null) return;
+    const adjustmentRaw = window.prompt(
+      "Additional payable-minute adjustment (negative or positive):",
+      String(entry.producerAdjustmentMinutes),
+    );
+    if (adjustmentRaw == null) return;
+    const overtimeRaw = window.prompt(
+      "Minutes classified as overtime:",
+      String(entry.overtimeMinutes),
+    );
+    if (overtimeRaw == null) return;
+    const reason = window.prompt("Reason for this adjustment:", entry.adjustmentReason);
+    if (!reason?.trim()) return;
+    const breakMinutes = Number(breakRaw);
+    const adjustmentMinutes = Number(adjustmentRaw);
+    const overtimeMinutes = Number(overtimeRaw);
+    if (
+      !Number.isInteger(breakMinutes) ||
+      !Number.isInteger(adjustmentMinutes) ||
+      !Number.isInteger(overtimeMinutes)
+    ) {
+      setError("Adjustment values must be whole minutes.");
+      return;
+    }
+    void act(entry.id, "adjust", reason.trim(), {
+      breakMinutes,
+      adjustmentMinutes,
+      overtimeMinutes,
+    });
   }
 
   function exportPayrollCsv() {
@@ -427,8 +500,8 @@ export function ProducerHoursPanel({ briefId, getToken, resolveName }: Props) {
                 <Th>Freelancer</Th>
                 <Th>Start</Th>
                 <Th>End</Th>
-                <Th>Break</Th>
-                <Th>Net</Th>
+                <Th>Observed</Th>
+                <Th>Payable</Th>
                 <Th>Status</Th>
                 <Th>Actions</Th>
               </tr>
@@ -479,8 +552,23 @@ export function ProducerHoursPanel({ briefId, getToken, resolveName }: Props) {
                     </Td>
                     <Td mono>{minToHHMM(e.startMinute)}</Td>
                     <Td mono>{minToHHMM(e.endMinute)}</Td>
-                    <Td mono>{e.breakMinutes}m</Td>
-                    <Td mono>{fmtHours(e.workedMinutes)}</Td>
+                    <Td mono>
+                      {e.breakMinutes}m break · {fmtHours(e.workedMinutes)}
+                    </Td>
+                    <Td mono>
+                      {e.producerBreakMinutes ?? e.breakMinutes}m break ·{" "}
+                      {fmtHours(e.payableMinutes)}
+                      {e.overtimeMinutes > 0 ? ` (${e.overtimeMinutes}m OT)` : ""}
+                      {e.producerAdjustmentMinutes !== 0 ? (
+                        <div
+                          style={{ fontSize: 11, color: "var(--ink-soft)" }}
+                          title={e.adjustmentReason}
+                        >
+                          {e.producerAdjustmentMinutes > 0 ? "+" : ""}
+                          {e.producerAdjustmentMinutes}m adjustment
+                        </div>
+                      ) : null}
+                    </Td>
                     <Td>
                       <span className={s.cls} style={{ whiteSpace: "nowrap" }}>
                         {s.label}
@@ -492,6 +580,8 @@ export function ProducerHoursPanel({ briefId, getToken, resolveName }: Props) {
                         busy={busyId === e.id}
                         onApprove={() => void act(e.id, "approve")}
                         onReject={() => onReject(e.id)}
+                        onFlag={() => onFlag(e.id)}
+                        onAdjust={() => onAdjust(e)}
                         onLock={() => void act(e.id, "lock")}
                       />
                     </Td>
@@ -551,12 +641,16 @@ function RowActions({
   busy,
   onApprove,
   onReject,
+  onFlag,
+  onAdjust,
   onLock,
 }: {
   status: TimeEntryStatus;
   busy: boolean;
   onApprove: () => void;
   onReject: () => void;
+  onFlag: () => void;
+  onAdjust: () => void;
   onLock: () => void;
 }) {
   const btn = (
@@ -590,8 +684,10 @@ function RowActions({
   );
   if (status === "submitted") {
     return (
-      <div style={{ display: "flex", gap: 4 }}>
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
         {btn("Approve", onApprove, true)}
+        {btn("Adjust", onAdjust)}
+        {btn("Flag", onFlag, false, true)}
         {btn("Reject", onReject, false, true)}
       </div>
     );
@@ -603,7 +699,7 @@ function RowActions({
     <span style={{ fontSize: 11, color: "var(--ink-soft)" }}>
       {status === "locked"
         ? "—"
-        : status === "rejected"
+        : status === "rejected" || status === "flagged"
           ? "Awaiting freelancer"
           : "Not submitted"}
     </span>

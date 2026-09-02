@@ -9,6 +9,7 @@ import portalBriefsRouter from "./portalBriefs";
 import portalGigsRouter from "./portalGigs";
 import portalTimeEntriesRouter from "./portalTimeEntries";
 import portalCalendarRouter from "./portalCalendar";
+import portalWorkRouter from "./portalWork";
 import projectsRouter from "./projects";
 import inspectionExtractRouter from "./inspectionExtract";
 import adminRouter from "./admin";
@@ -18,6 +19,7 @@ import projectMembersRouter from "./projectMembers";
 import projectMessagesRouter from "./projectMessages";
 import transportRouter from "./transport";
 import globalTasksRouter from "./globalTasks";
+import economyRouter from "./economy";
 import { requireEmployee } from "../middleware/userType";
 
 const router: IRouter = Router();
@@ -48,6 +50,8 @@ router.use("/transport", requireEmployee);
 router.use(transportRouter);
 router.use("/tasks", requireEmployee);
 router.use(globalTasksRouter);
+router.use("/economy", requireEmployee);
+router.use(economyRouter);
 router.use("/inspection", requireEmployee);
 router.use(inspectionExtractRouter);
 
@@ -66,5 +70,6 @@ router.use(portalBriefsRouter);
 router.use(portalGigsRouter);
 router.use(portalTimeEntriesRouter);
 router.use(portalCalendarRouter);
+router.use(portalWorkRouter);
 
 export default router;

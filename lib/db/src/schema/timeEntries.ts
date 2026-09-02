@@ -54,7 +54,7 @@ export const timeEntriesTable = pgTable(
     breakMinutes: integer("break_minutes").notNull().default(0),
     /** Free-form notes the freelancer can leave for the producer. */
     notes: text("notes").notNull().default(""),
-    /** "draft" | "submitted" | "approved" | "rejected" | "locked". */
+    /** "draft" | "submitted" | "approved" | "rejected" | "flagged" | "locked". */
     status: text("status").notNull().default("draft"),
     /** Clerk user id of the producer who approved / rejected. */
     decidedByUserId: text("decided_by_user_id"),
@@ -62,6 +62,25 @@ export const timeEntriesTable = pgTable(
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     /** Producer's note when rejecting (defaults to empty string). */
     rejectionReason: text("rejection_reason").notNull().default(""),
+    /** Producer-only payable-time adjustment. The freelancer's observed
+     * start/end/break values above are never overwritten by review. */
+    producerAdjustmentMinutes: integer("producer_adjustment_minutes")
+      .notNull()
+      .default(0),
+    /** Optional producer override for the unpaid meal break. */
+    producerBreakMinutes: integer("producer_break_minutes"),
+    /** Portion of payable time classified as overtime (not added twice). */
+    overtimeMinutes: integer("overtime_minutes").notNull().default(0),
+    /** Required audit explanation when producer adjustments are made. */
+    adjustmentReason: text("adjustment_reason").notNull().default(""),
+    /** Required reason for a flagged entry. */
+    flagReason: text("flag_reason").notNull().default(""),
+    /** Clerk user id and timestamp for the latest producer adjustment. */
+    adjustedByUserId: text("adjusted_by_user_id"),
+    adjustedAt: timestamp("adjusted_at", { withTimezone: true }),
+    /** Immutable compensation snapshot captured at producer approval. */
+    approvedRateMinor: integer("approved_rate_minor"),
+    approvedFlatFeeMinor: integer("approved_flat_fee_minor"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -94,6 +113,7 @@ export const TIME_ENTRY_STATUSES = [
   "submitted",
   "approved",
   "rejected",
+  "flagged",
   "locked",
 ] as const;
 export type TimeEntryStatus = (typeof TIME_ENTRY_STATUSES)[number];

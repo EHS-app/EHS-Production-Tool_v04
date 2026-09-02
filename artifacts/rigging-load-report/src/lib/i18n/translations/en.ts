@@ -160,11 +160,16 @@ export const en = {
   "portal.nav.hub": "Hub",
   "portal.nav.briefs": "Briefs",
   "portal.nav.gigs": "Gigs",
+  "portal.nav.runs": "My Runs",
+  "portal.nav.tasks": "My Tasks",
   "portal.nav.availability": "Availability",
   "portal.nav.hours": "Hours",
   "portal.nav.earnings": "Earnings",
   "portal.nav.profile": "Profile",
   "portal.nav.help": "Help",
+  "portal.hub.action.logHours": "Log Hours / Clock In",
+  "portal.hub.action.briefLogistics": "View Brief & Logistics",
+  "portal.hub.action.submitTimecard": "Submit Timecard / Hours",
 
   // ---------- Portal: header chrome ----------
   "portal.header.title": "Freelance Portal",

@@ -20,6 +20,7 @@ import {
   ListChecks,
   User,
   Wallet,
+  X,
 } from "lucide-react";
 import ehsLogo from "../assets/ehs-logo.png";
 import { PALETTE, PORTAL_FONT, type ThemeMode } from "./lib/portalTheme";
@@ -435,7 +436,7 @@ export function PortalLayout({
       {isMoreOpen && typeof document !== "undefined"
         ? createPortal(
             <div
-              className="fixed inset-0 z-50 bg-black/60"
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
               role="presentation"
               onClick={() => setIsMoreOpen(false)}
               style={{
@@ -443,6 +444,7 @@ export function PortalLayout({
                 inset: 0,
                 zIndex: 50,
                 background: "rgba(0, 0, 0, 0.6)",
+                backdropFilter: "blur(4px)",
                 pointerEvents: "auto",
               }}
             >
@@ -461,14 +463,54 @@ export function PortalLayout({
                   zIndex: 51,
                   borderRadius: "16px 16px 0 0",
                   padding: "24px 16px 32px",
-                  background: "var(--surface, #fff)",
-                  color: "var(--text-main, #0f172a)",
+                  background: "#111827",
+                  color: "#f8fafc",
                   boxShadow: "0 -12px 36px rgba(0, 0, 0, 0.24)",
                 }}
               >
-                <h2 style={{ margin: "0 0 16px", fontSize: 18 }}>
-                  {t("portal.nav.more")}
-                </h2>
+                <div
+                  className="w-10 h-1 bg-slate-700/60 rounded-full mx-auto mb-4"
+                  aria-hidden="true"
+                  style={{
+                    width: 40,
+                    height: 4,
+                    margin: "0 auto 16px",
+                    borderRadius: 999,
+                    background: "rgba(51, 65, 85, 0.6)",
+                  }}
+                />
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 16,
+                  }}
+                >
+                  <h2 style={{ margin: 0, fontSize: 18 }}>
+                    {t("portal.nav.more")}
+                  </h2>
+                  <button
+                    type="button"
+                    aria-label="Close"
+                    onClick={() => setIsMoreOpen(false)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 36,
+                      height: 36,
+                      padding: 0,
+                      border: 0,
+                      borderRadius: 999,
+                      background: "rgba(51, 65, 85, 0.6)",
+                      color: "#cbd5e1",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <X size={18} strokeWidth={1.75} />
+                  </button>
+                </div>
                 <div style={{ display: "grid", gap: 12 }}>
                   {(["briefs", "availability", "earnings", "runs", "tasks"] as const)
                     .map((key) => allItems.find((item) => item.key === key))
@@ -481,8 +523,26 @@ export function PortalLayout({
                         <Link
                           key={item.key}
                           href={item.href}
-                          className={`ehs-shell-nav-item${isActive ? " is-active" : ""}`}
+                          className={
+                            isActive
+                              ? "flex items-center gap-3 px-4 py-3 rounded-xl bg-orange-500/10 text-orange-400 font-semibold border border-orange-500/20 no-underline hover:no-underline"
+                              : "flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-800/60 transition-colors no-underline hover:no-underline font-medium"
+                          }
                           onClick={() => setIsMoreOpen(false)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                            padding: "12px 16px",
+                            borderRadius: 12,
+                            color: isActive ? "#fb923c" : "#cbd5e1",
+                            background: isActive ? "rgba(249, 115, 22, 0.1)" : "transparent",
+                            border: isActive
+                              ? "1px solid rgba(249, 115, 22, 0.2)"
+                              : "1px solid transparent",
+                            fontWeight: isActive ? 600 : 500,
+                            textDecoration: "none",
+                          }}
                         >
                           <Icon size={18} strokeWidth={1.75} />
                           <span style={{ flex: 1, textAlign: "left", fontSize: 16 }}>

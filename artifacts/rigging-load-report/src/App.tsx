@@ -5824,36 +5824,25 @@ function App() {
       </div>
       <div className="meta-field">
         <label>{tr("project.venueProject")}</label>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-          <select
-            value={venueId || ""}
-            onChange={e => {
-               const id = e.target.value;
-               setVenueId(id || null);
-               if (id) {
-                 const v = venuesOptions.find(o => o.id === id);
-                 if (v) setVenue(v.name);
-               }
-            }}
-            style={{
-              background: "var(--input-bg)", border: "1px solid rgba(255,255,255,0.12)",
-              borderRadius: 6, color: "var(--text-main)", padding: "0 8px", height: 34,
-              flex: "1 1 140px"
-            }}
-          >
-            <option value="">{tr("project.select.venue")}</option>
-            {venuesOptions.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-          </select>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
           <input
+            list="project-venue-options"
             type="text"
             value={venue}
-            onChange={(e) => {
-              setVenue(e.target.value);
-              if (venueId) setVenueId(null);
+            onChange={e => {
+              const nextVenue = e.target.value;
+              const match = venuesOptions.find(
+                option => option.name.localeCompare(nextVenue, undefined, { sensitivity: "accent" }) === 0,
+              );
+              setVenue(nextVenue);
+              setVenueId(match?.id ?? null);
             }}
-            placeholder={tr("project.placeholder.venue")}
-            style={{ flex: "1 1 140px" }}
+            placeholder={tr("project.select.venue")}
+            style={{ flex: 1, minWidth: 0 }}
           />
+          <datalist id="project-venue-options">
+            {venuesOptions.map(option => <option key={option.id} value={option.name} />)}
+          </datalist>
           {venueId && (
             <button
               type="button"
@@ -5868,36 +5857,25 @@ function App() {
       </div>
       <div className="meta-field">
         <label>{tr("project.client")}</label>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-          <select
-            value={clientId || ""}
-            onChange={e => {
-               const id = e.target.value;
-               setClientId(id || null);
-               if (id) {
-                 const c = clientsOptions.find(o => o.id === id);
-                 if (c) setClient(c.companyName);
-               }
-            }}
-            style={{
-              background: "var(--input-bg)", border: "1px solid rgba(255,255,255,0.12)",
-              borderRadius: 6, color: "var(--text-main)", padding: "0 8px", height: 34,
-              flex: "1 1 140px"
-            }}
-          >
-            <option value="">{tr("project.select.client")}</option>
-            {clientsOptions.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
-          </select>
+        <div style={{ display: "flex", alignItems: "center", minWidth: 0 }}>
           <input
+            list="project-client-options"
             type="text"
             value={client}
-            onChange={(e) => {
-              setClient(e.target.value);
-              if (clientId) setClientId(null);
+            onChange={e => {
+              const nextClient = e.target.value;
+              const match = clientsOptions.find(
+                option => option.companyName.localeCompare(nextClient, undefined, { sensitivity: "accent" }) === 0,
+              );
+              setClient(nextClient);
+              setClientId(match?.id ?? null);
             }}
-            placeholder={tr("project.placeholder.client")}
-            style={{ flex: "1 1 140px" }}
+            placeholder={tr("project.select.client")}
+            style={{ flex: 1, minWidth: 0 }}
           />
+          <datalist id="project-client-options">
+            {clientsOptions.map(option => <option key={option.id} value={option.companyName} />)}
+          </datalist>
         </div>
       </div>
       <div className="meta-field">

@@ -1,0 +1,30 @@
+Please implement Phase 2 (Master Calendar Overview with Hover Popups, and Freelancer Profile/Booking History Modal) following these instructions:
+
+====================================================================
+1. MASTER CALENDAR VIEW (/calendar)
+====================================================================
+- Replace the Phase 2 placeholder view at `/calendar` with an interactive Calendar timeline (Month & Week views).
+- Fetch all accessible projects (`GET /api/projects`) and plot them according to their project/event schedule dates.
+- HOVER POPOVER TOOLTIP: Hovering over any project card/block on the calendar must display a popover containing:
+  * Project Name & Status badge (Active, Planning, Completed, etc.)
+  * Venue / Location
+  * Start & End Dates / Duration
+  * Easyjob Number (badge displaying the ID or "No Easyjob ID")
+  * Total assigned crew count
+- CLICK NAVIGATION: Clicking a project on the calendar navigates directly into that project's detail workspace (`/projects/:id` or active project view).
+
+====================================================================
+2. FREELANCER PROFILE & BOOKING HISTORY MODAL
+====================================================================
+- In both the global `/crew` directory and in-project crew sheets, clicking any freelancer row or profile photo opens a detailed "Freelancer Profile & History" modal.
+- Profile Header: Contact info, primary role, city, photo, default day rate, skills, phone, email, and dietary/allergen tags.
+- Booking History Breakdown:
+  * UPCOMING GIGS: List of future project assignments, assigned roles, call times, and scheduled dates.
+  * PAST GIGS & STATS: Historical completed shows, total logged/worked hours, and accumulated earnings/costs calculated from past day rates.
+
+====================================================================
+3. VERIFICATION & SAFETY
+====================================================================
+- Ensure calendar rendering handles projects without assigned start/end dates gracefully without throwing UI errors.
+- Ensure past/upcoming gig stats cleanly query existing accepted portal briefs (`portalBriefs` / `gigs`).
+- Run `pnpm build` to verify zero TypeScript errors across the application.

@@ -74341,6 +74341,10 @@ var briefAssignmentsTable = pgTable(
     /** Snapshot of the brief at accept time — used by the Portal's
      *  "what changed since you accepted" diff banner. */
     acceptedSnapshot: jsonb("accepted_snapshot"),
+    /** Authoritative provenance bit. Legacy snapshots pre-date server-side
+     *  construction and remain false, even if their JSON contains a forged
+     *  marker. Only trusted snapshots may drive employee history totals. */
+    acceptedSnapshotTrusted: boolean("accepted_snapshot_trusted").notNull().default(false),
     /** When `decision === "accepted"`, the id of the gig that was
      *  created from this assignment. */
     acceptedGigId: text("accepted_gig_id"),
@@ -76631,6 +76635,57 @@ function normaliseProfile(body, existingDefaultDayRate = 0) {
 function projectProfile(row) {
   return { ...row, dietaryRequirements: row.dietary };
 }
+var ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+function safeRecord(raw) {
+  return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+}
+function safeDate(raw) {
+  if (typeof raw !== "string") return null;
+  const date7 = raw.slice(0, 10);
+  if (!ISO_DATE.test(date7)) return null;
+  const [year, month, day] = date7.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day ? date7 : null;
+}
+function firstSafeNumber(...values) {
+  for (const raw of values) {
+    const value = typeof raw === "number" ? raw : Number(raw);
+    if (Number.isFinite(value) && value >= 0) return value;
+  }
+  return 0;
+}
+function snapshotParts(raw, trusted) {
+  const snapshot = safeRecord(raw);
+  if (!trusted || snapshot._source !== "server") {
+    return { project: {}, assignment: {} };
+  }
+  return {
+    project: safeRecord(snapshot.project),
+    assignment: safeRecord(snapshot.myAssignment)
+  };
+}
+function currentAssignment(data, crewId) {
+  const assignments = safeRecord(data).assignments;
+  if (!Array.isArray(assignments)) return {};
+  const rows = assignments.map(safeRecord);
+  return rows.find((row) => row.crewId === crewId) ?? {};
+}
+function netWorkedMinutes(entry) {
+  if (entry.startMinute == null || entry.endMinute == null) return 0;
+  if (entry.startMinute < 0 || entry.startMinute > 1439 || entry.endMinute < 0 || entry.endMinute > 1439) {
+    return 0;
+  }
+  let span = entry.endMinute - entry.startMinute;
+  if (span < 0) span += 24 * 60;
+  return Math.max(0, span - Math.max(0, entry.breakMinutes || 0));
+}
+function inclusiveDayCount(startDate, endDate) {
+  if (!startDate) return 0;
+  const start = Date.parse(`${startDate}T00:00:00Z`);
+  const end = Date.parse(`${endDate ?? startDate}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return 1;
+  return Math.min(366, Math.floor((end - start) / 864e5) + 1);
+}
 router6.post("/portal/me/tag-as-freelancer", requireSignedIn4, async (req, res) => {
   const userId = req._userId;
   try {
@@ -76754,6 +76809,168 @@ router6.patch(
     } catch (err) {
       req.log.error({ err, userId }, "admin freelancer profile PATCH failed");
       res.status(500).json({ ok: false, error: "Could not update freelancer." });
+    }
+  }
+);
+router6.get(
+  "/portal/freelancers/:userId/profile-history",
+  requireEmployee,
+  async (req, res) => {
+    const userId = String(req.params.userId ?? "").trim();
+    if (!userId || userId.length > 200) {
+      res.status(400).json({ ok: false, error: "Invalid freelancer ID." });
+      return;
+    }
+    try {
+      const [profile] = await db.select({
+        userId: freelancerProfilesTable.userId,
+        fullName: freelancerProfilesTable.fullName,
+        email: freelancerProfilesTable.email,
+        phone: freelancerProfilesTable.phone,
+        primaryRole: freelancerProfilesTable.primaryRole,
+        city: freelancerProfilesTable.city,
+        bio: freelancerProfilesTable.bio,
+        languages: freelancerProfilesTable.languages,
+        skills: freelancerProfilesTable.skills,
+        photoObjectPath: freelancerProfilesTable.photoObjectPath,
+        defaultDayRate: freelancerProfilesTable.defaultDayRate,
+        dietary: freelancerProfilesTable.dietary,
+        allergies: freelancerProfilesTable.allergies
+      }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId)).limit(1);
+      if (!profile) {
+        res.status(404).json({ ok: false, error: "Freelancer not found." });
+        return;
+      }
+      const assignments = await db.select({
+        assignmentId: briefAssignmentsTable.id,
+        briefId: briefAssignmentsTable.briefId,
+        crewId: briefAssignmentsTable.crewId,
+        acceptedGigId: briefAssignmentsTable.acceptedGigId,
+        acceptedSnapshot: briefAssignmentsTable.acceptedSnapshot,
+        acceptedSnapshotTrusted: briefAssignmentsTable.acceptedSnapshotTrusted,
+        decidedAt: briefAssignmentsTable.decidedAt,
+        brief: projectBriefsTable
+      }).from(briefAssignmentsTable).innerJoin(
+        projectBriefsTable,
+        eq(briefAssignmentsTable.briefId, projectBriefsTable.id)
+      ).where(
+        and(
+          eq(briefAssignmentsTable.freelancerUserId, userId),
+          eq(briefAssignmentsTable.decision, "accepted")
+        )
+      ).orderBy(asc(projectBriefsTable.startDate));
+      const acceptedGigIds = new Set(
+        assignments.map((row) => row.acceptedGigId).filter((id) => typeof id === "string" && id.length > 0)
+      );
+      const acceptedGigs = acceptedGigIds.size === 0 ? [] : await db.select().from(gigsTable).where(
+        and(
+          eq(gigsTable.freelancerUserId, userId),
+          inArray(gigsTable.id, Array.from(acceptedGigIds))
+        )
+      );
+      const gigIds = acceptedGigs.map((gig) => gig.id);
+      const entries = gigIds.length === 0 ? [] : await db.select({
+        gigId: timeEntriesTable.gigId,
+        startMinute: timeEntriesTable.startMinute,
+        endMinute: timeEntriesTable.endMinute,
+        breakMinutes: timeEntriesTable.breakMinutes
+      }).from(timeEntriesTable).where(
+        and(
+          eq(timeEntriesTable.freelancerUserId, userId),
+          inArray(timeEntriesTable.gigId, gigIds)
+        )
+      );
+      const minutesByGig = /* @__PURE__ */ new Map();
+      for (const entry of entries) {
+        minutesByGig.set(
+          entry.gigId,
+          (minutesByGig.get(entry.gigId) ?? 0) + netWorkedMinutes(entry)
+        );
+      }
+      const gigsById = new Map(acceptedGigs.map((gig) => [gig.id, gig]));
+      const history = assignments.flatMap((row) => {
+        const candidate = row.acceptedGigId ? gigsById.get(row.acceptedGigId) : void 0;
+        const matched = candidate?.briefId === row.briefId ? candidate : void 0;
+        const gigRows = matched ? [matched] : [null];
+        return gigRows.map((gig) => {
+          const snapshot = snapshotParts(
+            row.acceptedSnapshot,
+            row.acceptedSnapshotTrusted
+          );
+          const briefData = safeRecord(row.brief.data);
+          const briefProject = safeRecord(briefData.project);
+          const assignment = {
+            ...currentAssignment(row.brief.data, row.crewId),
+            ...snapshot.assignment
+          };
+          const project = { ...briefProject, ...snapshot.project };
+          const rawAssignedDates = Array.isArray(assignment.assignedDates) && assignment.assignedDates.length > 0 ? assignment.assignedDates : gig?.assignedDates;
+          const assignedDates = Array.isArray(rawAssignedDates) ? Array.from(
+            new Set(
+              rawAssignedDates.map(safeDate).filter((date7) => date7 !== null)
+            )
+          ).sort() : [];
+          const startDate = safeDate(project.date) ?? safeDate(gig?.startDate) ?? safeDate(row.brief.startDate);
+          const endDate = safeDate(project.endDate) ?? safeDate(gig?.endDate) ?? safeDate(row.brief.endDate) ?? assignedDates.at(-1) ?? startDate;
+          const dayRate = firstSafeNumber(assignment.dayRate);
+          const bookedDays = assignedDates.length || inclusiveDayCount(startDate, endDate) || 1;
+          const projectIdRaw = project.projectId ?? project.id ?? briefData.projectId;
+          return {
+            id: gig?.id ?? row.assignmentId,
+            projectId: typeof projectIdRaw === "string" && projectIdRaw.trim() ? projectIdRaw.trim() : null,
+            briefId: row.briefId,
+            projectName: gig?.projectName || (typeof project.name === "string" ? project.name : "") || row.brief.projectName,
+            venue: gig?.venue || (typeof project.venue === "string" ? project.venue : "") || row.brief.venue,
+            role: (typeof assignment.role === "string" ? assignment.role : "") || gig?.role || "",
+            startDate,
+            endDate,
+            assignedDates,
+            callTime: typeof assignment.callTime === "string" ? assignment.callTime : "",
+            offTime: typeof assignment.offTime === "string" ? assignment.offTime : "",
+            dayRate,
+            workedMinutes: gig ? minutesByGig.get(gig.id) ?? 0 : 0,
+            earnings: dayRate * bookedDays,
+            status: gig?.status ?? "accepted"
+          };
+        });
+      });
+      const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+      const upcomingGigs = history.filter((gig) => !gig.endDate || gig.endDate >= today).sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""));
+      const pastGigs = history.filter((gig) => Boolean(gig.endDate && gig.endDate < today)).sort((a, b) => (b.endDate ?? "").localeCompare(a.endDate ?? ""));
+      res.json({
+        ok: true,
+        freelancer: {
+          userId: profile.userId,
+          fullName: profile.fullName,
+          email: profile.email,
+          phone: profile.phone,
+          primaryRole: profile.primaryRole,
+          city: profile.city,
+          bio: profile.bio,
+          languages: profile.languages,
+          skills: profile.skills,
+          hasPhoto: Boolean(profile.photoObjectPath),
+          photoUrl: profile.photoObjectPath ? `/api/portal/freelancers/${encodeURIComponent(profile.userId)}/photo` : null,
+          defaultDayRate: profile.defaultDayRate,
+          dietary: profile.dietary,
+          dietaryTags: classifyDietary(profile.dietary),
+          allergies: profile.allergies,
+          allergenTags: splitAllergens(profile.allergies)
+        },
+        upcomingGigs,
+        pastGigs,
+        stats: {
+          pastGigCount: pastGigs.length,
+          totalWorkedMinutes: pastGigs.reduce(
+            (sum, gig) => sum + gig.workedMinutes,
+            0
+          ),
+          totalEarnings: pastGigs.reduce((sum, gig) => sum + gig.earnings, 0)
+        }
+      });
+    } catch (err) {
+      req.log.error({ err, userId }, "freelancer profile history GET failed");
+      res.status(500).json({ ok: false, error: "Could not load freelancer history." });
     }
   }
 );
@@ -77413,9 +77630,9 @@ function addDay(iso2) {
   d.setUTCDate(d.getUTCDate() + 1);
   return d.toISOString().slice(0, 10);
 }
-var ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+var ISO_DATE2 = /^\d{4}-\d{2}-\d{2}$/;
 function isValidIsoDate(s2) {
-  if (typeof s2 !== "string" || !ISO_DATE.test(s2)) return false;
+  if (typeof s2 !== "string" || !ISO_DATE2.test(s2)) return false;
   const d = /* @__PURE__ */ new Date(`${s2}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return false;
   return d.toISOString().slice(0, 10) === s2;
@@ -77627,6 +77844,19 @@ function extractIndexed(data) {
     endDate: pickDate2(project.endDate)
   };
 }
+function buildServerAcceptedSnapshot(briefData, crewId) {
+  const data = briefData && typeof briefData === "object" && !Array.isArray(briefData) ? briefData : {};
+  const assignments = Array.isArray(data.assignments) ? data.assignments.filter(
+    (row) => Boolean(row) && typeof row === "object" && !Array.isArray(row)
+  ) : [];
+  const myAssignment = assignments.find((row) => row.crewId === crewId);
+  return {
+    _source: "server",
+    generatedAt: typeof data.generatedAt === "number" && Number.isFinite(data.generatedAt) ? data.generatedAt : Date.now(),
+    project: data.project && typeof data.project === "object" && !Array.isArray(data.project) ? data.project : {},
+    ...myAssignment ? { myAssignment } : {}
+  };
+}
 var TERMINAL_GIG_STATUSES = /* @__PURE__ */ new Set([
   "done",
   "invoiced",
@@ -77635,7 +77865,7 @@ var TERMINAL_GIG_STATUSES = /* @__PURE__ */ new Set([
 function gigFieldsFromBrief(brief, crewId) {
   const data = brief.data && typeof brief.data === "object" ? brief.data : {};
   const assignments = Array.isArray(data.assignments) ? data.assignments : [];
-  const target = (crewId ? assignments.find((a) => typeof a.crewId === "string" && a.crewId === crewId) : void 0) ?? assignments[0];
+  const target = crewId ? assignments.find((a) => typeof a.crewId === "string" && a.crewId === crewId) : void 0;
   const role = target && typeof target.role === "string" ? target.role.slice(0, 280) : "";
   const notes = target && typeof target.notes === "string" ? target.notes.slice(0, 4e3) : "";
   const toNumeric = (raw) => {
@@ -77901,8 +78131,6 @@ router7.post(
       res.status(400).json({ ok: false, error: "Invalid decision." });
       return;
     }
-    const acceptedSnapshot = body.acceptedSnapshot && typeof body.acceptedSnapshot === "object" ? body.acceptedSnapshot : null;
-    const acceptedGigId = typeof body.acceptedGigId === "string" ? body.acceptedGigId.slice(0, 64) : null;
     try {
       const result = await db.transaction(async (tx) => {
         const briefRows = await tx.select({
@@ -77951,6 +78179,7 @@ router7.post(
             decision,
             decidedAt: sql`now()`,
             acceptedSnapshot: null,
+            acceptedSnapshotTrusted: false,
             acceptedGigId: null,
             updatedAt: sql`now()`
           }).where(eq(briefAssignmentsTable.id, myRow.id)).returning();
@@ -77978,6 +78207,7 @@ router7.post(
             decision: "too_late",
             decidedAt: sql`now()`,
             acceptedSnapshot: null,
+            acceptedSnapshotTrusted: false,
             acceptedGigId: null,
             updatedAt: sql`now()`
           }).where(eq(briefAssignmentsTable.id, myRow.id)).returning();
@@ -78037,7 +78267,11 @@ router7.post(
         const updated = await tx.update(briefAssignmentsTable).set({
           decision: "accepted",
           decidedAt: sql`now()`,
-          acceptedSnapshot,
+          acceptedSnapshot: buildServerAcceptedSnapshot(
+            briefRow.data,
+            myRow.crewId
+          ),
+          acceptedSnapshotTrusted: true,
           acceptedGigId: gigRow.id,
           updatedAt: sql`now()`
         }).where(eq(briefAssignmentsTable.id, myRow.id)).returning();
@@ -80527,6 +80761,8 @@ router11.get("/projects", requireSignedIn9, async (req, res) => {
       venue: projectsTable.venue,
       client: projectsTable.client,
       easyjob_number: projectsTable.easyjobNumber,
+      reportDate: sql`${projectsTable.data}->>'reportDate'`,
+      reportEndDate: sql`${projectsTable.data}->>'reportEndDate'`,
       crewCount: sql`case when jsonb_typeof(${projectsTable.data}->'crew') = 'array' then jsonb_array_length(${projectsTable.data}->'crew') else 0 end`,
       status: sql`case when nullif(${projectsTable.data}->>'activeBriefId', '') is not null then 'active' when nullif(${projectsTable.venue}, '') is not null or nullif(${projectsTable.client}, '') is not null then 'planning' else 'draft' end`,
       createdAt: projectsTable.createdAt,
@@ -80544,7 +80780,29 @@ router11.get("/projects", requireSignedIn9, async (req, res) => {
         eq(projectMembersTable.userId, userId)
       )
     ).orderBy(desc(projectsTable.updatedAt));
-    res.json({ ok: true, projects: rows });
+    const normaliseDate = (raw) => {
+      if (typeof raw !== "string") return null;
+      const value = raw.trim();
+      const match2 = value.match(
+        /^(\d{4})-(\d{2})-(\d{2})(?:T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2}))?$/
+      );
+      if (!match2) return null;
+      const year = Number(match2[1]);
+      const month = Number(match2[2]);
+      const day = Number(match2[3]);
+      const parsed = new Date(Date.UTC(year, month - 1, day));
+      const validDay = parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
+      const validTimestamp = !value.includes("T") || !Number.isNaN(Date.parse(value));
+      return validDay && validTimestamp ? `${match2[1]}-${match2[2]}-${match2[3]}` : null;
+    };
+    res.json({
+      ok: true,
+      projects: rows.map(({ reportDate, reportEndDate, ...row }) => ({
+        ...row,
+        startDate: normaliseDate(reportDate),
+        endDate: normaliseDate(reportEndDate)
+      }))
+    });
   } catch (err) {
     req.log.error(err, "Failed to list projects");
     res.status(500).json({ ok: false, error: "Failed to list projects." });

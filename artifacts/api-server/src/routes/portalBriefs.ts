@@ -110,6 +110,38 @@ function extractIndexed(data: Record<string, unknown>): {
   };
 }
 
+/** Create the immutable acceptance snapshot from the producer-authored brief.
+ * Client snapshots are deliberately ignored: booking history and change
+ * detection must never trust freelancer-supplied role, rate, or date values. */
+function buildServerAcceptedSnapshot(
+  briefData: unknown,
+  crewId: string,
+): Record<string, unknown> {
+  const data =
+    briefData && typeof briefData === "object" && !Array.isArray(briefData)
+      ? (briefData as Record<string, unknown>)
+      : {};
+  const assignments = Array.isArray(data.assignments)
+    ? data.assignments.filter(
+        (row): row is Record<string, unknown> =>
+          Boolean(row) && typeof row === "object" && !Array.isArray(row),
+      )
+    : [];
+  const myAssignment = assignments.find((row) => row.crewId === crewId);
+  return {
+    _source: "server",
+    generatedAt:
+      typeof data.generatedAt === "number" && Number.isFinite(data.generatedAt)
+        ? data.generatedAt
+        : Date.now(),
+    project:
+      data.project && typeof data.project === "object" && !Array.isArray(data.project)
+        ? data.project
+        : {},
+    ...(myAssignment ? { myAssignment } : {}),
+  };
+}
+
 /** Gig statuses past `confirmed` that the freelancer themselves drives
  *  (done → invoiced → paid). When a re-accept or acknowledge fires
  *  against an existing gig in one of these states, we must keep the
@@ -127,9 +159,8 @@ const TERMINAL_GIG_STATUSES: ReadonlySet<string> = new Set([
  *  (which the brief POST handler computed via `extractIndexed`) and
  *  drills into the `data` jsonb to find the per-crew role / hours /
  *  rate for the slot the caller was addressed for. We use `crewId`
- *  to pick the right line out of `data.assignments[]`; if it doesn't
- *  resolve we fall back to the first assignment so the gig still has
- *  a sensible role label rather than an empty string. */
+ *  to pick the exact line out of `data.assignments[]`; unresolved rows
+ *  stay empty rather than borrowing another crew member's details. */
 function gigFieldsFromBrief(
   brief: {
     projectName: string | null;
@@ -163,10 +194,9 @@ function gigFieldsFromBrief(
   const assignments = Array.isArray(data.assignments)
     ? (data.assignments as Record<string, unknown>[])
     : [];
-  const target =
-    (crewId
-      ? assignments.find((a) => typeof a.crewId === "string" && a.crewId === crewId)
-      : undefined) ?? assignments[0];
+  const target = crewId
+    ? assignments.find((a) => typeof a.crewId === "string" && a.crewId === crewId)
+    : undefined;
   const role =
     target && typeof target.role === "string" ? target.role.slice(0, 280) : "";
   const notes =
@@ -557,9 +587,9 @@ router.get(
   },
 );
 
-/** POST /api/portal/briefs/:id/respond  body: { decision, acceptedSnapshot?, acceptedGigId? }
- *  Freelancer-only. Records accept/decline + the frozen snapshot on
- *  the assignment row.
+/** POST /api/portal/briefs/:id/respond  body: { decision }
+ *  Freelancer-only. Records accept/decline. On acceptance, the server
+ *  creates the frozen snapshot and canonical gig from the locked brief.
  *
  *  First-to-accept-wins: each brief is treated as a single slot shared
  *  by all of its candidates. The whole respond flow runs inside a
@@ -587,8 +617,6 @@ router.post(
     const briefId = String(req.params.id ?? "");
     const body = (req.body ?? {}) as {
       decision?: unknown;
-      acceptedSnapshot?: unknown;
-      acceptedGigId?: unknown;
     };
     const decision =
       typeof body.decision === "string" ? body.decision : "";
@@ -596,14 +624,6 @@ router.post(
       res.status(400).json({ ok: false, error: "Invalid decision." });
       return;
     }
-    const acceptedSnapshot =
-      body.acceptedSnapshot && typeof body.acceptedSnapshot === "object"
-        ? (body.acceptedSnapshot as Record<string, unknown>)
-        : null;
-    const acceptedGigId =
-      typeof body.acceptedGigId === "string"
-        ? body.acceptedGigId.slice(0, 64)
-        : null;
     try {
       const result = await db.transaction(async (tx) => {
         // Lock the brief row for the lifetime of the transaction so
@@ -690,6 +710,7 @@ router.post(
               decision,
               decidedAt: sql`now()`,
               acceptedSnapshot: null,
+              acceptedSnapshotTrusted: false,
               acceptedGigId: null,
               updatedAt: sql`now()`,
             })
@@ -735,6 +756,7 @@ router.post(
               decision: "too_late",
               decidedAt: sql`now()`,
               acceptedSnapshot: null,
+              acceptedSnapshotTrusted: false,
               acceptedGigId: null,
               updatedAt: sql`now()`,
             })
@@ -848,7 +870,11 @@ router.post(
           .set({
             decision: "accepted",
             decidedAt: sql`now()`,
-            acceptedSnapshot,
+            acceptedSnapshot: buildServerAcceptedSnapshot(
+              briefRow.data,
+              myRow.crewId,
+            ),
+            acceptedSnapshotTrusted: true,
             acceptedGigId: gigRow.id,
             updatedAt: sql`now()`,
           })

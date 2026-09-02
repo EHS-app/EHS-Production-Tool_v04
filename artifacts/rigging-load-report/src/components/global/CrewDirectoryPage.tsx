@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { Search, Mail, Phone, MapPin, X, Users, CheckCircle, Clock } from "lucide-react";
+import { Search, Mail, Phone, MapPin, X, Users, CheckCircle, Clock, Edit2 } from "lucide-react";
+import { FreelancerProfileModal } from "./FreelancerProfileModal";
 
 export type FreelancerRow = {
   userId: string;
@@ -24,6 +25,7 @@ export function CrewDirectoryPage({ getToken }: Props) {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [editingUser, setEditingUser] = useState<FreelancerRow | null>(null);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -181,7 +183,33 @@ export function CrewDirectoryPage({ getToken }: Props) {
       ) : (
         <div className="crew-grid">
           {filtered.map(f => (
-            <button key={f.userId} type="button" className="crew-card" onClick={() => setEditingUser(f)}>
+            <div
+              key={f.userId}
+              className="crew-card"
+              role="button"
+              tabIndex={0}
+              aria-label={`Open ${f.fullName || "freelancer"} profile and booking history`}
+              style={{ cursor: "pointer", position: "relative" }}
+              onClick={() => setProfileUserId(f.userId)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setProfileUserId(f.userId);
+                }
+              }}
+            >
+              <button 
+                type="button" 
+                className="ehs-ghost-btn" 
+                style={{ position: "absolute", top: 12, right: 12, padding: 6, zIndex: 2 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingUser(f);
+                }}
+                title="Edit profile"
+              >
+                <Edit2 size={14} />
+              </button>
               <div className="crew-card-head">
                 <div className="crew-avatar">
                   {f.photoObjectPath ? <img src={photoUrl(f.userId)} alt="" /> : getInitials(f.fullName)}
@@ -227,9 +255,17 @@ export function CrewDirectoryPage({ getToken }: Props) {
                   {f.skills.length > 4 && <span className="crew-skill-pill">+{f.skills.length - 4}</span>}
                 </div>
               )}
-            </button>
+            </div>
           ))}
         </div>
+      )}
+
+      {profileUserId && (
+        <FreelancerProfileModal 
+          userId={profileUserId} 
+          getToken={getToken} 
+          onClose={() => setProfileUserId(null)} 
+        />
       )}
 
       {editingUser && (

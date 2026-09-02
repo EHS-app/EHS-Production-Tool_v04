@@ -6,3 +6,4 @@
 - [Disabled controls can re-blur](disabled-control-blur.md) — disabling a focused autosave field may trigger another blur; guard synchronously before awaiting the first save.
 - [Project collaboration roles](project-collaboration-roles.md) — ownership stays authoritative; membership adds owner/editor/viewer access with server-enforced write limits.
 - [Crew account linking](crew-account-linking.md) — link only by explicit directory selection and stable user ID; never infer portal identity from typed names.
+- [Booking history integrity](booking-history-integrity.md) — trust only server-built acceptance snapshots with DB provenance and the exact recorded accepted gig.

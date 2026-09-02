@@ -34,6 +34,8 @@ router.get("/projects", requireSignedIn, async (req, res) => {
         venue: projectsTable.venue,
         client: projectsTable.client,
         easyjob_number: projectsTable.easyjobNumber,
+        reportDate: sql<unknown>`${projectsTable.data}->>'reportDate'`,
+        reportEndDate: sql<unknown>`${projectsTable.data}->>'reportEndDate'`,
         crewCount: sql<number>`case when jsonb_typeof(${projectsTable.data}->'crew') = 'array' then jsonb_array_length(${projectsTable.data}->'crew') else 0 end`,
         status: sql<"active" | "planning" | "draft">`case when nullif(${projectsTable.data}->>'activeBriefId', '') is not null then 'active' when nullif(${projectsTable.venue}, '') is not null or nullif(${projectsTable.client}, '') is not null then 'planning' else 'draft' end`,
         createdAt: projectsTable.createdAt,
@@ -55,7 +57,34 @@ router.get("/projects", requireSignedIn, async (req, res) => {
         ),
       )
       .orderBy(desc(projectsTable.updatedAt));
-    res.json({ ok: true, projects: rows });
+    const normaliseDate = (raw: unknown): string | null => {
+      if (typeof raw !== "string") return null;
+      const value = raw.trim();
+      const match = value.match(
+        /^(\d{4})-(\d{2})-(\d{2})(?:T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2}))?$/,
+      );
+      if (!match) return null;
+      const year = Number(match[1]);
+      const month = Number(match[2]);
+      const day = Number(match[3]);
+      const parsed = new Date(Date.UTC(year, month - 1, day));
+      const validDay =
+        parsed.getUTCFullYear() === year &&
+        parsed.getUTCMonth() === month - 1 &&
+        parsed.getUTCDate() === day;
+      const validTimestamp = !value.includes("T") || !Number.isNaN(Date.parse(value));
+      return validDay && validTimestamp
+        ? `${match[1]}-${match[2]}-${match[3]}`
+        : null;
+    };
+    res.json({
+      ok: true,
+      projects: rows.map(({ reportDate, reportEndDate, ...row }) => ({
+        ...row,
+        startDate: normaliseDate(reportDate),
+        endDate: normaliseDate(reportEndDate),
+      })),
+    });
   } catch (err) {
     req.log.error(err, "Failed to list projects");
     res.status(500).json({ ok: false, error: "Failed to list projects." });

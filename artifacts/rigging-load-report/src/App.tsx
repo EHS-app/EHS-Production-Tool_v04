@@ -57,6 +57,7 @@ import { GlobalShell, type GlobalView } from "./components/global/GlobalShell";
 import { HomeDashboard, type DashboardStats } from "./components/global/HomeDashboard";
 import { ProjectsDatabasePage } from "./components/global/ProjectsDatabasePage";
 import { CrewDirectoryPage } from "./components/global/CrewDirectoryPage";
+import { MasterCalendarPage } from "./components/global/MasterCalendarPage";
 import { GlobalPlaceholderPage } from "./components/global/GlobalPlaceholderPage";
 import { FolderOpen as ShellFolderOpen, Copy as ShellCopy } from "lucide-react";
 import { useI18n } from "./lib/i18n/I18nContext";
@@ -5902,6 +5903,16 @@ function App() {
             />
           ) : globalView === "crew" ? (
             <CrewDirectoryPage getToken={getToken} />
+          ) : globalView === "calendar" ? (
+            <MasterCalendarPage
+              getToken={getToken}
+              onOpenProject={(id) => {
+                void loadProject(id).then(() => {
+                  setGlobalView(null);
+                  navigate(`/project/${id}`);
+                });
+              }}
+            />
           ) : (
             <GlobalPlaceholderPage {...placeholderCopy[globalView]} />
           )}

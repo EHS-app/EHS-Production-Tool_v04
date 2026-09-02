@@ -439,13 +439,13 @@ export declare const gigsTable: import("drizzle-orm/pg-core").PgTableWithColumns
 }>;
 export declare const insertGigSchema: z.ZodObject<{
     id: z.ZodString;
-    freelancerUserId: z.ZodString;
     projectName: z.ZodOptional<z.ZodString>;
     client: z.ZodOptional<z.ZodString>;
     venue: z.ZodOptional<z.ZodString>;
     startDate: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     endDate: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     briefId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    freelancerUserId: z.ZodString;
     role: z.ZodOptional<z.ZodString>;
     assignedDates: z.ZodOptional<z.ZodArray<z.ZodString>>;
     hotelRequired: z.ZodOptional<z.ZodBoolean>;

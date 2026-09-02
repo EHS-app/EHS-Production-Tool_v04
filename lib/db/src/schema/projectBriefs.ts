@@ -4,6 +4,7 @@ import {
   jsonb,
   timestamp,
   date,
+  boolean,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -79,6 +80,12 @@ export const briefAssignmentsTable = pgTable(
     /** Snapshot of the brief at accept time — used by the Portal's
      *  "what changed since you accepted" diff banner. */
     acceptedSnapshot: jsonb("accepted_snapshot"),
+    /** Authoritative provenance bit. Legacy snapshots pre-date server-side
+     *  construction and remain false, even if their JSON contains a forged
+     *  marker. Only trusted snapshots may drive employee history totals. */
+    acceptedSnapshotTrusted: boolean("accepted_snapshot_trusted")
+      .notNull()
+      .default(false),
     /** When `decision === "accepted"`, the id of the gig that was
      *  created from this assignment. */
     acceptedGigId: text("accepted_gig_id"),

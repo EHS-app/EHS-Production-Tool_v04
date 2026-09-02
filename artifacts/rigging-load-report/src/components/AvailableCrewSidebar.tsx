@@ -44,6 +44,7 @@ import {
   SKILL_LIBRARY,
   type SkillSuggestion,
 } from "@workspace/skills";
+import { FreelancerProfileModal } from "./global/FreelancerProfileModal";
 
 type Status = "available" | "pending" | "booked" | "unknown" | "partial" | "unavailable" | "tentative";
 
@@ -188,7 +189,7 @@ export function AvailableCrewSidebar({
   const [rows, setRows] = useState<DirectoryRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [profileRow, setProfileRow] = useState<DirectoryRow | null>(null);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   // Multi-select: the userIds the producer has currently ticked. A
   // booked freelancer can't be ticked (the checkbox is disabled), and
@@ -452,7 +453,7 @@ export function AvailableCrewSidebar({
                   <button
                     type="button"
                     className="acs-compact-row-main"
-                    onClick={() => setProfileRow(r)}
+                    onClick={() => setProfileUserId(r.userId)}
                     title={`View ${r.fullName || "freelancer"} profile`}
                     style={{
                       border: 0,
@@ -504,10 +505,11 @@ export function AvailableCrewSidebar({
         {sendError ? (
           <div className="acs-compact-error">{sendError}</div>
         ) : null}
-        {profileRow ? (
-          <FreelancerProfileDialog
-            row={profileRow}
-            onClose={() => setProfileRow(null)}
+        {profileUserId ? (
+          <FreelancerProfileModal
+            userId={profileUserId}
+            getToken={getToken}
+            onClose={() => setProfileUserId(null)}
           />
         ) : null}
       </aside>
@@ -616,7 +618,7 @@ export function AvailableCrewSidebar({
               isSelected={picks.has(r.userId)}
               isAlreadyRequested={requestedUserIds.has(r.userId)}
               onToggle={() => togglePick(r.userId)}
-              onOpenProfile={() => setProfileRow(r)}
+              onOpenProfile={() => setProfileUserId(r.userId)}
               onToggleHold={(isHold) => toggleHold(r.userId, isHold, r.holdId)}
               briefId={briefId}
               projectStartDate={projectStartDate}
@@ -644,10 +646,11 @@ export function AvailableCrewSidebar({
           </button>
         </div>
       ) : null}
-      {profileRow ? (
-        <FreelancerProfileDialog
-          row={profileRow}
-          onClose={() => setProfileRow(null)}
+      {profileUserId ? (
+        <FreelancerProfileModal
+          userId={profileUserId}
+          getToken={getToken}
+          onClose={() => setProfileUserId(null)}
         />
       ) : null}
     </aside>
@@ -874,89 +877,3 @@ function FreelancerAvatar({ row, size }: { row: DirectoryRow; size: number }) {
   );
 }
 
-function FreelancerProfileDialog({
-  row,
-  onClose,
-}: {
-  row: DirectoryRow;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  return (
-    <div
-      role="presentation"
-      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1000,
-        display: "grid",
-        placeItems: "center",
-        padding: 20,
-        background: "rgba(5,8,14,.64)",
-      }}
-    >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-label={`${row.fullName || "Freelancer"} profile`}
-        style={{
-          width: "min(520px, 100%)",
-          maxHeight: "min(720px, 90vh)",
-          overflowY: "auto",
-          borderRadius: 18,
-          padding: 24,
-          background: "var(--card-bg)",
-          color: "var(--ink)",
-          border: "1px solid var(--border)",
-          boxShadow: "0 24px 80px rgba(0,0,0,.35)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <button type="button" className="btn btn-soft btn-sm" onClick={onClose}>
-            Close
-          </button>
-        </div>
-        <div style={{ display: "grid", justifyItems: "center", textAlign: "center", gap: 9 }}>
-          <FreelancerAvatar row={row} size={112} />
-          <h2 style={{ margin: "5px 0 0" }}>{row.fullName || "Unnamed"}</h2>
-          <div style={{ color: "var(--ink-soft)" }}>
-            {[row.primaryRole, row.city].filter(Boolean).join(" · ")}
-          </div>
-          <span className={`acs-status acs-status-${STATUS_META[row.status].tone}`}>
-            <span
-              className="acs-status-dot"
-              style={{ background: STATUS_META[row.status].dot }}
-            />
-            {STATUS_META[row.status].label}
-          </span>
-        </div>
-        {row.bio ? (
-          <p style={{ lineHeight: 1.6, margin: "22px 0 0", whiteSpace: "pre-wrap" }}>
-            {row.bio}
-          </p>
-        ) : null}
-        {row.skills.length ? (
-          <div style={{ marginTop: 22 }}>
-            <strong style={{ display: "block", marginBottom: 9 }}>Skills & competence</strong>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-              {row.skills.map((skill) => (
-                <span key={skill} className="acs-cert">{skill}</span>
-              ))}
-            </div>
-          </div>
-        ) : null}
-        {row.languages.length ? (
-          <p style={{ margin: "20px 0 0", color: "var(--ink-soft)" }}>
-            <strong style={{ color: "var(--ink)" }}>Languages:</strong>{" "}
-            {row.languages.join(", ")}
-          </p>
-        ) : null}
-      </section>
-    </div>
-  );
-}

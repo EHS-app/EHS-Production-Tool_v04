@@ -88,6 +88,7 @@ export function MasterCrewSheet({
   getTimesForDates,
   phaseDays,
   compactHeader = false,
+  onOpenProfile,
 }: {
   /** Active brief id from App.tsx. When null/empty the sheet renders
    *  ONLY local crew (no portal data) and shows a friendly empty
@@ -160,6 +161,7 @@ export function MasterCrewSheet({
    *  doesn't need the duplicate. The right-side controls (toggle,
    *  Print, Add) are still rendered. */
   compactHeader?: boolean;
+  onOpenProfile?: (userId: string) => void;
 }) {
   const [data, setData] = useState<RosterResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -918,6 +920,7 @@ export function MasterCrewSheet({
                         : undefined
                     }
                     phaseDays={phaseDays}
+                    onOpenProfile={onOpenProfile}
                     onLocalSetDays={
                       local
                         ? (nextDates) => {
@@ -1138,6 +1141,7 @@ function MasterRow({
   onLocalDuplicate,
   phaseDays,
   onLocalSetDays,
+  onOpenProfile,
 }: {
   row: RosterRow;
   projectDays: ReadonlyArray<string> | null;
@@ -1167,6 +1171,7 @@ function MasterRow({
   /** Replace the local row's working days wholesale (used by the
    *  quick-pick buttons). Recomputes call/off from the schedule. */
   onLocalSetDays?: (dates: ReadonlyArray<string>) => void;
+  onOpenProfile?: (userId: string) => void;
 }) {
   const chips = useMemo(
     () => buildDayChips(row.assignedDates, projectDays),
@@ -1181,14 +1186,41 @@ function MasterRow({
     <tr>
       <td>
         {editableLocal ? (
-          <CrewNameCombobox
-            member={local!}
-            candidates={portalCandidates}
-            onUpdate={(patch) => onLocalUpdate?.(patch)}
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <CrewNameCombobox
+                member={local!}
+                candidates={portalCandidates}
+                onUpdate={(patch) => onLocalUpdate?.(patch)}
+              />
+            </div>
+            {row.freelancerUserId && onOpenProfile ? (
+              <button
+                type="button"
+                className="ehs-ghost-btn"
+                onClick={() => onOpenProfile(row.freelancerUserId!)}
+                title={`Open ${row.name || "freelancer"} profile and booking history`}
+                aria-label={`Open ${row.name || "freelancer"} profile and booking history`}
+                style={{ flexShrink: 0, padding: "4px 7px", height: "auto" }}
+              >
+                Profile
+              </button>
+            ) : null}
+          </div>
         ) : (
           <div className="roster-name">
-            <strong>{row.name || "—"}</strong>
+            {row.freelancerUserId && onOpenProfile ? (
+              <button 
+                type="button"
+                className="ehs-ghost-btn"
+                style={{ padding: 0, fontWeight: 800, color: "inherit", height: "auto" }}
+                onClick={() => onOpenProfile(row.freelancerUserId!)}
+              >
+                {row.name || "—"}
+              </button>
+            ) : (
+              <strong>{row.name || "—"}</strong>
+            )}
             {row.profileless ? (
               <span
                 className="roster-hint"

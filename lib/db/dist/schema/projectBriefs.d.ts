@@ -330,6 +330,23 @@ export declare const briefAssignmentsTable: import("drizzle-orm/pg-core").PgTabl
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        acceptedSnapshotTrusted: import("drizzle-orm/pg-core").PgColumn<{
+            name: "accepted_snapshot_trusted";
+            tableName: "brief_assignments";
+            dataType: "boolean";
+            columnType: "PgBoolean";
+            data: boolean;
+            driverParam: boolean;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         acceptedGigId: import("drizzle-orm/pg-core").PgColumn<{
             name: "accepted_gig_id";
             tableName: "brief_assignments";
@@ -392,6 +409,7 @@ export declare const insertBriefAssignmentSchema: z.ZodObject<{
     decision: z.ZodOptional<z.ZodString>;
     decidedAt: z.ZodOptional<z.ZodNullable<z.ZodDate>>;
     acceptedSnapshot: z.ZodOptional<z.ZodNullable<z.ZodType<import("drizzle-zod").Json, unknown, z.core.$ZodTypeInternals<import("drizzle-zod").Json, unknown>>>>;
+    acceptedSnapshotTrusted: z.ZodOptional<z.ZodBoolean>;
     acceptedGigId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
 }, {
     out: {};

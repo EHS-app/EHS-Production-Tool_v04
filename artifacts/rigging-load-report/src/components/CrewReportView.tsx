@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { MasterCrewSheet } from "./MasterCrewSheet";
 import { AdequacyPanel } from "./AdequacyPanel";
 import { ProducerHoursPanel } from "./ProducerHoursPanel";
+import { FreelancerProfileModal } from "./global/FreelancerProfileModal";
 import {
   type CrewMember,
 } from "../lib/crew";
@@ -110,6 +111,7 @@ export function CrewReportView({
     hotelRooms: 0,
     hotelNights: 0,
   }));
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const handleCountsChange = useCallback(
     (next: {
       total: number;
@@ -194,6 +196,7 @@ export function CrewReportView({
             getTimesForDates={getTimesForDates}
             phaseDays={phaseDays}
             compactHeader
+            onOpenProfile={(id) => setProfileUserId(id)}
           />
           {/* Adequacy panel — kept as a sidekick BELOW the master
               sheet so it doesn't compete for attention. Still surfaces
@@ -220,6 +223,13 @@ export function CrewReportView({
           <div className="crew-layout-aside">{directorySidebar}</div>
         ) : null}
       </div>
+      {profileUserId && (
+        <FreelancerProfileModal
+          userId={profileUserId}
+          getToken={tokenResolver}
+          onClose={() => setProfileUserId(null)}
+        />
+      )}
     </div>
   );
 }

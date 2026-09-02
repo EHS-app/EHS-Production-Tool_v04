@@ -1,9 +1,13 @@
 import { Router, type IRouter, type RequestHandler } from "express";
-import { and, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { Readable } from "stream";
 import {
   db,
   freelancerProfilesTable,
+  briefAssignmentsTable,
+  projectBriefsTable,
+  gigsTable,
+  timeEntriesTable,
   calendarAvailabilityRulesTable,
   profilePhotoUploadsTable,
   type FreelancerProfileRow,
@@ -164,6 +168,86 @@ function projectProfile(
   row: FreelancerProfileRow,
 ): FreelancerProfileRow & { dietaryRequirements: string } {
   return { ...row, dietaryRequirements: row.dietary };
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function safeRecord(raw: unknown): Record<string, unknown> {
+  return raw && typeof raw === "object" && !Array.isArray(raw)
+    ? (raw as Record<string, unknown>)
+    : {};
+}
+
+function safeDate(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const date = raw.slice(0, 10);
+  if (!ISO_DATE.test(date)) return null;
+  const [year, month, day] = date.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+    ? date
+    : null;
+}
+
+function firstSafeNumber(...values: unknown[]): number {
+  for (const raw of values) {
+    const value = typeof raw === "number" ? raw : Number(raw);
+    if (Number.isFinite(value) && value >= 0) return value;
+  }
+  return 0;
+}
+
+function snapshotParts(raw: unknown, trusted: boolean): {
+  project: Record<string, unknown>;
+  assignment: Record<string, unknown>;
+} {
+  const snapshot = safeRecord(raw);
+  if (!trusted || snapshot._source !== "server") {
+    return { project: {}, assignment: {} };
+  }
+  return {
+    project: safeRecord(snapshot.project),
+    assignment: safeRecord(snapshot.myAssignment),
+  };
+}
+
+function currentAssignment(
+  data: unknown,
+  crewId: string,
+): Record<string, unknown> {
+  const assignments = safeRecord(data).assignments;
+  if (!Array.isArray(assignments)) return {};
+  const rows = assignments.map(safeRecord);
+  return rows.find((row) => row.crewId === crewId) ?? {};
+}
+
+function netWorkedMinutes(entry: {
+  startMinute: number | null;
+  endMinute: number | null;
+  breakMinutes: number;
+}): number {
+  if (entry.startMinute == null || entry.endMinute == null) return 0;
+  if (
+    entry.startMinute < 0 ||
+    entry.startMinute > 1439 ||
+    entry.endMinute < 0 ||
+    entry.endMinute > 1439
+  ) {
+    return 0;
+  }
+  let span = entry.endMinute - entry.startMinute;
+  if (span < 0) span += 24 * 60;
+  return Math.max(0, span - Math.max(0, entry.breakMinutes || 0));
+}
+
+function inclusiveDayCount(startDate: string | null, endDate: string | null): number {
+  if (!startDate) return 0;
+  const start = Date.parse(`${startDate}T00:00:00Z`);
+  const end = Date.parse(`${endDate ?? startDate}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return 1;
+  return Math.min(366, Math.floor((end - start) / 86_400_000) + 1);
 }
 
 /** POST /api/portal/me/tag-as-freelancer
@@ -344,6 +428,245 @@ router.patch(
     } catch (err) {
       req.log.error({ err, userId }, "admin freelancer profile PATCH failed");
       res.status(500).json({ ok: false, error: "Could not update freelancer." });
+    }
+  },
+);
+
+/** GET /api/portal/freelancers/:userId/profile-history
+ *  Employee-only directory detail. The profile projection intentionally
+ *  excludes financial identity, insurance, and accommodation preferences.
+ *  Booking history is limited to assignments the freelancer accepted. */
+router.get(
+  "/portal/freelancers/:userId/profile-history",
+  requireEmployee,
+  async (req, res): Promise<void> => {
+    const userId = String(req.params.userId ?? "").trim();
+    if (!userId || userId.length > 200) {
+      res.status(400).json({ ok: false, error: "Invalid freelancer ID." });
+      return;
+    }
+
+    try {
+      const [profile] = await db
+        .select({
+          userId: freelancerProfilesTable.userId,
+          fullName: freelancerProfilesTable.fullName,
+          email: freelancerProfilesTable.email,
+          phone: freelancerProfilesTable.phone,
+          primaryRole: freelancerProfilesTable.primaryRole,
+          city: freelancerProfilesTable.city,
+          bio: freelancerProfilesTable.bio,
+          languages: freelancerProfilesTable.languages,
+          skills: freelancerProfilesTable.skills,
+          photoObjectPath: freelancerProfilesTable.photoObjectPath,
+          defaultDayRate: freelancerProfilesTable.defaultDayRate,
+          dietary: freelancerProfilesTable.dietary,
+          allergies: freelancerProfilesTable.allergies,
+        })
+        .from(freelancerProfilesTable)
+        .where(eq(freelancerProfilesTable.userId, userId))
+        .limit(1);
+      if (!profile) {
+        res.status(404).json({ ok: false, error: "Freelancer not found." });
+        return;
+      }
+
+      const assignments = await db
+        .select({
+          assignmentId: briefAssignmentsTable.id,
+          briefId: briefAssignmentsTable.briefId,
+          crewId: briefAssignmentsTable.crewId,
+          acceptedGigId: briefAssignmentsTable.acceptedGigId,
+          acceptedSnapshot: briefAssignmentsTable.acceptedSnapshot,
+          acceptedSnapshotTrusted:
+            briefAssignmentsTable.acceptedSnapshotTrusted,
+          decidedAt: briefAssignmentsTable.decidedAt,
+          brief: projectBriefsTable,
+        })
+        .from(briefAssignmentsTable)
+        .innerJoin(
+          projectBriefsTable,
+          eq(briefAssignmentsTable.briefId, projectBriefsTable.id),
+        )
+        .where(
+          and(
+            eq(briefAssignmentsTable.freelancerUserId, userId),
+            eq(briefAssignmentsTable.decision, "accepted"),
+          ),
+        )
+        .orderBy(asc(projectBriefsTable.startDate));
+
+      const acceptedGigIds = new Set(
+        assignments
+          .map((row) => row.acceptedGigId)
+          .filter((id): id is string => typeof id === "string" && id.length > 0),
+      );
+      const acceptedGigs =
+        acceptedGigIds.size === 0
+          ? []
+          : await db
+              .select()
+              .from(gigsTable)
+              .where(
+                and(
+                  eq(gigsTable.freelancerUserId, userId),
+                  inArray(gigsTable.id, Array.from(acceptedGigIds)),
+                ),
+              );
+      const gigIds = acceptedGigs.map((gig) => gig.id);
+      const entries =
+        gigIds.length === 0
+          ? []
+          : await db
+              .select({
+                gigId: timeEntriesTable.gigId,
+                startMinute: timeEntriesTable.startMinute,
+                endMinute: timeEntriesTable.endMinute,
+                breakMinutes: timeEntriesTable.breakMinutes,
+              })
+              .from(timeEntriesTable)
+              .where(
+                and(
+                  eq(timeEntriesTable.freelancerUserId, userId),
+                  inArray(timeEntriesTable.gigId, gigIds),
+                ),
+              );
+
+      const minutesByGig = new Map<string, number>();
+      for (const entry of entries) {
+        minutesByGig.set(
+          entry.gigId,
+          (minutesByGig.get(entry.gigId) ?? 0) + netWorkedMinutes(entry),
+        );
+      }
+      const gigsById = new Map(acceptedGigs.map((gig) => [gig.id, gig]));
+
+      const history = assignments.flatMap((row) => {
+        const candidate = row.acceptedGigId
+          ? gigsById.get(row.acceptedGigId)
+          : undefined;
+        const matched =
+          candidate?.briefId === row.briefId ? candidate : undefined;
+        const gigRows = matched ? [matched] : [null];
+        return gigRows.map((gig) => {
+          const snapshot = snapshotParts(
+            row.acceptedSnapshot,
+            row.acceptedSnapshotTrusted,
+          );
+          const briefData = safeRecord(row.brief.data);
+          const briefProject = safeRecord(briefData.project);
+          const assignment = {
+            ...currentAssignment(row.brief.data, row.crewId),
+            ...snapshot.assignment,
+          };
+          const project = { ...briefProject, ...snapshot.project };
+          const rawAssignedDates =
+            Array.isArray(assignment.assignedDates) &&
+            assignment.assignedDates.length > 0
+              ? assignment.assignedDates
+              : gig?.assignedDates;
+          const assignedDates = Array.isArray(rawAssignedDates)
+            ? Array.from(
+                new Set(
+                  rawAssignedDates
+                    .map(safeDate)
+                    .filter((date): date is string => date !== null),
+                ),
+              ).sort()
+            : [];
+          const startDate =
+            safeDate(project.date) ??
+            safeDate(gig?.startDate) ??
+            safeDate(row.brief.startDate);
+          const endDate =
+            safeDate(project.endDate) ??
+            safeDate(gig?.endDate) ??
+            safeDate(row.brief.endDate) ??
+            assignedDates.at(-1) ??
+            startDate;
+          const dayRate = firstSafeNumber(assignment.dayRate);
+          const bookedDays =
+            assignedDates.length || inclusiveDayCount(startDate, endDate) || 1;
+          const projectIdRaw =
+            project.projectId ?? project.id ?? briefData.projectId;
+          return {
+            id: gig?.id ?? row.assignmentId,
+            projectId:
+              typeof projectIdRaw === "string" && projectIdRaw.trim()
+                ? projectIdRaw.trim()
+                : null,
+            briefId: row.briefId,
+            projectName:
+              gig?.projectName ||
+              (typeof project.name === "string" ? project.name : "") ||
+              row.brief.projectName,
+            venue:
+              gig?.venue ||
+              (typeof project.venue === "string" ? project.venue : "") ||
+              row.brief.venue,
+            role:
+              (typeof assignment.role === "string" ? assignment.role : "") ||
+              gig?.role ||
+              "",
+            startDate,
+            endDate,
+            assignedDates,
+            callTime:
+              typeof assignment.callTime === "string" ? assignment.callTime : "",
+            offTime:
+              typeof assignment.offTime === "string" ? assignment.offTime : "",
+            dayRate,
+            workedMinutes: gig ? minutesByGig.get(gig.id) ?? 0 : 0,
+            earnings: dayRate * bookedDays,
+            status: gig?.status ?? "accepted",
+          };
+        });
+      });
+
+      const today = new Date().toISOString().slice(0, 10);
+      const upcomingGigs = history
+        .filter((gig) => !gig.endDate || gig.endDate >= today)
+        .sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""));
+      const pastGigs = history
+        .filter((gig) => Boolean(gig.endDate && gig.endDate < today))
+        .sort((a, b) => (b.endDate ?? "").localeCompare(a.endDate ?? ""));
+
+      res.json({
+        ok: true,
+        freelancer: {
+          userId: profile.userId,
+          fullName: profile.fullName,
+          email: profile.email,
+          phone: profile.phone,
+          primaryRole: profile.primaryRole,
+          city: profile.city,
+          bio: profile.bio,
+          languages: profile.languages,
+          skills: profile.skills,
+          hasPhoto: Boolean(profile.photoObjectPath),
+          photoUrl: profile.photoObjectPath
+            ? `/api/portal/freelancers/${encodeURIComponent(profile.userId)}/photo`
+            : null,
+          defaultDayRate: profile.defaultDayRate,
+          dietary: profile.dietary,
+          dietaryTags: classifyDietary(profile.dietary),
+          allergies: profile.allergies,
+          allergenTags: splitAllergens(profile.allergies),
+        },
+        upcomingGigs,
+        pastGigs,
+        stats: {
+          pastGigCount: pastGigs.length,
+          totalWorkedMinutes: pastGigs.reduce(
+            (sum, gig) => sum + gig.workedMinutes,
+            0,
+          ),
+          totalEarnings: pastGigs.reduce((sum, gig) => sum + gig.earnings, 0),
+        },
+      });
+    } catch (err) {
+      req.log.error({ err, userId }, "freelancer profile history GET failed");
+      res.status(500).json({ ok: false, error: "Could not load freelancer history." });
     }
   },
 );

@@ -3210,6 +3210,7 @@ function App() {
    *  actually accepted. */
   const sendCrewRequests = useCallback(
     async (rows: {
+      crewId?: string;
       userId: string;
       fullName: string;
       primaryRole: string | null;
@@ -3218,6 +3219,17 @@ function App() {
       allergens?: string[];
     }[]) => {
       if (rows.length === 0 || sendingRequests) return;
+      const uniqueRows = Array.from(
+        new Map(rows.map((row) => [row.userId, row])).values(),
+      ).filter((row) => {
+        const existing = row.crewId
+          ? crew.find((member) => member.id === row.crewId)
+          : crew.find(
+              (member) => member.freelancerUserId === row.userId,
+            );
+        return !existing?.requestStatus;
+      });
+      if (uniqueRows.length === 0) return;
       // Seed every new row with the project's full schedule so the
       // producer can immediately tick days off — same default as the
       // manual + Add crew button. Computed once outside the map so a
@@ -3232,8 +3244,36 @@ function App() {
         reportEndDate,
         extraSchedule,
       );
-      const newMembers: CrewMember[] = rows.map((r) => {
+      const previousMembersById = new Map<string, CrewMember>();
+      const createdMemberIds = new Set<string>();
+      const requestMembers: CrewMember[] = uniqueRows.map((r) => {
+        const existing = r.crewId
+          ? crew.find(
+              (member) =>
+                member.id === r.crewId &&
+                member.freelancerUserId === r.userId,
+            )
+          : undefined;
+        if (existing) {
+          previousMembersById.set(existing.id, existing);
+          return {
+            ...existing,
+            name: r.fullName,
+            freelancerUserId: r.userId,
+            requestStatus: "requested" as CrewRequestStatus,
+            phone: r.phone ?? existing.phone,
+            dietaryTags:
+              r.dietaryTags && r.dietaryTags.length > 0
+                ? [...r.dietaryTags]
+                : existing.dietaryTags,
+            allergens:
+              r.allergens && r.allergens.length > 0
+                ? [...r.allergens]
+                : existing.allergens,
+          };
+        }
         const m = makeCrewMember(r.fullName);
+        createdMemberIds.add(m.id);
         m.role = skillToCrewRole(r.primaryRole);
         m.freelancerUserId = r.userId;
         m.requestStatus = "requested" as CrewRequestStatus;
@@ -3257,7 +3297,15 @@ function App() {
         }
         return m;
       });
-      const nextCrew = [...crew, ...newMembers];
+      const requestMembersById = new Map(
+        requestMembers.map((member) => [member.id, member]),
+      );
+      const nextCrew = [
+        ...crew.map(
+          (member) => requestMembersById.get(member.id) ?? member,
+        ),
+        ...requestMembers.filter((member) => createdMemberIds.has(member.id)),
+      ];
       setSendingRequests(true);
       setSendError(null);
       // Optimistic — render the Requested rows immediately. We undo
@@ -3281,7 +3329,7 @@ function App() {
           crew: nextCrew,
           recipientCrewId: null,
         });
-        const recipients = newMembers.map((m) => ({
+        const recipients = requestMembers.map((m) => ({
           crewId: m.id,
           freelancerUserId: m.freelancerUserId!,
         }));
@@ -3348,9 +3396,12 @@ function App() {
         // Roll back the optimistic rows so the producer can re-tick
         // and try again without ending up with duplicates.
         setCrew((all) =>
-          all.filter(
-            (m) => !newMembers.some((nm) => nm.id === m.id),
-          ),
+          all
+            .filter((member) => !createdMemberIds.has(member.id))
+            .map(
+              (member) =>
+                previousMembersById.get(member.id) ?? member,
+            ),
         );
       } finally {
         setSendingRequests(false);
@@ -3366,6 +3417,27 @@ function App() {
       reportEndDate,
       extraSchedule,
     ],
+  );
+
+  const sendLinkedCrewRequests = useCallback(
+    (members: CrewMember[]) =>
+      sendCrewRequests(
+        members
+          .filter(
+            (member): member is CrewMember & { freelancerUserId: string } =>
+              !!member.freelancerUserId && !member.requestStatus,
+          )
+          .map((member) => ({
+            crewId: member.id,
+            userId: member.freelancerUserId,
+            fullName: member.name,
+            primaryRole: member.role,
+            phone: member.phone,
+            dietaryTags: member.dietaryTags,
+            allergens: member.allergens,
+          })),
+      ),
+    [sendCrewRequests],
   );
 
   /** Producer-side polling. Whenever the producer is on the Crew tab
@@ -3555,6 +3627,12 @@ function App() {
             ? `crew-${crypto.randomUUID()}`
             : `crew-${Date.now()}`,
         name: src.name ? `${src.name} (copy)` : "",
+        freelancerUserId: undefined,
+        requestStatus: undefined,
+        briefAssignmentId: undefined,
+        phone: undefined,
+        dietaryTags: undefined,
+        allergens: undefined,
       };
       const next = [...all];
       next.splice(i + 1, 0, copy);
@@ -6755,6 +6833,8 @@ function App() {
           onUpdate={updateCrew}
           onRemove={removeCrew}
           onDuplicate={duplicateCrew}
+          onSendLinkedRequests={sendLinkedCrewRequests}
+          sendingLinkedRequests={sendingRequests}
           activeBriefId={activeBriefId}
           getToken={getToken}
           adequacyMetrics={adequacyMetrics}

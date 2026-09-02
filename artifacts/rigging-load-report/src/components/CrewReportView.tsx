@@ -12,6 +12,8 @@ type Props = {
   onUpdate: (id: string, patch: Partial<CrewMember>) => void;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
+  onSendLinkedRequests?: (members: CrewMember[]) => void | Promise<void>;
+  sendingLinkedRequests?: boolean;
   /** Optional roster sidebar (e.g. <AvailableCrewSidebar/>). Rendered
    *  to the right of the master sheet on wide screens and stacked
    *  below on narrow ones. Kept as a slot so this view stays unaware
@@ -66,6 +68,8 @@ export function CrewReportView({
   onUpdate,
   onRemove,
   onDuplicate,
+  onSendLinkedRequests,
+  sendingLinkedRequests,
   directorySidebar,
   activeBriefId,
   getToken,
@@ -183,6 +187,8 @@ export function CrewReportView({
             onUpdate={onUpdate}
             onRemove={onRemove}
             onDuplicate={onDuplicate}
+            onSendLinkedRequests={onSendLinkedRequests}
+            sendingLinkedRequests={sendingLinkedRequests}
             onMergedRolesChange={handleMergedRolesChange}
             onCountsChange={handleCountsChange}
             getTimesForDates={getTimesForDates}

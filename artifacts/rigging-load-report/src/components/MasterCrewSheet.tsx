@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import {
   buildDayChips,
   mergeRoster,
@@ -14,6 +14,16 @@ import {
 } from "../lib/crew";
 import { NumberField } from "./NumberField";
 import { openMasterSheet, type MasterSheetRow } from "../lib/masterSheetExport";
+
+type FreelancerCandidate = {
+  userId: string;
+  fullName: string;
+  primaryRole: string | null;
+  city: string | null;
+  phone?: string;
+  dietaryTags?: string[];
+  allergens?: string[];
+};
 
 /** Crew & Logistics master sheet — Phase C consolidation.
  *
@@ -71,6 +81,8 @@ export function MasterCrewSheet({
   onUpdate,
   onRemove,
   onDuplicate,
+  onSendLinkedRequests,
+  sendingLinkedRequests = false,
   onMergedRolesChange,
   onCountsChange,
   getTimesForDates,
@@ -92,6 +104,8 @@ export function MasterCrewSheet({
   onUpdate: (id: string, patch: Partial<CrewMember>) => void;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
+  onSendLinkedRequests?: (members: CrewMember[]) => void | Promise<void>;
+  sendingLinkedRequests?: boolean;
   /** Optional callback fired whenever the merged roster changes.
    *  CrewReportView uses this to feed the AdequacyPanel with the
    *  full roster (gig + local) instead of just localCrew[], so the
@@ -152,11 +166,9 @@ export function MasterCrewSheet({
   const [loading, setLoading] = useState(true);
   const [savingByKey, setSavingByKey] = useState<Record<string, boolean>>({});
   const [showProductionDetails, setShowProductionDetails] = useState(false);
-  // Names of freelancers registered in the portal directory. Used to
-  // power the <datalist> autocomplete on the editable name cell so
-  // producers can pick a registered freelancer with one click, while
-  // still typing freely for non-portal walk-ups.
-  const [portalNames, setPortalNames] = useState<ReadonlyArray<string>>([]);
+  const [portalCandidates, setPortalCandidates] = useState<
+    ReadonlyArray<FreelancerCandidate>
+  >([]);
 
   const baseUrl =
     (typeof import.meta !== "undefined" &&
@@ -186,12 +198,9 @@ export function MasterCrewSheet({
     return json;
   }, [briefId, getToken, baseUrl]);
 
-  // Fetch the portal freelancer directory once on mount so the editable
-  // name cells can offer an autocomplete of registered names. The
-  // endpoint is cheap (no date params → just a sorted name list) and
-  // we only need names + roles, not the full directory metadata. We
-  // fail silently — autocomplete is a nice-to-have, the input still
-  // accepts free text if the fetch fails.
+  // Fetch the structured directory once so selecting a suggestion can
+  // link the row to an exact Clerk user id. Free text remains available
+  // when the directory is unavailable or no candidate is selected.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -203,17 +212,23 @@ export function MasterCrewSheet({
         if (!res.ok) return;
         const body = (await res.json()) as {
           ok?: boolean;
-          freelancers?: ReadonlyArray<{ name?: string | null }>;
+          freelancers?: ReadonlyArray<FreelancerCandidate>;
         };
         if (cancelled || !body.ok || !Array.isArray(body.freelancers)) return;
-        const names = Array.from(
-          new Set(
-            body.freelancers
-              .map((f) => (f.name ?? "").trim())
-              .filter((n) => n.length > 0),
-          ),
-        ).sort((a, b) => a.localeCompare(b));
-        setPortalNames(names);
+        const candidates = body.freelancers
+          .filter(
+            (candidate) =>
+              typeof candidate.userId === "string" &&
+              candidate.userId.length > 0 &&
+              typeof candidate.fullName === "string" &&
+              candidate.fullName.trim().length > 0,
+          )
+          .map((candidate) => ({
+            ...candidate,
+            fullName: candidate.fullName.trim(),
+          }))
+          .sort((a, b) => a.fullName.localeCompare(b.fullName));
+        setPortalCandidates(candidates);
       } catch {
         // Silent — autocomplete is optional.
       }
@@ -518,6 +533,43 @@ export function MasterCrewSheet({
   ]);
 
   const totalCount = rows.length;
+  const linkedOwnerByUserId = useMemo(() => {
+    const owners = new Map<string, string>();
+    for (const member of localCrew) {
+      if (
+        member.freelancerUserId &&
+        !owners.has(member.freelancerUserId)
+      ) {
+        owners.set(member.freelancerUserId, member.id);
+      }
+    }
+    return owners;
+  }, [localCrew]);
+  const linkedUnsentMembers = useMemo(() => {
+    const requestedUserIds = new Set(
+      localCrew
+        .filter(
+          (member) => !!member.freelancerUserId && !!member.requestStatus,
+        )
+        .map((member) => member.freelancerUserId!),
+    );
+    const seen = new Set<string>();
+    return localCrew.filter((member) => {
+      const userId = member.freelancerUserId;
+      if (
+        !userId ||
+        member.requestStatus ||
+        requestedUserIds.has(userId) ||
+        seen.has(userId)
+      ) {
+        return false;
+      }
+      seen.add(userId);
+      return true;
+    });
+  },
+    [localCrew],
+  );
 
   return (
     <section className="led-card roster-card master-sheet-card">
@@ -627,6 +679,24 @@ export function MasterCrewSheet({
           </button>
           <button
             type="button"
+            onClick={() => void onSendLinkedRequests?.(linkedUnsentMembers)}
+            disabled={
+              linkedUnsentMembers.length === 0 ||
+              sendingLinkedRequests ||
+              !onSendLinkedRequests
+            }
+            className="crew-send-linked-button"
+          >
+            {sendingLinkedRequests
+              ? "Sending…"
+              : `Send request${linkedUnsentMembers.length === 1 ? "" : "s"}${
+                  linkedUnsentMembers.length > 0
+                    ? ` (${linkedUnsentMembers.length})`
+                    : ""
+                }`}
+          </button>
+          <button
+            type="button"
             onClick={onAdd}
             style={{
               display: "inline-flex",
@@ -687,6 +757,25 @@ export function MasterCrewSheet({
               title="Open a printable version of this sheet"
             >
               🖨 Print
+            </button>
+            <button
+              type="button"
+              className="btn btn-soft"
+              onClick={() => void onSendLinkedRequests?.(linkedUnsentMembers)}
+              disabled={
+                linkedUnsentMembers.length === 0 ||
+                sendingLinkedRequests ||
+                !onSendLinkedRequests
+              }
+              title="Send the project brief to linked freelancers who have not been requested yet"
+            >
+              {sendingLinkedRequests
+                ? "Sending…"
+                : `Send request${linkedUnsentMembers.length === 1 ? "" : "s"}${
+                    linkedUnsentMembers.length > 0
+                      ? ` (${linkedUnsentMembers.length})`
+                      : ""
+                  }`}
             </button>
             <button
               type="button"
@@ -773,7 +862,10 @@ export function MasterCrewSheet({
                     }
                     local={local}
                     showProductionDetails={showProductionDetails}
-                    portalNames={portalNames}
+                    portalCandidates={portalCandidates.filter((candidate) => {
+                      const ownerId = linkedOwnerByUserId.get(candidate.userId);
+                      return !ownerId || ownerId === local?.id;
+                    })}
                     onLocalUpdate={
                       local
                         ? (patch) => onUpdate(local.id, patch)
@@ -811,7 +903,12 @@ export function MasterCrewSheet({
                         : undefined
                     }
                     onLocalRemove={
-                      local && row.source === "local"
+                      local &&
+                      row.source === "local" &&
+                      !(
+                        local.freelancerUserId &&
+                        (local.requestStatus || local.briefAssignmentId)
+                      )
                         ? () => onRemove(local.id)
                         : undefined
                     }
@@ -856,6 +953,171 @@ export function MasterCrewSheet({
   );
 }
 
+function CrewNameCombobox({
+  member,
+  candidates,
+  onUpdate,
+}: {
+  member: CrewMember;
+  candidates: ReadonlyArray<FreelancerCandidate>;
+  onUpdate: (patch: Partial<CrewMember>) => void;
+}) {
+  const listboxId = useId();
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const query = member.name.trim().toLocaleLowerCase("nb-NO");
+  const matches = useMemo(() => {
+    if (!query) return candidates.slice(0, 8);
+    return candidates
+      .filter((candidate) =>
+        [candidate.fullName, candidate.primaryRole ?? "", candidate.city ?? ""]
+          .join(" ")
+          .toLocaleLowerCase("nb-NO")
+          .includes(query),
+      )
+      .slice(0, 8);
+  }, [candidates, query]);
+  const linkedCandidate = member.freelancerUserId
+    ? candidates.find(
+        (candidate) => candidate.userId === member.freelancerUserId,
+      ) ?? null
+    : null;
+
+  const selectCandidate = (candidate: FreelancerCandidate) => {
+    onUpdate({
+      name: candidate.fullName,
+      freelancerUserId: candidate.userId,
+      phone: candidate.phone ?? "",
+      dietaryTags: [...(candidate.dietaryTags ?? [])],
+      allergens: [...(candidate.allergens ?? [])],
+    });
+    setOpen(false);
+    setActiveIndex(0);
+  };
+
+  return (
+    <div
+      className="crew-name-combobox"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setOpen(false);
+        }
+      }}
+    >
+      <input
+        className="led-input"
+        type="text"
+        value={member.name}
+        onFocus={() => {
+          if (member.requestStatus) return;
+          setOpen(true);
+          setActiveIndex(0);
+        }}
+        onChange={(event) => {
+          const nextName = event.target.value;
+          const patch: Partial<CrewMember> = { name: nextName };
+          if (member.freelancerUserId) {
+            patch.freelancerUserId = undefined;
+            patch.requestStatus = undefined;
+            patch.briefAssignmentId = undefined;
+            patch.phone = undefined;
+            patch.dietaryTags = undefined;
+            patch.allergens = undefined;
+          }
+          onUpdate(patch);
+          setOpen(true);
+          setActiveIndex(0);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setOpen(false);
+            return;
+          }
+          if (matches.length === 0) return;
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setOpen(true);
+            setActiveIndex((current) => (current + 1) % matches.length);
+          } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setOpen(true);
+            setActiveIndex(
+              (current) => (current - 1 + matches.length) % matches.length,
+            );
+          } else if (event.key === "Enter" && open) {
+            event.preventDefault();
+            selectCandidate(matches[activeIndex] ?? matches[0]!);
+          }
+        }}
+        placeholder="Full name"
+        autoComplete="off"
+        readOnly={!!member.freelancerUserId && !!member.requestStatus}
+        title={
+          member.requestStatus
+            ? "The name is locked after a portal request is sent."
+            : undefined
+        }
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={open && matches.length > 0}
+        aria-controls={listboxId}
+        aria-activedescendant={
+          open && matches[activeIndex]
+            ? `${listboxId}-${matches[activeIndex]!.userId}`
+            : undefined
+        }
+      />
+      {member.freelancerUserId ? (
+        <span
+          className="crew-name-linked"
+          title={
+            linkedCandidate
+              ? `Linked to ${linkedCandidate.fullName}'s portal account`
+              : "Linked to a freelancer portal account"
+          }
+        >
+          Portal linked
+        </span>
+      ) : null}
+      {open && matches.length > 0 ? (
+        <div
+          className="crew-name-options"
+          id={listboxId}
+          role="listbox"
+          aria-label="Registered freelancers"
+        >
+          {matches.map((candidate, index) => (
+            <button
+              key={candidate.userId}
+              id={`${listboxId}-${candidate.userId}`}
+              type="button"
+              role="option"
+              aria-selected={index === activeIndex}
+              className={
+                index === activeIndex
+                  ? "crew-name-option is-active"
+                  : "crew-name-option"
+              }
+              onMouseEnter={() => setActiveIndex(index)}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => selectCandidate(candidate)}
+            >
+              <span className="crew-name-option-name">
+                {candidate.fullName}
+              </span>
+              <span className="crew-name-option-meta">
+                {[candidate.primaryRole, candidate.city]
+                  .filter(Boolean)
+                  .join(" · ") || "Registered freelancer"}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** One row in the master sheet. Editing affordances depend on row
  *  source + presence of a matched local CrewMember (see MasterCrewSheet
  *  doc). */
@@ -869,7 +1131,7 @@ function MasterRow({
   onDayToggle,
   local,
   showProductionDetails,
-  portalNames,
+  portalCandidates,
   onLocalUpdate,
   onLocalDayToggle,
   onLocalRemove,
@@ -889,9 +1151,7 @@ function MasterRow({
   onDayToggle?: (date: string) => void;
   local: CrewMember | null;
   showProductionDetails: boolean;
-  /** Names of registered portal freelancers, used to power the
-   *  <datalist> autocomplete on editable name cells. */
-  portalNames: ReadonlyArray<string>;
+  portalCandidates: ReadonlyArray<FreelancerCandidate>;
   onLocalUpdate?: (patch: Partial<CrewMember>) => void;
   /** Toggle a single date on / off the local CrewMember's
    *  `assignedDates`. Only provided when the row is backed by a
@@ -921,28 +1181,11 @@ function MasterRow({
     <tr>
       <td>
         {editableLocal ? (
-          <>
-            <input
-              className="led-input"
-              type="text"
-              value={local?.name ?? ""}
-              onChange={(e) => onLocalUpdate?.({ name: e.target.value })}
-              placeholder="Full name"
-              list="crew-portal-names"
-              autoComplete="off"
-            />
-            {/* Single shared datalist (rendered per row but identical
-             *  id is fine — the browser merges them and uses the union
-             *  of options). Native <datalist> gives us free typeahead
-             *  filtering against registered portal freelancers, while
-             *  still allowing the producer to type a non-portal name
-             *  freely (datalist is a suggestion list, not a select). */}
-            <datalist id="crew-portal-names">
-              {portalNames.map((n) => (
-                <option key={n} value={n} />
-              ))}
-            </datalist>
-          </>
+          <CrewNameCombobox
+            member={local!}
+            candidates={portalCandidates}
+            onUpdate={(patch) => onLocalUpdate?.(patch)}
+          />
         ) : (
           <div className="roster-name">
             <strong>{row.name || "—"}</strong>
@@ -990,6 +1233,7 @@ function MasterRow({
             onChange={(e) => {
               const v = e.target.value;
               if (v === "manual") {
+                if (local?.freelancerUserId && local.requestStatus) return;
                 onLocalUpdate?.({ requestStatus: undefined });
               } else {
                 onLocalUpdate?.({
@@ -999,7 +1243,12 @@ function MasterRow({
             }}
             title="Set this person's confirmation status (e.g. mark Accepted after a phone call)"
           >
-            <option value="manual">Manual</option>
+            <option
+              value="manual"
+              disabled={!!local?.freelancerUserId && !!local.requestStatus}
+            >
+              Manual
+            </option>
             <option value="requested">Requested</option>
             <option value="accepted">Accepted</option>
             <option value="declined">Declined</option>

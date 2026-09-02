@@ -31,6 +31,15 @@ const HEADER_ACTIONS: Item[] = [
   { label: "shell.action.resetProject", body: "help.headerActions.reset" },
 ];
 
+const PLATFORM_AREAS: Item[] = [
+  { label: "help.platform.operations.title", body: "help.platform.operations.body" },
+  { label: "help.platform.calendarTasks.title", body: "help.platform.calendarTasks.body" },
+  { label: "help.platform.directories.title", body: "help.platform.directories.body" },
+  { label: "help.platform.transport.title", body: "help.platform.transport.body" },
+  { label: "help.platform.economy.title", body: "help.platform.economy.body" },
+  { label: "help.platform.portal.title", body: "help.platform.portal.body" },
+];
+
 /** Step-by-step walk-through specifically for the LED tab. Rendered as
  *  its own section between "Top bar actions" and "Good to know" so it
  *  shows up where producers actually look for it. Each step has both a
@@ -185,6 +194,19 @@ export function HelpModal({ open, onClose }: Props) {
             <h4>{t("help.section.headerActions")}</h4>
             <ul className="help-list">
               {HEADER_ACTIONS.map((item) => (
+                <li key={item.body}>
+                  <strong>{t(item.label)}</strong>
+                  <span>{t(item.body)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="help-section">
+            <h4>{t("help.section.platform")}</h4>
+            <p>{t("help.platform.intro")}</p>
+            <ul className="help-list">
+              {PLATFORM_AREAS.map((item) => (
                 <li key={item.body}>
                   <strong>{t(item.label)}</strong>
                   <span>{t(item.body)}</span>

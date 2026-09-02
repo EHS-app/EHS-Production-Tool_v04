@@ -33,6 +33,7 @@ import type { ThemePreference } from "../main";
 import { useT, type Translator } from "../lib/i18n/I18nContext";
 import { CommandPalette } from "./CommandPalette";
 import { FeedbackDialog } from "./FeedbackDialog";
+import { LanguageSelector } from "./LanguageSelector";
 import { Toaster } from "./ui/sonner";
 import {
   DropdownMenu,
@@ -593,6 +594,19 @@ export function AppShell({
           </div>
 
           <div className="ehs-shell-topbar-actions">
+            {onHelp ? (
+              <button
+                type="button"
+                className="ehs-shell-action ehs-shell-help-action"
+                onClick={onHelp}
+                title={t("header.helpTitle")}
+                aria-label={t("header.help")}
+              >
+                <HelpCircle size={14} />
+                <span>{t("header.help")}</span>
+              </button>
+            ) : null}
+            <LanguageSelector />
             {secondaryActions.map((a) => {
               const Icon = a.icon;
               return (

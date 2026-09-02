@@ -531,6 +531,28 @@ export const en = {
   "help.headerActions.simulateShow":
     "Runs a 10-phase dry-run from load-in through show day to load-out. Each phase reports per-discipline status, risks, and a readiness verdict — so you can spot gaps before they become problems.",
 
+  "help.section.platform": "Complete platform guide",
+  "help.platform.intro":
+    "Use these shared workspaces to manage a production from the first show record through final payroll.",
+  "help.platform.operations.title": "Operations & Projects",
+  "help.platform.operations.body":
+    "Create shows from the Operations Hub, open existing projects, clone a previous show from the Client Directory, and assign crew to departments and production days. Each project keeps its technical systems, schedule, brief, crew and logistics together.",
+  "help.platform.calendarTasks.title": "Master Calendar & Global Tasks",
+  "help.platform.calendarTasks.body":
+    "Use the Master Calendar to see projects and crew commitments across dates. Global Tasks collects operational work across projects; assign owners, set status and due dates, then open the linked project for full context.",
+  "help.platform.directories.title": "Venue Technical DB & Client Directory",
+  "help.platform.directories.body":
+    "Store reusable venue specifications, access notes and infrastructure in the Venue Technical DB. Use the Client Directory for customer records and to clone a previous client project into a new show without re-entering the setup.",
+  "help.platform.transport.title": "Transport & Fleet Management",
+  "help.platform.transport.body":
+    "Plan vehicles, drivers and transport runs from Transport & Fleet. Link runs to projects, pickup and delivery locations, schedules and assigned freelancers so logistics remain visible on both sides of the platform.",
+  "help.platform.economy.title": "Economy, Timecards & Payroll Snapshots",
+  "help.platform.economy.body":
+    "Economy combines project labor and approved timecards. Review submitted hours, rates, overtime and additions before approval; approval creates an immutable payroll snapshot so later profile or project edits cannot rewrite the recorded compensation.",
+  "help.platform.portal.title": "Freelancer Portal",
+  "help.platform.portal.body":
+    "Freelancers accept briefs, view call times and venue specifications, log shifts and timecards, follow assigned transport runs, update availability and review earnings. Producer-owned assignments and approved payroll values remain protected.",
+
   "help.section.ledHowto": "How to use the LED tab",
   "help.ledHowto.intro":
     "The LED tab is a top-down workflow. Start in Basic mode for fast quoting; flip on Advanced mode when you need touring-grade engineering (brightness, refresh, voltage, port mapping, validation, rig accessories). Every section reads from the screens you set up at the top.",
@@ -797,6 +819,32 @@ export const en = {
     "Mark gigs Done once they're complete so they roll into your Earnings totals.",
   "portal.help.gigs.tip":
     "Tap a green ✓ Arrived pill again to clear it if you tapped it by mistake.",
+
+  "portal.help.runs.short": "Transport runs",
+  "portal.help.runs.title": "My Runs — transport assignments",
+  "portal.help.runs.intro":
+    "My Runs lists the pickups, deliveries and vehicle assignments a producer has allocated to you.",
+  "portal.help.runs.step1":
+    "Open a run to review its project, vehicle, pickup and delivery locations, scheduled times and notes.",
+  "portal.help.runs.step2":
+    "Check venue and access details before departure so loading routes and contact instructions are clear.",
+  "portal.help.runs.step3":
+    "Use the run schedule together with your gig call time to plan arrival without creating a conflict.",
+  "portal.help.runs.tip":
+    "If an assignment is wrong or incomplete, contact the producer; transport ownership is managed from the employee platform.",
+
+  "portal.help.hours.short": "Hours & shifts",
+  "portal.help.hours.title": "Hours — log shifts and submit timecards",
+  "portal.help.hours.intro":
+    "Record the time you actually worked, then submit the timecard to the producer for review and payroll approval.",
+  "portal.help.hours.step1":
+    "Choose the relevant gig and log your shift start, end and breaks; add a note when the recorded time needs context.",
+  "portal.help.hours.step2":
+    "Review the calculated hours before submitting. Submitted entries remain visible while the producer reviews them.",
+  "portal.help.hours.step3":
+    "After approval, the payroll snapshot preserves the accepted hours and compensation terms used for payment.",
+  "portal.help.hours.tip":
+    "Only submit hours for the gig you actually worked. Ask the producer to correct assignment terms rather than changing them yourself.",
 
   // Availability section
   "portal.help.availability.short": "Availability",

@@ -8073,6 +8073,17 @@ html[data-shell="linear"] .container {
   gap: 6px;
   flex-shrink: 0;
 }
+.ehs-shell-help-action {
+  color: var(--text-main);
+  background: rgba(248, 128, 0, 0.12);
+  border: 1px solid rgba(248, 128, 0, 0.45);
+  text-decoration: none;
+}
+.ehs-shell-help-action:hover {
+  color: #f88000;
+  background: rgba(248, 128, 0, 0.2);
+  border-color: #f88000;
+}
 .ehs-shell-signout-btn {
   display: inline-flex;
   align-items: center;

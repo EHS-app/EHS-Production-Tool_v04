@@ -314,6 +314,15 @@ export function PortalLayout({
           </div>
 
           <div className="ehs-shell-topbar-actions">
+            <Link
+              href="/portal/help"
+              className="ehs-shell-action ehs-shell-help-action"
+              aria-label={t("portal.header.helpAria")}
+              title={t("portal.header.helpTitle")}
+            >
+              <HelpCircle size={14} />
+              <span>{t("portal.nav.help")}</span>
+            </Link>
             <div style={{ marginRight: 8, display: "flex" }}>
               <LanguageSelector />
             </div>

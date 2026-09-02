@@ -12,7 +12,8 @@ import {
   Menu,
   MoreHorizontal,
   MapPin,
-  Building2
+  Building2,
+  HelpCircle,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -22,6 +23,7 @@ import {
 } from "../ui/dropdown-menu";
 import ehsLogo from "../../assets/ehs-logo.png";
 import { useI18n } from "../../lib/i18n/I18nContext";
+import { LanguageSelector } from "../LanguageSelector";
 
 export type GlobalView =
   | "home"
@@ -44,6 +46,7 @@ interface GlobalShellProps {
   themePref: "light" | "dark" | "system";
   onChangeTheme: (next: "light" | "dark" | "system") => void;
   onSignOut: () => void;
+  onHelp: () => void;
   children: React.ReactNode;
 }
 
@@ -86,6 +89,7 @@ export function GlobalShell({
   themePref,
   onChangeTheme,
   onSignOut,
+  onHelp,
   children,
 }: GlobalShellProps) {
   const { t, locale, setLocale } = useI18n();
@@ -237,6 +241,19 @@ export function GlobalShell({
             <span className="ehs-shell-crumb-link">{t("global.breadcrumb.operationsHub")}</span>
             <span className="ehs-shell-crumb-sep">/</span>
             <span className="ehs-shell-crumb-current">{activeLabel}</span>
+          </div>
+          <div className="ehs-shell-topbar-actions">
+            <button
+              type="button"
+              className="ehs-shell-action ehs-shell-help-action"
+              onClick={onHelp}
+              title={t("header.helpTitle")}
+              aria-label={t("header.help")}
+            >
+              <HelpCircle size={14} />
+              <span>{t("header.help")}</span>
+            </button>
+            <LanguageSelector />
           </div>
         </header>
 

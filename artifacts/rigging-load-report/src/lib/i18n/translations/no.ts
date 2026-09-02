@@ -539,6 +539,28 @@ export const no: Translations = {
   "help.headerActions.simulateShow":
     "Kjører en 10-fases gjennomgang fra inn-rigg til utlast. Hver fase rapporterer status per fagområde, risiko og en klar-vurdering — så du fanger opp hull før de blir problemer.",
 
+  "help.section.platform": "Komplett plattformguide",
+  "help.platform.intro":
+    "Bruk disse felles arbeidsområdene til å styre en produksjon fra første showregistrering til ferdig lønn.",
+  "help.platform.operations.title": "Drift og prosjekter",
+  "help.platform.operations.body":
+    "Opprett show fra Driftssentralen, åpne eksisterende prosjekter, klon et tidligere show fra Kundekatalogen, og fordel crew på avdelinger og produksjonsdager. Hvert prosjekt samler tekniske systemer, tidsplan, brief, crew og logistikk.",
+  "help.platform.calendarTasks.title": "Hovedkalender og globale oppgaver",
+  "help.platform.calendarTasks.body":
+    "Bruk Hovedkalenderen for å se prosjekter og crew-forpliktelser på tvers av datoer. Globale oppgaver samler driftsarbeid på tvers av prosjekter; tildel ansvarlig, status og frist, og åpne det tilknyttede prosjektet for full kontekst.",
+  "help.platform.directories.title": "Teknisk lokasjonsdatabase og kundekatalog",
+  "help.platform.directories.body":
+    "Lagre gjenbrukbare venue-spesifikasjoner, adgangsnotater og infrastruktur i den tekniske lokasjonsdatabasen. Bruk Kundekatalogen for kundedata og for å klone et tidligere kundeprosjekt til et nytt show uten å registrere oppsettet på nytt.",
+  "help.platform.transport.title": "Transport og bilpark",
+  "help.platform.transport.body":
+    "Planlegg kjøretøy, sjåfører og transportoppdrag i Transport og bilpark. Koble kjøreruter til prosjekter, hente- og leveringssteder, tidsplaner og tildelte frilansere slik at logistikken er synlig på begge sider av plattformen.",
+  "help.platform.economy.title": "Økonomi, timelister og lønnssnapshots",
+  "help.platform.economy.body":
+    "Økonomi samler prosjektarbeid og godkjente timelister. Kontroller innsendte timer, satser, overtid og tillegg før godkjenning; godkjenningen oppretter et uforanderlig lønnssnapshot slik at senere profil- eller prosjektendringer ikke kan omskrive registrert kompensasjon.",
+  "help.platform.portal.title": "Frilansportal",
+  "help.platform.portal.body":
+    "Frilansere aksepterer briefer, ser innkallingstider og venue-spesifikasjoner, fører skift og timelister, følger tildelte kjøreruter, oppdaterer tilgjengelighet og kontrollerer inntjening. Produsenteide tildelinger og godkjente lønnsverdier er beskyttet.",
+
   "help.section.ledHowto": "Slik bruker du LED-fanen",
   "help.ledHowto.intro":
     "LED-fanen er en arbeidsflyt ovenfra og ned. Start i Basic-modus for raske tilbud; slå på Advanced-modus når du trenger touring-engineering (lysstyrke, refresh, spenning, port-mapping, validering, rigg-tilbehør). Hver seksjon leser fra skjermene du setter opp øverst.",
@@ -815,6 +837,32 @@ export const no: Translations = {
     "Marker oppdrag som Ferdig når de er fullført, slik at de teller med i Inntjening-totalen din.",
   "portal.help.gigs.tip":
     "Trykk en grønn ✓ Ankommet-pille en gang til for å fjerne den hvis du trykket feil.",
+
+  "portal.help.runs.short": "Kjøreruter",
+  "portal.help.runs.title": "Mine kjøreruter — transportoppdrag",
+  "portal.help.runs.intro":
+    "Mine kjøreruter viser henting, levering og kjøretøyoppdrag som en produsent har tildelt deg.",
+  "portal.help.runs.step1":
+    "Åpne en kjørerute for å se prosjekt, kjøretøy, hente- og leveringssted, planlagte tider og notater.",
+  "portal.help.runs.step2":
+    "Kontroller venue- og adgangsdetaljer før avreise slik at lasterute og kontaktinstruksjoner er tydelige.",
+  "portal.help.runs.step3":
+    "Bruk kjøreplanen sammen med innkallingstiden for oppdraget for å planlegge ankomst uten konflikt.",
+  "portal.help.runs.tip":
+    "Kontakt produsenten hvis en tildeling er feil eller ufullstendig; transportansvar styres fra ansattplattformen.",
+
+  "portal.help.hours.short": "Timer og skift",
+  "portal.help.hours.title": "Timer — før skift og send timelister",
+  "portal.help.hours.intro":
+    "Registrer tiden du faktisk jobbet, og send deretter timelisten til produsenten for kontroll og lønnsgodkjenning.",
+  "portal.help.hours.step1":
+    "Velg riktig oppdrag og før start, slutt og pauser; legg til et notat når den registrerte tiden trenger forklaring.",
+  "portal.help.hours.step2":
+    "Kontroller beregnede timer før innsending. Innsendte registreringer forblir synlige mens produsenten behandler dem.",
+  "portal.help.hours.step3":
+    "Etter godkjenning bevarer lønnssnapshotet de aksepterte timene og kompensasjonsvilkårene som brukes til betaling.",
+  "portal.help.hours.tip":
+    "Send bare timer for oppdraget du faktisk jobbet. Be produsenten rette tildelingsvilkår i stedet for å endre dem selv.",
 
   // Availability section
   "portal.help.availability.short": "Tilgjengelighet",

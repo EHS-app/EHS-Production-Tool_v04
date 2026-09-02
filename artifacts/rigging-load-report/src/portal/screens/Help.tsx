@@ -5,7 +5,7 @@ import { useT } from "../../lib/i18n/I18nContext";
 import type { TranslationKey } from "../../lib/i18n/types";
 
 type HelpSection = {
-  id: "hub" | "briefs" | "gigs" | "availability" | "earnings" | "profile";
+  id: "hub" | "briefs" | "gigs" | "runs" | "hours" | "availability" | "earnings" | "profile";
   icon: string;
   shortKey: TranslationKey;
   titleKey: TranslationKey;
@@ -66,6 +66,32 @@ const SECTIONS: HelpSection[] = [
       "portal.help.gigs.step4",
     ],
     tipKey: "portal.help.gigs.tip",
+  },
+  {
+    id: "runs",
+    icon: "🚚",
+    shortKey: "portal.help.runs.short",
+    titleKey: "portal.help.runs.title",
+    introKey: "portal.help.runs.intro",
+    stepKeys: [
+      "portal.help.runs.step1",
+      "portal.help.runs.step2",
+      "portal.help.runs.step3",
+    ],
+    tipKey: "portal.help.runs.tip",
+  },
+  {
+    id: "hours",
+    icon: "◷",
+    shortKey: "portal.help.hours.short",
+    titleKey: "portal.help.hours.title",
+    introKey: "portal.help.hours.intro",
+    stepKeys: [
+      "portal.help.hours.step1",
+      "portal.help.hours.step2",
+      "portal.help.hours.step3",
+    ],
+    tipKey: "portal.help.hours.tip",
   },
   {
     id: "availability",

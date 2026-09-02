@@ -5971,6 +5971,7 @@ function App() {
           themePref={themePref}
           onChangeTheme={setThemePref}
           onSignOut={handleShellSignOut}
+          onHelp={() => setHelpOpen(true)}
         >
           {globalView === "home" ? (
             <HomeDashboard stats={dashboardStats} onNavigate={navigateGlobalView} />
@@ -6050,6 +6051,7 @@ function App() {
             null
           )}
         </GlobalShell>
+        <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
       </div>
     );
   }
@@ -6174,16 +6176,6 @@ function App() {
             <span className="autosave-pill" title="Saved locally in your browser">
               ● Saved {savedAt}
             </span>
-            <button
-              type="button"
-              className="btn btn-pill"
-              onClick={() => setHelpOpen(true)}
-              title={tr("header.helpTitle")}
-              aria-label={tr("header.help")}
-            >
-              <span className="btn-pill-icon" aria-hidden>?</span>
-              <span>{tr("header.help")}</span>
-            </button>
             <button
               className="btn btn-pill"
               onClick={resetAll}

@@ -1127,13 +1127,6 @@ function AuthGate({
             </Route>
           </Switch>
         </Router>
-        {/* Floating language selector — top-right, compact 2-letter
-            trigger that opens a popup menu. Mounted once at the
-            signed-in root so it appears on every screen (producer
-            Production Tool + freelancer Portal). */}
-        <div className="lang-fab-anchor">
-          <LanguageSelector />
-        </div>
       </Show>
       <Show when="signed-out">
         <ClearUserRoleOnSignedOut />

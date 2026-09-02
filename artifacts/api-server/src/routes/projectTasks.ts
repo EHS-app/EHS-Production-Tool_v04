@@ -1,6 +1,11 @@
 import { Router, type IRouter } from "express";
-import { and, asc, eq, sql } from "drizzle-orm";
-import { db, projectsTable, projectTasksTable } from "@workspace/db";
+import { asc, eq, sql } from "drizzle-orm";
+import { db, projectTasksTable } from "@workspace/db";
+import {
+  getProjectAccess,
+  isProjectWriter,
+  UUID_PATTERN,
+} from "../lib/projectAccess";
 
 const router: IRouter = Router();
 
@@ -12,8 +17,6 @@ const TASK_STATUSES = [
 ] as const;
 const TASK_PRIORITIES = ["Low", "Medium", "High", "Urgent"] as const;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function userIdFor(req: unknown): string {
   return (req as { _userId: string })._userId;
@@ -21,15 +24,6 @@ function userIdFor(req: unknown): string {
 
 function param(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
-}
-
-async function ownsProject(projectId: string, userId: string): Promise<boolean> {
-  const [project] = await db
-    .select({ id: projectsTable.id })
-    .from(projectsTable)
-    .where(and(eq(projectsTable.id, projectId), eq(projectsTable.userId, userId)))
-    .limit(1);
-  return Boolean(project);
 }
 
 router.get("/projects/:projectId/tasks", async (req, res): Promise<void> => {
@@ -40,7 +34,7 @@ router.get("/projects/:projectId/tasks", async (req, res): Promise<void> => {
     return;
   }
   try {
-    if (!(await ownsProject(projectId, userId))) {
+    if (!(await getProjectAccess(projectId, userId))) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
@@ -69,8 +63,13 @@ router.post("/projects/:projectId/tasks", async (req, res): Promise<void> => {
     return;
   }
   try {
-    if (!(await ownsProject(projectId, userId))) {
+    const accessRole = await getProjectAccess(projectId, userId);
+    if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    if (!isProjectWriter(accessRole)) {
+      res.status(403).json({ ok: false, error: "Project is read-only." });
       return;
     }
     const [task] = await db
@@ -94,11 +93,26 @@ router.patch("/projects/tasks/:id", async (req, res): Promise<void> => {
   const [ownedTask] = await db
     .select({ id: projectTasksTable.id })
     .from(projectTasksTable)
-    .innerJoin(projectsTable, eq(projectTasksTable.projectId, projectsTable.id))
-    .where(and(eq(projectTasksTable.id, id), eq(projectsTable.userId, userId)))
+    .where(eq(projectTasksTable.id, id))
     .limit(1);
   if (!ownedTask) {
     res.status(404).json({ ok: false, error: "Task not found." });
+    return;
+  }
+  const [taskForAccess] = await db
+    .select({ projectId: projectTasksTable.projectId })
+    .from(projectTasksTable)
+    .where(eq(projectTasksTable.id, id))
+    .limit(1);
+  const accessRole = taskForAccess
+    ? await getProjectAccess(taskForAccess.projectId, userId)
+    : null;
+  if (!accessRole) {
+    res.status(404).json({ ok: false, error: "Task not found." });
+    return;
+  }
+  if (!isProjectWriter(accessRole)) {
+    res.status(403).json({ ok: false, error: "Project is read-only." });
     return;
   }
 
@@ -174,13 +188,21 @@ router.delete("/projects/tasks/:id", async (req, res): Promise<void> => {
   }
   try {
     const [ownedTask] = await db
-      .select({ id: projectTasksTable.id })
+      .select({ id: projectTasksTable.id, projectId: projectTasksTable.projectId })
       .from(projectTasksTable)
-      .innerJoin(projectsTable, eq(projectTasksTable.projectId, projectsTable.id))
-      .where(and(eq(projectTasksTable.id, id), eq(projectsTable.userId, userId)))
+      .where(eq(projectTasksTable.id, id))
       .limit(1);
     if (!ownedTask) {
       res.status(404).json({ ok: false, error: "Task not found." });
+      return;
+    }
+    const accessRole = await getProjectAccess(ownedTask.projectId, userId);
+    if (!accessRole) {
+      res.status(404).json({ ok: false, error: "Task not found." });
+      return;
+    }
+    if (!isProjectWriter(accessRole)) {
+      res.status(403).json({ ok: false, error: "Project is read-only." });
       return;
     }
     await db.delete(projectTasksTable).where(eq(projectTasksTable.id, id));

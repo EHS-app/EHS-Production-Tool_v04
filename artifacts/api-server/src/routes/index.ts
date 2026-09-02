@@ -14,6 +14,8 @@ import inspectionExtractRouter from "./inspectionExtract";
 import adminRouter from "./admin";
 import feedbackRouter from "./feedback";
 import projectTasksRouter from "./projectTasks";
+import projectMembersRouter from "./projectMembers";
+import projectMessagesRouter from "./projectMessages";
 import { requireEmployee } from "../middleware/userType";
 
 const router: IRouter = Router();
@@ -37,6 +39,8 @@ router.use("/storage", requireEmployee);
 router.use(storageRouter);
 router.use("/projects", requireEmployee);
 router.use(projectTasksRouter);
+router.use(projectMembersRouter);
+router.use(projectMessagesRouter);
 router.use(projectsRouter);
 router.use("/inspection", requireEmployee);
 router.use(inspectionExtractRouter);

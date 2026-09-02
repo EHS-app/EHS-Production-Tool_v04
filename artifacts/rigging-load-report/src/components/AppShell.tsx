@@ -68,7 +68,8 @@ export type ShellView =
   | "catering"
   | "riggPlan"
   | "inspection"
-  | "tasks";
+  | "tasks"
+  | "chat";
 
 type NavItem = {
   id: ShellView;
@@ -122,6 +123,8 @@ interface AppShellProps {
    *  producers can wipe the working project without diving into the
    *  overflow menu. */
   onResetProject?: () => void;
+  readOnly?: boolean;
+  readOnlyLabel?: string;
   children: ReactNode;
 }
 
@@ -139,6 +142,7 @@ function buildNavGroups(t: Translator): NavGroup[] {
         { id: "riggPlan", label: t("shell.nav.riggPlan"), icon: LayoutGrid },
         { id: "inspection", label: t("shell.nav.inspection"), icon: ClipboardCheck },
         { id: "tasks", label: t("shell.nav.tasks"), icon: CheckSquare },
+        { id: "chat", label: t("shell.nav.chat") || "Chat", icon: MessageSquare },
       ],
     },
     {
@@ -231,6 +235,8 @@ export function AppShell({
   onOpenProjects,
   cloudSavedAt,
   onResetProject,
+  readOnly = false,
+  readOnlyLabel = "View-only project",
   children,
 }: AppShellProps) {
   const t = useT();
@@ -654,7 +660,20 @@ export function AppShell({
         </header>
 
         <div className="ehs-shell-glow" aria-hidden />
-        <div className="ehs-shell-content">{children}</div>
+        <div className="ehs-shell-content">
+          {readOnly ? (
+            <div className="ehs-shell-readonly-banner" role="status">
+              {readOnlyLabel}
+            </div>
+          ) : null}
+          <div
+            className={readOnly ? "ehs-shell-readonly-content" : undefined}
+            aria-disabled={readOnly || undefined}
+            inert={readOnly || undefined}
+          >
+            {children}
+          </div>
+        </div>
       </main>
 
       <CommandPalette

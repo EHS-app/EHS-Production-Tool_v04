@@ -5665,14 +5665,14 @@ var require_content_type = __commonJS({
       }
       var string4 = type;
       if (parameters && typeof parameters === "object") {
-        var param2;
+        var param4;
         var params = Object.keys(parameters).sort();
         for (var i = 0; i < params.length; i++) {
-          param2 = params[i];
-          if (!TOKEN_REGEXP.test(param2)) {
+          param4 = params[i];
+          if (!TOKEN_REGEXP.test(param4)) {
             throw new TypeError("invalid parameter name");
           }
-          string4 += "; " + param2 + "=" + qstring(parameters[param2]);
+          string4 += "; " + param4 + "=" + qstring(parameters[param4]);
         }
       }
       return string4;
@@ -20488,27 +20488,27 @@ var require_router = __commonJS({
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module.exports = Router17;
+    module.exports = Router19;
     module.exports.Route = Route;
-    function Router17(options) {
-      if (!(this instanceof Router17)) {
-        return new Router17(options);
+    function Router19(options) {
+      if (!(this instanceof Router19)) {
+        return new Router19(options);
       }
       const opts = options || {};
-      function router17(req, res, next) {
-        router17.handle(req, res, next);
+      function router19(req, res, next) {
+        router19.handle(req, res, next);
       }
-      Object.setPrototypeOf(router17, this);
-      router17.caseSensitive = opts.caseSensitive;
-      router17.mergeParams = opts.mergeParams;
-      router17.params = {};
-      router17.strict = opts.strict;
-      router17.stack = [];
-      return router17;
+      Object.setPrototypeOf(router19, this);
+      router19.caseSensitive = opts.caseSensitive;
+      router19.mergeParams = opts.mergeParams;
+      router19.params = {};
+      router19.strict = opts.strict;
+      router19.stack = [];
+      return router19;
     }
-    Router17.prototype = function() {
+    Router19.prototype = function() {
     };
-    Router17.prototype.param = function param2(name, fn) {
+    Router19.prototype.param = function param4(name, fn) {
       if (!name) {
         throw new TypeError("argument name is required");
       }
@@ -20528,7 +20528,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router17.prototype.handle = function handle(req, res, callback) {
+    Router19.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -20655,7 +20655,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router17.prototype.use = function use(handler) {
+    Router19.prototype.use = function use(handler) {
       let offset = 0;
       let path2 = "/";
       if (typeof handler !== "function") {
@@ -20688,7 +20688,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router17.prototype.route = function route(path2) {
+    Router19.prototype.route = function route(path2) {
       const route2 = new Route(path2);
       const layer = new Layer(path2, {
         sensitive: this.caseSensitive,
@@ -20703,7 +20703,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router17.prototype[method] = function(path2) {
+      Router19.prototype[method] = function(path2) {
         const route = this.route(path2);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
@@ -20775,7 +20775,7 @@ var require_router = __commonJS({
       let paramVal;
       let paramCallbacks;
       let paramCalled;
-      function param2(err) {
+      function param4(err) {
         if (err) {
           return done(err);
         }
@@ -20788,11 +20788,11 @@ var require_router = __commonJS({
         paramCallbacks = params[key2];
         paramCalled = called[key2];
         if (paramVal === void 0 || !paramCallbacks) {
-          return param2();
+          return param4();
         }
         if (paramCalled && (paramCalled.match === paramVal || paramCalled.error && paramCalled.error !== "route")) {
           req.params[key2] = paramCalled.value;
-          return param2(paramCalled.error);
+          return param4(paramCalled.error);
         }
         called[key2] = paramCalled = {
           error: null,
@@ -20806,10 +20806,10 @@ var require_router = __commonJS({
         paramCalled.value = req.params[key2];
         if (err) {
           paramCalled.error = err;
-          param2(err);
+          param4(err);
           return;
         }
-        if (!fn) return param2();
+        if (!fn) return param4();
         try {
           const ret = fn(req, res, paramCallback, paramVal, key2);
           if (isPromise(ret)) {
@@ -20824,7 +20824,7 @@ var require_router = __commonJS({
           paramCallback(e);
         }
       }
-      param2();
+      param4();
     }
     function restore(fn, obj) {
       const props = new Array(arguments.length - 2);
@@ -20886,13 +20886,13 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = __require("node:path").resolve;
     var once = require_once();
-    var Router17 = require_router();
+    var Router19 = require_router();
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app2 = exports = module.exports = {};
     var trustProxyDefaultSymbol = "@@symbol:trust_proxy_default";
     app2.init = function init() {
-      var router17 = null;
+      var router19 = null;
       this.cache = /* @__PURE__ */ Object.create(null);
       this.engines = /* @__PURE__ */ Object.create(null);
       this.settings = /* @__PURE__ */ Object.create(null);
@@ -20901,13 +20901,13 @@ var require_application = __commonJS({
         configurable: true,
         enumerable: true,
         get: function getrouter() {
-          if (router17 === null) {
-            router17 = new Router17({
+          if (router19 === null) {
+            router19 = new Router19({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
           }
-          return router17;
+          return router19;
         }
       });
     };
@@ -20978,15 +20978,15 @@ var require_application = __commonJS({
       if (fns.length === 0) {
         throw new TypeError("app.use() requires a middleware function");
       }
-      var router17 = this.router;
+      var router19 = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router17.use(path2, fn2);
+          return router19.use(path2, fn2);
         }
         debug(".use app under %s", path2);
         fn2.mountpath = path2;
         fn2.parent = this;
-        router17.use(path2, function mounted_app(req, res, next) {
+        router19.use(path2, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -21009,7 +21009,7 @@ var require_application = __commonJS({
       this.engines[extension] = fn;
       return this;
     };
-    app2.param = function param2(name, fn) {
+    app2.param = function param4(name, fn) {
       if (Array.isArray(name)) {
         for (var i = 0; i < name.length; i++) {
           this.param(name[i], fn);
@@ -22089,12 +22089,12 @@ var require_content_disposition = __commonJS({
       }
       var string4 = String(type).toLowerCase();
       if (parameters && typeof parameters === "object") {
-        var param2;
+        var param4;
         var params = Object.keys(parameters).sort();
         for (var i = 0; i < params.length; i++) {
-          param2 = params[i];
-          var val = param2.slice(-1) === "*" ? ustring(parameters[param2]) : qstring(parameters[param2]);
-          string4 += "; " + param2 + "=" + val;
+          param4 = params[i];
+          var val = param4.slice(-1) === "*" ? ustring(parameters[param4]) : qstring(parameters[param4]);
+          string4 += "; " + param4 + "=" + val;
         }
       }
       return string4;
@@ -23513,7 +23513,7 @@ var require_express = __commonJS({
     var EventEmitter = __require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router17 = require_router();
+    var Router19 = require_router();
     var req = require_request();
     var res = require_response();
     exports = module.exports = createApplication;
@@ -23535,8 +23535,8 @@ var require_express = __commonJS({
     exports.application = proto;
     exports.request = req;
     exports.response = res;
-    exports.Route = Router17.Route;
-    exports.Router = Router17;
+    exports.Route = Router19.Route;
+    exports.Router = Router19;
     exports.json = bodyParser.json;
     exports.raw = bodyParser.raw;
     exports.static = require_serve_static();
@@ -33123,11 +33123,11 @@ var require_router2 = __commonJS({
     var debug = debug_1.Debug.extend("router");
     async function getTarget(req, config3) {
       let newTarget;
-      const router17 = config3.router;
-      if ((0, is_plain_object_1.isPlainObject)(router17)) {
-        newTarget = getTargetFromProxyTable(req, router17);
-      } else if (typeof router17 === "function") {
-        newTarget = await router17(req);
+      const router19 = config3.router;
+      if ((0, is_plain_object_1.isPlainObject)(router19)) {
+        newTarget = getTargetFromProxyTable(req, router19);
+      } else if (typeof router19 === "function") {
+        newTarget = await router19(req);
       }
       return newTarget;
     }
@@ -33170,7 +33170,7 @@ var require_http_proxy_middleware = __commonJS({
     var get_plugins_1 = require_get_plugins();
     var path_filter_1 = require_path_filter();
     var PathRewriter = require_path_rewriter();
-    var Router17 = require_router2();
+    var Router19 = require_router2();
     var debug_1 = require_debug2();
     var function_1 = require_function();
     var logger_1 = require_logger2();
@@ -33241,7 +33241,7 @@ var require_http_proxy_middleware = __commonJS({
         this.applyRouter = async (req, options2) => {
           let newTarget;
           if (options2.router) {
-            newTarget = await Router17.getTarget(req, options2);
+            newTarget = await Router19.getTarget(req, options2);
             if (newTarget) {
               (0, debug_1.Debug)('router new target: "%s"', newTarget);
               options2.target = newTarget;
@@ -33650,7 +33650,7 @@ var require_postgres_array = __commonJS({
     var ArrayParser = class _ArrayParser {
       constructor(source, transform2) {
         this.source = source;
-        this.transform = transform2 || identity;
+        this.transform = transform2 || identity2;
         this.position = 0;
         this.entries = [];
         this.recorded = [];
@@ -33728,7 +33728,7 @@ var require_postgres_array = __commonJS({
         return this.entries;
       }
     };
-    function identity(value) {
+    function identity2(value) {
       return value;
     }
   }
@@ -39055,7 +39055,7 @@ var init_calendarCrypto = __esm({
 });
 
 // src/app.ts
-var import_express21 = __toESM(require_express2(), 1);
+var import_express25 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 
@@ -46517,8 +46517,8 @@ var InMemoryThrottlerCache = class {
     this.#cache.delete(key2);
   }
 };
-function isWindowClerkWithMetadata(clerk5) {
-  return typeof clerk5 === "object" && clerk5 !== null && "constructor" in clerk5 && typeof clerk5.constructor === "function";
+function isWindowClerkWithMetadata(clerk7) {
+  return typeof clerk7 === "object" && clerk7 !== null && "constructor" in clerk7 && typeof clerk7.constructor === "function";
 }
 var VALID_LOG_LEVELS = /* @__PURE__ */ new Set([
   "error",
@@ -47229,7 +47229,7 @@ function clerkProxyMiddleware() {
 }
 
 // src/routes/index.ts
-var import_express20 = __toESM(require_express2(), 1);
+var import_express24 = __toESM(require_express2(), 1);
 
 // src/routes/health.ts
 var import_express = __toESM(require_express2(), 1);
@@ -56699,8 +56699,8 @@ function sql(strings, ...params) {
   if (params.length > 0 || strings.length > 0 && strings[0] !== "") {
     queryChunks.push(new StringChunk(strings[0]));
   }
-  for (const [paramIndex, param2] of params.entries()) {
-    queryChunks.push(param2, new StringChunk(strings[paramIndex + 1]));
+  for (const [paramIndex, param22] of params.entries()) {
+    queryChunks.push(param22, new StringChunk(strings[paramIndex + 1]));
   }
   return new SQL(queryChunks);
 }
@@ -56736,10 +56736,10 @@ function sql(strings, ...params) {
     return new Placeholder(name2);
   }
   sql2.placeholder = placeholder2;
-  function param2(value, encoder) {
+  function param22(value, encoder) {
     return new Param(value, encoder);
   }
-  sql2.param = param2;
+  sql2.param = param22;
 })(sql || (sql = {}));
 ((SQL2) => {
   class Aliased {
@@ -62793,12 +62793,16 @@ __export(schema_exports, {
   insertFreelancerProfileSchema: () => insertFreelancerProfileSchema,
   insertGigSchema: () => insertGigSchema,
   insertProjectBriefSchema: () => insertProjectBriefSchema,
+  insertProjectMemberSchema: () => insertProjectMemberSchema,
+  insertProjectMessageSchema: () => insertProjectMessageSchema,
   insertProjectSchema: () => insertProjectSchema,
   insertProjectTaskSchema: () => insertProjectTaskSchema,
   insertTimeEntrySchema: () => insertTimeEntrySchema,
   insertVenueMemorySchema: () => insertVenueMemorySchema,
   profilePhotoUploadsTable: () => profilePhotoUploadsTable,
   projectBriefsTable: () => projectBriefsTable,
+  projectMembersTable: () => projectMembersTable,
+  projectMessagesTable: () => projectMessagesTable,
   projectTasksTable: () => projectTasksTable,
   projectsTable: () => projectsTable,
   timeEntriesTable: () => timeEntriesTable,
@@ -74686,6 +74690,51 @@ var insertProjectTaskSchema = createInsertSchema(
   updatedAt: true
 });
 
+// ../../lib/db/src/schema/projectMembers.ts
+var projectMembersTable = pgTable(
+  "project_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projectsTable.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    role: text("role").notNull().default("editor"),
+    addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    uniqueIndex("project_members_project_user_idx").on(
+      table.projectId,
+      table.userId
+    )
+  ]
+);
+var insertProjectMemberSchema = createInsertSchema(
+  projectMembersTable
+).omit({ id: true, addedAt: true });
+
+// ../../lib/db/src/schema/projectMessages.ts
+var projectMessagesTable = pgTable(
+  "project_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projectsTable.id, { onDelete: "cascade" }),
+    authorUserId: text("author_user_id").notNull(),
+    authorName: text("author_name").notNull(),
+    authorEmail: text("author_email").notNull(),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    index("project_messages_project_created_id_idx").on(
+      table.projectId,
+      table.createdAt,
+      table.id
+    )
+  ]
+);
+var insertProjectMessageSchema = createInsertSchema(
+  projectMessagesTable
+).omit({ id: true, createdAt: true });
+
 // ../../lib/db/src/index.ts
 var { Pool: Pool3 } = esm_default;
 if (!process.env.DATABASE_URL) {
@@ -80358,6 +80407,26 @@ var portalCalendar_default = router10;
 
 // src/routes/projects.ts
 var import_express13 = __toESM(require_express2(), 1);
+
+// src/lib/projectAccess.ts
+var UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function isProjectWriter(role) {
+  return role === "owner" || role === "editor";
+}
+async function getProjectAccess(projectId, userId) {
+  const [project] = await db.select({ ownerId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
+  if (!project) return null;
+  if (project.ownerId === userId) return "owner";
+  const [membership] = await db.select({ role: projectMembersTable.role }).from(projectMembersTable).where(
+    and(
+      eq(projectMembersTable.projectId, projectId),
+      eq(projectMembersTable.userId, userId)
+    )
+  ).limit(1);
+  return membership?.role === "editor" || membership?.role === "viewer" ? membership.role : null;
+}
+
+// src/routes/projects.ts
 var router11 = (0, import_express13.Router)();
 var requireSignedIn9 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
@@ -80378,8 +80447,20 @@ router11.get("/projects", requireSignedIn9, async (req, res) => {
       venue: projectsTable.venue,
       client: projectsTable.client,
       createdAt: projectsTable.createdAt,
-      updatedAt: projectsTable.updatedAt
-    }).from(projectsTable).where(eq(projectsTable.userId, userId)).orderBy(desc(projectsTable.updatedAt));
+      updatedAt: projectsTable.updatedAt,
+      accessRole: sql`case when ${projectsTable.userId} = ${userId} then 'owner' else ${projectMembersTable.role} end`
+    }).from(projectsTable).leftJoin(
+      projectMembersTable,
+      and(
+        eq(projectMembersTable.projectId, projectsTable.id),
+        eq(projectMembersTable.userId, userId)
+      )
+    ).where(
+      or(
+        eq(projectsTable.userId, userId),
+        eq(projectMembersTable.userId, userId)
+      )
+    ).orderBy(desc(projectsTable.updatedAt));
     res.json({ ok: true, projects: rows });
   } catch (err) {
     req.log.error(err, "Failed to list projects");
@@ -80389,13 +80470,22 @@ router11.get("/projects", requireSignedIn9, async (req, res) => {
 router11.get("/projects/:id", requireSignedIn9, async (req, res) => {
   const userId = req._userId;
   const { id } = req.params;
+  if (!UUID_PATTERN.test(String(id))) {
+    res.status(404).json({ ok: false, error: "Project not found." });
+    return;
+  }
   try {
-    const [row] = await db.select().from(projectsTable).where(and(eq(projectsTable.id, String(id)), eq(projectsTable.userId, userId))).limit(1);
+    const accessRole = await getProjectAccess(String(id), userId);
+    if (!accessRole) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    const [row] = await db.select().from(projectsTable).where(eq(projectsTable.id, String(id))).limit(1);
     if (!row) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
-    res.json({ ok: true, project: row });
+    res.json({ ok: true, project: { ...row, accessRole } });
   } catch (err) {
     req.log.error(err, "Failed to load project");
     res.status(500).json({ ok: false, error: "Failed to load project." });
@@ -80426,6 +80516,10 @@ router11.patch("/projects/:id", requireSignedIn9, async (req, res) => {
   const userId = req._userId;
   const { id } = req.params;
   const { name, venue, client, data } = req.body ?? {};
+  if (!UUID_PATTERN.test(String(id))) {
+    res.status(404).json({ ok: false, error: "Project not found." });
+    return;
+  }
   if (data && JSON.stringify(data).length > MAX_DATA_BYTES2) {
     res.status(413).json({ ok: false, error: "Project data too large." });
     return;
@@ -80438,7 +80532,16 @@ router11.patch("/projects/:id", requireSignedIn9, async (req, res) => {
   if (typeof client === "string") updates.client = client.slice(0, 200);
   if (data !== void 0) updates.data = data;
   try {
-    const [row] = await db.update(projectsTable).set(updates).where(and(eq(projectsTable.id, String(id)), eq(projectsTable.userId, userId))).returning({
+    const accessRole = await getProjectAccess(String(id), userId);
+    if (!accessRole) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    if (!isProjectWriter(accessRole)) {
+      res.status(403).json({ ok: false, error: "Project is read-only." });
+      return;
+    }
+    const [row] = await db.update(projectsTable).set(updates).where(eq(projectsTable.id, String(id))).returning({
       id: projectsTable.id,
       name: projectsTable.name,
       venue: projectsTable.venue,
@@ -80458,6 +80561,10 @@ router11.patch("/projects/:id", requireSignedIn9, async (req, res) => {
 router11.delete("/projects/:id", requireSignedIn9, async (req, res) => {
   const userId = req._userId;
   const { id } = req.params;
+  if (!UUID_PATTERN.test(String(id))) {
+    res.status(404).json({ ok: false, error: "Project not found." });
+    return;
+  }
   try {
     const result = await db.delete(projectsTable).where(and(eq(projectsTable.id, String(id)), eq(projectsTable.userId, userId)));
     if (result.rowCount === 0) {
@@ -81021,16 +81128,11 @@ var TASK_STATUSES = [
 ];
 var TASK_PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 var DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-var UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function userIdFor(req) {
   return req._userId;
 }
 function param(value) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
-}
-async function ownsProject(projectId, userId) {
-  const [project] = await db.select({ id: projectsTable.id }).from(projectsTable).where(and(eq(projectsTable.id, projectId), eq(projectsTable.userId, userId))).limit(1);
-  return Boolean(project);
 }
 router15.get("/projects/:projectId/tasks", async (req, res) => {
   const projectId = param(req.params.projectId);
@@ -81040,7 +81142,7 @@ router15.get("/projects/:projectId/tasks", async (req, res) => {
     return;
   }
   try {
-    if (!await ownsProject(projectId, userId)) {
+    if (!await getProjectAccess(projectId, userId)) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
@@ -81064,8 +81166,13 @@ router15.post("/projects/:projectId/tasks", async (req, res) => {
     return;
   }
   try {
-    if (!await ownsProject(projectId, userId)) {
+    const accessRole = await getProjectAccess(projectId, userId);
+    if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    if (!isProjectWriter(accessRole)) {
+      res.status(403).json({ ok: false, error: "Project is read-only." });
       return;
     }
     const [task] = await db.insert(projectTasksTable).values({ projectId, title: title.slice(0, 300) }).returning();
@@ -81082,9 +81189,19 @@ router15.patch("/projects/tasks/:id", async (req, res) => {
     res.status(404).json({ ok: false, error: "Task not found." });
     return;
   }
-  const [ownedTask] = await db.select({ id: projectTasksTable.id }).from(projectTasksTable).innerJoin(projectsTable, eq(projectTasksTable.projectId, projectsTable.id)).where(and(eq(projectTasksTable.id, id), eq(projectsTable.userId, userId))).limit(1);
+  const [ownedTask] = await db.select({ id: projectTasksTable.id }).from(projectTasksTable).where(eq(projectTasksTable.id, id)).limit(1);
   if (!ownedTask) {
     res.status(404).json({ ok: false, error: "Task not found." });
+    return;
+  }
+  const [taskForAccess] = await db.select({ projectId: projectTasksTable.projectId }).from(projectTasksTable).where(eq(projectTasksTable.id, id)).limit(1);
+  const accessRole = taskForAccess ? await getProjectAccess(taskForAccess.projectId, userId) : null;
+  if (!accessRole) {
+    res.status(404).json({ ok: false, error: "Task not found." });
+    return;
+  }
+  if (!isProjectWriter(accessRole)) {
+    res.status(403).json({ ok: false, error: "Project is read-only." });
     return;
   }
   const updates = { updatedAt: sql`now()` };
@@ -81147,9 +81264,18 @@ router15.delete("/projects/tasks/:id", async (req, res) => {
     return;
   }
   try {
-    const [ownedTask] = await db.select({ id: projectTasksTable.id }).from(projectTasksTable).innerJoin(projectsTable, eq(projectTasksTable.projectId, projectsTable.id)).where(and(eq(projectTasksTable.id, id), eq(projectsTable.userId, userId))).limit(1);
+    const [ownedTask] = await db.select({ id: projectTasksTable.id, projectId: projectTasksTable.projectId }).from(projectTasksTable).where(eq(projectTasksTable.id, id)).limit(1);
     if (!ownedTask) {
       res.status(404).json({ ok: false, error: "Task not found." });
+      return;
+    }
+    const accessRole = await getProjectAccess(ownedTask.projectId, userId);
+    if (!accessRole) {
+      res.status(404).json({ ok: false, error: "Task not found." });
+      return;
+    }
+    if (!isProjectWriter(accessRole)) {
+      res.status(403).json({ ok: false, error: "Project is read-only." });
       return;
     }
     await db.delete(projectTasksTable).where(eq(projectTasksTable.id, id));
@@ -81161,31 +81287,285 @@ router15.delete("/projects/tasks/:id", async (req, res) => {
 });
 var projectTasks_default = router15;
 
-// src/routes/index.ts
+// src/routes/projectMembers.ts
+var import_express20 = __toESM(require_express2(), 1);
 var router16 = (0, import_express20.Router)();
-router16.use(health_default);
-router16.use(devAutoSignIn_default);
-router16.use("/rigplan", requireEmployee);
-router16.use(rigplanAnalyze_default);
-router16.use(venueMemory_default);
-router16.use("/storage", requireEmployee);
-router16.use(storage_default);
-router16.use("/projects", requireEmployee);
-router16.use(projectTasks_default);
-router16.use(projects_default);
-router16.use("/inspection", requireEmployee);
-router16.use(inspectionExtract_default);
-router16.use(admin_default);
-router16.use(feedback_default);
-router16.use(portalProfile_default);
-router16.use(portalBriefs_default);
-router16.use(portalGigs_default);
-router16.use(portalTimeEntries_default);
-router16.use(portalCalendar_default);
-var routes_default = router16;
+var clerk5 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+function param2(value) {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+function identity(user) {
+  const primary = user.emailAddresses.find(
+    (entry) => entry.id === user.primaryEmailAddressId
+  );
+  const email3 = primary?.emailAddress?.trim().toLowerCase() ?? null;
+  const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || user.username || email3 || user.id;
+  return { userId: user.id, name: name.slice(0, 200), email: email3 };
+}
+function verifiedEhsIdentity(user) {
+  const primary = user.emailAddresses.find(
+    (entry) => entry.id === user.primaryEmailAddressId
+  );
+  const result = identity(user);
+  return primary?.verification?.status === "verified" && result.email?.endsWith("@ehs.no") ? result : null;
+}
+async function ownerProject(projectId, userId) {
+  const [project] = await db.select({ ownerId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
+  return project?.ownerId === userId ? project : null;
+}
+router16.get("/projects/:projectId/members", async (req, res) => {
+  const projectId = param2(req.params.projectId);
+  const userId = req._userId;
+  if (!UUID_PATTERN.test(projectId)) {
+    res.status(404).json({ ok: false, error: "Project not found." });
+    return;
+  }
+  if (!clerk5) {
+    res.status(503).json({ ok: false, error: "Members are unavailable (Clerk not configured)." });
+    return;
+  }
+  try {
+    const currentRole = await getProjectAccess(projectId, userId);
+    if (!currentRole) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    const [project] = await db.select({ ownerId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
+    const memberships = await db.select().from(projectMembersTable).where(eq(projectMembersTable.projectId, projectId));
+    const users = await Promise.all([project.ownerId, ...memberships.map((member) => member.userId)].map((id) => clerk5.users.getUser(id)));
+    const members = [
+      { ...identity(users[0]), role: "owner", isOwner: true },
+      ...memberships.map((member, index2) => ({
+        ...identity(users[index2 + 1]),
+        role: member.role,
+        addedAt: member.addedAt,
+        isOwner: false
+      }))
+    ];
+    res.json({ ok: true, currentRole, members });
+  } catch (error40) {
+    req.log.error(error40, "Failed to list project members");
+    res.status(500).json({ ok: false, error: "Failed to list project members." });
+  }
+});
+router16.post("/projects/:projectId/members", async (req, res) => {
+  const projectId = param2(req.params.projectId);
+  const callerId = req._userId;
+  const email3 = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const role = req.body?.role;
+  if (!UUID_PATTERN.test(projectId)) {
+    res.status(404).json({ ok: false, error: "Project not found." });
+    return;
+  }
+  if (!email3 || email3.length > 320 || !["editor", "viewer"].includes(role)) {
+    res.status(400).json({ ok: false, error: "Valid employee email and editor or viewer role required." });
+    return;
+  }
+  if (!clerk5) {
+    res.status(503).json({ ok: false, error: "Members are unavailable (Clerk not configured)." });
+    return;
+  }
+  try {
+    const project = await ownerProject(projectId, callerId);
+    if (!project) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    const listed = await clerk5.users.getUserList({ emailAddress: [email3] });
+    const matches2 = Array.isArray(listed) ? listed : listed.data;
+    const user = matches2.find((candidate) => identity(candidate).email === email3);
+    const member = user && verifiedEhsIdentity(user);
+    if (!member) {
+      res.status(400).json({ ok: false, error: "User must have a verified primary @ehs.no email." });
+      return;
+    }
+    if (member.userId === project.ownerId) {
+      res.status(400).json({ ok: false, error: "The project owner is already a member." });
+      return;
+    }
+    const inserted = await db.insert(projectMembersTable).values({ projectId, userId: member.userId, role }).onConflictDoNothing().returning();
+    if (!inserted[0]) {
+      res.status(409).json({ ok: false, error: "User is already a project member." });
+      return;
+    }
+    res.status(201).json({ ok: true, member: { ...member, role, addedAt: inserted[0].addedAt } });
+  } catch (error40) {
+    req.log.error(error40, "Failed to add project member");
+    res.status(500).json({ ok: false, error: "Failed to add project member." });
+  }
+});
+router16.delete("/projects/:projectId/members/:userId", async (req, res) => {
+  const projectId = param2(req.params.projectId);
+  const removeUserId = param2(req.params.userId);
+  const callerId = req._userId;
+  if (!UUID_PATTERN.test(projectId) || !removeUserId || removeUserId.length > 200) {
+    res.status(404).json({ ok: false, error: "Project member not found." });
+    return;
+  }
+  try {
+    const project = await ownerProject(projectId, callerId);
+    if (!project) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    if (removeUserId === project.ownerId) {
+      res.status(400).json({ ok: false, error: "The project owner cannot be removed." });
+      return;
+    }
+    const removed = await db.delete(projectMembersTable).where(and(
+      eq(projectMembersTable.projectId, projectId),
+      eq(projectMembersTable.userId, removeUserId)
+    )).returning({ userId: projectMembersTable.userId });
+    if (!removed[0]) {
+      res.status(404).json({ ok: false, error: "Project member not found." });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (error40) {
+    req.log.error(error40, "Failed to remove project member");
+    res.status(500).json({ ok: false, error: "Failed to remove project member." });
+  }
+});
+var projectMembers_default = router16;
+
+// src/routes/projectMessages.ts
+var import_express22 = __toESM(require_express2(), 1);
+var router17 = (0, import_express22.Router)();
+var clerk6 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+function param3(value) {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+router17.get("/projects/:projectId/messages", async (req, res) => {
+  const projectId = param3(req.params.projectId);
+  const userId = req._userId;
+  if (!UUID_PATTERN.test(projectId)) {
+    res.status(404).json({ ok: false, error: "Project not found." });
+    return;
+  }
+  const rawLimit = param3(req.query.limit);
+  const limit = rawLimit ? Number(rawLimit) : 50;
+  const before = param3(req.query.before);
+  const after = param3(req.query.after);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100 || before && after) {
+    res.status(400).json({ ok: false, error: "Invalid message pagination." });
+    return;
+  }
+  try {
+    if (!await getProjectAccess(projectId, userId)) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    let cursor;
+    const cursorId = before || after;
+    if (cursorId) {
+      if (!UUID_PATTERN.test(cursorId)) {
+        res.status(400).json({ ok: false, error: "Invalid message cursor." });
+        return;
+      }
+      [cursor] = await db.select({ createdAt: projectMessagesTable.createdAt, id: projectMessagesTable.id }).from(projectMessagesTable).where(
+        and(
+          eq(projectMessagesTable.projectId, projectId),
+          eq(projectMessagesTable.id, cursorId)
+        )
+      ).limit(1);
+      if (!cursor) {
+        res.status(400).json({ ok: false, error: "Invalid message cursor." });
+        return;
+      }
+    }
+    const older = Boolean(before) || !after;
+    const predicate = cursor ? older ? or(
+      lt(projectMessagesTable.createdAt, cursor.createdAt),
+      and(eq(projectMessagesTable.createdAt, cursor.createdAt), lt(projectMessagesTable.id, cursor.id))
+    ) : or(
+      gt(projectMessagesTable.createdAt, cursor.createdAt),
+      and(eq(projectMessagesTable.createdAt, cursor.createdAt), gt(projectMessagesTable.id, cursor.id))
+    ) : void 0;
+    const rows = await db.select().from(projectMessagesTable).where(
+      predicate ? and(eq(projectMessagesTable.projectId, projectId), predicate) : eq(projectMessagesTable.projectId, projectId)
+    ).orderBy(
+      older ? desc(projectMessagesTable.createdAt) : asc(projectMessagesTable.createdAt),
+      older ? desc(projectMessagesTable.id) : asc(projectMessagesTable.id)
+    ).limit(limit + 1);
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const messages = older ? page.reverse() : page;
+    res.json({ ok: true, messages, hasMore });
+  } catch (error40) {
+    req.log.error(error40, "Failed to list project messages");
+    res.status(500).json({ ok: false, error: "Failed to list project messages." });
+  }
+});
+router17.post("/projects/:projectId/messages", async (req, res) => {
+  const projectId = param3(req.params.projectId);
+  const userId = req._userId;
+  const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
+  if (!UUID_PATTERN.test(projectId)) {
+    res.status(404).json({ ok: false, error: "Project not found." });
+    return;
+  }
+  if (!body || body.length > 4e3) {
+    res.status(400).json({ ok: false, error: "Message body must be 1\u20134000 characters." });
+    return;
+  }
+  if (!clerk6) {
+    res.status(503).json({ ok: false, error: "Chat is unavailable (Clerk not configured)." });
+    return;
+  }
+  try {
+    const role = await getProjectAccess(projectId, userId);
+    if (!role) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    if (!isProjectWriter(role)) {
+      res.status(403).json({ ok: false, error: "Project is read-only." });
+      return;
+    }
+    const user = await clerk6.users.getUser(userId);
+    const primary = user.emailAddresses.find((email4) => email4.id === user.primaryEmailAddressId);
+    const email3 = primary?.emailAddress?.trim().toLowerCase();
+    if (!email3 || primary?.verification?.status !== "verified") {
+      res.status(403).json({ ok: false, error: "A verified primary email is required." });
+      return;
+    }
+    const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || user.username || email3;
+    const [message] = await db.insert(projectMessagesTable).values({ projectId, authorUserId: userId, authorName: name.slice(0, 200), authorEmail: email3, body }).returning();
+    res.status(201).json({ ok: true, message });
+  } catch (error40) {
+    req.log.error(error40, "Failed to create project message");
+    res.status(500).json({ ok: false, error: "Failed to create project message." });
+  }
+});
+var projectMessages_default = router17;
+
+// src/routes/index.ts
+var router18 = (0, import_express24.Router)();
+router18.use(health_default);
+router18.use(devAutoSignIn_default);
+router18.use("/rigplan", requireEmployee);
+router18.use(rigplanAnalyze_default);
+router18.use(venueMemory_default);
+router18.use("/storage", requireEmployee);
+router18.use(storage_default);
+router18.use("/projects", requireEmployee);
+router18.use(projectTasks_default);
+router18.use(projectMembers_default);
+router18.use(projectMessages_default);
+router18.use(projects_default);
+router18.use("/inspection", requireEmployee);
+router18.use(inspectionExtract_default);
+router18.use(admin_default);
+router18.use(feedback_default);
+router18.use(portalProfile_default);
+router18.use(portalBriefs_default);
+router18.use(portalGigs_default);
+router18.use(portalTimeEntries_default);
+router18.use(portalCalendar_default);
+var routes_default = router18;
 
 // src/app.ts
-var app = (0, import_express21.default)();
+var app = (0, import_express25.default)();
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -81210,12 +81590,12 @@ app.use((0, import_cors.default)());
 var PATHS_WITHOUT_GLOBAL_JSON = /* @__PURE__ */ new Set([
   "/api/rigplan/analyze"
 ]);
-var globalJsonParser = import_express21.default.json({ limit: "256kb" });
+var globalJsonParser = import_express25.default.json({ limit: "256kb" });
 app.use((req, res, next) => {
   if (PATHS_WITHOUT_GLOBAL_JSON.has(req.path)) return next();
   return globalJsonParser(req, res, next);
 });
-app.use(import_express21.default.urlencoded({ extended: true }));
+app.use(import_express25.default.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 app.use("/api", routes_default);
 var app_default = app;
@@ -85947,11 +86327,11 @@ function parseIcsDatePropertyLine(line2, propertyName) {
   if (name?.toUpperCase() !== propertyName) return null;
   let valueType;
   let tzid;
-  for (const param2 of params) {
-    const equalsIndex = param2.indexOf("=");
+  for (const param4 of params) {
+    const equalsIndex = param4.indexOf("=");
     if (equalsIndex === -1) continue;
-    const paramName = param2.slice(0, equalsIndex).toUpperCase();
-    const paramValue = param2.slice(equalsIndex + 1);
+    const paramName = param4.slice(0, equalsIndex).toUpperCase();
+    const paramValue = param4.slice(equalsIndex + 1);
     if (paramName === "VALUE") valueType = paramValue.toUpperCase();
     else if (paramName === "TZID") tzid = paramValue;
   }

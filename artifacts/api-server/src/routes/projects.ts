@@ -1,6 +1,11 @@
 import { Router, type IRouter, type RequestHandler } from "express";
-import { and, desc, eq, sql } from "drizzle-orm";
-import { db, projectsTable } from "@workspace/db";
+import { and, desc, eq, or, sql } from "drizzle-orm";
+import { db, projectMembersTable, projectsTable } from "@workspace/db";
+import {
+  getProjectAccess,
+  isProjectWriter,
+  UUID_PATTERN,
+} from "../lib/projectAccess";
 
 const router: IRouter = Router();
 
@@ -30,9 +35,22 @@ router.get("/projects", requireSignedIn, async (req, res) => {
         client: projectsTable.client,
         createdAt: projectsTable.createdAt,
         updatedAt: projectsTable.updatedAt,
+        accessRole: sql<"owner" | "editor" | "viewer">`case when ${projectsTable.userId} = ${userId} then 'owner' else ${projectMembersTable.role} end`,
       })
       .from(projectsTable)
-      .where(eq(projectsTable.userId, userId))
+      .leftJoin(
+        projectMembersTable,
+        and(
+          eq(projectMembersTable.projectId, projectsTable.id),
+          eq(projectMembersTable.userId, userId),
+        ),
+      )
+      .where(
+        or(
+          eq(projectsTable.userId, userId),
+          eq(projectMembersTable.userId, userId),
+        ),
+      )
       .orderBy(desc(projectsTable.updatedAt));
     res.json({ ok: true, projects: rows });
   } catch (err) {
@@ -44,17 +62,26 @@ router.get("/projects", requireSignedIn, async (req, res) => {
 router.get("/projects/:id", requireSignedIn, async (req, res) => {
   const userId = (req as unknown as { _userId: string })._userId;
   const { id } = req.params;
+  if (!UUID_PATTERN.test(String(id))) {
+    res.status(404).json({ ok: false, error: "Project not found." });
+    return;
+  }
   try {
+    const accessRole = await getProjectAccess(String(id), userId);
+    if (!accessRole) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
     const [row] = await db
       .select()
       .from(projectsTable)
-      .where(and(eq(projectsTable.id, String(id)), eq(projectsTable.userId, userId)))
+      .where(eq(projectsTable.id, String(id)))
       .limit(1);
     if (!row) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
-    res.json({ ok: true, project: row });
+    res.json({ ok: true, project: { ...row, accessRole } });
   } catch (err) {
     req.log.error(err, "Failed to load project");
     res.status(500).json({ ok: false, error: "Failed to load project." });
@@ -90,6 +117,10 @@ router.patch("/projects/:id", requireSignedIn, async (req, res) => {
   const userId = (req as unknown as { _userId: string })._userId;
   const { id } = req.params;
   const { name, venue, client, data } = req.body ?? {};
+  if (!UUID_PATTERN.test(String(id))) {
+    res.status(404).json({ ok: false, error: "Project not found." });
+    return;
+  }
   if (data && JSON.stringify(data).length > MAX_DATA_BYTES) {
     res.status(413).json({ ok: false, error: "Project data too large." });
     return;
@@ -104,10 +135,19 @@ router.patch("/projects/:id", requireSignedIn, async (req, res) => {
   if (data !== undefined) updates.data = data;
 
   try {
+    const accessRole = await getProjectAccess(String(id), userId);
+    if (!accessRole) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    if (!isProjectWriter(accessRole)) {
+      res.status(403).json({ ok: false, error: "Project is read-only." });
+      return;
+    }
     const [row] = await db
       .update(projectsTable)
       .set(updates)
-      .where(and(eq(projectsTable.id, String(id)), eq(projectsTable.userId, userId)))
+      .where(eq(projectsTable.id, String(id)))
       .returning({
         id: projectsTable.id,
         name: projectsTable.name,
@@ -129,6 +169,10 @@ router.patch("/projects/:id", requireSignedIn, async (req, res) => {
 router.delete("/projects/:id", requireSignedIn, async (req, res) => {
   const userId = (req as unknown as { _userId: string })._userId;
   const { id } = req.params;
+  if (!UUID_PATTERN.test(String(id))) {
+    res.status(404).json({ ok: false, error: "Project not found." });
+    return;
+  }
   try {
     const result = await db
       .delete(projectsTable)

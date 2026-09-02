@@ -107,6 +107,7 @@ import {
 } from "./lib/sound";
 import { SoundReportView } from "./components/SoundReportView";
 import { ProjectTaskBoard } from "./components/ProjectTaskBoard";
+import { ProjectChat } from "./components/ProjectChat";
 import { InspectionView, type InspectionData, EMPTY_INSPECTION } from "./components/InspectionView";
 import { EquipmentPicker } from "./components/EquipmentPicker";
 import type { LibraryItem } from "./lib/equipmentLibrary";
@@ -726,7 +727,8 @@ type MainView =
   | "sound"
   | "riggPlan"
   | "inspection"
-  | "tasks";
+  | "tasks"
+  | "chat";
 
 type ShowFixture = {
   id: string;
@@ -1471,11 +1473,21 @@ function App() {
       return null;
     }
   });
+  const [currentProjectAccessRole, setCurrentProjectAccessRole] = useState<
+    "owner" | "editor" | "viewer" | null
+  >(null);
   const projectSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectSaveVersion = useRef(0);
   const cloudSaveInFlight = useRef(false);
 
   const cloudSave = useCallback(async (data: PersistedV2) => {
+    if (
+      currentProjectId &&
+      currentProjectAccessRole !== "owner" &&
+      currentProjectAccessRole !== "editor"
+    ) {
+      return;
+    }
     if (cloudSaveInFlight.current) return;
     cloudSaveInFlight.current = true;
     try {
@@ -1525,10 +1537,37 @@ function App() {
     } finally {
       cloudSaveInFlight.current = false;
     }
-  }, [currentProjectId, getToken]);
+  }, [currentProjectAccessRole, currentProjectId, getToken]);
 
   const cloudSaveRef = useRef(cloudSave);
   useEffect(() => { cloudSaveRef.current = cloudSave; }, [cloudSave]);
+
+  useEffect(() => {
+    if (!currentProjectId) {
+      setCurrentProjectAccessRole(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const res = await fetch(`/api/projects/${currentProjectId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled) {
+          setCurrentProjectAccessRole(json.project?.accessRole ?? null);
+        }
+      } catch {
+        // Keep cloud writes paused until access can be resolved safely.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentProjectId, getToken]);
 
   // Expose a generic parent-window handler that the Client Pack and
   // Show Simulation popups can invoke for "Download PDF". We render the
@@ -4772,6 +4811,7 @@ function App() {
       if (!p?.data) return;
       hydrateFromData(p.data as Partial<PersistedV2>);
       setCurrentProjectId(id);
+      setCurrentProjectAccessRole(p.accessRole ?? null);
       setCloudSavedAt(
         new Date(p.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       );
@@ -4816,6 +4856,7 @@ function App() {
     setCustBracket("");
     setShareOpen(false);
     setCurrentProjectId(null);
+    setCurrentProjectAccessRole(null);
     setCloudSavedAt("");
     try { localStorage.removeItem("ehs-current-project-id"); } catch { /* ignore */ }
   }, [flushPendingSave]);
@@ -4842,6 +4883,7 @@ function App() {
         const json = await res.json();
         if (json.project?.id) {
           setCurrentProjectId(json.project.id);
+          setCurrentProjectAccessRole("owner");
           try { localStorage.setItem("ehs-current-project-id", json.project.id); } catch { /* ignore */ }
           setCloudSavedAt(
             new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
@@ -4854,6 +4896,7 @@ function App() {
   const handleProjectDelete = useCallback((deletedId: string) => {
     if (currentProjectId === deletedId) {
       setCurrentProjectId(null);
+      setCurrentProjectAccessRole(null);
       setCloudSavedAt("");
       try { localStorage.removeItem("ehs-current-project-id"); } catch { /* ignore */ }
     }
@@ -5634,7 +5677,7 @@ function App() {
         showCatering={!!activeBriefId}
         showHotel={!!activeBriefId}
         savedAt={savedAt}
-        primaryActions={shellPrimaryActions}
+        primaryActions={currentProjectAccessRole === "viewer" ? [] : shellPrimaryActions}
         secondaryActions={shellSecondaryActions}
         overflowActions={shellOverflowActions}
         themePref={themePref}
@@ -5647,7 +5690,9 @@ function App() {
         onHelp={() => setHelpOpen(true)}
         onOpenProjects={() => setProjectsOpen(true)}
         cloudSavedAt={cloudSavedAt}
-        onResetProject={resetAll}
+        onResetProject={currentProjectAccessRole === "viewer" ? undefined : resetAll}
+        readOnly={currentProjectAccessRole === "viewer" && mainView !== "chat"}
+        readOnlyLabel="View-only project · changes are disabled"
       >
       {mainView === "oversikt" && (
         <OverviewView
@@ -6778,6 +6823,10 @@ function App() {
 
       {mainView === "tasks" && (
         <ProjectTaskBoard projectId={currentProjectId} />
+      )}
+
+      {mainView === "chat" && (
+        <ProjectChat projectId={currentProjectId} />
       )}
 
       {mainView === "led" && (

@@ -4,3 +4,4 @@
 - [Calendar interval semantics](calendar-interval-semantics.md) — use half-open instants server-side, then map them into local calendar days; never group all-day events by UTC date prefixes.
 - [Feedback panel rendering](feedback-panel-rendering.md) — feedback must be a direct fixed in-layout panel; do not reintroduce Radix Dialog or portal rendering.
 - [Disabled controls can re-blur](disabled-control-blur.md) — disabling a focused autosave field may trigger another blur; guard synchronously before awaiting the first save.
+- [Project collaboration roles](project-collaboration-roles.md) — ownership stays authoritative; membership adds owner/editor/viewer access with server-enforced write limits.

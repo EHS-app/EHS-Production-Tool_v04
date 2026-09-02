@@ -9,6 +9,7 @@ export type ProjectSummary = {
   client: string;
   createdAt: string;
   updatedAt: string;
+  accessRole: "owner" | "editor" | "viewer";
 };
 
 type Props = {
@@ -185,10 +186,11 @@ export function ProjectListModal({
                       ) : null}
                     </span>
                     <span className="proj-row-date">
+                      {p.accessRole !== "owner" ? `${p.accessRole} · ` : ""}
                       {dateFmt.format(new Date(p.updatedAt))}
                     </span>
                   </button>
-                  {!isCurrent ? (
+                  {!isCurrent && p.accessRole === "owner" ? (
                     <button
                       type="button"
                       className="proj-row-delete"

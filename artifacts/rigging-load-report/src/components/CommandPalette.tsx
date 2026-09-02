@@ -12,6 +12,7 @@ import {
   Speaker,
   Users,
   Zap,
+  MessageSquare,
 } from "lucide-react";
 import type { ShellView } from "./AppShell";
 import type { ShellAction } from "./AppShell";
@@ -34,6 +35,7 @@ const ALL_PAGES: PageEntry[] = [
   { id: "riggPlan", labelKey: "shell.nav.riggPlan", icon: LayoutGrid },
   { id: "inspection", labelKey: "shell.nav.inspection", icon: ClipboardCheck },
   { id: "tasks", labelKey: "shell.nav.tasks", icon: CheckSquare },
+  { id: "chat", labelKey: "shell.nav.chat", icon: MessageSquare },
   { id: "crew", labelKey: "shell.nav.crew", icon: Users },
   { id: "hotel", labelKey: "shell.nav.hotel", icon: Bed },
   { id: "catering", labelKey: "shell.nav.catering", icon: Coffee },

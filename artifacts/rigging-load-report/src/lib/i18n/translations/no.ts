@@ -429,6 +429,7 @@ export const no: Translations = {
   "shell.nav.riggPlan": "Rigg-plan",
   "shell.nav.inspection": "Befaring",
   "shell.nav.tasks": "Oppgaver",
+  "shell.nav.chat": "Diskusjon",
   "shell.nav.crew": "Crew",
   "shell.nav.hotel": "Hotell",
   "shell.nav.catering": "Catering",

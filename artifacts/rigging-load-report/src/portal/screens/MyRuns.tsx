@@ -98,10 +98,10 @@ export function MyRuns({ theme }: { theme: ThemeMode }) {
             </span>
           </div>
           <div style={{ display: "grid", gap: 8, marginTop: 14, fontSize: 14 }}>
-            <div><MapPin size={15} style={{ display: "inline", marginRight: 7 }} />{run.origin || t("portal.runs.originTbc")} → {run.destination || t("portal.runs.destinationTbc")}</div>
-            <div><Truck size={15} style={{ display: "inline", marginRight: 7 }} />{run.vehicleName} · {run.vehicleLicensePlate}</div>
-            <div style={{ color: c.muted }}>{t("portal.runs.loadIn")}: {formatDate(run.loadInAt)} · {t("portal.runs.loadOut")}: {formatDate(run.loadOutAt)}</div>
-            {run.cargoNotes ? <div style={{ color: c.muted, whiteSpace: "pre-wrap" }}>{run.cargoNotes}</div> : null}
+            <div style={{ overflowWrap: "break-word", wordBreak: "break-word" }}><MapPin size={15} style={{ display: "inline", marginRight: 7, flexShrink: 0 }} />{run.origin || t("portal.runs.originTbc")} → {run.destination || t("portal.runs.destinationTbc")}</div>
+            <div style={{ overflowWrap: "break-word", wordBreak: "break-word" }}><Truck size={15} style={{ display: "inline", marginRight: 7, flexShrink: 0 }} />{run.vehicleName} · {run.vehicleLicensePlate}</div>
+            <div style={{ color: c.muted, overflowWrap: "break-word", wordBreak: "break-word" }}>{t("portal.runs.loadIn")}: {formatDate(run.loadInAt)} · {t("portal.runs.loadOut")}: {formatDate(run.loadOutAt)}</div>
+            {run.cargoNotes ? <div style={{ color: c.muted, whiteSpace: "pre-wrap", overflowWrap: "break-word", wordBreak: "break-word" }}>{run.cargoNotes}</div> : null}
           </div>
         </article>
       ))}

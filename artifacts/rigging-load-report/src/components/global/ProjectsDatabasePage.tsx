@@ -78,8 +78,8 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject }: 
 
   return (
     <div style={{ padding: "0 16px 40px", maxWidth: 1400, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24 }}>
-        <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
+        <div style={{ minWidth: 0 }}>
           <h2 style={{ fontSize: "1.5rem", fontWeight: 300, margin: "0 0 8px 0", color: "var(--text-main)" }}>
             Projects Database
           </h2>
@@ -103,7 +103,7 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject }: 
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {(["all", "active", "planning", "draft"] as const).map(f => (
               <button
                 key={f}

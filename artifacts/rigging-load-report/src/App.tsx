@@ -5824,7 +5824,7 @@ function App() {
       </div>
       <div className="meta-field">
         <label>{tr("project.venueProject")}</label>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           <select
             value={venueId || ""}
             onChange={e => {
@@ -5838,10 +5838,10 @@ function App() {
             style={{
               background: "var(--input-bg)", border: "1px solid rgba(255,255,255,0.12)",
               borderRadius: 6, color: "var(--text-main)", padding: "0 8px", height: 34,
-              flex: "0 0 150px"
+              flex: "1 1 140px"
             }}
           >
-            <option value="">(Custom / Select...)</option>
+            <option value="">{tr("project.select.venue")}</option>
             {venuesOptions.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
           </select>
           <input
@@ -5852,7 +5852,7 @@ function App() {
               if (venueId) setVenueId(null);
             }}
             placeholder={tr("project.placeholder.venue")}
-            style={{ flex: 1 }}
+            style={{ flex: "1 1 140px" }}
           />
           {venueId && (
             <button
@@ -5868,7 +5868,7 @@ function App() {
       </div>
       <div className="meta-field">
         <label>{tr("project.client")}</label>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           <select
             value={clientId || ""}
             onChange={e => {
@@ -5882,10 +5882,10 @@ function App() {
             style={{
               background: "var(--input-bg)", border: "1px solid rgba(255,255,255,0.12)",
               borderRadius: 6, color: "var(--text-main)", padding: "0 8px", height: 34,
-              flex: "0 0 150px"
+              flex: "1 1 140px"
             }}
           >
-            <option value="">(Custom / Select...)</option>
+            <option value="">{tr("project.select.client")}</option>
             {clientsOptions.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
           </select>
           <input
@@ -5896,7 +5896,7 @@ function App() {
               if (clientId) setClientId(null);
             }}
             placeholder={tr("project.placeholder.client")}
-            style={{ flex: 1 }}
+            style={{ flex: "1 1 140px" }}
           />
         </div>
       </div>

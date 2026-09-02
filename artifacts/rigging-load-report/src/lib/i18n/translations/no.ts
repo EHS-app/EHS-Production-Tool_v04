@@ -618,6 +618,8 @@ export const no: Translations = {
   "project.placeholder.venue": "f.eks. Sentrum Scene",
   "project.placeholder.client": "Kundenavn",
   "project.placeholder.manager": "Navn",
+  "project.select.venue": "Velg venue...",
+  "project.select.client": "Velg kunde...",
 
   // ---------- Main view switcher ----------
   // The main report tabs are kept in English in Norwegian mode by

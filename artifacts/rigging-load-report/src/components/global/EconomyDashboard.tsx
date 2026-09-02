@@ -755,14 +755,14 @@ export function EconomyDashboard({ getToken, onOpenProject }: Props) {
       {/* Settings Modal */}
       {settingsDraft && (
         <div className="ehs-modal-backdrop" onClick={() => !savingSettings && setSettingsDraft(null)}>
-          <div className="ehs-modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+          <div className="ehs-modal" style={{ maxWidth: 500, width: "100%", minWidth: "min(100vw - 32px, 320px)" }} onClick={e => e.stopPropagation()}>
             <div className="ehs-modal-header">
               <h3>Project Settings: {settingsDraft.projectName}</h3>
               <button className="ehs-ghost-btn" style={{ padding: 4 }} onClick={() => setSettingsDraft(null)}><XCircle size={16} /></button>
             </div>
             <form onSubmit={handleSaveSettings}>
               <div className="ehs-modal-body">
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
                   <div className="ehs-form-group">
                     <label>Contract Revenue (NOK)</label>
                     <input type="number" required min="0" step="0.01" className="ehs-input" value={settingsDraft.contractRevenueMajor} onChange={e => setSettingsDraft({...settingsDraft, contractRevenueMajor: e.target.value})} />
@@ -776,7 +776,7 @@ export function EconomyDashboard({ getToken, onOpenProject }: Props) {
                 <hr style={{ margin: "16px 0", border: "none", borderTop: "1px solid var(--border-color)" }} />
                 <h4 style={{ margin: "0 0 12px", fontSize: 13, color: "var(--text-main)" }}>Category Budgets (NOK)</h4>
                 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
                   <div className="ehs-form-group">
                     <label>Labor</label>
                     <input type="number" min="0" step="0.01" className="ehs-input" value={settingsDraft.laborBudgetMajor} onChange={e => setSettingsDraft({...settingsDraft, laborBudgetMajor: e.target.value})} />
@@ -813,7 +813,7 @@ export function EconomyDashboard({ getToken, onOpenProject }: Props) {
       {/* Expense Modal */}
       {expenseDraft && (
         <div className="ehs-modal-backdrop" onClick={() => !savingExpense && setExpenseDraft(null)}>
-          <div className="ehs-modal" onClick={e => e.stopPropagation()}>
+          <div className="ehs-modal" style={{ width: "100%", minWidth: "min(100vw - 32px, 320px)" }} onClick={e => e.stopPropagation()}>
             <div className="ehs-modal-header">
               <h3>Add Direct Expense</h3>
               <button className="ehs-ghost-btn" style={{ padding: 4 }} onClick={() => setExpenseDraft(null)}><XCircle size={16} /></button>
@@ -833,7 +833,7 @@ export function EconomyDashboard({ getToken, onOpenProject }: Props) {
                     ))}
                   </select>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
                   <div className="ehs-form-group">
                     <label>Category</label>
                     <select 
@@ -858,7 +858,7 @@ export function EconomyDashboard({ getToken, onOpenProject }: Props) {
                   <label>Description</label>
                   <input required className="ehs-input" value={expenseDraft.description} onChange={e => setExpenseDraft({...expenseDraft, description: e.target.value})} placeholder="e.g. Hotel for local crew" />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
                   <div className="ehs-form-group">
                     <label>Vendor (Optional)</label>
                     <input className="ehs-input" value={expenseDraft.vendor} onChange={e => setExpenseDraft({...expenseDraft, vendor: e.target.value})} placeholder="e.g. Scandic" />
@@ -883,7 +883,7 @@ export function EconomyDashboard({ getToken, onOpenProject }: Props) {
       {/* Timecard Adjust Modal */}
       {timecardAdjustDraft && (
         <div className="ehs-modal-backdrop" onClick={() => !savingTimecard && setTimecardAdjustDraft(null)}>
-          <div className="ehs-modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+          <div className="ehs-modal" style={{ maxWidth: 400, width: "100%", minWidth: "min(100vw - 32px, 320px)" }} onClick={e => e.stopPropagation()}>
             <div className="ehs-modal-header">
               <h3>Adjust Timecard</h3>
               <button className="ehs-ghost-btn" style={{ padding: 4 }} onClick={() => setTimecardAdjustDraft(null)}><XCircle size={16} /></button>
@@ -921,7 +921,7 @@ export function EconomyDashboard({ getToken, onOpenProject }: Props) {
       {/* Timecard Reject/Flag Modal */}
       {timecardRejectDraft && (
         <div className="ehs-modal-backdrop" onClick={() => !savingTimecard && setTimecardRejectDraft(null)}>
-          <div className="ehs-modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+          <div className="ehs-modal" style={{ maxWidth: 400, width: "100%", minWidth: "min(100vw - 32px, 320px)" }} onClick={e => e.stopPropagation()}>
             <div className="ehs-modal-header">
               <h3>{timecardRejectDraft.decision === 'flag' ? 'Flag' : 'Reject'} Timecard</h3>
               <button className="ehs-ghost-btn" style={{ padding: 4 }} onClick={() => setTimecardRejectDraft(null)}><XCircle size={16} /></button>

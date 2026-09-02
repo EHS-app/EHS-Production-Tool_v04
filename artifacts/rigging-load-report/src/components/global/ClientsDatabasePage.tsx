@@ -377,7 +377,7 @@ export function ClientsDatabasePage({ getToken, onProjectCloned }: Props) {
 
         <div style={{ background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: 12, padding: 24 }}>
           {activeTab === "general" && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: 24 }}>
               <div>
                 <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, borderBottom: "1px solid var(--border-color)", paddingBottom: 8 }}>Company Details</h3>
                 <Input label="Company Name" field="companyName" />
@@ -416,7 +416,7 @@ export function ClientsDatabasePage({ getToken, onProjectCloned }: Props) {
                         >
                           <Trash2 size={14} />
                         </button>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 4 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8, marginTop: 4 }}>
                           <input type="text" className="ehs-input" placeholder="Name" value={contact.name} onChange={e => {
                             const newContacts = [...(clientDraft.primaryContacts || [])];
                             newContacts[idx] = { ...newContacts[idx], name: e.target.value };
@@ -485,7 +485,7 @@ export function ClientsDatabasePage({ getToken, onProjectCloned }: Props) {
                     <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 16, border: "1px solid var(--border-color)", borderRadius: 8, background: "var(--input-bg)" }}>
                       <div>
                         <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{p.name}</div>
-                        <div style={{ display: "flex", gap: 16, fontSize: 12, color: "var(--text-muted)" }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: 12, color: "var(--text-muted)" }}>
                           <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                             <CalendarIcon size={12} /> 
                             {p.start_date ? (p.end_date ? `${p.start_date} to ${p.end_date}` : p.start_date) : "No dates"}
@@ -582,9 +582,9 @@ export function ClientsDatabasePage({ getToken, onProjectCloned }: Props) {
               <tbody>
                 {filtered.map(c => (
                   <tr key={c.id} className="is-clickable" onClick={() => openClient(c)}>
-                    <td style={{ fontWeight: 600 }}>{c.companyName || "Untitled"}</td>
+                    <td style={{ fontWeight: 600, maxWidth: 200, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.companyName || "Untitled"}</td>
                     <td style={{ fontFamily: "monospace", color: "var(--text-muted)" }}>{c.organizationNumber || "—"}</td>
-                    <td>{c.defaultPaymentTermsDays ? `${c.defaultPaymentTermsDays} days` : "—"}</td>
+                    <td style={{ whiteSpace: "nowrap" }}>{c.defaultPaymentTermsDays ? `${c.defaultPaymentTermsDays} days` : "—"}</td>
                     <td style={{ maxWidth: 200, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {(c.primaryContacts && c.primaryContacts.length > 0) ? c.primaryContacts[0].name || c.primaryContacts[0].email || "Unnamed" : "—"}
                     </td>

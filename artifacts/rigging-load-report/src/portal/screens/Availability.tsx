@@ -596,10 +596,10 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
 
       {rotateConfirm && (
         <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 1000, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.5)", padding: 20 }}>
-          <div style={{ background: c.cardBg, color: c.text, padding: 24, borderRadius: 12, width: "100%", maxWidth: 400, boxShadow: "0 24px 80px rgba(0,0,0,0.2)" }}>
+          <div style={{ background: c.cardBg, color: c.text, padding: 24, borderRadius: 12, width: "100%", maxWidth: 400, minWidth: "min(100vw - 32px, 320px)", boxShadow: "0 24px 80px rgba(0,0,0,0.2)" }}>
             <h2 style={{ margin: "0 0 12px" }}>{t("portal.availability.rotateDialog.title")}</h2>
             <p style={{ margin: "0 0 24px", color: c.muted, fontSize: 14 }}>{t("portal.availability.rotateDialog.body")}</p>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 12 }}>
               <button onClick={() => setRotateConfirm(false)} style={{ padding: "8px 16px", background: "transparent", border: "none", color: c.muted, cursor: "pointer" }}>{t("portal.availability.rotateDialog.cancel")}</button>
               <button onClick={confirmRotate} style={{ padding: "8px 16px", background: c.danger, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: "bold" }}>{t("portal.availability.rotateDialog.confirm")}</button>
             </div>
@@ -760,10 +760,10 @@ function EditorDialog({ date, onClose, onSave, theme, getToken, baseUrl, existin
 
   return (
     <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 1000, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.5)", padding: 20 }}>
-      <div style={{ background: c.cardBg, color: c.text, padding: 24, borderRadius: 12, width: "100%", maxWidth: 400, boxShadow: "0 24px 80px rgba(0,0,0,0.2)" }}>
+      <div style={{ background: c.cardBg, color: c.text, padding: 24, borderRadius: 12, width: "100%", maxWidth: 400, minWidth: "min(100vw - 32px, 320px)", boxShadow: "0 24px 80px rgba(0,0,0,0.2)" }}>
         <h2 style={{ margin: "0 0 20px" }}>{t("portal.availability.editor.title")} {date}</h2>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
           {(["available", "unavailable", "tentative"] as const).map(s => (
             <button key={s} onClick={() => setStatus(s)} style={{ flex: 1, padding: "8px", textTransform: "capitalize", borderRadius: 8, border: `1px solid ${status === s ? c.accent : c.border}`, background: status === s ? c.cardBgSubtle : "transparent", color: c.text, cursor: "pointer", fontWeight: status === s ? "bold" : "normal" }}>
               {s === "available" ? t("portal.availability.legend.available") : s === "unavailable" ? t("portal.availability.legend.unavailable") : s}
@@ -777,7 +777,7 @@ function EditorDialog({ date, onClose, onSave, theme, getToken, baseUrl, existin
         </label>
 
         {!allDay && (
-          <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
             <input type="time" value={startAt} onChange={(e) => setStartAt(e.target.value)} style={inputStyle(theme)} />
             <span style={{ alignSelf: "center" }}>-</span>
             <input type="time" value={endAt} onChange={(e) => setEndAt(e.target.value)} style={inputStyle(theme)} />
@@ -791,7 +791,7 @@ function EditorDialog({ date, onClose, onSave, theme, getToken, baseUrl, existin
 
         <div style={{ marginBottom: 24 }}>
           <label style={{ display: "block", fontSize: 12, marginBottom: 4, color: c.muted }}>{t("portal.availability.editor.repeat")}</label>
-          <div style={{ display: "flex", gap: 12 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
             <select value={recurrence} onChange={(e) => setRecurrence(e.target.value)} style={inputStyle(theme)}>
               <option value="none">{t("portal.availability.editor.repeatNone")}</option>
               <option value="weekly">{t("portal.availability.editor.repeatWeekly")}</option>
@@ -802,9 +802,9 @@ function EditorDialog({ date, onClose, onSave, theme, getToken, baseUrl, existin
           </div>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
           <button onClick={handleClear} style={{ padding: "8px 16px", background: "transparent", border: `1px solid ${c.danger}`, color: c.danger, borderRadius: 8, cursor: "pointer", visibility: existingEntry ? "visible" : "hidden" }}>{t("portal.availability.editor.clear")}</button>
-          <div style={{ display: "flex", gap: 12 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
             <button onClick={onClose} style={{ padding: "8px 16px", background: "transparent", border: "none", color: c.muted, cursor: "pointer" }}>{t("portal.availability.editor.close")}</button>
             <button onClick={handleSave} style={{ padding: "8px 16px", background: c.accent, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: "bold" }}>{t("portal.availability.editor.save")}</button>
           </div>

@@ -364,7 +364,7 @@ export function TransportDashboard({ getToken, onOpenProject }: Props) {
       {/* Vehicle Modal */}
       {isVehicleModalOpen && editingVehicle && (
         <div className="ehs-modal-backdrop" onClick={() => !vehicleSaving && setIsVehicleModalOpen(false)}>
-          <div className="ehs-modal" role="dialog" onClick={e => e.stopPropagation()}>
+          <div className="ehs-modal" role="dialog" onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 600, minWidth: "min(100vw - 32px, 320px)" }}>
             <div className="ehs-modal-header">
               <h3>{editingVehicle.id ? "Edit Vehicle Status" : "Add Vehicle"}</h3>
               <button className="ehs-ghost-btn" style={{ padding: 4 }} onClick={() => setIsVehicleModalOpen(false)}>
@@ -377,7 +377,7 @@ export function TransportDashboard({ getToken, onOpenProject }: Props) {
                   <label>Name</label>
                   <input required className="ehs-input" value={editingVehicle.name || ""} onChange={e => setEditingVehicle({...editingVehicle, name: e.target.value})} placeholder="e.g. Truck 1" disabled={!!editingVehicle.id} />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
                   <div className="ehs-form-group">
                     <label>License Plate</label>
                     <input required className="ehs-input" value={editingVehicle.licensePlate || ""} onChange={e => setEditingVehicle({...editingVehicle, licensePlate: e.target.value})} placeholder="e.g. AB12345" disabled={!!editingVehicle.id} />
@@ -392,7 +392,7 @@ export function TransportDashboard({ getToken, onOpenProject }: Props) {
                     </select>
                   </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
                   <div className="ehs-form-group">
                     <label>Capacity (kg)</label>
                     <input type="number" className="ehs-input" value={editingVehicle.capacityKg || ""} onChange={e => setEditingVehicle({...editingVehicle, capacityKg: e.target.value ? Number(e.target.value) : null})} disabled={!!editingVehicle.id} />
@@ -405,7 +405,7 @@ export function TransportDashboard({ getToken, onOpenProject }: Props) {
                 
                 {!!editingVehicle.id && <hr style={{ margin: "12px 0", border: "none", borderTop: "1px dashed var(--border-color)" }} />}
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
                   <div className="ehs-form-group">
                     <label>Primary Driver</label>
                     <select className="ehs-input" value={editingVehicle.primaryDriverUserId || ""} onChange={e => setEditingVehicle({...editingVehicle, primaryDriverUserId: e.target.value || null})}>
@@ -444,7 +444,7 @@ export function TransportDashboard({ getToken, onOpenProject }: Props) {
       {/* Run Modal */}
       {isRunModalOpen && editingRun && !editingRun.id && (
         <div className="ehs-modal-backdrop" onClick={() => !runSaving && setIsRunModalOpen(false)}>
-          <div className="ehs-modal" role="dialog" onClick={e => e.stopPropagation()}>
+          <div className="ehs-modal" role="dialog" onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 600, minWidth: "min(100vw - 32px, 320px)" }}>
             <div className="ehs-modal-header">
               <h3>Schedule Run</h3>
               <button className="ehs-ghost-btn" style={{ padding: 4 }} onClick={() => setIsRunModalOpen(false)}>
@@ -458,7 +458,7 @@ export function TransportDashboard({ getToken, onOpenProject }: Props) {
                   <input required className="ehs-input" value={editingRun.title || ""} onChange={e => setEditingRun({...editingRun, title: e.target.value})} placeholder="e.g. Load out from venue" />
                 </div>
                 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
                   <div className="ehs-form-group">
                     <label>Project</label>
                     <select required className="ehs-input" value={editingRun.projectId || ""} onChange={e => setEditingRun({...editingRun, projectId: e.target.value || null})}>
@@ -479,7 +479,7 @@ export function TransportDashboard({ getToken, onOpenProject }: Props) {
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
                   <div className="ehs-form-group">
                     <label>Vehicle</label>
                     <select required className="ehs-input" value={editingRun.vehicleId || ""} onChange={e => setEditingRun({...editingRun, vehicleId: e.target.value || null})}>
@@ -500,7 +500,7 @@ export function TransportDashboard({ getToken, onOpenProject }: Props) {
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
                   <div className="ehs-form-group">
                     <label>Origin</label>
                     <input required className="ehs-input" value={editingRun.origin || ""} onChange={e => setEditingRun({...editingRun, origin: e.target.value})} placeholder="e.g. Warehouse" />
@@ -518,7 +518,7 @@ export function TransportDashboard({ getToken, onOpenProject }: Props) {
                   </div>
                 </div>
                 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
                   <div className="ehs-form-group">
                     <label>Load In (Optional)</label>
                     <input type="datetime-local" className="ehs-input" value={editingRun.loadInAt ? toLocalDateTimeInput(editingRun.loadInAt) : ""} onChange={e => setEditingRun({...editingRun, loadInAt: e.target.value || null})} />

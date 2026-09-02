@@ -812,7 +812,7 @@ export function BriefDetail({
               return (
                 <div key={category}>
                   <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: c.muted, marginBottom: 4 }}>{title}</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
                     {Object.entries(fields as Record<string, string>).filter(([_, val]) => val).map(([k, val]) => (
                       <div key={k} style={{ background: c.inputBg, padding: 8, borderRadius: 6 }}>
                         <div style={{ fontSize: 10, textTransform: "uppercase", color: c.muted, marginBottom: 2 }}>{k.replace(/([A-Z])/g, ' $1')}</div>

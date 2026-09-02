@@ -606,6 +606,8 @@ export const en = {
   "project.placeholder.venue": "e.g. Sentrum Scene",
   "project.placeholder.client": "Customer name",
   "project.placeholder.manager": "Name",
+  "project.select.venue": "Select venue...",
+  "project.select.client": "Select client...",
 
   // ---------- Main view switcher ----------
   "view.rigging": "Rigging Report",

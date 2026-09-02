@@ -135,6 +135,7 @@ export function FreelancerProfileModal({ userId, getToken, onClose }: Props) {
         aria-label="Freelancer Profile and History"
         style={{
           width: "min(680px, 100%)",
+          minWidth: "min(100vw - 32px, 320px)",
           maxHeight: "min(85vh, 900px)",
           display: "flex",
           flexDirection: "column",
@@ -182,10 +183,10 @@ export function FreelancerProfileModal({ userId, getToken, onClose }: Props) {
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 13 }}>
                     {data.freelancer.email && (
-                      <span style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-main)" }}><Mail size={14} color="var(--text-muted)"/> {data.freelancer.email}</span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-main)", wordBreak: "break-all" }}><Mail size={14} color="var(--text-muted)"/> {data.freelancer.email}</span>
                     )}
                     {data.freelancer.phone && (
-                      <span style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-main)" }}><Phone size={14} color="var(--text-muted)"/> {data.freelancer.phone}</span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-main)", wordBreak: "break-all" }}><Phone size={14} color="var(--text-muted)"/> {data.freelancer.phone}</span>
                     )}
                   </div>
                 </div>
@@ -213,7 +214,7 @@ export function FreelancerProfileModal({ userId, getToken, onClose }: Props) {
               </div>
 
               {/* Stats Row */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
                 <div style={{ background: "var(--input-bg)", border: "1px solid var(--border-color)", padding: 16, borderRadius: 12, textAlign: "center" }}>
                   <div style={{ color: "var(--text-muted)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Past Gigs</div>
                   <div style={{ fontSize: 24, fontWeight: 800 }}>{data.stats.pastGigCount}</div>

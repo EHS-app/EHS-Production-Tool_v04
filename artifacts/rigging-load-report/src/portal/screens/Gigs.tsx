@@ -933,7 +933,7 @@ function GigEditor({
             />
           </Field>
 
-          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
             <Field theme={theme} label={t("portal.gigs.editor.client")}>
               <input
                 type="text"
@@ -964,7 +964,7 @@ function GigEditor({
             />
           </Field>
 
-          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
             <Field theme={theme} label={t("portal.gigs.editor.startDate")}>
               <input
                 type="date"
@@ -993,7 +993,7 @@ function GigEditor({
             t={t}
           />
 
-          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr 1fr" }}>
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))" }}>
             <Field theme={theme} label={t("portal.gigs.editor.hours")}>
               <input
                 type="number"

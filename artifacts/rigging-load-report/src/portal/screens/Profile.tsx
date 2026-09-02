@@ -258,7 +258,7 @@ export function Profile({
       </header>
 
       <Section theme={theme} title={t("portal.profile.section.personal")}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 18 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16, marginBottom: 18 }}>
           <ProfileAvatar
             name={draft.fullName}
             photoObjectPath={draft.photoObjectPath}

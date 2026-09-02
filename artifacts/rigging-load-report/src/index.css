@@ -1499,19 +1499,23 @@ body {
 }
 
 select,
-input {
+input,
+textarea {
   padding: 9px 10px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 13px;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   background: var(--input-bg);
   color: var(--text-main);
   font-family: inherit;
   outline: none;
 }
 select:focus,
-input:focus {
+input:focus,
+textarea:focus {
   border-color: var(--primary);
 }
 
@@ -8007,7 +8011,7 @@ html[data-shell="linear"] .container {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   min-width: 0;
 }
 .ehs-shell-crumb-link {
@@ -10278,6 +10282,8 @@ html[data-shell="linear"] .container {
 }
 .ehs-search-input {
   display: flex;
+  flex: 1 1 320px;
+  min-width: min(100%, 240px);
   align-items: center;
   gap: 8px;
   background: var(--input-bg);
@@ -10285,7 +10291,10 @@ html[data-shell="linear"] .container {
   padding: 8px 12px;
   border-radius: 8px;
   width: 100%;
-  max-width: 320px;
+  max-width: 460px;
+}
+.ehs-search-input > svg {
+  flex-shrink: 0;
 }
 .ehs-search-input input {
   border: none;

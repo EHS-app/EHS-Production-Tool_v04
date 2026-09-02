@@ -99,8 +99,8 @@ export function SettingsPage() {
   }
 
   return (
-    <div style={{ padding: "0 16px 40px", maxWidth: 900, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 32, flexWrap: "wrap", gap: 16 }}>
+    <div style={{ padding: "24px 16px 40px", maxWidth: 900, margin: "0 auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32, flexWrap: "wrap", gap: 16 }}>
         <div>
           <h1 style={{ fontSize: "2rem", fontWeight: 300, margin: "0 0 8px 0", color: "var(--text-main)" }}>{t("settings.title", { default: "System Settings" })}</h1>
           <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", margin: 0 }}>{t("settings.subtitle", { default: "Manage organization defaults and global configuration." })}</p>

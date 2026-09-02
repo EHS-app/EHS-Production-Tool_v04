@@ -253,7 +253,7 @@ export function VenuesDatabasePage({ getToken }: Props) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottom: "1px solid var(--border-color)", paddingBottom: 8 }}>
             <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{title}</h3>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: 24 }}>
             {Object.entries(labels).map(([key, label]) => (
               <div key={key} style={{ marginBottom: 16 }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</label>
@@ -354,7 +354,7 @@ export function VenuesDatabasePage({ getToken }: Props) {
 
         <div style={{ background: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: 12, padding: 24 }}>
           {activeTab === "general" && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: 24 }}>
               <div>
                 <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16, borderBottom: "1px solid var(--border-color)", paddingBottom: 8 }}>Venue Details</h3>
                 <Input label="Venue Name" field="name" />
@@ -498,9 +498,9 @@ export function VenuesDatabasePage({ getToken }: Props) {
                 {filtered.map(v => (
                   <tr key={v.id} className="is-clickable" onClick={() => openVenue(v)}>
                     <td style={{ fontWeight: 600 }}>{v.name || "Untitled"}</td>
-                    <td>{v.address || "—"}</td>
-                    <td>{v.technicalContactName || "—"}</td>
-                    <td>{v.technicalContactPhone || "—"}</td>
+                    <td style={{ maxWidth: 250, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v.address || "—"}</td>
+                    <td style={{ maxWidth: 200, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v.technicalContactName || "—"}</td>
+                    <td style={{ whiteSpace: "nowrap" }}>{v.technicalContactPhone || "—"}</td>
                     <td style={{ textAlign: "right" }}>
                       <ChevronRight size={16} color="var(--text-muted)" />
                     </td>

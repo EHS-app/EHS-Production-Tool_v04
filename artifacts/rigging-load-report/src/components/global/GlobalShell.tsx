@@ -19,6 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+import ehsLogo from "../../assets/ehs-logo.png";
 
 export type GlobalView =
   | "home"
@@ -88,12 +89,15 @@ export function GlobalShell({
       ) : null}
       <aside className={`ehs-shell-aside${mobileMenuOpen ? " is-open" : ""}`}>
         <div className="ehs-shell-workspace ehs-shell-workspace--stacked">
-          <div className="ehs-shell-workspace-mark" style={{ background: "var(--primary)", color: "#fff" }}>
-            EHS
+          <div className="ehs-shell-workspace-mark">
+            <img
+              src={ehsLogo}
+              alt="EHS Lyd, Lys, Bilder"
+              className="ehs-shell-workspace-logo"
+            />
           </div>
           <div className="ehs-shell-workspace-text">
-            <div className="ehs-shell-workspace-name">Operations Hub</div>
-            <div className="ehs-shell-workspace-sub">Global Production</div>
+            <div className="ehs-shell-workspace-name">Production Tool</div>
           </div>
           <ChevronDown size={14} className="ehs-shell-workspace-chevron" />
         </div>

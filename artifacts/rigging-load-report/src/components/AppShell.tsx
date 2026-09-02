@@ -322,15 +322,12 @@ export function AppShell({
     };
   }, [overflowOpen]);
 
-  // Hide Catering / Hotel rows when no server brief exists yet.
   const groups = buildNavGroups(t).map((g) => ({
     ...g,
     items: g.items
       .map((it) => ({
         ...it,
-        hidden:
-          (it.id === "catering" && !showCatering) ||
-          (it.id === "hotel" && !showHotel),
+        hidden: false,
         badge: badges[it.id] ?? null,
       }))
       .filter((it) => !it.hidden),

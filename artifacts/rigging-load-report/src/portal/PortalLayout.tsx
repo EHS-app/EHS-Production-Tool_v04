@@ -1,4 +1,5 @@
 import React, { type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "wouter";
 import { useClerk } from "@clerk/react";
 import {
@@ -27,13 +28,6 @@ import type { TranslationKey } from "../lib/i18n/types";
 import { LanguageSelector } from "../components/LanguageSelector";
 import { FeedbackDialog } from "../components/FeedbackDialog";
 import { Toaster } from "../components/ui/sonner";
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "../components/ui/sheet";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -411,59 +405,103 @@ export function PortalLayout({
           );
         })}
 
-        <Sheet open={isMoreOpen} onOpenChange={setIsMoreOpen}>
-          <button
-            type="button"
-            className="ehs-portal-bottomnav-item"
-            data-active={!["hub", "gigs", "hours", "profile"].includes(active)}
-            aria-expanded={isMoreOpen}
-            onClick={() => setIsMoreOpen(!isMoreOpen)}
-            style={{ background: "transparent", border: 0, font: "inherit" }}
-          >
-            <span style={{ position: "relative", display: "inline-flex" }}>
-              <MoreHorizontal size={22} strokeWidth={1.75} />
-              {pendingBriefCount > 0 ? (
-                <span className="ehs-portal-bottomnav-badge">
-                  {pendingBriefCount}
-                </span>
-              ) : null}
-            </span>
-            <span>{t("portal.nav.more")}</span>
-          </button>
-          <SheetContent className="z-50" side="bottom" style={{ borderRadius: "16px 16px 0 0", padding: "24px 16px 32px" }}>
-            <SheetHeader style={{ textAlign: "left", marginBottom: 16 }}>
-              <SheetTitle>{t("portal.nav.more")}</SheetTitle>
-            </SheetHeader>
-            <div style={{ display: "grid", gap: 12 }}>
-              {allItems
-                .filter((i) => !["hub", "gigs", "hours", "profile", "help"].includes(i.key))
-                .map((item) => {
-                  const Icon = item.icon;
-                  const isActive = active === item.key;
-                  const showBadge = item.key === "briefs" && pendingBriefCount > 0;
-                  return (
-                    <SheetClose asChild key={item.key}>
-                      <Link
-                        href={item.href}
-                        className={`ehs-shell-nav-item${isActive ? " is-active" : ""}`}
-                      >
-                        <Icon size={18} strokeWidth={1.75} />
-                        <span style={{ flex: 1, textAlign: "left", fontSize: 16 }}>
-                          {t(item.labelKey)}
-                        </span>
-                        {showBadge ? (
-                          <span className="ehs-shell-nav-badge">
-                            {pendingBriefCount}
-                          </span>
-                        ) : null}
-                      </Link>
-                    </SheetClose>
-                  );
-                })}
-            </div>
-          </SheetContent>
-        </Sheet>
+        <button
+          type="button"
+          className="ehs-portal-bottomnav-item pointer-events-auto cursor-pointer"
+          data-active={!["hub", "gigs", "hours", "profile"].includes(active)}
+          aria-expanded={isMoreOpen}
+          aria-controls="portal-more-drawer"
+          onClick={() => setIsMoreOpen((open) => !open)}
+          style={{
+            background: "transparent",
+            border: 0,
+            font: "inherit",
+            pointerEvents: "auto",
+            cursor: "pointer",
+          }}
+        >
+          <span style={{ position: "relative", display: "inline-flex" }}>
+            <MoreHorizontal size={22} strokeWidth={1.75} />
+            {pendingBriefCount > 0 ? (
+              <span className="ehs-portal-bottomnav-badge">
+                {pendingBriefCount}
+              </span>
+            ) : null}
+          </span>
+          <span>{t("portal.nav.more")}</span>
+        </button>
       </nav>
+
+      {isMoreOpen && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-50 bg-black/60"
+              role="presentation"
+              onClick={() => setIsMoreOpen(false)}
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 50,
+                background: "rgba(0, 0, 0, 0.6)",
+                pointerEvents: "auto",
+              }}
+            >
+              <section
+                id="portal-more-drawer"
+                role="dialog"
+                aria-modal="true"
+                aria-label={t("portal.nav.more")}
+                className="fixed bottom-0 left-0 right-0 z-50"
+                onClick={(event) => event.stopPropagation()}
+                style={{
+                  position: "fixed",
+                  right: 0,
+                  bottom: 0,
+                  left: 0,
+                  zIndex: 51,
+                  borderRadius: "16px 16px 0 0",
+                  padding: "24px 16px 32px",
+                  background: "var(--surface, #fff)",
+                  color: "var(--text-main, #0f172a)",
+                  boxShadow: "0 -12px 36px rgba(0, 0, 0, 0.24)",
+                }}
+              >
+                <h2 style={{ margin: "0 0 16px", fontSize: 18 }}>
+                  {t("portal.nav.more")}
+                </h2>
+                <div style={{ display: "grid", gap: 12 }}>
+                  {(["briefs", "availability", "earnings", "runs", "tasks"] as const)
+                    .map((key) => allItems.find((item) => item.key === key))
+                    .filter((item): item is NavItem => Boolean(item))
+                    .map((item) => {
+                      const Icon = item.icon;
+                      const isActive = active === item.key;
+                      const showBadge = item.key === "briefs" && pendingBriefCount > 0;
+                      return (
+                        <Link
+                          key={item.key}
+                          href={item.href}
+                          className={`ehs-shell-nav-item${isActive ? " is-active" : ""}`}
+                          onClick={() => setIsMoreOpen(false)}
+                        >
+                          <Icon size={18} strokeWidth={1.75} />
+                          <span style={{ flex: 1, textAlign: "left", fontSize: 16 }}>
+                            {t(item.labelKey)}
+                          </span>
+                          {showBadge ? (
+                            <span className="ehs-shell-nav-badge">
+                              {pendingBriefCount}
+                            </span>
+                          ) : null}
+                        </Link>
+                      );
+                    })}
+                </div>
+              </section>
+            </div>,
+            document.body,
+          )
+        : null}
 
       <style>{`
         @media (max-width: 899px) {

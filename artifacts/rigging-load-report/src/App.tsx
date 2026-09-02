@@ -59,6 +59,7 @@ import { ProjectsDatabasePage } from "./components/global/ProjectsDatabasePage";
 import { CrewDirectoryPage } from "./components/global/CrewDirectoryPage";
 import { MasterCalendarPage } from "./components/global/MasterCalendarPage";
 import { GlobalPlaceholderPage } from "./components/global/GlobalPlaceholderPage";
+import { GlobalTaskBoard } from "./components/global/GlobalTaskBoard";
 import { TransportDashboard } from "./components/global/TransportDashboard";
 import { FolderOpen as ShellFolderOpen, Copy as ShellCopy } from "lucide-react";
 import { useI18n } from "./lib/i18n/I18nContext";
@@ -5916,6 +5917,16 @@ function App() {
             />
           ) : globalView === "transport" ? (
             <TransportDashboard
+              getToken={getToken}
+              onOpenProject={(id) => {
+                void loadProject(id).then(() => {
+                  setGlobalView(null);
+                  navigate(`/project/${id}`);
+                });
+              }}
+            />
+          ) : globalView === "tasks" ? (
+            <GlobalTaskBoard
               getToken={getToken}
               onOpenProject={(id) => {
                 void loadProject(id).then(() => {

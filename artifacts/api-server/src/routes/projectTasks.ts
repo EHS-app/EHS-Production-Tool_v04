@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { asc, eq, sql } from "drizzle-orm";
-import { db, projectTasksTable } from "@workspace/db";
+import { db, freelancerProfilesTable, projectTasksTable } from "@workspace/db";
 import {
   getProjectAccess,
   isProjectWriter,
@@ -16,6 +16,15 @@ const TASK_STATUSES = [
   "Done",
 ] as const;
 const TASK_PRIORITIES = ["Low", "Medium", "High", "Urgent"] as const;
+const TASK_DEPARTMENTS = [
+  "Rigging",
+  "Lights",
+  "LED",
+  "Sound",
+  "Stage",
+  "Inspection",
+  "Logistics",
+] as const;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function userIdFor(req: unknown): string {
@@ -140,6 +149,13 @@ router.patch("/projects/tasks/:id", async (req, res): Promise<void> => {
     }
     updates.priority = req.body.priority;
   }
+  if (req.body?.department !== undefined) {
+    if (!TASK_DEPARTMENTS.includes(req.body.department)) {
+      res.status(400).json({ ok: false, error: "Invalid task department." });
+      return;
+    }
+    updates.department = req.body.department;
+  }
   if (req.body?.dueDate !== undefined) {
     if (
       req.body.dueDate !== null &&
@@ -157,6 +173,32 @@ router.patch("/projects/tasks/:id", async (req, res): Promise<void> => {
       return;
     }
     updates.assignedTo = req.body.assignedTo.trim().slice(0, 200);
+  }
+  if (req.body?.assignedUserId !== undefined) {
+    if (
+      req.body.assignedUserId !== null &&
+      (typeof req.body.assignedUserId !== "string" ||
+        req.body.assignedUserId.length > 200)
+    ) {
+      res.status(400).json({ ok: false, error: "Invalid assignee." });
+      return;
+    }
+    if (req.body.assignedUserId) {
+      const [crewMember] = await db
+        .select({ userId: freelancerProfilesTable.userId, fullName: freelancerProfilesTable.fullName })
+        .from(freelancerProfilesTable)
+        .where(eq(freelancerProfilesTable.userId, req.body.assignedUserId))
+        .limit(1);
+      if (!crewMember) {
+        res.status(400).json({ ok: false, error: "Assignee is not in the Global Crew Directory." });
+        return;
+      }
+      updates.assignedUserId = crewMember.userId;
+      updates.assignedTo = crewMember.fullName;
+    } else {
+      updates.assignedUserId = null;
+      updates.assignedTo = "";
+    }
   }
   if (req.body?.description !== undefined) {
     if (typeof req.body.description !== "string") {

@@ -10,9 +10,24 @@ export const TASK_STATUSES = [
   "Done",
 ] as const;
 export const TASK_PRIORITIES = ["Low", "Medium", "High", "Urgent"] as const;
+export const TASK_DEPARTMENTS = [
+  "Rigging",
+  "Lights",
+  "LED",
+  "Sound",
+  "Stage",
+  "Inspection",
+  "Logistics",
+] as const;
 
 export type ProjectTaskStatus = (typeof TASK_STATUSES)[number];
 export type ProjectTaskPriority = (typeof TASK_PRIORITIES)[number];
+export type ProjectTaskDepartment = (typeof TASK_DEPARTMENTS)[number];
+export type TaskCrewMember = {
+  userId: string;
+  fullName: string;
+  primaryRole: string;
+};
 
 export type ProjectTask = {
   id: string;
@@ -20,8 +35,10 @@ export type ProjectTask = {
   title: string;
   status: ProjectTaskStatus;
   priority: ProjectTaskPriority;
+  department: ProjectTaskDepartment;
   dueDate: string | null;
   assignedTo: string;
+  assignedUserId: string | null;
   description: string;
   createdAt: string;
   updatedAt: string;
@@ -30,13 +47,14 @@ export type ProjectTask = {
 export type TaskUpdate = Partial<
   Pick<
     ProjectTask,
-    "title" | "status" | "priority" | "dueDate" | "assignedTo" | "description"
+    "title" | "status" | "priority" | "department" | "dueDate" | "assignedTo" | "assignedUserId" | "description"
   >
 >;
 
 export function useProjectTasks(projectId: string | null) {
   const { getToken } = useAuth();
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
+  const [crew, setCrew] = useState<TaskCrewMember[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
@@ -82,7 +100,30 @@ export function useProjectTasks(projectId: string | null) {
 
   useEffect(() => {
     void refetch();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refetch();
+    }, 15_000);
+    const onFocus = () => void refetch();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [refetch]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void request("/api/portal/freelancers")
+      .then((json) => {
+        if (!cancelled) setCrew(json.freelancers ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setCrew([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [request]);
 
   const createTask = useCallback(
     async (title: string) => {
@@ -147,6 +188,7 @@ export function useProjectTasks(projectId: string | null) {
 
   return {
     tasks,
+    crew,
     isLoading,
     error,
     pendingIds,

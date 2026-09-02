@@ -9,6 +9,7 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { projectsTable } from "./projects";
+import { freelancerProfilesTable } from "./freelancerProfiles";
 
 export const projectTasksTable = pgTable(
   "project_tasks",
@@ -20,8 +21,13 @@ export const projectTasksTable = pgTable(
     title: text("title").notNull(),
     status: text("status").notNull().default("Not Started"),
     priority: text("priority").notNull().default("Medium"),
+    department: text("department").notNull().default("Logistics"),
     dueDate: date("due_date", { mode: "string" }),
     assignedTo: text("assigned_to").notNull().default(""),
+    assignedUserId: text("assigned_user_id").references(
+      () => freelancerProfilesTable.userId,
+      { onDelete: "set null" },
+    ),
     description: text("description").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -33,6 +39,8 @@ export const projectTasksTable = pgTable(
   (table) => [
     index("project_tasks_project_id_idx").on(table.projectId),
     index("project_tasks_status_idx").on(table.status),
+    index("project_tasks_department_idx").on(table.department),
+    index("project_tasks_assigned_user_idx").on(table.assignedUserId),
   ],
 );
 

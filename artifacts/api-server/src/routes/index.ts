@@ -17,6 +17,7 @@ import projectTasksRouter from "./projectTasks";
 import projectMembersRouter from "./projectMembers";
 import projectMessagesRouter from "./projectMessages";
 import transportRouter from "./transport";
+import globalTasksRouter from "./globalTasks";
 import { requireEmployee } from "../middleware/userType";
 
 const router: IRouter = Router();
@@ -45,6 +46,8 @@ router.use(projectMessagesRouter);
 router.use(projectsRouter);
 router.use("/transport", requireEmployee);
 router.use(transportRouter);
+router.use("/tasks", requireEmployee);
+router.use(globalTasksRouter);
 router.use("/inspection", requireEmployee);
 router.use(inspectionExtractRouter);
 

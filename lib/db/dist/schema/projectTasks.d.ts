@@ -88,6 +88,23 @@ export declare const projectTasksTable: import("drizzle-orm/pg-core").PgTableWit
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        department: import("drizzle-orm/pg-core").PgColumn<{
+            name: "department";
+            tableName: "project_tasks";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         dueDate: import("drizzle-orm/pg-core").PgColumn<{
             name: "due_date";
             tableName: "project_tasks";
@@ -114,6 +131,23 @@ export declare const projectTasksTable: import("drizzle-orm/pg-core").PgTableWit
             driverParam: string;
             notNull: true;
             hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        assignedUserId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "assigned_user_id";
+            tableName: "project_tasks";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
             isPrimaryKey: false;
             isAutoincrement: false;
             hasRuntimeDefault: false;
@@ -181,8 +215,10 @@ export declare const insertProjectTaskSchema: z.ZodObject<{
     title: z.ZodString;
     status: z.ZodOptional<z.ZodString>;
     priority: z.ZodOptional<z.ZodString>;
+    department: z.ZodOptional<z.ZodString>;
     dueDate: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     assignedTo: z.ZodOptional<z.ZodString>;
+    assignedUserId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     description: z.ZodOptional<z.ZodString>;
 }, {
     out: {};

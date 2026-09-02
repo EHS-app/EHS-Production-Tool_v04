@@ -1,5 +1,5 @@
 import React, { useState, useRef, KeyboardEvent } from "react";
-import { useProjectTasks, TASK_STATUSES, TASK_PRIORITIES, type ProjectTask, type ProjectTaskStatus, type ProjectTaskPriority, type TaskUpdate } from "../hooks/use-project-tasks";
+import { useProjectTasks, TASK_STATUSES, TASK_PRIORITIES, TASK_DEPARTMENTS, type ProjectTask, type ProjectTaskStatus, type ProjectTaskPriority, type ProjectTaskDepartment, type TaskUpdate } from "../hooks/use-project-tasks";
 import { useT } from "../lib/i18n/I18nContext";
 import { Plus, Trash2, Calendar, User, MessageSquare, AlertCircle, RefreshCw, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -27,7 +27,7 @@ interface Props {
 }
 
 export function ProjectTaskBoard({ projectId }: Props) {
-  const { tasks, isLoading, error, pendingIds, createTask, updateTask, deleteTask, refetch } = useProjectTasks(projectId);
+  const { tasks, crew, isLoading, error, pendingIds, createTask, updateTask, deleteTask, refetch } = useProjectTasks(projectId);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -194,15 +194,19 @@ export function ProjectTaskBoard({ projectId }: Props) {
                         </select>
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
-                        <input 
-                          key={`${task.id}:${task.assignedTo}`}
-                          type="text" 
-                          className="task-input-inline" 
-                          defaultValue={task.assignedTo || ""} 
-                          placeholder="Unassigned"
-                          onBlur={(e) => safeUpdateTask(task.id, { assignedTo: e.target.value })}
+                        <select
+                          className="task-select"
+                          value={task.assignedUserId || ""}
+                          onChange={(e) => safeUpdateTask(task.id, { assignedUserId: e.target.value || null })}
                           disabled={isPending}
-                        />
+                        >
+                          <option value="">Unassigned</option>
+                          {crew.map((member) => (
+                            <option key={member.userId} value={member.userId}>
+                              {member.fullName}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
                         <input 
@@ -322,26 +326,50 @@ export function ProjectTaskBoard({ projectId }: Props) {
                     {TASK_PRIORITIES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
+                <div className="task-form-group">
+                  <label>Department</label>
+                  <select
+                    className="task-sidebar-select"
+                    value={selectedTask.department}
+                    disabled={selectedTaskPending}
+                    onChange={(e) => {
+                      const department = e.target.value as ProjectTaskDepartment;
+                      setSelectedTask({ ...selectedTask, department });
+                      safeUpdateTask(selectedTask.id, { department });
+                    }}
+                  >
+                    {TASK_DEPARTMENTS.map((department) => (
+                      <option key={department} value={department}>
+                        {department}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="task-form-group">
                 <label>Assignee</label>
                 <div className="task-input-with-icon">
                   <User size={14} className="input-icon" />
-                  <input 
-                    type="text" 
-                    value={selectedTask.assignedTo || ""} 
-                    placeholder="Unassigned"
-                    className="task-sidebar-input"
+                   <select
+                     value={selectedTask.assignedUserId || ""}
+                     className="task-sidebar-input"
                      disabled={selectedTaskPending}
-                    onChange={(e) => setSelectedTask({...selectedTask, assignedTo: e.target.value})}
-                     onBlur={(e) => {
-                       const confirmed = tasks.find(t => t.id === selectedTask.id);
-                       if (e.target.value !== confirmed?.assignedTo) {
-                         safeUpdateTask(selectedTask.id, { assignedTo: e.target.value });
-                       }
+                     onChange={(e) => {
+                       const assignedUserId = e.target.value || null;
+                       const assignedTo =
+                         crew.find((member) => member.userId === assignedUserId)?.fullName ?? "";
+                       setSelectedTask({ ...selectedTask, assignedUserId, assignedTo });
+                       safeUpdateTask(selectedTask.id, { assignedUserId });
                      }}
-                  />
+                   >
+                     <option value="">Unassigned</option>
+                     {crew.map((member) => (
+                       <option key={member.userId} value={member.userId}>
+                         {member.fullName} {member.primaryRole ? `— ${member.primaryRole}` : ""}
+                       </option>
+                     ))}
+                   </select>
                 </div>
               </div>
 

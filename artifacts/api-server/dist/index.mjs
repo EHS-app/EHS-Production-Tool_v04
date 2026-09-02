@@ -20488,27 +20488,27 @@ var require_router = __commonJS({
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module.exports = Router20;
+    module.exports = Router21;
     module.exports.Route = Route;
-    function Router20(options) {
-      if (!(this instanceof Router20)) {
-        return new Router20(options);
+    function Router21(options) {
+      if (!(this instanceof Router21)) {
+        return new Router21(options);
       }
       const opts = options || {};
-      function router20(req, res, next) {
-        router20.handle(req, res, next);
+      function router21(req, res, next) {
+        router21.handle(req, res, next);
       }
-      Object.setPrototypeOf(router20, this);
-      router20.caseSensitive = opts.caseSensitive;
-      router20.mergeParams = opts.mergeParams;
-      router20.params = {};
-      router20.strict = opts.strict;
-      router20.stack = [];
-      return router20;
+      Object.setPrototypeOf(router21, this);
+      router21.caseSensitive = opts.caseSensitive;
+      router21.mergeParams = opts.mergeParams;
+      router21.params = {};
+      router21.strict = opts.strict;
+      router21.stack = [];
+      return router21;
     }
-    Router20.prototype = function() {
+    Router21.prototype = function() {
     };
-    Router20.prototype.param = function param4(name, fn) {
+    Router21.prototype.param = function param4(name, fn) {
       if (!name) {
         throw new TypeError("argument name is required");
       }
@@ -20528,7 +20528,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router20.prototype.handle = function handle(req, res, callback) {
+    Router21.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -20655,7 +20655,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router20.prototype.use = function use(handler) {
+    Router21.prototype.use = function use(handler) {
       let offset = 0;
       let path2 = "/";
       if (typeof handler !== "function") {
@@ -20688,7 +20688,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router20.prototype.route = function route(path2) {
+    Router21.prototype.route = function route(path2) {
       const route2 = new Route(path2);
       const layer = new Layer(path2, {
         sensitive: this.caseSensitive,
@@ -20703,7 +20703,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router20.prototype[method] = function(path2) {
+      Router21.prototype[method] = function(path2) {
         const route = this.route(path2);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
@@ -20886,13 +20886,13 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = __require("node:path").resolve;
     var once = require_once();
-    var Router20 = require_router();
+    var Router21 = require_router();
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app2 = exports = module.exports = {};
     var trustProxyDefaultSymbol = "@@symbol:trust_proxy_default";
     app2.init = function init() {
-      var router20 = null;
+      var router21 = null;
       this.cache = /* @__PURE__ */ Object.create(null);
       this.engines = /* @__PURE__ */ Object.create(null);
       this.settings = /* @__PURE__ */ Object.create(null);
@@ -20901,13 +20901,13 @@ var require_application = __commonJS({
         configurable: true,
         enumerable: true,
         get: function getrouter() {
-          if (router20 === null) {
-            router20 = new Router20({
+          if (router21 === null) {
+            router21 = new Router21({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
           }
-          return router20;
+          return router21;
         }
       });
     };
@@ -20978,15 +20978,15 @@ var require_application = __commonJS({
       if (fns.length === 0) {
         throw new TypeError("app.use() requires a middleware function");
       }
-      var router20 = this.router;
+      var router21 = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router20.use(path2, fn2);
+          return router21.use(path2, fn2);
         }
         debug(".use app under %s", path2);
         fn2.mountpath = path2;
         fn2.parent = this;
-        router20.use(path2, function mounted_app(req, res, next) {
+        router21.use(path2, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -23513,7 +23513,7 @@ var require_express = __commonJS({
     var EventEmitter = __require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router20 = require_router();
+    var Router21 = require_router();
     var req = require_request();
     var res = require_response();
     exports = module.exports = createApplication;
@@ -23535,8 +23535,8 @@ var require_express = __commonJS({
     exports.application = proto;
     exports.request = req;
     exports.response = res;
-    exports.Route = Router20.Route;
-    exports.Router = Router20;
+    exports.Route = Router21.Route;
+    exports.Router = Router21;
     exports.json = bodyParser.json;
     exports.raw = bodyParser.raw;
     exports.static = require_serve_static();
@@ -33123,11 +33123,11 @@ var require_router2 = __commonJS({
     var debug = debug_1.Debug.extend("router");
     async function getTarget(req, config3) {
       let newTarget;
-      const router20 = config3.router;
-      if ((0, is_plain_object_1.isPlainObject)(router20)) {
-        newTarget = getTargetFromProxyTable(req, router20);
-      } else if (typeof router20 === "function") {
-        newTarget = await router20(req);
+      const router21 = config3.router;
+      if ((0, is_plain_object_1.isPlainObject)(router21)) {
+        newTarget = getTargetFromProxyTable(req, router21);
+      } else if (typeof router21 === "function") {
+        newTarget = await router21(req);
       }
       return newTarget;
     }
@@ -33170,7 +33170,7 @@ var require_http_proxy_middleware = __commonJS({
     var get_plugins_1 = require_get_plugins();
     var path_filter_1 = require_path_filter();
     var PathRewriter = require_path_rewriter();
-    var Router20 = require_router2();
+    var Router21 = require_router2();
     var debug_1 = require_debug2();
     var function_1 = require_function();
     var logger_1 = require_logger2();
@@ -33241,7 +33241,7 @@ var require_http_proxy_middleware = __commonJS({
         this.applyRouter = async (req, options2) => {
           let newTarget;
           if (options2.router) {
-            newTarget = await Router20.getTarget(req, options2);
+            newTarget = await Router21.getTarget(req, options2);
             if (newTarget) {
               (0, debug_1.Debug)('router new target: "%s"', newTarget);
               options2.target = newTarget;
@@ -39055,7 +39055,7 @@ var init_calendarCrypto = __esm({
 });
 
 // src/app.ts
-var import_express26 = __toESM(require_express2(), 1);
+var import_express27 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 
@@ -47229,7 +47229,7 @@ function clerkProxyMiddleware() {
 }
 
 // src/routes/index.ts
-var import_express25 = __toESM(require_express2(), 1);
+var import_express26 = __toESM(require_express2(), 1);
 
 // src/routes/health.ts
 var import_express = __toESM(require_express2(), 1);
@@ -74684,15 +74684,22 @@ var projectTasksTable = pgTable(
     title: text("title").notNull(),
     status: text("status").notNull().default("Not Started"),
     priority: text("priority").notNull().default("Medium"),
+    department: text("department").notNull().default("Logistics"),
     dueDate: date("due_date", { mode: "string" }),
     assignedTo: text("assigned_to").notNull().default(""),
+    assignedUserId: text("assigned_user_id").references(
+      () => freelancerProfilesTable.userId,
+      { onDelete: "set null" }
+    ),
     description: text("description").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => [
     index("project_tasks_project_id_idx").on(table.projectId),
-    index("project_tasks_status_idx").on(table.status)
+    index("project_tasks_status_idx").on(table.status),
+    index("project_tasks_department_idx").on(table.department),
+    index("project_tasks_assigned_user_idx").on(table.assignedUserId)
   ]
 );
 var insertProjectTaskSchema = createInsertSchema(
@@ -81549,6 +81556,15 @@ var TASK_STATUSES = [
   "Done"
 ];
 var TASK_PRIORITIES = ["Low", "Medium", "High", "Urgent"];
+var TASK_DEPARTMENTS = [
+  "Rigging",
+  "Lights",
+  "LED",
+  "Sound",
+  "Stage",
+  "Inspection",
+  "Logistics"
+];
 var DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 function userIdFor(req) {
   return req._userId;
@@ -81649,6 +81665,13 @@ router15.patch("/projects/tasks/:id", async (req, res) => {
     }
     updates.priority = req.body.priority;
   }
+  if (req.body?.department !== void 0) {
+    if (!TASK_DEPARTMENTS.includes(req.body.department)) {
+      res.status(400).json({ ok: false, error: "Invalid task department." });
+      return;
+    }
+    updates.department = req.body.department;
+  }
   if (req.body?.dueDate !== void 0) {
     if (req.body.dueDate !== null && (typeof req.body.dueDate !== "string" || !DATE_PATTERN.test(req.body.dueDate))) {
       res.status(400).json({ ok: false, error: "Invalid due date." });
@@ -81662,6 +81685,24 @@ router15.patch("/projects/tasks/:id", async (req, res) => {
       return;
     }
     updates.assignedTo = req.body.assignedTo.trim().slice(0, 200);
+  }
+  if (req.body?.assignedUserId !== void 0) {
+    if (req.body.assignedUserId !== null && (typeof req.body.assignedUserId !== "string" || req.body.assignedUserId.length > 200)) {
+      res.status(400).json({ ok: false, error: "Invalid assignee." });
+      return;
+    }
+    if (req.body.assignedUserId) {
+      const [crewMember] = await db.select({ userId: freelancerProfilesTable.userId, fullName: freelancerProfilesTable.fullName }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, req.body.assignedUserId)).limit(1);
+      if (!crewMember) {
+        res.status(400).json({ ok: false, error: "Assignee is not in the Global Crew Directory." });
+        return;
+      }
+      updates.assignedUserId = crewMember.userId;
+      updates.assignedTo = crewMember.fullName;
+    } else {
+      updates.assignedUserId = null;
+      updates.assignedTo = "";
+    }
   }
   if (req.body?.description !== void 0) {
     if (typeof req.body.description !== "string") {
@@ -82254,35 +82295,156 @@ router18.patch("/transport/runs/:id", async (req, res) => {
 });
 var transport_default = router18;
 
-// src/routes/index.ts
+// src/routes/globalTasks.ts
+var import_express25 = __toESM(require_express2(), 1);
 var router19 = (0, import_express25.Router)();
-router19.use(health_default);
-router19.use(devAutoSignIn_default);
-router19.use("/rigplan", requireEmployee);
-router19.use(rigplanAnalyze_default);
-router19.use(venueMemory_default);
-router19.use("/storage", requireEmployee);
-router19.use(storage_default);
-router19.use("/projects", requireEmployee);
-router19.use(projectTasks_default);
-router19.use(projectMembers_default);
-router19.use(projectMessages_default);
-router19.use(projects_default);
-router19.use("/transport", requireEmployee);
-router19.use(transport_default);
-router19.use("/inspection", requireEmployee);
-router19.use(inspectionExtract_default);
-router19.use(admin_default);
-router19.use(feedback_default);
-router19.use(portalProfile_default);
-router19.use(portalBriefs_default);
-router19.use(portalGigs_default);
-router19.use(portalTimeEntries_default);
-router19.use(portalCalendar_default);
-var routes_default = router19;
+var STATUSES = ["Not Started", "Working on it", "Stuck", "Done"];
+var PRIORITIES = ["Low", "Medium", "High", "Urgent"];
+var DEPARTMENTS = [
+  "Rigging",
+  "Lights",
+  "LED",
+  "Sound",
+  "Stage",
+  "Inspection",
+  "Logistics"
+];
+var DATE_PATTERN2 = /^\d{4}-\d{2}-\d{2}$/;
+function optionalEnum(raw, values, fallback) {
+  const value = raw == null ? fallback : raw;
+  return typeof value === "string" && values.includes(value) ? value : null;
+}
+router19.get("/tasks", async (req, res) => {
+  const userId = req._userId;
+  try {
+    const tasks = await db.select({
+      id: projectTasksTable.id,
+      projectId: projectTasksTable.projectId,
+      projectName: projectsTable.name,
+      title: projectTasksTable.title,
+      status: projectTasksTable.status,
+      priority: projectTasksTable.priority,
+      department: projectTasksTable.department,
+      dueDate: projectTasksTable.dueDate,
+      assignedTo: projectTasksTable.assignedTo,
+      assignedUserId: projectTasksTable.assignedUserId,
+      assignedCrewName: freelancerProfilesTable.fullName,
+      description: projectTasksTable.description,
+      createdAt: projectTasksTable.createdAt,
+      updatedAt: projectTasksTable.updatedAt,
+      accessRole: sql`case when ${projectsTable.userId} = ${userId} then 'owner' else ${projectMembersTable.role} end`
+    }).from(projectTasksTable).innerJoin(projectsTable, eq(projectTasksTable.projectId, projectsTable.id)).leftJoin(
+      projectMembersTable,
+      and(
+        eq(projectMembersTable.projectId, projectsTable.id),
+        eq(projectMembersTable.userId, userId)
+      )
+    ).leftJoin(
+      freelancerProfilesTable,
+      eq(projectTasksTable.assignedUserId, freelancerProfilesTable.userId)
+    ).where(
+      and(
+        isNotNull(sql`nullif(${projectsTable.data}->>'activeBriefId', '')`),
+        or(
+          eq(projectsTable.userId, userId),
+          eq(projectMembersTable.userId, userId)
+        )
+      )
+    ).orderBy(asc(projectTasksTable.createdAt));
+    res.json({ ok: true, tasks });
+  } catch (error40) {
+    req.log.error({ error: error40 }, "Failed to list global tasks");
+    res.status(500).json({ ok: false, error: "Failed to list global tasks." });
+  }
+});
+router19.post("/tasks", async (req, res) => {
+  const userId = req._userId;
+  const body = req.body ?? {};
+  const projectId = typeof body.projectId === "string" ? body.projectId : "";
+  const title = typeof body.title === "string" ? body.title.trim().slice(0, 300) : "";
+  const status = optionalEnum(body.status, STATUSES, "Not Started");
+  const priority = optionalEnum(body.priority, PRIORITIES, "Medium");
+  const department = optionalEnum(body.department, DEPARTMENTS, "Logistics");
+  const dueDate = body.dueDate === null || body.dueDate === "" ? null : typeof body.dueDate === "string" && DATE_PATTERN2.test(body.dueDate) ? body.dueDate : void 0;
+  const assignedUserId = body.assignedUserId === null || body.assignedUserId === "" ? null : typeof body.assignedUserId === "string" && body.assignedUserId.length <= 200 ? body.assignedUserId : void 0;
+  if (!UUID_PATTERN.test(projectId) || !title || !status || !priority || !department || dueDate === void 0 || assignedUserId === void 0) {
+    res.status(400).json({ ok: false, error: "Invalid task details." });
+    return;
+  }
+  try {
+    const accessRole = await getProjectAccess(projectId, userId);
+    if (!accessRole) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    if (!isProjectWriter(accessRole)) {
+      res.status(403).json({ ok: false, error: "Project is read-only." });
+      return;
+    }
+    const [project] = await db.select({ activeBriefId: sql`nullif(${projectsTable.data}->>'activeBriefId', '')` }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
+    if (!project?.activeBriefId) {
+      res.status(400).json({ ok: false, error: "Tasks can only be created for active productions." });
+      return;
+    }
+    let assignedTo = "";
+    if (assignedUserId) {
+      const [crew] = await db.select({ fullName: freelancerProfilesTable.fullName }).from(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, assignedUserId)).limit(1);
+      if (!crew) {
+        res.status(400).json({ ok: false, error: "Assignee is not in the Global Crew Directory." });
+        return;
+      }
+      assignedTo = crew.fullName;
+    }
+    const [task] = await db.insert(projectTasksTable).values({
+      projectId,
+      title,
+      status,
+      priority,
+      department,
+      dueDate,
+      assignedUserId,
+      assignedTo,
+      description: typeof body.description === "string" ? body.description.slice(0, 1e4) : ""
+    }).returning();
+    res.status(201).json({ ok: true, task });
+  } catch (error40) {
+    req.log.error({ error: error40 }, "Failed to create global task");
+    res.status(500).json({ ok: false, error: "Failed to create global task." });
+  }
+});
+var globalTasks_default = router19;
+
+// src/routes/index.ts
+var router20 = (0, import_express26.Router)();
+router20.use(health_default);
+router20.use(devAutoSignIn_default);
+router20.use("/rigplan", requireEmployee);
+router20.use(rigplanAnalyze_default);
+router20.use(venueMemory_default);
+router20.use("/storage", requireEmployee);
+router20.use(storage_default);
+router20.use("/projects", requireEmployee);
+router20.use(projectTasks_default);
+router20.use(projectMembers_default);
+router20.use(projectMessages_default);
+router20.use(projects_default);
+router20.use("/transport", requireEmployee);
+router20.use(transport_default);
+router20.use("/tasks", requireEmployee);
+router20.use(globalTasks_default);
+router20.use("/inspection", requireEmployee);
+router20.use(inspectionExtract_default);
+router20.use(admin_default);
+router20.use(feedback_default);
+router20.use(portalProfile_default);
+router20.use(portalBriefs_default);
+router20.use(portalGigs_default);
+router20.use(portalTimeEntries_default);
+router20.use(portalCalendar_default);
+var routes_default = router20;
 
 // src/app.ts
-var app = (0, import_express26.default)();
+var app = (0, import_express27.default)();
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -82307,12 +82469,12 @@ app.use((0, import_cors.default)());
 var PATHS_WITHOUT_GLOBAL_JSON = /* @__PURE__ */ new Set([
   "/api/rigplan/analyze"
 ]);
-var globalJsonParser = import_express26.default.json({ limit: "256kb" });
+var globalJsonParser = import_express27.default.json({ limit: "256kb" });
 app.use((req, res, next) => {
   if (PATHS_WITHOUT_GLOBAL_JSON.has(req.path)) return next();
   return globalJsonParser(req, res, next);
 });
-app.use(import_express26.default.urlencoded({ extended: true }));
+app.use(import_express27.default.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 app.use("/api", routes_default);
 var app_default = app;

@@ -9,6 +9,7 @@ import type { PortalData } from "../lib/portalStorage";
 type Position = {
   top: number;
   right: number;
+  width: string;
 };
 
 function startOfToday(): number {
@@ -36,7 +37,11 @@ export function ActivityPopover({
 }) {
   const t = useT();
   const [open, setOpen] = React.useState(false);
-  const [position, setPosition] = React.useState<Position>({ top: 56, right: 8 });
+  const [position, setPosition] = React.useState<Position>({
+    top: 56,
+    right: 8,
+    width: "calc(100vw - 16px)",
+  });
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const popoverRef = React.useRef<HTMLDivElement>(null);
 
@@ -69,9 +74,11 @@ export function ActivityPopover({
   const updatePosition = React.useCallback(() => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
+    const mobile = window.innerWidth < 640;
     setPosition({
       top: rect.bottom + 8,
-      right: Math.max(8, window.innerWidth - rect.right),
+      right: mobile ? 8 : Math.max(16, window.innerWidth - rect.right),
+      width: mobile ? "calc(100vw - 16px)" : "320px",
     });
   }, []);
 
@@ -115,13 +122,14 @@ export function ActivityPopover({
             ref={popoverRef}
             role="dialog"
             aria-label={t("portal.activity.title")}
-            className="z-50 bg-white border-slate-200 text-slate-800 shadow-xl dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:shadow-2xl"
+            className="fixed right-2 sm:right-4 z-50 mt-2 w-[calc(100vw-16px)] max-w-sm sm:w-80 rounded-xl bg-white border-slate-200 text-slate-800 shadow-2xl dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
             style={{
               position: "fixed",
               top: position.top,
               right: position.right,
               zIndex: 1000,
-              width: "min(360px, calc(100vw - 16px))",
+              width: position.width,
+              maxWidth: 384,
               maxHeight: "min(620px, calc(100dvh - 80px))",
               overflowY: "auto",
               borderRadius: 14,

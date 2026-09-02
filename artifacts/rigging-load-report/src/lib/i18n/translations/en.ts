@@ -409,6 +409,7 @@ export const en = {
   "shell.nav.stage": "Stage",
   "shell.nav.riggPlan": "Rigg Plan",
   "shell.nav.inspection": "Inspection",
+  "shell.nav.tasks": "Tasks",
   "shell.nav.crew": "Crew",
   "shell.nav.hotel": "Hotel",
   "shell.nav.catering": "Catering",

@@ -5665,14 +5665,14 @@ var require_content_type = __commonJS({
       }
       var string4 = type;
       if (parameters && typeof parameters === "object") {
-        var param;
+        var param2;
         var params = Object.keys(parameters).sort();
         for (var i = 0; i < params.length; i++) {
-          param = params[i];
-          if (!TOKEN_REGEXP.test(param)) {
+          param2 = params[i];
+          if (!TOKEN_REGEXP.test(param2)) {
             throw new TypeError("invalid parameter name");
           }
-          string4 += "; " + param + "=" + qstring(parameters[param]);
+          string4 += "; " + param2 + "=" + qstring(parameters[param2]);
         }
       }
       return string4;
@@ -20488,27 +20488,27 @@ var require_router = __commonJS({
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module.exports = Router16;
+    module.exports = Router17;
     module.exports.Route = Route;
-    function Router16(options) {
-      if (!(this instanceof Router16)) {
-        return new Router16(options);
+    function Router17(options) {
+      if (!(this instanceof Router17)) {
+        return new Router17(options);
       }
       const opts = options || {};
-      function router16(req, res, next) {
-        router16.handle(req, res, next);
+      function router17(req, res, next) {
+        router17.handle(req, res, next);
       }
-      Object.setPrototypeOf(router16, this);
-      router16.caseSensitive = opts.caseSensitive;
-      router16.mergeParams = opts.mergeParams;
-      router16.params = {};
-      router16.strict = opts.strict;
-      router16.stack = [];
-      return router16;
+      Object.setPrototypeOf(router17, this);
+      router17.caseSensitive = opts.caseSensitive;
+      router17.mergeParams = opts.mergeParams;
+      router17.params = {};
+      router17.strict = opts.strict;
+      router17.stack = [];
+      return router17;
     }
-    Router16.prototype = function() {
+    Router17.prototype = function() {
     };
-    Router16.prototype.param = function param(name, fn) {
+    Router17.prototype.param = function param2(name, fn) {
       if (!name) {
         throw new TypeError("argument name is required");
       }
@@ -20528,7 +20528,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router16.prototype.handle = function handle(req, res, callback) {
+    Router17.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -20655,7 +20655,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router16.prototype.use = function use(handler) {
+    Router17.prototype.use = function use(handler) {
       let offset = 0;
       let path2 = "/";
       if (typeof handler !== "function") {
@@ -20688,7 +20688,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router16.prototype.route = function route(path2) {
+    Router17.prototype.route = function route(path2) {
       const route2 = new Route(path2);
       const layer = new Layer(path2, {
         sensitive: this.caseSensitive,
@@ -20703,7 +20703,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router16.prototype[method] = function(path2) {
+      Router17.prototype[method] = function(path2) {
         const route = this.route(path2);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
@@ -20775,7 +20775,7 @@ var require_router = __commonJS({
       let paramVal;
       let paramCallbacks;
       let paramCalled;
-      function param(err) {
+      function param2(err) {
         if (err) {
           return done(err);
         }
@@ -20788,11 +20788,11 @@ var require_router = __commonJS({
         paramCallbacks = params[key2];
         paramCalled = called[key2];
         if (paramVal === void 0 || !paramCallbacks) {
-          return param();
+          return param2();
         }
         if (paramCalled && (paramCalled.match === paramVal || paramCalled.error && paramCalled.error !== "route")) {
           req.params[key2] = paramCalled.value;
-          return param(paramCalled.error);
+          return param2(paramCalled.error);
         }
         called[key2] = paramCalled = {
           error: null,
@@ -20806,10 +20806,10 @@ var require_router = __commonJS({
         paramCalled.value = req.params[key2];
         if (err) {
           paramCalled.error = err;
-          param(err);
+          param2(err);
           return;
         }
-        if (!fn) return param();
+        if (!fn) return param2();
         try {
           const ret = fn(req, res, paramCallback, paramVal, key2);
           if (isPromise(ret)) {
@@ -20824,7 +20824,7 @@ var require_router = __commonJS({
           paramCallback(e);
         }
       }
-      param();
+      param2();
     }
     function restore(fn, obj) {
       const props = new Array(arguments.length - 2);
@@ -20886,13 +20886,13 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = __require("node:path").resolve;
     var once = require_once();
-    var Router16 = require_router();
+    var Router17 = require_router();
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app2 = exports = module.exports = {};
     var trustProxyDefaultSymbol = "@@symbol:trust_proxy_default";
     app2.init = function init() {
-      var router16 = null;
+      var router17 = null;
       this.cache = /* @__PURE__ */ Object.create(null);
       this.engines = /* @__PURE__ */ Object.create(null);
       this.settings = /* @__PURE__ */ Object.create(null);
@@ -20901,13 +20901,13 @@ var require_application = __commonJS({
         configurable: true,
         enumerable: true,
         get: function getrouter() {
-          if (router16 === null) {
-            router16 = new Router16({
+          if (router17 === null) {
+            router17 = new Router17({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
           }
-          return router16;
+          return router17;
         }
       });
     };
@@ -20978,15 +20978,15 @@ var require_application = __commonJS({
       if (fns.length === 0) {
         throw new TypeError("app.use() requires a middleware function");
       }
-      var router16 = this.router;
+      var router17 = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router16.use(path2, fn2);
+          return router17.use(path2, fn2);
         }
         debug(".use app under %s", path2);
         fn2.mountpath = path2;
         fn2.parent = this;
-        router16.use(path2, function mounted_app(req, res, next) {
+        router17.use(path2, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -21009,7 +21009,7 @@ var require_application = __commonJS({
       this.engines[extension] = fn;
       return this;
     };
-    app2.param = function param(name, fn) {
+    app2.param = function param2(name, fn) {
       if (Array.isArray(name)) {
         for (var i = 0; i < name.length; i++) {
           this.param(name[i], fn);
@@ -22089,12 +22089,12 @@ var require_content_disposition = __commonJS({
       }
       var string4 = String(type).toLowerCase();
       if (parameters && typeof parameters === "object") {
-        var param;
+        var param2;
         var params = Object.keys(parameters).sort();
         for (var i = 0; i < params.length; i++) {
-          param = params[i];
-          var val = param.slice(-1) === "*" ? ustring(parameters[param]) : qstring(parameters[param]);
-          string4 += "; " + param + "=" + val;
+          param2 = params[i];
+          var val = param2.slice(-1) === "*" ? ustring(parameters[param2]) : qstring(parameters[param2]);
+          string4 += "; " + param2 + "=" + val;
         }
       }
       return string4;
@@ -23513,7 +23513,7 @@ var require_express = __commonJS({
     var EventEmitter = __require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router16 = require_router();
+    var Router17 = require_router();
     var req = require_request();
     var res = require_response();
     exports = module.exports = createApplication;
@@ -23535,8 +23535,8 @@ var require_express = __commonJS({
     exports.application = proto;
     exports.request = req;
     exports.response = res;
-    exports.Route = Router16.Route;
-    exports.Router = Router16;
+    exports.Route = Router17.Route;
+    exports.Router = Router17;
     exports.json = bodyParser.json;
     exports.raw = bodyParser.raw;
     exports.static = require_serve_static();
@@ -33123,11 +33123,11 @@ var require_router2 = __commonJS({
     var debug = debug_1.Debug.extend("router");
     async function getTarget(req, config3) {
       let newTarget;
-      const router16 = config3.router;
-      if ((0, is_plain_object_1.isPlainObject)(router16)) {
-        newTarget = getTargetFromProxyTable(req, router16);
-      } else if (typeof router16 === "function") {
-        newTarget = await router16(req);
+      const router17 = config3.router;
+      if ((0, is_plain_object_1.isPlainObject)(router17)) {
+        newTarget = getTargetFromProxyTable(req, router17);
+      } else if (typeof router17 === "function") {
+        newTarget = await router17(req);
       }
       return newTarget;
     }
@@ -33170,7 +33170,7 @@ var require_http_proxy_middleware = __commonJS({
     var get_plugins_1 = require_get_plugins();
     var path_filter_1 = require_path_filter();
     var PathRewriter = require_path_rewriter();
-    var Router16 = require_router2();
+    var Router17 = require_router2();
     var debug_1 = require_debug2();
     var function_1 = require_function();
     var logger_1 = require_logger2();
@@ -33241,7 +33241,7 @@ var require_http_proxy_middleware = __commonJS({
         this.applyRouter = async (req, options2) => {
           let newTarget;
           if (options2.router) {
-            newTarget = await Router16.getTarget(req, options2);
+            newTarget = await Router17.getTarget(req, options2);
             if (newTarget) {
               (0, debug_1.Debug)('router new target: "%s"', newTarget);
               options2.target = newTarget;
@@ -39055,7 +39055,7 @@ var init_calendarCrypto = __esm({
 });
 
 // src/app.ts
-var import_express20 = __toESM(require_express2(), 1);
+var import_express21 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 
@@ -47229,7 +47229,7 @@ function clerkProxyMiddleware() {
 }
 
 // src/routes/index.ts
-var import_express19 = __toESM(require_express2(), 1);
+var import_express20 = __toESM(require_express2(), 1);
 
 // src/routes/health.ts
 var import_express = __toESM(require_express2(), 1);
@@ -62794,10 +62794,12 @@ __export(schema_exports, {
   insertGigSchema: () => insertGigSchema,
   insertProjectBriefSchema: () => insertProjectBriefSchema,
   insertProjectSchema: () => insertProjectSchema,
+  insertProjectTaskSchema: () => insertProjectTaskSchema,
   insertTimeEntrySchema: () => insertTimeEntrySchema,
   insertVenueMemorySchema: () => insertVenueMemorySchema,
   profilePhotoUploadsTable: () => profilePhotoUploadsTable,
   projectBriefsTable: () => projectBriefsTable,
+  projectTasksTable: () => projectTasksTable,
   projectsTable: () => projectsTable,
   timeEntriesTable: () => timeEntriesTable,
   venueMemoryTable: () => venueMemoryTable
@@ -74656,6 +74658,34 @@ var insertFeedbackReportSchema = createInsertSchema(
   createdAt: true
 });
 
+// ../../lib/db/src/schema/projectTasks.ts
+var projectTasksTable = pgTable(
+  "project_tasks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projectsTable.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    status: text("status").notNull().default("Not Started"),
+    priority: text("priority").notNull().default("Medium"),
+    dueDate: date("due_date", { mode: "string" }),
+    assignedTo: text("assigned_to").notNull().default(""),
+    description: text("description").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    index("project_tasks_project_id_idx").on(table.projectId),
+    index("project_tasks_status_idx").on(table.status)
+  ]
+);
+var insertProjectTaskSchema = createInsertSchema(
+  projectTasksTable
+).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
 // ../../lib/db/src/index.ts
 var { Pool: Pool3 } = esm_default;
 if (!process.env.DATABASE_URL) {
@@ -80980,30 +81010,182 @@ router14.patch(
 );
 var feedback_default = router14;
 
-// src/routes/index.ts
+// src/routes/projectTasks.ts
+var import_express19 = __toESM(require_express2(), 1);
 var router15 = (0, import_express19.Router)();
-router15.use(health_default);
-router15.use(devAutoSignIn_default);
-router15.use("/rigplan", requireEmployee);
-router15.use(rigplanAnalyze_default);
-router15.use(venueMemory_default);
-router15.use("/storage", requireEmployee);
-router15.use(storage_default);
-router15.use("/projects", requireEmployee);
-router15.use(projects_default);
-router15.use("/inspection", requireEmployee);
-router15.use(inspectionExtract_default);
-router15.use(admin_default);
-router15.use(feedback_default);
-router15.use(portalProfile_default);
-router15.use(portalBriefs_default);
-router15.use(portalGigs_default);
-router15.use(portalTimeEntries_default);
-router15.use(portalCalendar_default);
-var routes_default = router15;
+var TASK_STATUSES = [
+  "Not Started",
+  "Working on it",
+  "Stuck",
+  "Done"
+];
+var TASK_PRIORITIES = ["Low", "Medium", "High", "Urgent"];
+var DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+var UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function userIdFor(req) {
+  return req._userId;
+}
+function param(value) {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+async function ownsProject(projectId, userId) {
+  const [project] = await db.select({ id: projectsTable.id }).from(projectsTable).where(and(eq(projectsTable.id, projectId), eq(projectsTable.userId, userId))).limit(1);
+  return Boolean(project);
+}
+router15.get("/projects/:projectId/tasks", async (req, res) => {
+  const projectId = param(req.params.projectId);
+  const userId = userIdFor(req);
+  if (!UUID_PATTERN.test(projectId)) {
+    res.status(404).json({ ok: false, error: "Project not found." });
+    return;
+  }
+  try {
+    if (!await ownsProject(projectId, userId)) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    const tasks = await db.select().from(projectTasksTable).where(eq(projectTasksTable.projectId, projectId)).orderBy(asc(projectTasksTable.createdAt));
+    res.json({ ok: true, tasks });
+  } catch (error40) {
+    req.log.error(error40, "Failed to list project tasks");
+    res.status(500).json({ ok: false, error: "Failed to list project tasks." });
+  }
+});
+router15.post("/projects/:projectId/tasks", async (req, res) => {
+  const projectId = param(req.params.projectId);
+  const userId = userIdFor(req);
+  if (!UUID_PATTERN.test(projectId)) {
+    res.status(404).json({ ok: false, error: "Project not found." });
+    return;
+  }
+  const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+  if (!title) {
+    res.status(400).json({ ok: false, error: "Task title is required." });
+    return;
+  }
+  try {
+    if (!await ownsProject(projectId, userId)) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    const [task] = await db.insert(projectTasksTable).values({ projectId, title: title.slice(0, 300) }).returning();
+    res.status(201).json({ ok: true, task });
+  } catch (error40) {
+    req.log.error(error40, "Failed to create project task");
+    res.status(500).json({ ok: false, error: "Failed to create project task." });
+  }
+});
+router15.patch("/projects/tasks/:id", async (req, res) => {
+  const id = param(req.params.id);
+  const userId = userIdFor(req);
+  if (!UUID_PATTERN.test(id)) {
+    res.status(404).json({ ok: false, error: "Task not found." });
+    return;
+  }
+  const [ownedTask] = await db.select({ id: projectTasksTable.id }).from(projectTasksTable).innerJoin(projectsTable, eq(projectTasksTable.projectId, projectsTable.id)).where(and(eq(projectTasksTable.id, id), eq(projectsTable.userId, userId))).limit(1);
+  if (!ownedTask) {
+    res.status(404).json({ ok: false, error: "Task not found." });
+    return;
+  }
+  const updates = { updatedAt: sql`now()` };
+  if (req.body?.title !== void 0) {
+    const title = typeof req.body.title === "string" ? req.body.title.trim() : "";
+    if (!title) {
+      res.status(400).json({ ok: false, error: "Task title is required." });
+      return;
+    }
+    updates.title = title.slice(0, 300);
+  }
+  if (req.body?.status !== void 0) {
+    if (!TASK_STATUSES.includes(req.body.status)) {
+      res.status(400).json({ ok: false, error: "Invalid task status." });
+      return;
+    }
+    updates.status = req.body.status;
+  }
+  if (req.body?.priority !== void 0) {
+    if (!TASK_PRIORITIES.includes(req.body.priority)) {
+      res.status(400).json({ ok: false, error: "Invalid task priority." });
+      return;
+    }
+    updates.priority = req.body.priority;
+  }
+  if (req.body?.dueDate !== void 0) {
+    if (req.body.dueDate !== null && (typeof req.body.dueDate !== "string" || !DATE_PATTERN.test(req.body.dueDate))) {
+      res.status(400).json({ ok: false, error: "Invalid due date." });
+      return;
+    }
+    updates.dueDate = req.body.dueDate;
+  }
+  if (req.body?.assignedTo !== void 0) {
+    if (typeof req.body.assignedTo !== "string") {
+      res.status(400).json({ ok: false, error: "Invalid assignee." });
+      return;
+    }
+    updates.assignedTo = req.body.assignedTo.trim().slice(0, 200);
+  }
+  if (req.body?.description !== void 0) {
+    if (typeof req.body.description !== "string") {
+      res.status(400).json({ ok: false, error: "Invalid description." });
+      return;
+    }
+    updates.description = req.body.description.slice(0, 1e4);
+  }
+  try {
+    const [task] = await db.update(projectTasksTable).set(updates).where(eq(projectTasksTable.id, id)).returning();
+    res.json({ ok: true, task });
+  } catch (error40) {
+    req.log.error(error40, "Failed to update project task");
+    res.status(500).json({ ok: false, error: "Failed to update project task." });
+  }
+});
+router15.delete("/projects/tasks/:id", async (req, res) => {
+  const id = param(req.params.id);
+  const userId = userIdFor(req);
+  if (!UUID_PATTERN.test(id)) {
+    res.status(404).json({ ok: false, error: "Task not found." });
+    return;
+  }
+  try {
+    const [ownedTask] = await db.select({ id: projectTasksTable.id }).from(projectTasksTable).innerJoin(projectsTable, eq(projectTasksTable.projectId, projectsTable.id)).where(and(eq(projectTasksTable.id, id), eq(projectsTable.userId, userId))).limit(1);
+    if (!ownedTask) {
+      res.status(404).json({ ok: false, error: "Task not found." });
+      return;
+    }
+    await db.delete(projectTasksTable).where(eq(projectTasksTable.id, id));
+    res.json({ ok: true });
+  } catch (error40) {
+    req.log.error(error40, "Failed to delete project task");
+    res.status(500).json({ ok: false, error: "Failed to delete project task." });
+  }
+});
+var projectTasks_default = router15;
+
+// src/routes/index.ts
+var router16 = (0, import_express20.Router)();
+router16.use(health_default);
+router16.use(devAutoSignIn_default);
+router16.use("/rigplan", requireEmployee);
+router16.use(rigplanAnalyze_default);
+router16.use(venueMemory_default);
+router16.use("/storage", requireEmployee);
+router16.use(storage_default);
+router16.use("/projects", requireEmployee);
+router16.use(projectTasks_default);
+router16.use(projects_default);
+router16.use("/inspection", requireEmployee);
+router16.use(inspectionExtract_default);
+router16.use(admin_default);
+router16.use(feedback_default);
+router16.use(portalProfile_default);
+router16.use(portalBriefs_default);
+router16.use(portalGigs_default);
+router16.use(portalTimeEntries_default);
+router16.use(portalCalendar_default);
+var routes_default = router16;
 
 // src/app.ts
-var app = (0, import_express20.default)();
+var app = (0, import_express21.default)();
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -81028,12 +81210,12 @@ app.use((0, import_cors.default)());
 var PATHS_WITHOUT_GLOBAL_JSON = /* @__PURE__ */ new Set([
   "/api/rigplan/analyze"
 ]);
-var globalJsonParser = import_express20.default.json({ limit: "256kb" });
+var globalJsonParser = import_express21.default.json({ limit: "256kb" });
 app.use((req, res, next) => {
   if (PATHS_WITHOUT_GLOBAL_JSON.has(req.path)) return next();
   return globalJsonParser(req, res, next);
 });
-app.use(import_express20.default.urlencoded({ extended: true }));
+app.use(import_express21.default.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 app.use("/api", routes_default);
 var app_default = app;
@@ -85765,11 +85947,11 @@ function parseIcsDatePropertyLine(line2, propertyName) {
   if (name?.toUpperCase() !== propertyName) return null;
   let valueType;
   let tzid;
-  for (const param of params) {
-    const equalsIndex = param.indexOf("=");
+  for (const param2 of params) {
+    const equalsIndex = param2.indexOf("=");
     if (equalsIndex === -1) continue;
-    const paramName = param.slice(0, equalsIndex).toUpperCase();
-    const paramValue = param.slice(equalsIndex + 1);
+    const paramName = param2.slice(0, equalsIndex).toUpperCase();
+    const paramValue = param2.slice(equalsIndex + 1);
     if (paramName === "VALUE") valueType = paramValue.toUpperCase();
     else if (paramName === "TZID") tzid = paramValue;
   }

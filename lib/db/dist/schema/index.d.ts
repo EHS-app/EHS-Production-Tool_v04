@@ -7,4 +7,5 @@ export * from "./projects";
 export * from "./timeEntries";
 export * from "./calendar";
 export * from "./feedbackReports";
+export * from "./projectTasks";
 //# sourceMappingURL=index.d.ts.map

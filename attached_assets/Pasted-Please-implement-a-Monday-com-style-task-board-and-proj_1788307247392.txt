@@ -1,0 +1,36 @@
+Please implement a Monday.com-style task board and project info hub into our existing architecture by executing the following steps:
+
+1. DATABASE SCHEMA:
+   - Create a new file `lib/db/src/schema/projectTasks.ts` defining the `project_tasks` table:
+     - `id`: uuid primary key (default random)
+     - `projectId`: text / uuid referencing projects (with cascade delete)
+     - `title`: text not null
+     - `status`: text not null default 'Not Started' ('Not Started', 'Working on it', 'Stuck', 'Done')
+     - `priority`: text not null default 'Medium' ('Low', 'Medium', 'High', 'Urgent')
+     - `dueDate`: text (or timestamp)
+     - `assignedTo`: text (colleague or freelancer name/ID)
+     - `description`: text
+     - `createdAt` & `updatedAt` timestamps
+   - Export this schema from `lib/db/src/schema/index.ts`.
+
+2. API ROUTES:
+   - Create `artifacts/api-server/src/routes/projectTasks.ts` with REST endpoints:
+     - `GET /api/projects/:projectId/tasks` (list tasks for a project)
+     - `POST /api/projects/:projectId/tasks` (create task)
+     - `PATCH /api/projects/tasks/:id` (update task status, priority, title, assignees)
+     - `DELETE /api/projects/tasks/:id` (delete task)
+   - Ensure all routes verify user ownership via authenticated Clerk context. Mount these routes in the main API server.
+
+3. FRONTEND NAVIGATION & VIEWS:
+   - In `artifacts/rigging-load-report/src/components/AppShell.tsx`, add `"tasks"` to the `ShellView` type union and include a "Tasks" tab with an appropriate icon in the navigation groups.
+   - In `artifacts/rigging-load-report/src/App.tsx`, import and render a new `ProjectTaskBoard` component when `mainView === "tasks"`, passing down the `currentProjectId`.
+
+4. MONDAY.COM-STYLE TASK BOARD COMPONENT:
+   - Create `artifacts/rigging-load-report/src/components/ProjectTaskBoard.tsx`:
+     - Spreadsheet-style table layout with columns for Task Name, Status (color-coded badges), Priority, Due Date, and Assignee.
+     - Inline dropdown selectors for fast status and priority updates.
+     - A quick-add input row at the bottom of the table to instantly create new tasks.
+     - A side drawer or expandable row details for task descriptions and notes.
+
+5. VERIFICATION:
+   - Run `pnpm build` to ensure zero compilation or TypeScript errors.

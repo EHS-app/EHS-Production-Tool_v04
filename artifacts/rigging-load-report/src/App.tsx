@@ -106,6 +106,7 @@ import {
   type SoundItem,
 } from "./lib/sound";
 import { SoundReportView } from "./components/SoundReportView";
+import { ProjectTaskBoard } from "./components/ProjectTaskBoard";
 import { InspectionView, type InspectionData, EMPTY_INSPECTION } from "./components/InspectionView";
 import { EquipmentPicker } from "./components/EquipmentPicker";
 import type { LibraryItem } from "./lib/equipmentLibrary";
@@ -724,7 +725,8 @@ type MainView =
   | "hotel"
   | "sound"
   | "riggPlan"
-  | "inspection";
+  | "inspection"
+  | "tasks";
 
 type ShowFixture = {
   id: string;
@@ -6772,6 +6774,10 @@ function App() {
           data={inspection}
           onChange={setInspection}
         />
+      )}
+
+      {mainView === "tasks" && (
+        <ProjectTaskBoard projectId={currentProjectId} />
       )}
 
       {mainView === "led" && (

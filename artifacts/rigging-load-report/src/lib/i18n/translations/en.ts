@@ -731,6 +731,18 @@ export const en = {
   "portal.header.briefsBadgeAria": "{count} new briefs",
   "portal.header.signedInAs": "Signed in as {label}. Click to sign out.",
   "portal.header.sectionsAria": "Portal sections",
+  "portal.activity.title": "Activity",
+  "portal.activity.bellAria": "Notifications",
+  "portal.activity.upcoming": "Upcoming Shifts",
+  "portal.activity.recent": "Recent Assignments",
+  "portal.activity.empty": "No new notifications",
+  "portal.activity.viewAll": "View All Gigs",
+  "portal.activity.shift": "Scheduled gig",
+  "portal.activity.assignment": "Brief assignment",
+  "portal.activity.status.pending": "New assignment",
+  "portal.activity.status.accepted": "Accepted",
+  "portal.activity.status.declined": "Declined",
+  "portal.activity.status.too_late": "Assignment closed",
 
   // ---------- Portal: gig status (used in Hub, Gigs, Briefs) ----------
   "portal.gigStatus.invited": "Invited",

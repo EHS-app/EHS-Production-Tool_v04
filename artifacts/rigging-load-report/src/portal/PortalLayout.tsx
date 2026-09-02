@@ -4,7 +4,6 @@ import { Link } from "wouter";
 import { useClerk } from "@clerk/react";
 import {
   Activity,
-  Bell,
   Calendar,
   ChevronDown,
   Clock,
@@ -31,6 +30,8 @@ import type { TranslationKey } from "../lib/i18n/types";
 import { LanguageSelector } from "../components/LanguageSelector";
 import { FeedbackDialog } from "../components/FeedbackDialog";
 import { Toaster } from "../components/ui/sonner";
+import { ActivityPopover } from "./components/ActivityPopover";
+import type { PortalData } from "./lib/portalStorage";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -107,6 +108,7 @@ export function PortalLayout({
   active,
   userLabel,
   pendingBriefCount,
+  portalData,
   children,
 }: {
   theme: ThemeMode;
@@ -117,6 +119,7 @@ export function PortalLayout({
   /** Number of briefs in `pending` state — surfaced as a badge on the
    *  Briefs nav item so the freelancer doesn't miss new project briefings. */
   pendingBriefCount: number;
+  portalData: PortalData;
   children: ReactNode;
 }) {
   // `theme` is intentionally referenced (consumers still pass it) but the
@@ -363,14 +366,7 @@ export function PortalLayout({
                 <Moon size={14} strokeWidth={1.75} />
               )}
             </button>
-            <button
-              type="button"
-              className="ehs-shell-icon-btn ehs-portal-mobile-utility"
-              aria-label="Notifications"
-              title="Notifications"
-            >
-              <Bell size={14} />
-            </button>
+            <ActivityPopover theme={theme} data={portalData} />
             <button
               type="button"
               className="ehs-shell-signout-btn ehs-portal-mobile-utility"

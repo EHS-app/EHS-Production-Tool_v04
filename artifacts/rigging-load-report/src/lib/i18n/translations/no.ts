@@ -748,6 +748,18 @@ export const no: Translations = {
   "portal.header.briefsBadgeAria": "{count} nye briefer",
   "portal.header.signedInAs": "Innlogget som {label}. Klikk for å logge ut.",
   "portal.header.sectionsAria": "Portal-seksjoner",
+  "portal.activity.title": "Aktivitet",
+  "portal.activity.bellAria": "Varsler",
+  "portal.activity.upcoming": "Kommende skift",
+  "portal.activity.recent": "Nylige oppdrag",
+  "portal.activity.empty": "Ingen nye varsler",
+  "portal.activity.viewAll": "Se alle oppdrag",
+  "portal.activity.shift": "Planlagt oppdrag",
+  "portal.activity.assignment": "Briefoppdrag",
+  "portal.activity.status.pending": "Nytt oppdrag",
+  "portal.activity.status.accepted": "Godtatt",
+  "portal.activity.status.declined": "Avslått",
+  "portal.activity.status.too_late": "Oppdraget er lukket",
 
   // ---------- Portal: gig status ----------
   "portal.gigStatus.invited": "Invitert",

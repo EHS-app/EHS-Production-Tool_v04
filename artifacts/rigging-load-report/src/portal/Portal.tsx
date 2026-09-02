@@ -278,6 +278,7 @@ export function Portal({ theme, pref, setPref }: PortalProps) {
       setPref={setPref}
       active={active}
       pendingBriefCount={pendingBriefCount}
+      portalData={data}
       userLabel={
         user?.primaryEmailAddress?.emailAddress ??
         user?.username ??

@@ -59,3 +59,6 @@ VITE_CLERK_PUBLISHABLE_KEY = "pk_test_c3dlZXQtZ3J1Yi0yNS5jbGVyay5hY2NvdW50cy5kZX
 [nix]
 packages = ["zip"]
 channel = "stable-25_05"
+
+[objectStorage]
+defaultBucketID = "replit-objstore-ae7e6641-3444-4d2e-86eb-4da8b135a338"

@@ -4954,7 +4954,7 @@ function App() {
     // default venue.
     setRiggPlan({ ...DEFAULT_RIGG_PLAN, trussById: {} });
     setFloorPlanLibrary(emptyFloorPlanLibrary());
-    setMainView("rigging");
+    setMainView("oversikt");
     // Also wipe any in-flight modal/picker/form state so a Reset
     // mid-session doesn't leave a half-filled "Add custom item"
     // dialog or library picker open over the now-empty report.
@@ -5062,6 +5062,7 @@ function App() {
               ? p.easyjobNumber
             : (p.data as Partial<PersistedV2>).easyjobNumber,
       });
+      setMainView("oversikt");
       setCurrentProjectId(id);
       setCurrentProjectAccessRole(p.accessRole ?? null);
       setCurrentProjectServerStatus(p.status || "draft");
@@ -5099,6 +5100,7 @@ function App() {
       if (res.ok) {
         const json = await res.json();
         if (json.project?.id) {
+          setMainView("oversikt");
           setCurrentProjectId(json.project.id);
           setCurrentProjectAccessRole("owner");
           try { localStorage.setItem("ehs-current-project-id", json.project.id); } catch { /* ignore */ }

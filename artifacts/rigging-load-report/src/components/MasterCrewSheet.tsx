@@ -18,8 +18,13 @@ import { openMasterSheet, type MasterSheetRow } from "../lib/masterSheetExport";
 import {
   assignedDatesFromShiftPhases,
   crewShiftAssignmentKey,
+  filterShiftSelectionsToSchedule,
+  scheduledShiftKeys,
   setCrewShiftPhaseSelection,
+  shiftTimesForSelections,
+  summarizeShiftTimes,
   type CrewShiftPhaseKey,
+  type CrewShiftTimeMap,
 } from "../lib/crewShiftAssignments";
 
 type FreelancerCandidate = {
@@ -94,6 +99,7 @@ export function MasterCrewSheet({
   onCountsChange,
   getTimesForDates,
   phaseDays,
+  phaseShiftTimes,
   compactHeader = false,
   onOpenProfile,
 }: {
@@ -161,7 +167,11 @@ export function MasterCrewSheet({
    *  row's `assignedDates` from the chosen phase. Empty / missing
    *  phases simply hide their button so the row only shows phases
    *  the producer has actually scheduled. */
-  phaseDays?: Partial<Record<string, ReadonlyArray<string>>>;
+  phaseDays?: Partial<
+    Record<CrewShiftPhaseKey, ReadonlyArray<string>>
+  >;
+  /** Exact project schedule times keyed by date+phase. */
+  phaseShiftTimes?: CrewShiftTimeMap;
   /** When true, hide the duplicated `<h3>Crew & Logistics</h3>` +
    *  subtitle inside the master sheet's own header — the parent
    *  (CrewReportView) is rendering its own redesigned title row and
@@ -512,16 +522,16 @@ export function MasterCrewSheet({
     // Build print-time rows: enrich each row with the matched local
     // CrewMember's call/off times when present, so the printed sheet
     // matches what the producer sees on screen with "Production
-    // details" toggled on. Times that don't have a local twin print
-    // as a dash, same as the on-screen empty cell.
+    // details" toggled on. Accepted-gig timing is used when there is
+    // no matching local row.
     const printRows: MasterSheetRow[] = rows.map((row) => {
       const localId = resolveLocalIdFor(row);
       const local =
         localId !== null ? localCrew.find((m) => m.id === localId) : null;
       return {
         ...row,
-        callTime: local?.callTime ?? "",
-        offTime: local?.offTime ?? "",
+        callTime: local?.callTime ?? row.callTime,
+        offTime: local?.offTime ?? row.offTime,
       };
     });
     openMasterSheet({
@@ -883,45 +893,56 @@ export function MasterCrewSheet({
                     onLocalDayToggle={
                       local
                         ? (date) => {
-                            const cur = new Set(local.assignedDates ?? []);
-                            const wasAssigned = cur.has(date);
-                            if (wasAssigned) cur.delete(date);
-                            else cur.add(date);
-                            const nextDates = [...cur].sort();
-                            const shiftKeys = new Set(
-                              local.assignedShiftPhases ??
-                                (local.assignedDates ?? []).flatMap((assignedDate) =>
-                                  SHIFT_PHASES.map((phase) =>
-                                    crewShiftAssignmentKey(assignedDate, phase.key),
-                                  ),
-                                ),
+                            const available = new Set(
+                              scheduledShiftKeys(phaseDays ?? {}),
                             );
-                            for (const phase of SHIFT_PHASES) {
+                            const legacyKeys = scheduledShiftKeys(
+                              phaseDays ?? {},
+                            ).filter((key) =>
+                              (local.assignedDates ?? []).some((assignedDate) =>
+                                key.startsWith(`${assignedDate}::`),
+                              ),
+                            );
+                            const shiftKeys =
+                              filterShiftSelectionsToSchedule(
+                                local.assignedShiftPhases ?? legacyKeys,
+                                available,
+                              );
+                            const datePhases = SHIFT_PHASES.filter((phase) =>
+                              phaseDays?.[phase.key]?.includes(date),
+                            );
+                            const wasAssigned = datePhases.some((phase) =>
+                              shiftKeys.has(
+                                crewShiftAssignmentKey(date, phase.key),
+                              ),
+                            );
+                            for (const phase of datePhases) {
                               const key = crewShiftAssignmentKey(date, phase.key);
                               if (wasAssigned) shiftKeys.delete(key);
                               else shiftKeys.add(key);
                             }
-                            // Re-derive call/off from the project
-                            // schedule so the row's shift always
-                            // matches the days that are ticked on
-                            // (earliest setup → latest downrig).
+                            const nextDates =
+                              assignedDatesFromShiftPhases(shiftKeys);
+                            const assignedShiftTimes =
+                              shiftTimesForSelections(
+                                shiftKeys,
+                                phaseShiftTimes ?? {},
+                              );
+                            const summary = summarizeShiftTimes(
+                              shiftKeys,
+                              assignedShiftTimes,
+                              {
+                                startTime: local.callTime,
+                                endTime: local.offTime,
+                              },
+                            );
                             const patch: Partial<CrewMember> = {
                               assignedDates: nextDates,
                               assignedShiftPhases: [...shiftKeys].sort(),
+                              assignedShiftTimes,
+                              callTime: summary.startTime,
+                              offTime: summary.endTime,
                             };
-                            if (getTimesForDates) {
-                              const t = getTimesForDates(nextDates, {
-                                callTime: local.callTime,
-                                offTime: local.offTime,
-                              });
-                              if (
-                                t.callTime !== local.callTime ||
-                                t.offTime !== local.offTime
-                              ) {
-                                patch.callTime = t.callTime;
-                                patch.offTime = t.offTime;
-                              }
-                            }
                             onUpdate(local.id, patch);
                           }
                         : undefined
@@ -942,30 +963,41 @@ export function MasterCrewSheet({
                         : undefined
                     }
                     phaseDays={phaseDays}
+                    phaseShiftTimes={phaseShiftTimes}
                     onOpenProfile={onOpenProfile}
                     onLocalSetDays={
                       local
-                        ? (nextDates, nextShiftPhases) => {
-                            // Replace the row's working days wholesale
-                            // (used by the per-phase quick-pick
-                            // buttons). Re-derives call/off from the
-                            // schedule so the shift matches the new
-                            // day set, same as a single-day toggle.
-                            const sorted = [...nextDates].sort();
+                        ? (_nextDates, nextShiftPhases) => {
+                            const available = new Set(
+                              scheduledShiftKeys(phaseDays ?? {}),
+                            );
+                            const shiftKeys =
+                              filterShiftSelectionsToSchedule(
+                                nextShiftPhases ?? [],
+                                available,
+                              );
+                            const sorted =
+                              assignedDatesFromShiftPhases(shiftKeys);
+                            const assignedShiftTimes =
+                              shiftTimesForSelections(
+                                shiftKeys,
+                                phaseShiftTimes ?? {},
+                              );
+                            const summary = summarizeShiftTimes(
+                              shiftKeys,
+                              assignedShiftTimes,
+                              {
+                                startTime: local.callTime,
+                                endTime: local.offTime,
+                              },
+                            );
                             const patch: Partial<CrewMember> = {
                               assignedDates: sorted,
+                              assignedShiftPhases: [...shiftKeys].sort(),
+                              assignedShiftTimes,
+                              callTime: summary.startTime,
+                              offTime: summary.endTime,
                             };
-                            if (nextShiftPhases) {
-                              patch.assignedShiftPhases = [...nextShiftPhases].sort();
-                            }
-                            if (getTimesForDates) {
-                              const t = getTimesForDates(sorted, {
-                                callTime: local.callTime,
-                                offTime: local.offTime,
-                              });
-                              patch.callTime = t.callTime;
-                              patch.offTime = t.offTime;
-                            }
                             onUpdate(local.id, patch);
                           }
                         : undefined
@@ -1165,6 +1197,7 @@ function MasterRow({
   onLocalRemove,
   onLocalDuplicate,
   phaseDays,
+  phaseShiftTimes,
   onLocalSetDays,
   onOpenProfile,
 }: {
@@ -1192,7 +1225,10 @@ function MasterRow({
   /** Days covered by each schedule phase. Drives the per-phase
    *  quick-pick buttons rendered next to the day chips on local
    *  rows. */
-  phaseDays?: Partial<Record<string, ReadonlyArray<string>>>;
+  phaseDays?: Partial<
+    Record<CrewShiftPhaseKey, ReadonlyArray<string>>
+  >;
+  phaseShiftTimes?: CrewShiftTimeMap;
   /** Replace the local row's working days wholesale (used by the
    *  quick-pick buttons). Recomputes call/off from the schedule. */
   onLocalSetDays?: (
@@ -1373,8 +1409,8 @@ function MasterRow({
                 crewName={row.name}
                 assignedDates={row.assignedDates}
                 assignedShiftPhases={local?.assignedShiftPhases}
-                projectDays={projectDays}
                 phaseDays={phaseDays}
+                phaseShiftTimes={phaseShiftTimes}
                 onSave={onLocalSetDays}
               />
             )
@@ -1456,6 +1492,8 @@ function MasterRow({
                   onLocalUpdate?.({ callTime: e.target.value })
                 }
               />
+            ) : row.callTime ? (
+              <span>{row.callTime}</span>
             ) : (
               <span className="crew-pill-empty">—</span>
             )}
@@ -1470,6 +1508,8 @@ function MasterRow({
                   onLocalUpdate?.({ offTime: e.target.value })
                 }
               />
+            ) : row.offTime ? (
+              <span>{row.offTime}</span>
             ) : (
               <span className="crew-pill-empty">—</span>
             )}
@@ -1530,15 +1570,17 @@ function ShiftAssignmentMatrix({
   crewName,
   assignedDates,
   assignedShiftPhases,
-  projectDays,
   phaseDays,
+  phaseShiftTimes,
   onSave,
 }: {
   crewName: string;
   assignedDates: ReadonlyArray<string>;
   assignedShiftPhases?: ReadonlyArray<string>;
-  projectDays: ReadonlyArray<string> | null;
-  phaseDays: Partial<Record<string, ReadonlyArray<string>>>;
+  phaseDays: Partial<
+    Record<CrewShiftPhaseKey, ReadonlyArray<string>>
+  >;
+  phaseShiftTimes?: CrewShiftTimeMap;
   onSave: (
     dates: ReadonlyArray<string>,
     shiftPhases?: ReadonlyArray<string>,
@@ -1548,23 +1590,43 @@ function ShiftAssignmentMatrix({
   const idPrefix = reactId.replace(/[^a-zA-Z0-9_-]/g, "");
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Set<string>>(new Set());
+  const availableShiftKeys = useMemo(
+    () => new Set(scheduledShiftKeys(phaseDays)),
+    [phaseDays],
+  );
   const allDays = useMemo(() => {
-    const days = new Set(projectDays ?? []);
-    for (const phase of SHIFT_PHASES) {
-      for (const date of phaseDays[phase.key] ?? []) days.add(date);
-    }
-    for (const date of assignedDates) days.add(date);
-    return [...days].sort();
-  }, [assignedDates, phaseDays, projectDays]);
+    return assignedDatesFromShiftPhases(availableShiftKeys);
+  }, [availableShiftKeys]);
 
   const initialSelections = useCallback(() => {
-    if (assignedShiftPhases) return new Set(assignedShiftPhases);
-    return new Set(
+    if (assignedShiftPhases) {
+      return filterShiftSelectionsToSchedule(
+        assignedShiftPhases,
+        availableShiftKeys,
+      );
+    }
+    return filterShiftSelectionsToSchedule(
       assignedDates.flatMap((date) =>
-        SHIFT_PHASES.map((phase) => crewShiftAssignmentKey(date, phase.key)),
+        SHIFT_PHASES.filter((phase) =>
+          phaseDays[phase.key]?.includes(date),
+        ).map((phase) => crewShiftAssignmentKey(date, phase.key)),
       ),
+      availableShiftKeys,
     );
-  }, [assignedDates, assignedShiftPhases]);
+  }, [
+    assignedDates,
+    assignedShiftPhases,
+    availableShiftKeys,
+    phaseDays,
+  ]);
+
+  const phasesForDay = useCallback(
+    (dateKey: string) =>
+      SHIFT_PHASES.filter((phase) =>
+        phaseDays[phase.key]?.includes(dateKey),
+      ),
+    [phaseDays],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -1598,7 +1660,7 @@ function ShiftAssignmentMatrix({
   const toggleFullDay = (dateKey: string) => {
     setDraft((current) => {
       const next = new Set(current);
-      const keys = SHIFT_PHASES.map((phase) =>
+      const keys = phasesForDay(dateKey).map((phase) =>
         crewShiftAssignmentKey(dateKey, phase.key),
       );
       const fullDay = keys.every((key) => next.has(key));
@@ -1613,16 +1675,16 @@ function ShiftAssignmentMatrix({
   const applyDayToSelectedDays = (sourceDate: string) => {
     setDraft((current) => {
       const next = new Set(current);
-      const sourcePhases = SHIFT_PHASES.filter((phase) =>
+      const sourcePhases = phasesForDay(sourceDate).filter((phase) =>
         next.has(crewShiftAssignmentKey(sourceDate, phase.key)),
       );
       const selectedDays = allDays.filter((date) =>
-        SHIFT_PHASES.some((phase) =>
+        phasesForDay(date).some((phase) =>
           next.has(crewShiftAssignmentKey(date, phase.key)),
         ),
       );
       for (const date of selectedDays) {
-        for (const phase of SHIFT_PHASES) {
+        for (const phase of phasesForDay(date)) {
           const key = crewShiftAssignmentKey(date, phase.key);
           if (sourcePhases.some((source) => source.key === phase.key)) {
             next.add(key);
@@ -1642,9 +1704,10 @@ function ShiftAssignmentMatrix({
   };
 
   const selectedDayCount = allDays.filter((date) =>
-    SHIFT_PHASES.some((phase) =>
-      (assignedShiftPhases ? new Set(assignedShiftPhases) : initialSelections())
-        .has(crewShiftAssignmentKey(date, phase.key)),
+    phasesForDay(date).some((phase) =>
+      initialSelections().has(
+        crewShiftAssignmentKey(date, phase.key),
+      ),
     ),
   ).length;
 
@@ -1691,7 +1754,8 @@ function ShiftAssignmentMatrix({
                 </header>
                 <div className="crew-shift-matrix-scroll">
                   {allDays.map((dateKey) => {
-                    const fullDay = SHIFT_PHASES.every((phase) =>
+                    const availablePhases = phasesForDay(dateKey);
+                    const fullDay = availablePhases.every((phase) =>
                       draft.has(crewShiftAssignmentKey(dateKey, phase.key)),
                     );
                     return (
@@ -1716,12 +1780,13 @@ function ShiftAssignmentMatrix({
                           ) : null}
                         </div>
                         <div className="crew-shift-phase-grid">
-                          {SHIFT_PHASES.map((phase) => {
+                          {availablePhases.map((phase) => {
                             const checkboxId = `${idPrefix}-shift-check-${dateKey}-${phase.key}`;
                             const assignmentKey = crewShiftAssignmentKey(
                               dateKey,
                               phase.key,
                             );
+                            const timing = phaseShiftTimes?.[assignmentKey];
                             return (
                               <div
                                 className="crew-shift-phase"
@@ -1739,7 +1804,14 @@ function ShiftAssignmentMatrix({
                                     )
                                   }
                                 />
-                                <label htmlFor={checkboxId}>{phase.label}</label>
+                                <label htmlFor={checkboxId}>
+                                  <span>{phase.label}</span>
+                                  {timing ? (
+                                    <small>
+                                      {timing.startTime}–{timing.endTime}
+                                    </small>
+                                  ) : null}
+                                </label>
                               </div>
                             );
                           })}

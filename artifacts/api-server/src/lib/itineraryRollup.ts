@@ -102,7 +102,15 @@ export type RollupInput = {
     };
   };
   /** Caller's own brief assignment, used for callTime/offTime. */
-  callerAssignment: { callTime?: string; offTime?: string } | null;
+  callerAssignment: {
+    callTime?: string;
+    offTime?: string;
+    assignedShiftPhases?: string[];
+    assignedShiftTimes?: Record<
+      string,
+      { startTime?: string; endTime?: string }
+    >;
+  } | null;
   /** Working dates from the caller's accepted gig (YYYY-MM-DD). */
   callerWorkingDates: string[];
   /** Caller's hotel state. Null if they don't have a gig on this
@@ -245,8 +253,44 @@ export function rollupItinerary(input: RollupInput): ItineraryDay[] {
       venue,
     };
     if (working && callerAssignment) {
-      if (callerAssignment.callTime) day.callTime = callerAssignment.callTime;
-      if (callerAssignment.offTime) day.offTime = callerAssignment.offTime;
+      const selectedKeys = Array.isArray(
+        callerAssignment.assignedShiftPhases,
+      )
+        ? callerAssignment.assignedShiftPhases.filter((key) =>
+            key.startsWith(`${iso}::`),
+          )
+        : [];
+      let firstTime: string | undefined;
+      let firstMinutes = Number.POSITIVE_INFINITY;
+      let lastTime: string | undefined;
+      let lastMinutes = Number.NEGATIVE_INFINITY;
+      for (const key of selectedKeys) {
+        const timing = callerAssignment.assignedShiftTimes?.[key];
+        if (
+          !timing ||
+          !/^\d{2}:\d{2}$/.test(timing.startTime ?? "") ||
+          !/^\d{2}:\d{2}$/.test(timing.endTime ?? "")
+        ) {
+          continue;
+        }
+        const [startHour, startMinute] = timing.startTime!.split(":").map(Number);
+        const [endHour, endMinute] = timing.endTime!.split(":").map(Number);
+        const start = startHour * 60 + startMinute;
+        let end = endHour * 60 + endMinute;
+        if (end <= start) end += 1440;
+        if (start < firstMinutes) {
+          firstMinutes = start;
+          firstTime = timing.startTime;
+        }
+        if (end > lastMinutes) {
+          lastMinutes = end;
+          lastTime = timing.endTime;
+        }
+      }
+      day.callTime =
+        firstTime || callerAssignment.callTime || undefined;
+      day.offTime =
+        lastTime || callerAssignment.offTime || undefined;
     }
     if (hotel) day.hotel = hotel;
     days.push(day);

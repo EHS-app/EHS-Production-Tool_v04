@@ -78167,8 +78167,36 @@ function rollupItinerary(input) {
       venue
     };
     if (working && callerAssignment) {
-      if (callerAssignment.callTime) day.callTime = callerAssignment.callTime;
-      if (callerAssignment.offTime) day.offTime = callerAssignment.offTime;
+      const selectedKeys = Array.isArray(
+        callerAssignment.assignedShiftPhases
+      ) ? callerAssignment.assignedShiftPhases.filter(
+        (key2) => key2.startsWith(`${iso2}::`)
+      ) : [];
+      let firstTime;
+      let firstMinutes = Number.POSITIVE_INFINITY;
+      let lastTime;
+      let lastMinutes = Number.NEGATIVE_INFINITY;
+      for (const key2 of selectedKeys) {
+        const timing = callerAssignment.assignedShiftTimes?.[key2];
+        if (!timing || !/^\d{2}:\d{2}$/.test(timing.startTime ?? "") || !/^\d{2}:\d{2}$/.test(timing.endTime ?? "")) {
+          continue;
+        }
+        const [startHour, startMinute] = timing.startTime.split(":").map(Number);
+        const [endHour, endMinute] = timing.endTime.split(":").map(Number);
+        const start2 = startHour * 60 + startMinute;
+        let end2 = endHour * 60 + endMinute;
+        if (end2 <= start2) end2 += 1440;
+        if (start2 < firstMinutes) {
+          firstMinutes = start2;
+          firstTime = timing.startTime;
+        }
+        if (end2 > lastMinutes) {
+          lastMinutes = end2;
+          lastTime = timing.endTime;
+        }
+      }
+      day.callTime = firstTime || callerAssignment.callTime || void 0;
+      day.offTime = lastTime || callerAssignment.offTime || void 0;
     }
     if (hotel) day.hotel = hotel;
     days.push(day);
@@ -78249,6 +78277,7 @@ function withoutUntrustedProfiles(raw) {
     const project = { ...clean.project };
     for (const key2 of RESTRICTED_BRIEF_KEYS) delete project[key2];
     if ("client" in project && typeof project.client !== "string") delete project.client;
+    if ("projectName" in project && typeof project.projectName !== "string") delete project.projectName;
     if ("venue" in project && typeof project.venue !== "string") delete project.venue;
     clean.project = project;
   }
@@ -78314,11 +78343,9 @@ function pickDate2(raw) {
 function extractIndexed(data) {
   const project = data.project && typeof data.project === "object" ? data.project : {};
   const venue = typeof project.venue === "string" ? project.venue.slice(0, 280) : "";
+  const projectName = typeof project.projectName === "string" ? project.projectName.slice(0, 280) : venue;
   return {
-    // Re-use venue as the project name — the brief schema has no
-    // separate name field and the producer's "my briefs" list shows
-    // `${venue}` (with `client` as a subtitle) anyway.
-    projectName: venue,
+    projectName,
     client: typeof project.client === "string" ? project.client.slice(0, 280) : "",
     venue,
     startDate: pickDate2(project.date),
@@ -79418,6 +79445,37 @@ function expandDateRange(startIso, endIso) {
   }
   return out;
 }
+var ROSTER_SHIFT_PHASE_KEY = /^\d{4}-\d{2}-\d{2}::(setup|rehearsal|show|downrig)$/;
+var ROSTER_HHMM = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+function rosterAssignmentTiming(value) {
+  const assignment = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const assignedShiftPhases = Array.isArray(assignment.assignedShiftPhases) ? assignment.assignedShiftPhases.filter(
+    (phase) => typeof phase === "string" && ROSTER_SHIFT_PHASE_KEY.test(phase)
+  ).sort() : [];
+  const assignedShiftTimes = {};
+  if (assignment.assignedShiftTimes && typeof assignment.assignedShiftTimes === "object" && !Array.isArray(assignment.assignedShiftTimes)) {
+    for (const [key2, timing] of Object.entries(
+      assignment.assignedShiftTimes
+    )) {
+      if (!ROSTER_SHIFT_PHASE_KEY.test(key2) || !timing || typeof timing !== "object" || Array.isArray(timing)) {
+        continue;
+      }
+      const candidate = timing;
+      if (typeof candidate.startTime === "string" && ROSTER_HHMM.test(candidate.startTime) && typeof candidate.endTime === "string" && ROSTER_HHMM.test(candidate.endTime)) {
+        assignedShiftTimes[key2] = {
+          startTime: candidate.startTime,
+          endTime: candidate.endTime
+        };
+      }
+    }
+  }
+  return {
+    callTime: typeof assignment.callTime === "string" && ROSTER_HHMM.test(assignment.callTime) ? assignment.callTime : "",
+    offTime: typeof assignment.offTime === "string" && ROSTER_HHMM.test(assignment.offTime) ? assignment.offTime : "",
+    assignedShiftPhases,
+    assignedShiftTimes
+  };
+}
 router7.get(
   "/portal/briefs/:id/roster",
   requireEmployee,
@@ -79431,7 +79489,8 @@ router7.get(
         venue: projectBriefsTable.venue,
         projectName: projectBriefsTable.projectName,
         startDate: projectBriefsTable.startDate,
-        endDate: projectBriefsTable.endDate
+        endDate: projectBriefsTable.endDate,
+        data: projectBriefsTable.data
       }).from(projectBriefsTable).where(eq(projectBriefsTable.id, id)).limit(1);
       const brief = briefRows[0];
       if (!brief) {
@@ -79441,6 +79500,22 @@ router7.get(
       if (brief.ownerUserId !== userId2) {
         res.status(403).json({ ok: false, error: "Not your brief." });
         return;
+      }
+      const assignmentTimingByFreelancerId = /* @__PURE__ */ new Map();
+      const briefData = brief.data && typeof brief.data === "object" && !Array.isArray(brief.data) ? brief.data : {};
+      if (Array.isArray(briefData.assignments)) {
+        for (const assignment of briefData.assignments) {
+          if (!assignment || typeof assignment !== "object" || Array.isArray(assignment)) {
+            continue;
+          }
+          const rawAssignment = assignment;
+          if (typeof rawAssignment.freelancerUserId === "string" && rawAssignment.freelancerUserId) {
+            assignmentTimingByFreelancerId.set(
+              rawAssignment.freelancerUserId,
+              rosterAssignmentTiming(rawAssignment)
+            );
+          }
+        }
       }
       const rows = await db.select({
         gigId: gigsTable.id,
@@ -79490,6 +79565,7 @@ router7.get(
         }
         const ci = typeof r.checkInDate === "string" ? r.checkInDate.slice(0, 10) : null;
         const co = typeof r.checkOutDate === "string" ? r.checkOutDate.slice(0, 10) : null;
+        const timing = assignmentTimingByFreelancerId.get(r.freelancerUserId) ?? rosterAssignmentTiming(null);
         return {
           gigId: r.gigId,
           freelancerUserId: r.freelancerUserId,
@@ -79499,6 +79575,10 @@ router7.get(
           assignedDates: dates,
           hotelRequired: !!r.hotelRequired,
           hotelDates,
+          callTime: timing.callTime,
+          offTime: timing.offTime,
+          assignedShiftPhases: timing.assignedShiftPhases,
+          assignedShiftTimes: timing.assignedShiftTimes,
           dietaryTags: classifyDietary(r.profileDietary),
           allergens: splitAllergens(r.profileAllergies),
           phone: typeof r.profilePhone === "string" ? r.profilePhone : "",
@@ -79910,6 +79990,36 @@ router7.get(
           }
           if (typeof a.offTime === "string" && a.offTime) {
             callerAssignment.offTime = a.offTime;
+          }
+          if (Array.isArray(a.assignedShiftPhases)) {
+            callerAssignment.assignedShiftPhases = a.assignedShiftPhases.filter(
+              (key2) => typeof key2 === "string" && /^\d{4}-\d{2}-\d{2}::(setup|rehearsal|show|downrig)$/.test(
+                key2
+              )
+            );
+          }
+          if (a.assignedShiftTimes && typeof a.assignedShiftTimes === "object" && !Array.isArray(a.assignedShiftTimes)) {
+            callerAssignment.assignedShiftTimes = Object.fromEntries(
+              Object.entries(
+                a.assignedShiftTimes
+              ).flatMap(([key2, rawTiming]) => {
+                if (!/^\d{4}-\d{2}-\d{2}::(setup|rehearsal|show|downrig)$/.test(
+                  key2
+                ) || !rawTiming || typeof rawTiming !== "object") {
+                  return [];
+                }
+                const timing = rawTiming;
+                return typeof timing.startTime === "string" && typeof timing.endTime === "string" ? [
+                  [
+                    key2,
+                    {
+                      startTime: timing.startTime,
+                      endTime: timing.endTime
+                    }
+                  ]
+                ] : [];
+              })
+            );
           }
         }
       }

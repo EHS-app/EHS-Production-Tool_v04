@@ -111,6 +111,16 @@ import {
   normalizeCrewMember,
   type CrewMember,
 } from "./lib/crew";
+import {
+  assignedDatesFromShiftPhases,
+  crewShiftAssignmentKey,
+  filterShiftSelectionsToSchedule,
+  scheduledShiftKeys,
+  shiftTimesForSelections,
+  summarizeShiftTimes,
+  type CrewShiftPhaseKey,
+  type CrewShiftTimeMap,
+} from "./lib/crewShiftAssignments";
 import { CrewReportView } from "./components/CrewReportView";
 import { CateringView } from "./components/CateringView";
 import { HotelView } from "./components/HotelView";
@@ -3723,6 +3733,86 @@ function App() {
     return out;
   }, [reportDate, reportEndDate, extraSchedule]);
 
+  const phaseShiftTimes = useMemo<CrewShiftTimeMap>(() => {
+    const schedule = buildProjectSchedule(
+      reportDate,
+      reportEndDate,
+      extraSchedule,
+    );
+    const times: CrewShiftTimeMap = {};
+    for (const phaseName of Object.keys(schedule) as CrewShiftPhaseKey[]) {
+      for (const segment of schedule[phaseName] ?? []) {
+        if (!segment.fromTime || !segment.toTime) continue;
+        for (const dateKey of expandProjectDays(
+          segment.from,
+          segment.to || segment.from,
+        )) {
+          times[crewShiftAssignmentKey(dateKey, phaseName)] = {
+            startTime: segment.fromTime,
+            endTime: segment.toTime,
+          };
+        }
+      }
+    }
+    return times;
+  }, [reportDate, reportEndDate, extraSchedule]);
+
+  useEffect(() => {
+    const allowedKeys = new Set(scheduledShiftKeys(phaseDays));
+    setCrew((current) => {
+      let changed = false;
+      const next = current.map((member) => {
+        const legacyKeys = (member.assignedDates ?? []).flatMap((dateKey) =>
+          (Object.keys(phaseDays) as CrewShiftPhaseKey[])
+            .filter((phaseName) => phaseDays[phaseName]?.includes(dateKey))
+            .map((phaseName) =>
+              crewShiftAssignmentKey(dateKey, phaseName),
+            ),
+        );
+        const selected = filterShiftSelectionsToSchedule(
+          member.assignedShiftPhases ?? legacyKeys,
+          allowedKeys,
+        );
+        const selectedKeys = [...selected].sort();
+        const assignedDates = assignedDatesFromShiftPhases(selected);
+        const assignedShiftTimes = shiftTimesForSelections(
+          selected,
+          phaseShiftTimes,
+        );
+        const summary = summarizeShiftTimes(
+          selected,
+          assignedShiftTimes,
+          {
+            startTime: member.callTime,
+            endTime: member.offTime,
+          },
+        );
+        const nextMember: CrewMember = {
+          ...member,
+          assignedDates,
+          assignedShiftPhases: selectedKeys,
+          assignedShiftTimes,
+          callTime: summary.startTime,
+          offTime: summary.endTime,
+        };
+        if (
+          JSON.stringify(nextMember.assignedDates) !==
+            JSON.stringify(member.assignedDates ?? []) ||
+          JSON.stringify(nextMember.assignedShiftPhases) !==
+            JSON.stringify(member.assignedShiftPhases ?? []) ||
+          JSON.stringify(nextMember.assignedShiftTimes) !==
+            JSON.stringify(member.assignedShiftTimes ?? {}) ||
+          nextMember.callTime !== member.callTime ||
+          nextMember.offTime !== member.offTime
+        ) {
+          changed = true;
+        }
+        return nextMember;
+      });
+      return changed ? next : current;
+    });
+  }, [phaseDays, phaseShiftTimes]);
+
   /** Earliest call → latest off across the project-schedule segments
    *  that cover the given assigned days. Memoised so MasterCrewSheet
    *  can call it on every day-chip toggle without re-walking the whole
@@ -3750,19 +3840,29 @@ function App() {
     // specific days. Call/off times are derived from the project
     // schedule so the row's shift covers the actual on-site window
     // (earliest setup → latest downrig across the seeded days).
-    const days = expandProjectDays(reportDate, reportEndDate);
     const fresh = makeCrewMember();
-    const t = getCrewTimesForDates(days, {
-      callTime: fresh.callTime,
-      offTime: fresh.offTime,
-    });
+    const assignedShiftPhases = scheduledShiftKeys(phaseDays);
+    const assignedDates = assignedDatesFromShiftPhases(
+      new Set(assignedShiftPhases),
+    );
+    const assignedShiftTimes = shiftTimesForSelections(
+      assignedShiftPhases,
+      phaseShiftTimes,
+    );
+    const summary = summarizeShiftTimes(
+      assignedShiftPhases,
+      assignedShiftTimes,
+      { startTime: fresh.callTime, endTime: fresh.offTime },
+    );
     setCrew((all) => [
       ...all,
       {
         ...fresh,
-        assignedDates: days,
-        callTime: t.callTime,
-        offTime: t.offTime,
+        assignedDates,
+        assignedShiftPhases,
+        assignedShiftTimes,
+        callTime: summary.startTime,
+        offTime: summary.endTime,
       },
     ]);
   };
@@ -7209,6 +7309,7 @@ function App() {
           adequacyMetrics={adequacyMetrics}
           getTimesForDates={getCrewTimesForDates}
           phaseDays={phaseDays}
+          phaseShiftTimes={phaseShiftTimes}
           directorySidebar={
             <AvailableCrewSidebar
               briefId={activeBriefId || undefined}

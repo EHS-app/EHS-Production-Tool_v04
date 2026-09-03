@@ -6,6 +6,10 @@ import { FreelancerProfileModal } from "./global/FreelancerProfileModal";
 import {
   type CrewMember,
 } from "../lib/crew";
+import type {
+  CrewShiftPhaseKey,
+  CrewShiftTimeMap,
+} from "../lib/crewShiftAssignments";
 
 type Props = {
   crew: CrewMember[];
@@ -51,7 +55,11 @@ type Props = {
    *  Load Out). Threaded through to MasterCrewSheet so each local
    *  crew row can offer one-click "fill from Setup days", "from Show
    *  days", etc. quick-pick buttons. */
-  phaseDays?: Partial<Record<string, ReadonlyArray<string>>>;
+  phaseDays?: Partial<
+    Record<CrewShiftPhaseKey, ReadonlyArray<string>>
+  >;
+  /** Exact project schedule times keyed by date+phase. */
+  phaseShiftTimes?: CrewShiftTimeMap;
 };
 
 /** Crew & Logistics view — one master sheet, one optional adequacy
@@ -77,6 +85,7 @@ export function CrewReportView({
   adequacyMetrics,
   getTimesForDates,
   phaseDays,
+  phaseShiftTimes,
 }: Props) {
   // Headcount source for the adequacy meter: the merged roster the
   // master sheet is actually displaying (gig + local), bubbled up
@@ -195,6 +204,7 @@ export function CrewReportView({
             onCountsChange={handleCountsChange}
             getTimesForDates={getTimesForDates}
             phaseDays={phaseDays}
+            phaseShiftTimes={phaseShiftTimes}
             compactHeader
             onOpenProfile={(id) => setProfileUserId(id)}
           />

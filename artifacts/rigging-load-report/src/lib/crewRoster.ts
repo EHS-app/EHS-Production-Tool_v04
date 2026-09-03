@@ -89,6 +89,12 @@ export type RosterRow = {
   /** YYYY-MM-DD strings, sorted. Empty when the producer has not yet
    *  picked working days (which is the default for a fresh accept). */
   assignedDates: string[];
+  /** Exact assignment timing from the brief, with local legacy values only
+   * used when the server has no timing for this accepted gig. */
+  callTime: string;
+  offTime: string;
+  assignedShiftPhases: string[];
+  assignedShiftTimes: Record<string, { startTime: string; endTime: string }>;
   /** True when the producer has flagged this person as needing a
    *  hotel for the run. Derived from `hotelDates.length > 0` for
    *  both gig and local rows. */
@@ -142,6 +148,10 @@ export type RosterGig = {
   role: string;
   status: RosterGigStatus;
   assignedDates: string[];
+  callTime: string;
+  offTime: string;
+  assignedShiftPhases: string[];
+  assignedShiftTimes: Record<string, { startTime: string; endTime: string }>;
   hotelRequired: boolean;
   hotelDates: string[];
   dietaryTags: DietaryTag[];
@@ -250,6 +260,22 @@ export function mergeRoster(
       if (STATUS_RANK[g.status] > STATUS_RANK[existing.status as RosterGigStatus]) {
         existing.status = g.status;
       }
+      // Brief assignment timing is server-authoritative. A second gig can
+      // repair a legacy empty first gig, but never replaces a present value.
+      if (!existing.callTime && g.callTime) existing.callTime = g.callTime;
+      if (!existing.offTime && g.offTime) existing.offTime = g.offTime;
+      if (
+        existing.assignedShiftPhases.length === 0 &&
+        g.assignedShiftPhases.length > 0
+      ) {
+        existing.assignedShiftPhases = [...g.assignedShiftPhases];
+      }
+      if (
+        Object.keys(existing.assignedShiftTimes).length === 0 &&
+        Object.keys(g.assignedShiftTimes).length > 0
+      ) {
+        existing.assignedShiftTimes = { ...g.assignedShiftTimes };
+      }
       // dietaryTags / allergens / phone / room come from the
       // freelancer profile + pairing engine (same person → same
       // data) so we don't bother merging; the first gig's copy is
@@ -275,6 +301,16 @@ export function mergeRoster(
       role: matchedLocal?.role ?? g.role,
       status: g.status,
       assignedDates: g.assignedDates,
+      callTime: g.callTime || matchedLocal?.callTime || "",
+      offTime: g.offTime || matchedLocal?.offTime || "",
+      assignedShiftPhases:
+        g.assignedShiftPhases.length > 0
+          ? [...g.assignedShiftPhases]
+          : [...(matchedLocal?.assignedShiftPhases ?? [])],
+      assignedShiftTimes:
+        Object.keys(g.assignedShiftTimes).length > 0
+          ? { ...g.assignedShiftTimes }
+          : { ...(matchedLocal?.assignedShiftTimes ?? {}) },
       hotelRequired: g.hotelRequired,
       hotelDates: g.hotelDates,
       dietaryTags: g.dietaryTags,
@@ -309,6 +345,10 @@ export function mergeRoster(
       // toggles). Falls back to [] for legacy rows persisted before
       // this field existed.
       assignedDates: m.assignedDates ? [...m.assignedDates] : [],
+      callTime: m.callTime,
+      offTime: m.offTime,
+      assignedShiftPhases: [...(m.assignedShiftPhases ?? [])],
+      assignedShiftTimes: { ...(m.assignedShiftTimes ?? {}) },
       // Local rows now carry a producer-set `needsHotel` flag so
       // in-house / manual people can be ticked for hotel without
       // having to go through the portal accept flow first. Now

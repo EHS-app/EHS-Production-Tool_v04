@@ -2130,6 +2130,80 @@ function expandDateRange(
   return out;
 }
 
+const ROSTER_SHIFT_PHASE_KEY =
+  /^\d{4}-\d{2}-\d{2}::(setup|rehearsal|show|downrig)$/;
+const ROSTER_HHMM = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
+/** Read the producer-owned timing fields from a brief assignment without
+ * trusting JSONB contents. Older briefs did not persist these fields, so
+ * their empty values are deliberately retained in the roster wire shape. */
+function rosterAssignmentTiming(value: unknown): {
+  callTime: string;
+  offTime: string;
+  assignedShiftPhases: string[];
+  assignedShiftTimes: Record<string, { startTime: string; endTime: string }>;
+} {
+  const assignment =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const assignedShiftPhases = Array.isArray(assignment.assignedShiftPhases)
+    ? assignment.assignedShiftPhases
+        .filter(
+          (phase): phase is string =>
+            typeof phase === "string" && ROSTER_SHIFT_PHASE_KEY.test(phase),
+        )
+        .sort()
+    : [];
+  const assignedShiftTimes: Record<
+    string,
+    { startTime: string; endTime: string }
+  > = {};
+  if (
+    assignment.assignedShiftTimes &&
+    typeof assignment.assignedShiftTimes === "object" &&
+    !Array.isArray(assignment.assignedShiftTimes)
+  ) {
+    for (const [key, timing] of Object.entries(
+      assignment.assignedShiftTimes as Record<string, unknown>,
+    )) {
+      if (
+        !ROSTER_SHIFT_PHASE_KEY.test(key) ||
+        !timing ||
+        typeof timing !== "object" ||
+        Array.isArray(timing)
+      ) {
+        continue;
+      }
+      const candidate = timing as Record<string, unknown>;
+      if (
+        typeof candidate.startTime === "string" &&
+        ROSTER_HHMM.test(candidate.startTime) &&
+        typeof candidate.endTime === "string" &&
+        ROSTER_HHMM.test(candidate.endTime)
+      ) {
+        assignedShiftTimes[key] = {
+          startTime: candidate.startTime,
+          endTime: candidate.endTime,
+        };
+      }
+    }
+  }
+  return {
+    callTime:
+      typeof assignment.callTime === "string" &&
+      ROSTER_HHMM.test(assignment.callTime)
+        ? assignment.callTime
+        : "",
+    offTime:
+      typeof assignment.offTime === "string" && ROSTER_HHMM.test(assignment.offTime)
+        ? assignment.offTime
+        : "",
+    assignedShiftPhases,
+    assignedShiftTimes,
+  };
+}
+
 router.get(
   "/portal/briefs/:id/roster",
   requireEmployee,
@@ -2145,6 +2219,7 @@ router.get(
           projectName: projectBriefsTable.projectName,
           startDate: projectBriefsTable.startDate,
           endDate: projectBriefsTable.endDate,
+          data: projectBriefsTable.data,
         })
         .from(projectBriefsTable)
         .where(eq(projectBriefsTable.id, id))
@@ -2157,6 +2232,31 @@ router.get(
       if (brief.ownerUserId !== userId) {
         res.status(403).json({ ok: false, error: "Not your brief." });
         return;
+      }
+      const assignmentTimingByFreelancerId = new Map<
+        string,
+        ReturnType<typeof rosterAssignmentTiming>
+      >();
+      const briefData =
+        brief.data && typeof brief.data === "object" && !Array.isArray(brief.data)
+          ? (brief.data as Record<string, unknown>)
+          : {};
+      if (Array.isArray(briefData.assignments)) {
+        for (const assignment of briefData.assignments) {
+          if (!assignment || typeof assignment !== "object" || Array.isArray(assignment)) {
+            continue;
+          }
+          const rawAssignment = assignment as Record<string, unknown>;
+          if (
+            typeof rawAssignment.freelancerUserId === "string" &&
+            rawAssignment.freelancerUserId
+          ) {
+            assignmentTimingByFreelancerId.set(
+              rawAssignment.freelancerUserId,
+              rosterAssignmentTiming(rawAssignment),
+            );
+          }
+        }
       }
 
       // Pull every gig on this brief plus the freelancer profile bits
@@ -2259,6 +2359,9 @@ router.get(
             typeof r.checkOutDate === "string"
               ? r.checkOutDate.slice(0, 10)
               : null;
+          const timing =
+            assignmentTimingByFreelancerId.get(r.freelancerUserId) ??
+            rosterAssignmentTiming(null);
           return {
             gigId: r.gigId,
             freelancerUserId: r.freelancerUserId,
@@ -2268,6 +2371,10 @@ router.get(
             assignedDates: dates,
             hotelRequired: !!r.hotelRequired,
             hotelDates,
+            callTime: timing.callTime,
+            offTime: timing.offTime,
+            assignedShiftPhases: timing.assignedShiftPhases,
+            assignedShiftTimes: timing.assignedShiftTimes,
             dietaryTags: classifyDietary(r.profileDietary),
             allergens: splitAllergens(r.profileAllergies),
             phone: typeof r.profilePhone === "string" ? r.profilePhone : "",
@@ -2941,6 +3048,8 @@ router.get(
           crewId?: string;
           callTime?: string;
           offTime?: string;
+          assignedShiftPhases?: unknown;
+          assignedShiftTimes?: unknown;
         }>;
       };
 
@@ -2951,6 +3060,11 @@ router.get(
       let callerAssignment: {
         callTime?: string;
         offTime?: string;
+        assignedShiftPhases?: string[];
+        assignedShiftTimes?: Record<
+          string,
+          { startTime?: string; endTime?: string }
+        >;
       } | null = null;
       if (callerCrewId && Array.isArray(briefData.assignments)) {
         const a = briefData.assignments.find(
@@ -2963,6 +3077,50 @@ router.get(
           }
           if (typeof a.offTime === "string" && a.offTime) {
             callerAssignment.offTime = a.offTime;
+          }
+          if (Array.isArray(a.assignedShiftPhases)) {
+            callerAssignment.assignedShiftPhases =
+              a.assignedShiftPhases.filter(
+                (key): key is string =>
+                  typeof key === "string" &&
+                  /^\d{4}-\d{2}-\d{2}::(setup|rehearsal|show|downrig)$/.test(
+                    key,
+                  ),
+              );
+          }
+          if (
+            a.assignedShiftTimes &&
+            typeof a.assignedShiftTimes === "object" &&
+            !Array.isArray(a.assignedShiftTimes)
+          ) {
+            callerAssignment.assignedShiftTimes = Object.fromEntries(
+              Object.entries(
+                a.assignedShiftTimes as Record<string, unknown>,
+              ).flatMap(([key, rawTiming]) => {
+                if (
+                  !/^\d{4}-\d{2}-\d{2}::(setup|rehearsal|show|downrig)$/.test(
+                    key,
+                  ) ||
+                  !rawTiming ||
+                  typeof rawTiming !== "object"
+                ) {
+                  return [];
+                }
+                const timing = rawTiming as Record<string, unknown>;
+                return typeof timing.startTime === "string" &&
+                  typeof timing.endTime === "string"
+                  ? [
+                      [
+                        key,
+                        {
+                          startTime: timing.startTime,
+                          endTime: timing.endTime,
+                        },
+                      ],
+                    ]
+                  : [];
+              }),
+            );
           }
         }
       }

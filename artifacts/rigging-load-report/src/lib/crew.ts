@@ -91,6 +91,12 @@ export type CrewMember = {
    *  This keeps overlapping phases on the same calendar day independent
    *  while `assignedDates` remains the backwards-compatible API payload. */
   assignedShiftPhases?: string[];
+  /** Exact project-schedule times keyed by `YYYY-MM-DD::phase`.
+   *  Additive to the legacy row-level call/off summary. */
+  assignedShiftTimes?: Record<
+    string,
+    { startTime: string; endTime: string }
+  >;
   /** Contact phone copied from the freelancer's portal profile when
    *  the row was added via the Available Crew sidebar. Empty string
    *  for manual in-house rows. */
@@ -204,6 +210,41 @@ export function normalizeCrewMember(raw: unknown): CrewMember {
           )
           .sort()
       : undefined,
+    assignedShiftTimes:
+      r.assignedShiftTimes &&
+      typeof r.assignedShiftTimes === "object" &&
+      !Array.isArray(r.assignedShiftTimes)
+        ? Object.fromEntries(
+            Object.entries(
+              r.assignedShiftTimes as Record<string, unknown>,
+            ).flatMap(([key, value]) => {
+              if (
+                !/^\d{4}-\d{2}-\d{2}::(setup|rehearsal|show|downrig)$/.test(
+                  key,
+                ) ||
+                !value ||
+                typeof value !== "object"
+              ) {
+                return [];
+              }
+              const timing = value as Record<string, unknown>;
+              return typeof timing.startTime === "string" &&
+                isValidHHMM(timing.startTime) &&
+                typeof timing.endTime === "string" &&
+                isValidHHMM(timing.endTime)
+                ? [
+                    [
+                      key,
+                      {
+                        startTime: timing.startTime,
+                        endTime: timing.endTime,
+                      },
+                    ],
+                  ]
+                : [];
+            }),
+          )
+        : undefined,
     phone: typeof r.phone === "string" ? r.phone : undefined,
     dietaryTags: Array.isArray(r.dietaryTags)
       ? (r.dietaryTags as unknown[]).filter(

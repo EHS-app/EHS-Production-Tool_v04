@@ -45,6 +45,14 @@ export type BriefAssignment = {
    *  brief. Empty array means "no specific days set" — older briefs
    *  saved before this field existed normalise to []. */
   assignedDates: string[];
+  /** Exact date+phase selections. Additive to assignedDates for
+   *  backward compatibility with existing briefs and gig APIs. */
+  assignedShiftPhases: string[];
+  /** Exact schedule windows keyed by `YYYY-MM-DD::phase`. */
+  assignedShiftTimes: Record<
+    string,
+    { startTime: string; endTime: string }
+  >;
   /** YYYY-MM-DD strings the producer ticked on the Crew tab's hotel
    *  picker for this person. Always a subset of `assignedDates`.
    *  Empty array means no hotel. Older briefs saved before this field
@@ -706,6 +714,18 @@ export function buildBrief(input: BuildBriefInput): ProjectBrief {
     dayRate: m.dayRate,
     notes: m.notes,
     assignedDates: Array.isArray(m.assignedDates) ? [...m.assignedDates] : [],
+    assignedShiftPhases: Array.isArray(m.assignedShiftPhases)
+      ? [...m.assignedShiftPhases]
+      : [],
+    assignedShiftTimes:
+      m.assignedShiftTimes && typeof m.assignedShiftTimes === "object"
+        ? Object.fromEntries(
+            Object.entries(m.assignedShiftTimes).map(([key, value]) => [
+              key,
+              { ...value },
+            ]),
+          )
+        : {},
     hotelDates: Array.isArray(m.hotelDates) ? [...m.hotelDates] : [],
     // Pass the freelancer's Clerk user id through when the crew row
     // originated from "Send requests" on the Available Crew sidebar.
@@ -890,6 +910,50 @@ function normalizeAssignment(raw: unknown): BriefAssignment {
       ? (r.assignedDates as unknown[])
           .filter((d): d is string => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d))
       : [],
+    assignedShiftPhases: Array.isArray(r.assignedShiftPhases)
+      ? (r.assignedShiftPhases as unknown[]).filter(
+          (key): key is string =>
+            typeof key === "string" &&
+            /^\d{4}-\d{2}-\d{2}::(setup|rehearsal|show|downrig)$/.test(
+              key,
+            ),
+        )
+      : [],
+    assignedShiftTimes:
+      r.assignedShiftTimes &&
+      typeof r.assignedShiftTimes === "object" &&
+      !Array.isArray(r.assignedShiftTimes)
+        ? Object.fromEntries(
+            Object.entries(
+              r.assignedShiftTimes as Record<string, unknown>,
+            ).flatMap(([key, rawTiming]) => {
+              if (
+                !/^\d{4}-\d{2}-\d{2}::(setup|rehearsal|show|downrig)$/.test(
+                  key,
+                ) ||
+                !rawTiming ||
+                typeof rawTiming !== "object"
+              ) {
+                return [];
+              }
+              const timing = rawTiming as Record<string, unknown>;
+              return typeof timing.startTime === "string" &&
+                /^\d{2}:\d{2}$/.test(timing.startTime) &&
+                typeof timing.endTime === "string" &&
+                /^\d{2}:\d{2}$/.test(timing.endTime)
+                ? [
+                    [
+                      key,
+                      {
+                        startTime: timing.startTime,
+                        endTime: timing.endTime,
+                      },
+                    ],
+                  ]
+                : [];
+            }),
+          )
+        : {},
     hotelDates: Array.isArray(r.hotelDates)
       ? (r.hotelDates as unknown[])
           .filter((d): d is string => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d))

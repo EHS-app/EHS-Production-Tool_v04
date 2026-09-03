@@ -10901,8 +10901,10 @@ html[data-shell="linear"] .container {
 
 .crew-shift-phase label {
   display: flex;
+  flex-direction: column;
+  justify-content: center;
   min-height: 44px;
-  align-items: center;
+  align-items: flex-start;
   padding: 8px 10px 8px 38px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -10911,6 +10913,14 @@ html[data-shell="linear"] .container {
   font-weight: 700;
   cursor: pointer;
   overflow-wrap: anywhere;
+}
+
+.crew-shift-phase label small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
 }
 
 .crew-shift-phase input:checked + label {

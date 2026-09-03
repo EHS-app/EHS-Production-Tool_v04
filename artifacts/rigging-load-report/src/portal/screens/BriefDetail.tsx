@@ -1580,6 +1580,27 @@ function AssignmentCard({
     () => groupAssignedDaysByPhase(assignment.assignedDates, schedule),
     [assignment.assignedDates, schedule],
   );
+  const exactShiftRows = useMemo(() => {
+    const phaseLabels: Record<string, string> = {
+      setup: "Load-in",
+      rehearsal: "Soundcheck",
+      show: "Show",
+      downrig: "Load-out",
+    };
+    return (assignment.assignedShiftPhases ?? []).flatMap((key) => {
+      const [dateKey, phaseKey] = key.split("::");
+      const timing = assignment.assignedShiftTimes?.[key];
+      if (!dateKey || !phaseKey || !timing) return [];
+      return [
+        {
+          key,
+          dateKey,
+          phaseLabel: phaseLabels[phaseKey] ?? phaseKey,
+          timing: `${timing.startTime}–${timing.endTime}`,
+        },
+      ];
+    });
+  }, [assignment.assignedShiftPhases, assignment.assignedShiftTimes]);
   return (
     <section
       style={{
@@ -1640,6 +1661,55 @@ function AssignmentCard({
           />
         ) : null}
       </div>
+      {exactShiftRows.length > 0 ? (
+        <div
+          style={{
+            marginTop: 16,
+            paddingTop: 14,
+            borderTop: `1px solid ${c.border}`,
+          }}
+        >
+          <div
+            style={{
+              color: c.muted,
+              fontSize: 11,
+              fontWeight: 800,
+              letterSpacing: 0.7,
+              textTransform: "uppercase",
+            }}
+          >
+            Scheduled shifts
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(190px, 1fr))",
+              gap: 8,
+              marginTop: 8,
+            }}
+          >
+            {exactShiftRows.map((shift) => (
+              <div
+                key={shift.key}
+                style={{
+                  border: `1px solid ${c.border}`,
+                  borderRadius: 9,
+                  padding: "9px 10px",
+                  background: c.cardBgSubtle,
+                  fontSize: 12,
+                  color: c.text,
+                }}
+              >
+                <strong>{shift.dateKey}</strong>
+                <div style={{ marginTop: 2, color: c.muted }}>
+                  {shift.phaseLabel} · {shift.timing}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {dayBreakdown.length > 0 ? (
         <div style={{ marginTop: 14 }}>
           <div

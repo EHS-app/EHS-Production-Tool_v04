@@ -115,7 +115,7 @@ export function LanguageSelector({
             position: "fixed",
             top: menuPosition.top,
             right: menuPosition.right,
-            zIndex: 1001,
+            zIndex: 12000,
           }}
         >
           {LOCALE_OPTIONS.map((opt) => {

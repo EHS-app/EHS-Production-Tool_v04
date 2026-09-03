@@ -15,6 +15,9 @@ import {
   MapPin,
   Building2,
   HelpCircle,
+  Bell,
+  Moon,
+  Sun,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -230,6 +233,11 @@ export function GlobalShell({
 
       <main className="ehs-shell-main">
         <header className="ehs-shell-topbar">
+          <img
+            src={ehsLogo}
+            alt="EHS Lyd, Lys, Bilder"
+            className="ehs-shell-mobile-brand h-7 w-auto object-contain"
+          />
           <button
             type="button"
             className="ehs-shell-mobile-menu-btn"
@@ -244,10 +252,10 @@ export function GlobalShell({
             <span className="ehs-shell-crumb-sep">/</span>
             <span className="ehs-shell-crumb-current">{activeLabel}</span>
           </div>
-          <div className="ehs-shell-topbar-actions">
+          <div className="ehs-shell-topbar-actions ehs-producer-topbar-actions">
             <button
               type="button"
-              className="ehs-shell-action ehs-shell-help-action"
+              className="ehs-shell-action ehs-shell-help-action ehs-mobile-utility h-8 min-w-[32px] px-2 rounded-md border flex items-center justify-center text-xs font-semibold transition-colors bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700/60 dark:text-slate-200"
               onClick={onHelp}
               title={t("header.helpTitle")}
               aria-label={t("header.help")}
@@ -255,7 +263,44 @@ export function GlobalShell({
               <HelpCircle size={14} />
               <span>{t("header.help")}</span>
             </button>
-            <LanguageSelector />
+            <div className="ehs-mobile-utility">
+              <LanguageSelector triggerClassName="h-8 min-w-[32px] px-2 rounded-md border flex items-center justify-center text-xs font-semibold transition-colors bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700/60 dark:text-slate-200" />
+            </div>
+            <button
+              type="button"
+              className="ehs-mobile-utility ehs-mobile-only-utility ehs-shell-icon-btn h-8 min-w-[32px] px-2 rounded-md border flex items-center justify-center text-xs font-semibold transition-colors bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700/60 dark:text-slate-200"
+              onClick={() => onChangeTheme(themePref === "dark" ? "light" : "dark")}
+              aria-label={themePref === "dark" ? t("global.menu.theme.light") : t("global.menu.theme.dark")}
+              title={themePref === "dark" ? t("global.menu.theme.light") : t("global.menu.theme.dark")}
+            >
+              {themePref === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="ehs-mobile-utility ehs-mobile-only-utility ehs-shell-icon-btn h-8 min-w-[32px] px-2 rounded-md border flex items-center justify-center text-xs font-semibold transition-colors bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700/60 dark:text-slate-200"
+                  aria-label="Notifications"
+                  title="Notifications"
+                >
+                  <Bell size={14} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="z-[60] bg-white dark:bg-slate-900">
+                <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
+                  No new notifications
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <button
+              type="button"
+              className="ehs-mobile-utility ehs-mobile-only-utility ehs-shell-icon-btn h-8 min-w-[32px] px-2 rounded-md border flex items-center justify-center text-xs font-semibold transition-colors bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700/60 dark:text-slate-200"
+              onClick={onSignOut}
+              aria-label={t("global.menu.signOut")}
+              title={t("global.menu.signOut")}
+            >
+              <LogOut size={14} />
+            </button>
           </div>
         </header>
 

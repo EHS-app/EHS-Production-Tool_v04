@@ -146,7 +146,7 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, on
             )}
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
+          <div className="mobile-table-scroll" style={{ overflowX: "auto" }}>
             <table className="ehs-table">
               <thead>
                 <tr>

@@ -568,7 +568,7 @@ export function ClientsDatabasePage({ getToken, onProjectCloned }: Props) {
             )}
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
+          <div className="mobile-table-scroll" style={{ overflowX: "auto" }}>
             <table className="ehs-table">
               <thead>
                 <tr>

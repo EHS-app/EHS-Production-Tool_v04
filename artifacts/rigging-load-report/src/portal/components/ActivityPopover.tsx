@@ -122,15 +122,15 @@ export function ActivityPopover({
             ref={popoverRef}
             role="dialog"
             aria-label={t("portal.activity.title")}
-            className="fixed right-2 sm:right-4 z-50 mt-2 w-[calc(100vw-16px)] max-w-sm sm:w-80 rounded-xl bg-white border-slate-200 text-slate-800 shadow-2xl dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
+            className="fixed right-2 sm:right-4 z-[12000] mt-2 w-[calc(100vw-16px)] max-w-sm sm:w-80 rounded-xl bg-white border-slate-200 text-slate-800 shadow-2xl dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"
             style={{
               position: "fixed",
               top: position.top,
               right: position.right,
-              zIndex: 1000,
+              zIndex: 12000,
               width: position.width,
               maxWidth: 384,
-              maxHeight: "min(620px, calc(100dvh - 80px))",
+              maxHeight: `min(620px, calc(100dvh - ${position.top + 8}px))`,
               overflowY: "auto",
               borderRadius: 14,
               border: `1px solid ${theme === "dark" ? "#1e293b" : "#e2e8f0"}`,

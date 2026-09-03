@@ -503,6 +503,9 @@ export function PortalLayout({
                   color: theme === "dark" ? "#ffffff" : "#0f172a",
                   borderTop: `1px solid ${theme === "dark" ? "#1e293b" : "#e2e8f0"}`,
                   boxShadow: "0 -12px 36px rgba(0, 0, 0, 0.24)",
+                   maxHeight: "calc(100dvh - env(safe-area-inset-top) - 16px)",
+                   overflowY: "auto",
+                   overscrollBehavior: "contain",
                 }}
               >
                 <div

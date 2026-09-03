@@ -102,24 +102,24 @@ export function DeleteProjectDialog({
       </AlertDialogTrigger>
       <AlertDialogPortal>
         <AlertDialogOverlay
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+          className="fixed inset-0 z-[12000] bg-black/70 backdrop-blur-sm"
           style={{
             position: "fixed",
             inset: 0,
-            zIndex: 50,
+            zIndex: 12000,
             background: "rgba(0, 0, 0, 0.7)",
             backdropFilter: "blur(4px)",
           }}
         />
         <AlertDialogPrimitive.Content
           onClick={(e) => e.stopPropagation()}
-          className="fixed left-1/2 top-1/2 z-[51] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 text-slate-100"
+          className="fixed left-1/2 top-1/2 z-[12001] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 text-slate-100"
           style={{
             position: "fixed",
             left: "50%",
             top: "50%",
             transform: "translate(-50%, -50%)",
-            zIndex: 51,
+            zIndex: 12001,
             width: "calc(100vw - 32px)",
             maxWidth: 448,
             maxHeight: "calc(100vh - 32px)",

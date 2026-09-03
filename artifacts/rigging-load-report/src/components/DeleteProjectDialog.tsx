@@ -50,11 +50,14 @@ export function DeleteProjectDialog({
     setLoading(true);
     setError("");
     
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 20_000);
     try {
       const token = await getToken();
       const res = await fetch(`/api/projects/${projectId}`, {
         method: "DELETE",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
+        signal: controller.signal,
       });
       
       if (!res.ok) {
@@ -66,12 +69,19 @@ export function DeleteProjectDialog({
       }
       
       toast.success(t("project.delete.success"));
-      setOpen(false);
       onSuccess();
     } catch (err: any) {
-      setError(err.message);
+      const message =
+        err instanceof DOMException && err.name === "AbortError"
+          ? t("project.delete.error.generic")
+          : err?.message || t("project.delete.error.generic");
+      setError(message);
+      toast.error(message);
     } finally {
+      window.clearTimeout(timeout);
       setLoading(false);
+      setOpen(false);
+      setConfirmText("");
     }
   };
 

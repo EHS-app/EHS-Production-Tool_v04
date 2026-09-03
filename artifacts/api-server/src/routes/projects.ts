@@ -487,7 +487,7 @@ router.delete("/projects/:id", requireSignedIn, async (req, res) => {
       });
       return;
     }
-    res.json({ ok: true });
+    res.json({ ok: true, success: true, id: String(id) });
   } catch (err) {
     req.log.error(err, "Failed to delete project");
     res.status(500).json({ ok: false, error: "Failed to delete project." });

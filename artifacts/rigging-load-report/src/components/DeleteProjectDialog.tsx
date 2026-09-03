@@ -99,7 +99,28 @@ export function DeleteProjectDialog({
       <AlertDialogTrigger asChild>
         {trigger}
       </AlertDialogTrigger>
-      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+      <AlertDialogContent
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: "fixed",
+          left: "50%",
+          top: "50%",
+          transform: "translate(-50%, -50%)",
+          zIndex: 10000,
+          display: "grid",
+          width: "calc(100vw - 32px)",
+          maxWidth: 520,
+          maxHeight: "calc(100vh - 32px)",
+          overflowY: "auto",
+          gap: 16,
+          padding: 24,
+          border: "1px solid var(--border)",
+          borderRadius: 12,
+          background: "var(--background)",
+          color: "var(--foreground)",
+          boxShadow: "0 24px 80px rgba(0, 0, 0, 0.28)",
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>{t("project.delete.title")}</AlertDialogTitle>
           <AlertDialogDescription>
@@ -115,6 +136,18 @@ export function DeleteProjectDialog({
             <input
               type="text"
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                display: "block",
+                width: "100%",
+                height: 40,
+                boxSizing: "border-box",
+                marginTop: 8,
+                padding: "8px 12px",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                background: "var(--background)",
+                color: "var(--foreground)",
+              }}
               value={confirmText}
               onChange={(e) => {
                 setConfirmText(e.target.value);
@@ -126,12 +159,31 @@ export function DeleteProjectDialog({
         )}
         
         {error && (
-          <div className="mt-2 text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+          <div
+            className="mt-2 text-sm text-destructive bg-destructive/10 p-3 rounded-md"
+            style={{
+              padding: 12,
+              borderRadius: 6,
+              background: "color-mix(in srgb, var(--destructive) 10%, transparent)",
+              color: "var(--destructive)",
+              fontSize: 14,
+            }}
+          >
             {error}
           </div>
         )}
         
-        <AlertDialogFooter className="mt-6">
+        <AlertDialogFooter
+          className="mt-6"
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            justifyContent: "flex-end",
+            flexWrap: "wrap",
+            gap: 8,
+            marginTop: 8,
+          }}
+        >
           <AlertDialogCancel disabled={loading} onClick={(e) => {
             e.stopPropagation();
             setConfirmText("");

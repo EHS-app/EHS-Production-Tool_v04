@@ -75039,7 +75039,6 @@ var pool = new Pool3({ connectionString: process.env.DATABASE_URL });
 var db = drizzle(pool, { schema: schema_exports });
 
 // ../../lib/db/src/projectDeletion.ts
-var PROJECT_DELETE_FINANCIAL_CONFLICT = "This project cannot be deleted because it has approved or payroll-locked time or financial records. Those records must be preserved.";
 var PROJECT_BRIEF_PROVENANCE_LOCK = sql`
   select pg_advisory_xact_lock(1886545254, 134756896)
 `;
@@ -75056,17 +75055,25 @@ async function deleteOwnedProject(projectId, ownerUserId) {
       )
     ).limit(1).for("update");
     if (!project) return { kind: "not_found" };
-    const finance = await tx.select({
-      easyjobRevenueMinor: projectFinanceSettingsTable.easyjobRevenueMinor
-    }).from(projectFinanceSettingsTable).where(eq(projectFinanceSettingsTable.projectId, projectId)).limit(1).for("update");
-    const recordedExpense = await tx.select({ id: projectExpensesTable.id }).from(projectExpensesTable).where(eq(projectExpensesTable.projectId, projectId)).limit(1).for("update");
-    if (recordedExpense.length > 0 || (finance[0]?.easyjobRevenueMinor ?? 0) > 0) {
-      return { kind: "financial_conflict" };
-    }
+    await tx.update(projectBriefsTable).set({ projectId: null, updatedAt: /* @__PURE__ */ new Date() }).where(
+      and(
+        eq(projectBriefsTable.projectId, projectId),
+        ne(projectBriefsTable.ownerUserId, ownerUserId)
+      )
+    );
     const linkedBriefWhere = project.activeBriefId ? or(
+      and(
+        eq(projectBriefsTable.projectId, projectId),
+        eq(projectBriefsTable.ownerUserId, ownerUserId)
+      ),
+      and(
+        eq(projectBriefsTable.id, project.activeBriefId),
+        eq(projectBriefsTable.ownerUserId, ownerUserId)
+      )
+    ) : and(
       eq(projectBriefsTable.projectId, projectId),
-      eq(projectBriefsTable.id, project.activeBriefId)
-    ) : eq(projectBriefsTable.projectId, projectId);
+      eq(projectBriefsTable.ownerUserId, ownerUserId)
+    );
     const linkedBriefs = await tx.select({
       id: projectBriefsTable.id,
       ownerUserId: projectBriefsTable.ownerUserId,
@@ -75074,52 +75081,37 @@ async function deleteOwnedProject(projectId, ownerUserId) {
     }).from(projectBriefsTable).where(linkedBriefWhere).for("update");
     const linkedBriefIds = linkedBriefs.map((brief) => brief.id);
     if (linkedBriefIds.length > 0) {
-      const linkedGigs = await tx.select({ id: gigsTable.id, status: gigsTable.status }).from(gigsTable).where(inArray(gigsTable.briefId, linkedBriefIds)).for("update");
-      if (linkedGigs.some(
-        (gig) => gig.status === "invoiced" || gig.status === "paid"
-      )) {
-        return { kind: "financial_conflict" };
-      }
+      const linkedGigs = await tx.select({ id: gigsTable.id }).from(gigsTable).where(inArray(gigsTable.briefId, linkedBriefIds)).for("update");
       const linkedGigIds = linkedGigs.map((gig) => gig.id);
       const entryLinkWhere = linkedGigIds.length > 0 ? or(
         inArray(timeEntriesTable.briefId, linkedBriefIds),
         inArray(timeEntriesTable.gigId, linkedGigIds)
       ) : inArray(timeEntriesTable.briefId, linkedBriefIds);
-      const linkedEntries = await tx.select({
-        id: timeEntriesTable.id,
-        status: timeEntriesTable.status,
-        approvedRateMinor: timeEntriesTable.approvedRateMinor,
-        approvedFlatFeeMinor: timeEntriesTable.approvedFlatFeeMinor,
-        approvedOvertimeMultiplierBasisPoints: timeEntriesTable.approvedOvertimeMultiplierBasisPoints
-      }).from(timeEntriesTable).where(entryLinkWhere).for("update");
-      if (linkedEntries.some(
-        (entry) => entry.status === "approved" || entry.status === "locked" || entry.approvedRateMinor != null || entry.approvedFlatFeeMinor != null || entry.approvedOvertimeMultiplierBasisPoints != null
-      )) {
-        return { kind: "financial_conflict" };
+      await tx.delete(timeEntriesTable).where(entryLinkWhere);
+      if (linkedGigIds.length > 0) {
+        await tx.delete(gigsTable).where(inArray(gigsTable.id, linkedGigIds));
       }
-      const externallyReferenced = await tx.select({
-        activeBriefId: sql`${projectsTable.data}->>'activeBriefId'`
-      }).from(projectsTable).where(
-        and(
-          ne(projectsTable.id, projectId),
-          inArray(
-            sql`${projectsTable.data}->>'activeBriefId'`,
-            linkedBriefIds
-          )
+      await tx.delete(briefAssignmentsTable).where(inArray(briefAssignmentsTable.briefId, linkedBriefIds));
+      await tx.delete(briefRoomAssignmentsTable).where(inArray(briefRoomAssignmentsTable.briefId, linkedBriefIds));
+      await tx.delete(calendarHoldsTable).where(inArray(calendarHoldsTable.briefId, linkedBriefIds));
+      await tx.update(projectsTable).set({
+        data: sql`${projectsTable.data} - 'activeBriefId'`,
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(
+        inArray(
+          sql`${projectsTable.data}->>'activeBriefId'`,
+          linkedBriefIds
         )
       );
-      const externalIds = new Set(
-        externallyReferenced.map((row) => row.activeBriefId)
-      );
-      const safeBriefIds = linkedBriefs.filter(
-        (brief) => brief.ownerUserId === ownerUserId && !externalIds.has(brief.id) && (brief.projectId === projectId || brief.id === project.activeBriefId && (brief.projectId === null || brief.projectId === projectId))
-      ).map((brief) => brief.id);
-      if (safeBriefIds.length > 0) {
-        await tx.delete(gigsTable).where(inArray(gigsTable.briefId, safeBriefIds));
-        await tx.delete(calendarHoldsTable).where(inArray(calendarHoldsTable.briefId, safeBriefIds));
-        await tx.delete(projectBriefsTable).where(inArray(projectBriefsTable.id, safeBriefIds));
-      }
+      await tx.delete(projectBriefsTable).where(inArray(projectBriefsTable.id, linkedBriefIds));
     }
+    await tx.delete(projectExpensesTable).where(eq(projectExpensesTable.projectId, projectId));
+    await tx.delete(projectFinanceSettingsTable).where(eq(projectFinanceSettingsTable.projectId, projectId));
+    await tx.delete(projectTasksTable).where(eq(projectTasksTable.projectId, projectId));
+    await tx.delete(projectMessagesTable).where(eq(projectMessagesTable.projectId, projectId));
+    await tx.delete(projectMembersTable).where(eq(projectMembersTable.projectId, projectId));
+    await tx.delete(transportRunsTable).where(eq(transportRunsTable.projectId, projectId));
+    await tx.update(projectsTable).set({ clonedFromProjectId: null, updatedAt: /* @__PURE__ */ new Date() }).where(eq(projectsTable.clonedFromProjectId, projectId));
     const removed = await tx.delete(projectsTable).where(
       and(
         eq(projectsTable.id, projectId),
@@ -82124,18 +82116,10 @@ router12.delete("/projects/:id", requireSignedIn10, async (req, res) => {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
-    if (result.kind === "financial_conflict") {
-      res.status(409).json({
-        ok: false,
-        code: "PROJECT_FINANCIAL_RECORDS_LOCKED",
-        error: PROJECT_DELETE_FINANCIAL_CONFLICT
-      });
-      return;
-    }
-    res.json({ ok: true, success: true, id: String(id) });
+    res.status(200).json({ success: true, id: String(id) });
   } catch (err) {
     req.log.error(err, "Failed to delete project");
-    res.status(500).json({ ok: false, error: "Failed to delete project." });
+    res.status(500).json({ error: "Failed to delete project." });
   }
 });
 var projects_default = router12;

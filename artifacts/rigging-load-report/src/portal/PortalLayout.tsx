@@ -313,8 +313,8 @@ export function PortalLayout({
       {/* MAIN */}
       <main className="ehs-shell-main">
         <header
-          className="ehs-shell-topbar ehs-portal-mobile-header flex justify-between items-center px-2 sm:px-4 py-3 w-full max-w-full overflow-hidden"
-          style={{ width: "100%", maxWidth: "100%", overflow: "hidden", boxSizing: "border-box" }}
+          className="ehs-shell-topbar ehs-portal-mobile-header flex justify-between items-center px-2 sm:px-4 py-3 w-full max-w-full"
+          style={{ width: "100%", maxWidth: "100%", overflow: "visible", boxSizing: "border-box" }}
         >
           <Link
             href="/portal"

@@ -63,18 +63,18 @@
 }
 
 .lang-fab-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 180px;
+  position: fixed;
+  min-width: 80px;
+  width: max-content;
   margin: 0;
   padding: 4px;
   list-style: none;
   background: #ffffff;
-  color: #1a1a1a;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 10px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+  color: #1e293b;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+  z-index: 1001;
   font-family:
     system-ui,
     -apple-system,
@@ -87,10 +87,17 @@
 }
 @media (prefers-color-scheme: dark) {
   .lang-fab-menu {
-    background: #1c1c20;
-    color: #f4f4f4;
-    border-color: rgba(255, 255, 255, 0.16);
+    background: #1e293b;
+    color: #e2e8f0;
+    border-color: #334155;
   }
+}
+
+[data-theme="dark"] .lang-fab-menu {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-color: #334155;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
 }
 
 .lang-fab-option {

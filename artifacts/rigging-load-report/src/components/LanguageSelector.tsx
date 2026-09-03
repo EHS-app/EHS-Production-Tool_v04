@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useI18n } from "../lib/i18n/I18nContext";
 import type { Locale } from "../lib/i18n/types";
 import "./languageSelector.css";
@@ -37,6 +38,8 @@ export function LanguageSelector({ ariaLabel }: { ariaLabel?: string } = {}) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLUListElement | null>(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 8 });
 
   const current =
     LOCALE_OPTIONS.find((o) => o.value === locale) ?? LOCALE_OPTIONS[0];
@@ -45,9 +48,23 @@ export function LanguageSelector({ ariaLabel }: { ariaLabel?: string } = {}) {
   // while the menu is open so the closed state has zero runtime cost.
   useEffect(() => {
     if (!open) return;
+    const updatePosition = () => {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setMenuPosition({
+        top: rect.bottom + 4,
+        right: Math.max(8, window.innerWidth - rect.right),
+      });
+    };
+    updatePosition();
     const onDocClick = (e: MouseEvent) => {
-      if (!wrapRef.current) return;
-      if (!wrapRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (
+        !wrapRef.current?.contains(target) &&
+        !menuRef.current?.contains(target)
+      ) {
+        setOpen(false);
+      }
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -58,9 +75,13 @@ export function LanguageSelector({ ariaLabel }: { ariaLabel?: string } = {}) {
     };
     document.addEventListener("mousedown", onDocClick);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
     return () => {
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
     };
   }, [open]);
 
@@ -78,8 +99,19 @@ export function LanguageSelector({ ariaLabel }: { ariaLabel?: string } = {}) {
       >
         {current.short}
       </button>
-      {open && (
-        <ul className="lang-fab-menu" role="listbox" aria-label={t("language.label")}>
+      {open && typeof document !== "undefined" && createPortal(
+        <ul
+          ref={menuRef}
+          className="lang-fab-menu fixed top-full mt-1 z-[60] min-w-[80px] rounded-lg p-1 bg-white border-slate-200 text-slate-800 shadow-xl dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:shadow-2xl"
+          role="listbox"
+          aria-label={t("language.label")}
+          style={{
+            position: "fixed",
+            top: menuPosition.top,
+            right: menuPosition.right,
+            zIndex: 1001,
+          }}
+        >
           {LOCALE_OPTIONS.map((opt) => {
             const selected = opt.value === locale;
             return (
@@ -108,7 +140,8 @@ export function LanguageSelector({ ariaLabel }: { ariaLabel?: string } = {}) {
               </li>
             );
           })}
-        </ul>
+        </ul>,
+        document.body,
       )}
     </div>
   );

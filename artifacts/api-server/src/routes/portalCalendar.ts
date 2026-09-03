@@ -1,6 +1,6 @@
 import { Router, type IRouter, type RequestHandler } from "express";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { and, eq, gt, gte, lt, lte, or, sql } from "drizzle-orm";
+import { and, eq, gt, gte, lt, lte, ne, or, sql } from "drizzle-orm";
 import {
   db,
   calendarAvailabilityRulesTable,
@@ -54,6 +54,26 @@ const configured = (provider: string) =>
         process.env.MICROSOFT_CLIENT_SECRET &&
         process.env.MICROSOFT_REDIRECT_URI,
       );
+
+async function overlappingAvailability(
+  userId: string,
+  startsAt: Date,
+  endsAt: Date,
+  excludeId?: string,
+  executor: Pick<typeof db, "select"> = db,
+) {
+  const conditions = [
+    eq(calendarAvailabilityTable.userId, userId),
+    lt(calendarAvailabilityTable.startsAt, endsAt),
+    gt(calendarAvailabilityTable.endsAt, startsAt),
+  ];
+  if (excludeId) conditions.push(ne(calendarAvailabilityTable.id, excludeId));
+  return executor
+    .select({ id: calendarAvailabilityTable.id })
+    .from(calendarAvailabilityTable)
+    .where(and(...conditions))
+    .limit(1);
+}
 function safeConnection(row: any) {
   return {
     id: row.id,
@@ -277,10 +297,14 @@ router.post(
       : null;
     const starts = iso(b.startsAt),
       ends = iso(b.endsAt);
-    if (!status || !starts || !ends || ends <= starts)
+    if (!status || !starts || !ends)
       return void res
         .status(400)
         .json({ ok: false, error: "Provide a valid availability interval." });
+    if (ends <= starts)
+      return void res
+        .status(400)
+        .json({ ok: false, error: "End time must be after start time." });
     const timezone =
       typeof b.timezone === "string" && b.timezone.length < 80
         ? b.timezone
@@ -326,25 +350,139 @@ router.post(
           .returning();
         return void res.json({ ok: true, rule });
       }
-      const [availability] = await db
-        .insert(calendarAvailabilityTable)
-        .values({
-          id: randomUUID(),
-          userId: uid(req),
-          status,
-          startsAt: starts,
-          endsAt: ends,
-          timezone,
-          allDay: Boolean(b.allDay),
-          privateNote: note,
-        })
-        .returning();
+      const availability = await db.transaction(
+        async (tx) => {
+          const conflicts = await overlappingAvailability(
+            uid(req),
+            starts,
+            ends,
+            undefined,
+            tx,
+          );
+          if (conflicts.length) return null;
+          const [created] = await tx
+            .insert(calendarAvailabilityTable)
+            .values({
+              id: randomUUID(),
+              userId: uid(req),
+              status,
+              startsAt: starts,
+              endsAt: ends,
+              timezone,
+              allDay: Boolean(b.allDay),
+              privateNote: note,
+            })
+            .returning();
+          return created;
+        },
+        { isolationLevel: "serializable" },
+      );
+      if (!availability)
+        return void res.status(409).json({
+          ok: false,
+          error:
+            "This time overlaps an existing availability block. Choose a different time range.",
+        });
       res.json({ ok: true, availability });
     } catch (err) {
       logger.error({ err }, "availability save failed");
       res
         .status(500)
         .json({ ok: false, error: "Could not save availability." });
+    }
+  },
+);
+router.patch(
+  "/portal/calendar/availability/:id",
+  requireSignedIn,
+  async (req, res) => {
+    const id = String(req.params.id);
+    const b = req.body ?? {};
+    const status = ["available", "unavailable", "tentative"].includes(b.status)
+      ? b.status
+      : null;
+    const starts = iso(b.startsAt);
+    const ends = iso(b.endsAt);
+    if (!status || !starts || !ends)
+      return void res.status(400).json({
+        ok: false,
+        error: "Provide a valid availability interval.",
+      });
+    if (ends <= starts)
+      return void res.status(400).json({
+        ok: false,
+        error: "End time must be after start time.",
+      });
+
+    const timezone =
+      typeof b.timezone === "string" && b.timezone.length < 80
+        ? b.timezone
+        : "UTC";
+    const note =
+      typeof b.privateNote === "string" ? b.privateNote.slice(0, 2000) : "";
+
+    try {
+      const result = await db.transaction(
+        async (tx) => {
+          const owned = await tx
+            .select({ id: calendarAvailabilityTable.id })
+            .from(calendarAvailabilityTable)
+            .where(
+              and(
+                eq(calendarAvailabilityTable.id, id),
+                eq(calendarAvailabilityTable.userId, uid(req)),
+              ),
+            )
+            .limit(1);
+          if (!owned.length) return { kind: "missing" as const };
+
+          const conflicts = await overlappingAvailability(
+            uid(req),
+            starts,
+            ends,
+            id,
+            tx,
+          );
+          if (conflicts.length) return { kind: "conflict" as const };
+
+          const [availability] = await tx
+            .update(calendarAvailabilityTable)
+            .set({
+              status,
+              startsAt: starts,
+              endsAt: ends,
+              timezone,
+              allDay: Boolean(b.allDay),
+              privateNote: note,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(calendarAvailabilityTable.id, id),
+                eq(calendarAvailabilityTable.userId, uid(req)),
+              ),
+            )
+            .returning();
+          return { kind: "updated" as const, availability };
+        },
+        { isolationLevel: "serializable" },
+      );
+      if (result.kind === "missing")
+        return void res
+          .status(404)
+          .json({ ok: false, error: "Availability not found." });
+      if (result.kind === "conflict")
+        return void res.status(409).json({
+          ok: false,
+          error:
+            "This time overlaps an existing availability block. Choose a different time range.",
+        });
+      res.json({ ok: true, availability: result.availability });
+    } catch (err) {
+      logger.error({ err }, "availability update failed");
+      res
+        .status(500)
+        .json({ ok: false, error: "Could not update availability." });
     }
   },
 );

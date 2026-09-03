@@ -80,6 +80,21 @@ function localTimeOnly(value: string): string {
   ).padStart(2, "0")}`;
 }
 
+async function responseError(res: Response): Promise<string> {
+  try {
+    const body = (await res.json()) as { error?: string };
+    return body.error || "Could not save availability.";
+  } catch {
+    return "Could not save availability.";
+  }
+}
+
+function entryTimeLabel(entry: CalendarEntry): string {
+  return entry.allDay
+    ? "All day"
+    : `${localTimeOnly(entry.startAt)} - ${localTimeOnly(entry.endAt)}`;
+}
+
 function daysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
 }
@@ -197,6 +212,17 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
   }, [tab, loadCalendar, loadIntegrations]);
 
   const [editorDate, setEditorDate] = useState<string | null>(null);
+  const [editorEntryId, setEditorEntryId] = useState<string | null>(null);
+
+  const openNewEntry = (date: string) => {
+    setEditorEntryId(null);
+    setEditorDate(date);
+  };
+
+  const openExistingEntry = (date: string, entry: CalendarEntry) => {
+    setEditorEntryId(entry.id);
+    setEditorDate(date);
+  };
 
   // Handlers for Connections
 
@@ -439,15 +465,6 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
               let isUnavailable = dayEntries.some(e => e.status === "unavailable") || dayBusy.length > 0;
               let isTentative = dayEntries.some(e => e.status === "tentative");
 
-              // partial day times in week view
-              let timeLabel = "";
-              if (viewMode === "week") {
-                 const firstPartial = dayEntries.find(e => !e.allDay);
-                 if (firstPartial) {
-                     timeLabel = `${new Date(firstPartial.startAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} - ${new Date(firstPartial.endAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-                 }
-              }
-
               // Local migration fallback if server provides nothing for this day
               if (dayEntries.length === 0 && dayBusy.length === 0) {
                 const localState = data.availability[cell.iso!];
@@ -463,10 +480,8 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
               if (hasGig) bg = "rgba(99, 102, 241, 0.15)";
 
               return (
-                <button
+                <div
                   key={i}
-                  onClick={() => setEditorDate(cell.iso!)}
-                  aria-label={`Update availability for ${cell.iso}`}
                   style={{
                     aspectRatio: "1",
                     display: "flex",
@@ -484,15 +499,74 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
                     position: "relative"
                   }}
                 >
-                  {cell.day}
-                  {viewMode === "week" && timeLabel && <div style={{ fontSize: 10, marginTop: 4, fontWeight: "normal" }}>{timeLabel}</div>}
-                  <div style={{ display: "flex", gap: 2, marginTop: 4 }}>
-                    {isAvailable && <div style={{width:6,height:6,borderRadius:3,background:"#16a34a"}}/>}
-                    {isTentative && <div style={{width:6,height:6,borderRadius:3,background:"#eab308"}}/>}
-                    {isUnavailable && <div style={{width:6,height:6,borderRadius:3,background:"#dc2626"}}/>}
-                    {hasGig && <div style={{width:6,height:6,borderRadius:3,background:"#6366f1"}}/>}
+                  <button
+                    type="button"
+                    onClick={() => openNewEntry(cell.iso!)}
+                    aria-label={`Add availability for ${cell.iso}`}
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      border: 0,
+                      background: "transparent",
+                      color: "inherit",
+                      cursor: "pointer",
+                      borderRadius: "inherit",
+                    }}
+                  >
+                    <span style={{ position: "absolute", top: 7, left: 0, right: 0 }}>
+                      {cell.day}
+                    </span>
+                  </button>
+                  <div className="availability-cell-badges">
+                    {dayEntries.map((entry) =>
+                      entry.ruleId ? (
+                      <span
+                        key={`${entry.ruleId || entry.id}-${entry.startAt}`}
+                        className={`availability-time-badge availability-time-badge--${entry.status}`}
+                        title={`${entryTimeLabel(entry)}${entry.note ? ` · ${entry.note}` : ""}`}
+                      >
+                        <span className="availability-time-badge__dot" />
+                        <span className="availability-time-badge__label">
+                          {entryTimeLabel(entry)}
+                        </span>
+                      </span>
+                      ) : (
+                        <button
+                          type="button"
+                          key={entry.id}
+                          className={`availability-time-badge availability-time-badge--${entry.status}`}
+                          onClick={() => openExistingEntry(cell.iso!, entry)}
+                          title={`${entryTimeLabel(entry)}${entry.note ? ` · ${entry.note}` : ""}`}
+                        >
+                          <span className="availability-time-badge__dot" />
+                          <span className="availability-time-badge__label">
+                            {entryTimeLabel(entry)}
+                          </span>
+                        </button>
+                      ),
+                    )}
+                    {dayBusy.map((busy) => (
+                      <span
+                        key={busy.id}
+                        className="availability-time-badge availability-time-badge--unavailable"
+                        title={`${localTimeOnly(busy.startAt)} - ${localTimeOnly(busy.endAt)}`}
+                      >
+                        <span className="availability-time-badge__dot" />
+                        <span className="availability-time-badge__label">
+                          {localTimeOnly(busy.startAt)} - {localTimeOnly(busy.endAt)}
+                        </span>
+                      </span>
+                    ))}
+                    {hasGig ? (
+                      <span className="availability-time-badge availability-time-badge--gig">
+                        <span className="availability-time-badge__dot" />
+                        <span className="availability-time-badge__label">
+                          {t("portal.availability.legend.gig")}
+                        </span>
+                      </span>
+                    ) : null}
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -609,16 +683,90 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
       {editorDate && (
         <EditorDialog
           date={editorDate}
-          onClose={() => setEditorDate(null)}
+          onClose={() => {
+            setEditorDate(null);
+            setEditorEntryId(null);
+          }}
           onSave={loadCalendar}
           theme={theme}
           getToken={getToken}
           baseUrl={baseUrl}
-          existingEntry={entries.find(e =>
-            overlapsLocalDay(e.startAt, e.endAt, editorDate),
-          )}
+          existingEntry={
+            editorEntryId
+              ? entries.find((entry) => entry.id === editorEntryId)
+              : undefined
+          }
         />
       )}
+      <style>{`
+        .availability-cell-badges {
+          position: absolute;
+          top: 27px;
+          left: 3px;
+          right: 3px;
+          z-index: 1;
+          display: grid;
+          gap: 3px;
+          max-height: calc(100% - 31px);
+          overflow-y: auto;
+        }
+        .availability-time-badge {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          min-width: 0;
+          padding: 2px 5px;
+          border-radius: 999px;
+          font-size: 9px;
+          line-height: 1.25;
+          font-weight: 700;
+          white-space: nowrap;
+          overflow: hidden;
+        }
+        button.availability-time-badge { cursor: pointer; }
+        .availability-time-badge--available {
+          color: #047857;
+          background: rgba(16,185,129,.2);
+          border: 1px solid rgba(16,185,129,.4);
+        }
+        .availability-time-badge--unavailable {
+          color: #be123c;
+          background: rgba(244,63,94,.2);
+          border: 1px solid rgba(244,63,94,.4);
+        }
+        .availability-time-badge--tentative {
+          color: #a16207;
+          background: rgba(234,179,8,.2);
+          border: 1px solid rgba(234,179,8,.4);
+        }
+        .availability-time-badge--gig {
+          color: #7e22ce;
+          background: rgba(168,85,247,.2);
+          border: 1px solid rgba(168,85,247,.4);
+        }
+        [data-theme="dark"] .availability-time-badge--available { color: #34d399; }
+        [data-theme="dark"] .availability-time-badge--unavailable { color: #fb7185; }
+        [data-theme="dark"] .availability-time-badge--tentative { color: #facc15; }
+        [data-theme="dark"] .availability-time-badge--gig { color: #c084fc; }
+        .availability-time-badge__dot {
+          width: 5px;
+          height: 5px;
+          flex: 0 0 5px;
+          border-radius: 50%;
+          background: currentColor;
+        }
+        .availability-time-badge__label {
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        @media (max-width: 520px) {
+          .availability-time-badge {
+            justify-content: center;
+            padding: 2px;
+          }
+          .availability-time-badge__label { display: none; }
+        }
+      `}</style>
     </div>
   );
 }
@@ -665,6 +813,13 @@ function EditorDialog({ date, onClose, onSave, theme, getToken, baseUrl, existin
   const [note, setNote] = useState(existingEntry?.note || "");
   const [recurrence, setRecurrence] = useState("none");
   const [until, setUntil] = useState("");
+  const locale = document.documentElement.lang === "en" ? "en-GB" : "nb-NO";
+  const formattedDate = new Intl.DateTimeFormat(locale, {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(localDateTime(date, "12:00") ?? new Date(date));
 
 
   const handleClear = async () => {
@@ -672,13 +827,14 @@ function EditorDialog({ date, onClose, onSave, theme, getToken, baseUrl, existin
       onClose();
       return;
     }
+    if (!window.confirm(t("portal.availability.editor.deleteConfirm"))) return;
     const token = await getToken();
     const res = await fetch(`${baseUrl}api/portal/calendar/availability/${existingEntry.ruleId || existingEntry.id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` }
     });
     if (!res.ok) {
-      toast.error(await res.text());
+      toast.error(await responseError(res));
       return;
     }
     toast.success("Availability cleared");
@@ -736,14 +892,18 @@ function EditorDialog({ date, onClose, onSave, theme, getToken, baseUrl, existin
       body.until = untilIso;
     }
 
-    const res = await fetch(`${baseUrl}api/portal/calendar/availability`, {
-      method: "POST",
+    const canUpdate = Boolean(existingEntry && !existingEntry.ruleId);
+    const endpoint = canUpdate
+      ? `${baseUrl}api/portal/calendar/availability/${existingEntry!.id}`
+      : `${baseUrl}api/portal/calendar/availability`;
+    const res = await fetch(endpoint, {
+      method: canUpdate ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify(body)
     });
 
     if (!res.ok) {
-      toast.error(await res.text());
+      toast.error(await responseError(res));
       return;
     }
 
@@ -761,7 +921,10 @@ function EditorDialog({ date, onClose, onSave, theme, getToken, baseUrl, existin
   return (
     <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 1000, display: "grid", placeItems: "center", background: "rgba(0,0,0,0.5)", padding: 20 }}>
       <div style={{ background: c.cardBg, color: c.text, padding: 24, borderRadius: 12, width: "100%", maxWidth: 400, minWidth: "min(100vw - 32px, 320px)", boxShadow: "0 24px 80px rgba(0,0,0,0.2)" }}>
-        <h2 style={{ margin: "0 0 20px" }}>{t("portal.availability.editor.title")} {date}</h2>
+        <h2 style={{ margin: "0 0 6px" }}>{t("portal.availability.editor.title")}</h2>
+        <div style={{ marginBottom: 20, color: c.muted, fontSize: 14 }}>
+          {formattedDate}
+        </div>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
           {(["available", "unavailable", "tentative"] as const).map(s => (
@@ -778,9 +941,14 @@ function EditorDialog({ date, onClose, onSave, theme, getToken, baseUrl, existin
 
         {!allDay && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
-            <input type="time" value={startAt} onChange={(e) => setStartAt(e.target.value)} style={inputStyle(theme)} />
-            <span style={{ alignSelf: "center" }}>-</span>
-            <input type="time" value={endAt} onChange={(e) => setEndAt(e.target.value)} style={inputStyle(theme)} />
+            <label style={{ flex: 1, minWidth: 120, fontSize: 12, color: c.muted }}>
+              {t("portal.availability.editor.startTime")}
+              <input type="time" value={startAt} onChange={(e) => setStartAt(e.target.value)} style={{ ...inputStyle(theme), width: "100%", marginTop: 4 }} />
+            </label>
+            <label style={{ flex: 1, minWidth: 120, fontSize: 12, color: c.muted }}>
+              {t("portal.availability.editor.endTime")}
+              <input type="time" value={endAt} onChange={(e) => setEndAt(e.target.value)} style={{ ...inputStyle(theme), width: "100%", marginTop: 4 }} />
+            </label>
           </div>
         )}
 
@@ -789,7 +957,7 @@ function EditorDialog({ date, onClose, onSave, theme, getToken, baseUrl, existin
           <input type="text" value={note} onChange={(e) => setNote(e.target.value)} style={{ ...inputStyle(theme), width: "100%" }} placeholder={t("portal.availability.editor.notePlaceholder")} />
         </div>
 
-        <div style={{ marginBottom: 24 }}>
+        {!existingEntry ? <div style={{ marginBottom: 24 }}>
           <label style={{ display: "block", fontSize: 12, marginBottom: 4, color: c.muted }}>{t("portal.availability.editor.repeat")}</label>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
             <select value={recurrence} onChange={(e) => setRecurrence(e.target.value)} style={inputStyle(theme)}>
@@ -800,7 +968,7 @@ function EditorDialog({ date, onClose, onSave, theme, getToken, baseUrl, existin
               <input type="date" value={until} onChange={(e) => setUntil(e.target.value)} style={inputStyle(theme)} />
             )}
           </div>
-        </div>
+        </div> : null}
 
         <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
           <button onClick={handleClear} style={{ padding: "8px 16px", background: "transparent", border: `1px solid ${c.danger}`, color: c.danger, borderRadius: 8, cursor: "pointer", visibility: existingEntry ? "visible" : "hidden" }}>{t("portal.availability.editor.clear")}</button>

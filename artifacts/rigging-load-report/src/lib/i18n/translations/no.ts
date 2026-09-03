@@ -1356,6 +1356,7 @@ export const no: Translations = {
   "portal.availability.editor.repeatWeekly": "Ukentlig",
   "portal.availability.editor.until": "Til",
   "portal.availability.editor.clear": "Tøm",
+  "portal.availability.editor.deleteConfirm": "Slette denne tilgjengelighetsblokken?",
   "portal.availability.editor.save": "Lagre",
   "portal.availability.editor.close": "Lukk",
   "portal.brief.logistics.title": "Brief & Logistikk",

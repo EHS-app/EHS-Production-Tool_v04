@@ -1,0 +1,30 @@
+SAFE FEATURE IMPLEMENTATION — INTRADAY AVAILABILITY & CALENDAR BADGES
+
+Target Files: 
+- UI: `artifacts/rigging-load-report/src/portal/screens/Availability.tsx`
+- API: Calendar availability endpoints (`POST`, `PUT/PATCH`, `DELETE /api/portal/calendar/availability`)
+
+Based on your audit findings, please implement the following targeted upgrades while preserving all existing database tables and integrations:
+
+1. API UPDATES & OVERLAP VALIDATION:
+   - Add a `PUT` or `PATCH /api/portal/calendar/availability/:id` endpoint for updating existing entries.
+   - Enforce strict authorization on both `PUT` and `DELETE` (ensure the record belongs to `req.user`).
+   - Add overlap validation to prevent conflicting manual availability blocks for the same freelancer.
+   - Return clean validation error messages if `ends_at <= starts_at` or if an overlapping range exists.
+
+2. INTRADAY TIME INPUTS IN EDIT MODAL:
+   - Format the modal date header as "Thursday, Sep 3, 2026" (localized) instead of raw ISO strings.
+   - When "All day" is UNCHECKED:
+     - Show clear Start Time and End Time picker fields (defaulting to e.g., 08:00 and 16:00).
+     - Support creating and editing multiple distinct intraday time blocks for the same date (e.g. 10:00–14:00 Busy, 14:00–18:00 Available).
+
+3. COLOR-CODED CALENDAR DAY BADGES & LEGEND PARITY:
+   - Display time block badges inside calendar date cells in Month/Week view using theme-aware colors:
+     - Green Badge (`bg-emerald-500/20 text-emerald-400 border border-emerald-500/40`): Available time blocks (show time range like "14:00 - 18:00" or "All day").
+     - Red/Orange Badge (`bg-rose-500/20 text-rose-400 border border-rose-500/40`): Unavailable / Busy blocks.
+     - Purple Badge (`bg-purple-500/20 text-purple-400 border border-purple-500/40`): EHS Gigs.
+   - Mobile: Render compact pills or colored indicators on small screens to prevent grid overflow.
+
+4. SAFETY & BUILD GUARANTEE:
+   - Do NOT modify `calendar_busy_intervals`, `calendar_holds`, or OAuth sync routines.
+   - Run `pnpm build` to verify 0 TypeScript errors.

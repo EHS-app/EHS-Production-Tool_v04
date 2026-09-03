@@ -1337,6 +1337,7 @@ export const en = {
   "portal.availability.editor.repeatWeekly": "Weekly",
   "portal.availability.editor.until": "Until",
   "portal.availability.editor.clear": "Clear",
+  "portal.availability.editor.deleteConfirm": "Delete this availability block?",
   "portal.availability.editor.save": "Save",
   "portal.availability.editor.close": "Close",
   "portal.brief.logistics.title": "Brief & Logistics",

@@ -10,4 +10,4 @@
 - [Payroll approval integrity](payroll-approval-integrity.md) — approved labor uses immutable compensation snapshots; freelancers cannot rewrite producer-owned assignment terms.
 - [Venue brief projection](venue-brief-projection.md) — portal briefs use server-built venue snapshots and exclude venue contacts plus all client directory details.
 - [Organization settings governance](organization-settings-governance.md) — admin access is explicit; project defaults are server-owned snapshots and approved payroll remains immutable.
-- [Project deletion integrity](project-deletion-integrity.md) — delete only under serialized provenance/payroll checks; protect posted actuals, not initialized estimates or zero defaults.
+- [Project deletion integrity](project-deletion-integrity.md) — project owners may hard-delete their full owned graph; unlink foreign-owned briefs and cancel client autosaves.

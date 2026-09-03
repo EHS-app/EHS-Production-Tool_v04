@@ -1,17 +1,20 @@
 import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { db } from "./client";
 import {
+  briefAssignmentsTable,
+  briefRoomAssignmentsTable,
   calendarHoldsTable,
   gigsTable,
   projectBriefsTable,
   projectExpensesTable,
   projectFinanceSettingsTable,
+  projectMembersTable,
+  projectMessagesTable,
+  projectTasksTable,
   projectsTable,
   timeEntriesTable,
+  transportRunsTable,
 } from "./schema";
-
-export const PROJECT_DELETE_FINANCIAL_CONFLICT =
-  "This project cannot be deleted because it has approved or payroll-locked time or financial records. Those records must be preserved.";
 
 /**
  * A single transaction-scoped lock serializes changes to the legacy
@@ -24,16 +27,12 @@ export const PROJECT_BRIEF_PROVENANCE_LOCK = sql`
 
 export type DeleteOwnedProjectResult =
   | { kind: "deleted" }
-  | { kind: "not_found" }
-  | { kind: "financial_conflict" };
+  | { kind: "not_found" };
 
 /**
- * Deletes an owned project as one transaction.
- *
- * Brief payroll is protected before any destructive work. A brief graph is
- * removed only when its provenance points exactly at this project, it belongs
- * to the project owner, and no other project's authoritative activeBriefId
- * points at it. Ambiguous/foreign brief graphs are deliberately retained.
+ * Hard-deletes an owned project and every project-owned dependent record in
+ * one transaction. Explicit child removal makes the operation deterministic;
+ * database cascades remain a final guard against concurrent child inserts.
  */
 export async function deleteOwnedProject(
   projectId: string,
@@ -58,36 +57,34 @@ export async function deleteOwnedProject(
 
     if (!project) return { kind: "not_found" };
 
-    // Expenses are posted actuals, and EasyJob revenue is explicitly a
-    // reconciled value. Neither may disappear through the project's cascade.
-    // Lock both rows before deciding so a finance write cannot race deletion.
-    const finance = await tx
-      .select({
-        easyjobRevenueMinor: projectFinanceSettingsTable.easyjobRevenueMinor,
-      })
-      .from(projectFinanceSettingsTable)
-      .where(eq(projectFinanceSettingsTable.projectId, projectId))
-      .limit(1)
-      .for("update");
-    const recordedExpense = await tx
-      .select({ id: projectExpensesTable.id })
-      .from(projectExpensesTable)
-      .where(eq(projectExpensesTable.projectId, projectId))
-      .limit(1)
-      .for("update");
-    if (
-      recordedExpense.length > 0 ||
-      (finance[0]?.easyjobRevenueMinor ?? 0) > 0
-    ) {
-      return { kind: "financial_conflict" };
-    }
+    // Editors can attach briefs they own to another user's project. Unlink
+    // those records before deletion; project ownership must not authorize
+    // deleting a different user's brief, gig, or payroll graph.
+    await tx
+      .update(projectBriefsTable)
+      .set({ projectId: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(projectBriefsTable.projectId, projectId),
+          ne(projectBriefsTable.ownerUserId, ownerUserId),
+        ),
+      );
 
     const linkedBriefWhere = project.activeBriefId
       ? or(
-          eq(projectBriefsTable.projectId, projectId),
-          eq(projectBriefsTable.id, project.activeBriefId),
+          and(
+            eq(projectBriefsTable.projectId, projectId),
+            eq(projectBriefsTable.ownerUserId, ownerUserId),
+          ),
+          and(
+            eq(projectBriefsTable.id, project.activeBriefId),
+            eq(projectBriefsTable.ownerUserId, ownerUserId),
+          ),
         )
-      : eq(projectBriefsTable.projectId, projectId);
+      : and(
+          eq(projectBriefsTable.projectId, projectId),
+          eq(projectBriefsTable.ownerUserId, ownerUserId),
+        );
 
     const linkedBriefs = await tx
       .select({
@@ -102,19 +99,10 @@ export async function deleteOwnedProject(
 
     if (linkedBriefIds.length > 0) {
       const linkedGigs = await tx
-        .select({ id: gigsTable.id, status: gigsTable.status })
+        .select({ id: gigsTable.id })
         .from(gigsTable)
         .where(inArray(gigsTable.briefId, linkedBriefIds))
         .for("update");
-
-      if (
-        linkedGigs.some(
-          (gig) => gig.status === "invoiced" || gig.status === "paid",
-        )
-      ) {
-        return { kind: "financial_conflict" };
-      }
-
       const linkedGigIds = linkedGigs.map((gig) => gig.id);
       const entryLinkWhere =
         linkedGigIds.length > 0
@@ -123,79 +111,58 @@ export async function deleteOwnedProject(
               inArray(timeEntriesTable.gigId, linkedGigIds),
             )
           : inArray(timeEntriesTable.briefId, linkedBriefIds);
-      // The producer approval path transitions an entry atomically. Lock every
-      // linked row (not just rows that look protected) before evaluating it:
-      // a submitted row cannot become approved between this check and graph
-      // removal. The approval endpoint's atomic UPDATE takes only the entry
-      // row lock; this parent-to-child order therefore cannot invert locks.
-      const linkedEntries = await tx
-        .select({
-          id: timeEntriesTable.id,
-          status: timeEntriesTable.status,
-          approvedRateMinor: timeEntriesTable.approvedRateMinor,
-          approvedFlatFeeMinor: timeEntriesTable.approvedFlatFeeMinor,
-          approvedOvertimeMultiplierBasisPoints:
-            timeEntriesTable.approvedOvertimeMultiplierBasisPoints,
-        })
-        .from(timeEntriesTable)
-        .where(entryLinkWhere)
-        .for("update");
-      if (
-        linkedEntries.some(
-          (entry) =>
-            entry.status === "approved" ||
-            entry.status === "locked" ||
-            entry.approvedRateMinor != null ||
-            entry.approvedFlatFeeMinor != null ||
-            entry.approvedOvertimeMultiplierBasisPoints != null,
-        )
-      ) {
-        return { kind: "financial_conflict" };
+      await tx.delete(timeEntriesTable).where(entryLinkWhere);
+      if (linkedGigIds.length > 0) {
+        await tx.delete(gigsTable).where(inArray(gigsTable.id, linkedGigIds));
       }
-
-      const externallyReferenced = await tx
-        .select({
-          activeBriefId: sql<string>`${projectsTable.data}->>'activeBriefId'`,
+      await tx
+        .delete(briefAssignmentsTable)
+        .where(inArray(briefAssignmentsTable.briefId, linkedBriefIds));
+      await tx
+        .delete(briefRoomAssignmentsTable)
+        .where(inArray(briefRoomAssignmentsTable.briefId, linkedBriefIds));
+      await tx
+        .delete(calendarHoldsTable)
+        .where(inArray(calendarHoldsTable.briefId, linkedBriefIds));
+      await tx
+        .update(projectsTable)
+        .set({
+          data: sql`${projectsTable.data} - 'activeBriefId'`,
+          updatedAt: new Date(),
         })
-        .from(projectsTable)
         .where(
-          and(
-            ne(projectsTable.id, projectId),
-            inArray(
-              sql<string>`${projectsTable.data}->>'activeBriefId'`,
-              linkedBriefIds,
-            ),
+          inArray(
+            sql<string>`${projectsTable.data}->>'activeBriefId'`,
+            linkedBriefIds,
           ),
         );
-      const externalIds = new Set(
-        externallyReferenced.map((row) => row.activeBriefId),
-      );
-      const safeBriefIds = linkedBriefs
-        .filter(
-          (brief) =>
-            brief.ownerUserId === ownerUserId &&
-            !externalIds.has(brief.id) &&
-            (brief.projectId === projectId ||
-              (brief.id === project.activeBriefId &&
-                (brief.projectId === null ||
-                  brief.projectId === projectId))),
-        )
-        .map((brief) => brief.id);
-
-      if (safeBriefIds.length > 0) {
-        // time_entries cascade from gigs; assignments and room locks cascade
-        // from briefs. The explicit gig removal prevents detached gig history.
-        await tx.delete(gigsTable).where(inArray(gigsTable.briefId, safeBriefIds));
-        // Also remove short-lived calendar reservations explicitly; the FK is
-        // a second line of defense for a hold created concurrently.
-        await tx
-          .delete(calendarHoldsTable)
-          .where(inArray(calendarHoldsTable.briefId, safeBriefIds));
-        await tx
-          .delete(projectBriefsTable)
-          .where(inArray(projectBriefsTable.id, safeBriefIds));
-      }
+      await tx
+        .delete(projectBriefsTable)
+        .where(inArray(projectBriefsTable.id, linkedBriefIds));
     }
+
+    await tx
+      .delete(projectExpensesTable)
+      .where(eq(projectExpensesTable.projectId, projectId));
+    await tx
+      .delete(projectFinanceSettingsTable)
+      .where(eq(projectFinanceSettingsTable.projectId, projectId));
+    await tx
+      .delete(projectTasksTable)
+      .where(eq(projectTasksTable.projectId, projectId));
+    await tx
+      .delete(projectMessagesTable)
+      .where(eq(projectMessagesTable.projectId, projectId));
+    await tx
+      .delete(projectMembersTable)
+      .where(eq(projectMembersTable.projectId, projectId));
+    await tx
+      .delete(transportRunsTable)
+      .where(eq(transportRunsTable.projectId, projectId));
+    await tx
+      .update(projectsTable)
+      .set({ clonedFromProjectId: null, updatedAt: new Date() })
+      .where(eq(projectsTable.clonedFromProjectId, projectId));
 
     const removed = await tx
       .delete(projectsTable)

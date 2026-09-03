@@ -6,7 +6,6 @@ import {
   db,
   deleteOwnedProject,
   PROJECT_BRIEF_PROVENANCE_LOCK,
-  PROJECT_DELETE_FINANCIAL_CONFLICT,
   projectBriefsTable,
   projectMembersTable,
   projectFinanceSettingsTable,
@@ -479,18 +478,10 @@ router.delete("/projects/:id", requireSignedIn, async (req, res) => {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
-    if (result.kind === "financial_conflict") {
-      res.status(409).json({
-        ok: false,
-        code: "PROJECT_FINANCIAL_RECORDS_LOCKED",
-        error: PROJECT_DELETE_FINANCIAL_CONFLICT,
-      });
-      return;
-    }
-    res.json({ ok: true, success: true, id: String(id) });
+    res.status(200).json({ success: true, id: String(id) });
   } catch (err) {
     req.log.error(err, "Failed to delete project");
-    res.status(500).json({ ok: false, error: "Failed to delete project." });
+    res.status(500).json({ error: "Failed to delete project." });
   }
 });
 

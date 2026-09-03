@@ -1,16 +1,16 @@
 ---
 name: Project deletion integrity
-description: Non-obvious rules separating deletable planning data from preserved financial history under concurrent writes.
+description: Hard-delete policy, concurrency rules, and the foreign-owned brief boundary.
 ---
 
-Project deletion must serialize against brief-link changes, approvals, holds, and project autosaves before removing any graph. Ambiguous legacy brief ownership is retained rather than guessed.
+Project owners may permanently hard-delete the complete graph they own, including posted expenses, reconciled revenue, approved or locked payroll entries, invoiced or paid gigs, holds, and owned briefs. Deletion must remain one serialized transaction.
 
-**Why:** A check-then-delete implementation allowed concurrent approvals or legacy brief claims to appear after inspection, and a pending client autosave could recreate a successfully deleted project.
+**Why:** The product policy explicitly favors reliable, complete project removal over preserving the owner's financial and payroll history; a partial delete previously hung on foreign-key restrictions.
 
-**How to apply:** Keep provenance writes and deletion under one shared transaction policy, lock all linked time rows before deciding, remove temporary holds atomically, and invalidate client save work before clearing state.
+**How to apply:** Delete owned descendants in dependency order, unlink clone and legacy active-brief references, remove direct project children, then delete the owned project row last. Keep database cascades as concurrency safety nets.
 
-Only posted expenses, positive reconciled revenue, approved/payroll-snapshotted time, and invoiced/paid gigs are deletion blockers. Planning budgets, contract estimates, and zero values produced by historical defaults are not immutable financial history.
+An editor-owned brief attached to another user's project is outside the project owner's hard-delete authority. Unlink that brief instead of deleting its gigs, assignments, or payroll records; the brief-to-project foreign key must therefore remain `SET NULL`.
 
-**Why:** Newly created projects inherited zero/default finance values and became undeletable even though no actual transaction or reconciliation had occurred.
+**Why:** Editors can create project-bound briefs under their own identity, so unconditional brief cascades create cross-user data loss.
 
-**How to apply:** Preserve null as “not reconciled,” and do not infer protected financial history from initialized estimates or zero-value defaults.
+**How to apply:** Scope brief graph deletion to the target project owner, preserve shared resources, and invalidate pending client autosaves before clearing the deleted project from UI state.

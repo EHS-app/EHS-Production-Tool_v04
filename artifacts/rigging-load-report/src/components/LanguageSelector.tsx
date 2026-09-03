@@ -33,7 +33,13 @@ const LOCALE_OPTIONS: ReadonlyArray<{
  * agnostic — the floating top-right placement is configured by the
  * mount site (see `main.tsx`'s `.lang-fab-anchor` wrapper).
  */
-export function LanguageSelector({ ariaLabel }: { ariaLabel?: string } = {}) {
+export function LanguageSelector({
+  ariaLabel,
+  triggerClassName = "",
+}: {
+  ariaLabel?: string;
+  triggerClassName?: string;
+} = {}) {
   const { locale, setLocale, t } = useI18n();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -90,7 +96,7 @@ export function LanguageSelector({ ariaLabel }: { ariaLabel?: string } = {}) {
       <button
         ref={buttonRef}
         type="button"
-        className="lang-fab-trigger"
+        className={`lang-fab-trigger ${triggerClassName}`.trim()}
         aria-label={ariaLabel ?? t("language.label")}
         aria-haspopup="listbox"
         aria-expanded={open}

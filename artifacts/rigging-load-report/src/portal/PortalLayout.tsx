@@ -313,8 +313,8 @@ export function PortalLayout({
       {/* MAIN */}
       <main className="ehs-shell-main">
         <header
-          className="ehs-shell-topbar ehs-portal-mobile-header flex justify-between items-center px-2 sm:px-4 py-3 w-full max-w-full"
-          style={{ width: "100%", maxWidth: "100%", overflow: "visible", boxSizing: "border-box" }}
+          className="ehs-shell-topbar ehs-portal-mobile-header flex justify-between items-center px-3 py-2.5 w-full max-w-full overflow-hidden"
+          style={{ width: "100%", maxWidth: "100%", overflow: "hidden", boxSizing: "border-box" }}
         >
           <Link
             href="/portal"
@@ -343,7 +343,7 @@ export function PortalLayout({
           >
             <Link
               href="/portal/help"
-              className="ehs-shell-action ehs-shell-help-action ehs-portal-mobile-utility"
+              className="ehs-shell-action ehs-shell-help-action ehs-portal-mobile-utility h-8 min-w-[32px] px-2 rounded-md border flex items-center justify-center text-xs font-semibold transition-colors bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700/60 dark:text-slate-200"
               aria-label={t("portal.header.helpAria")}
               title={t("portal.header.helpTitle")}
             >
@@ -351,11 +351,11 @@ export function PortalLayout({
               <span>{t("portal.nav.help")}</span>
             </Link>
             <div className="ehs-portal-mobile-language" style={{ display: "flex" }}>
-              <LanguageSelector />
+              <LanguageSelector triggerClassName="h-8 min-w-[32px] px-2 rounded-md border flex items-center justify-center text-xs font-semibold transition-colors bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700/60 dark:text-slate-200" />
             </div>
             <button
               type="button"
-              className="ehs-shell-icon-btn ehs-portal-only-mobile ehs-portal-mobile-utility"
+              className="ehs-shell-icon-btn ehs-portal-only-mobile ehs-portal-mobile-utility h-8 min-w-[32px] px-2 rounded-md border flex items-center justify-center text-xs font-semibold transition-colors bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700/60 dark:text-slate-200"
               onClick={() => setPref(theme === "dark" ? "light" : "dark")}
               aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"}
               title={theme === "dark" ? "Use light theme" : "Use dark theme"}
@@ -369,7 +369,7 @@ export function PortalLayout({
             <ActivityPopover theme={theme} data={portalData} />
             <button
               type="button"
-              className="ehs-shell-signout-btn ehs-portal-mobile-utility"
+              className="ehs-shell-signout-btn ehs-portal-mobile-utility h-8 min-w-[32px] px-2 rounded-md border flex items-center justify-center text-xs font-semibold transition-colors bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:border-slate-700/60 dark:text-slate-200"
               onClick={() => {
                 try {
                   sessionStorage.setItem("ehs-skip-dev-auto-signin", "1");

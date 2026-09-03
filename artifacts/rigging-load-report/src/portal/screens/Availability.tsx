@@ -766,6 +766,11 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
           }
           .availability-time-badge__label { display: none; }
         }
+        .availability-time-input:focus {
+          outline: none;
+          border-color: #f97316 !important;
+          box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.45);
+        }
       `}</style>
     </div>
   );
@@ -943,11 +948,11 @@ function EditorDialog({ date, onClose, onSave, theme, getToken, baseUrl, existin
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
             <label style={{ flex: 1, minWidth: 120, fontSize: 12, color: c.muted }}>
               {t("portal.availability.editor.startTime")}
-              <input type="time" value={startAt} onChange={(e) => setStartAt(e.target.value)} style={{ ...inputStyle(theme), width: "100%", marginTop: 4 }} />
+              <input className="availability-time-input" type="time" value={startAt} onChange={(e) => setStartAt(e.target.value)} style={{ ...timeInputStyle(theme), width: "100%", marginTop: 4 }} />
             </label>
             <label style={{ flex: 1, minWidth: 120, fontSize: 12, color: c.muted }}>
               {t("portal.availability.editor.endTime")}
-              <input type="time" value={endAt} onChange={(e) => setEndAt(e.target.value)} style={{ ...inputStyle(theme), width: "100%", marginTop: 4 }} />
+              <input className="availability-time-input" type="time" value={endAt} onChange={(e) => setEndAt(e.target.value)} style={{ ...timeInputStyle(theme), width: "100%", marginTop: 4 }} />
             </label>
           </div>
         )}
@@ -1029,6 +1034,21 @@ function inputStyle(theme: ThemeMode): React.CSSProperties {
     background: c.inputBg,
     color: c.text,
     fontSize: 14
+  };
+}
+
+function timeInputStyle(theme: ThemeMode): React.CSSProperties {
+  const dark = theme === "dark";
+  return {
+    padding: "8px 12px",
+    borderRadius: 8,
+    border: `1px solid ${dark ? "#334155" : "#cbd5e1"}`,
+    background: dark ? "#1e293b" : "#ffffff",
+    color: dark ? "#f1f5f9" : "#0f172a",
+    colorScheme: dark ? "dark" : "light",
+    opacity: 1,
+    pointerEvents: "auto",
+    fontSize: 14,
   };
 }
 

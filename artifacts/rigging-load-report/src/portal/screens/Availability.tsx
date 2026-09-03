@@ -939,23 +939,27 @@ function EditorDialog({ date, onClose, onSave, theme, getToken, baseUrl, existin
           ))}
         </div>
 
-        <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, cursor: "pointer" }}>
-          <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
-          {t("portal.availability.editor.allDay")}
-        </label>
-
-        {!allDay && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
-            <label style={{ flex: 1, minWidth: 120, fontSize: 12, color: c.muted }}>
-              {t("portal.availability.editor.startTime")}
-              <input className="availability-time-input" type="time" value={startAt} onChange={(e) => setStartAt(e.target.value)} style={{ ...timeInputStyle(theme), width: "100%", marginTop: 4 }} />
-            </label>
-            <label style={{ flex: 1, minWidth: 120, fontSize: 12, color: c.muted }}>
-              {t("portal.availability.editor.endTime")}
-              <input className="availability-time-input" type="time" value={endAt} onChange={(e) => setEndAt(e.target.value)} style={{ ...timeInputStyle(theme), width: "100%", marginTop: 4 }} />
+        <div style={{ display: "grid", gap: 12, margin: "8px 0 16px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
+              <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
+              <span>{t("portal.availability.editor.allDay")}</span>
             </label>
           </div>
-        )}
+
+          {!allDay && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+              <label style={{ minWidth: 0, fontSize: 12, color: c.muted }}>
+                {t("portal.availability.editor.startTime")}
+                <input className="availability-time-input" type="time" value={startAt} onChange={(e) => setStartAt(e.target.value)} style={{ ...timeInputStyle(theme), width: "100%", marginTop: 4 }} />
+              </label>
+              <label style={{ minWidth: 0, fontSize: 12, color: c.muted }}>
+                {t("portal.availability.editor.endTime")}
+                <input className="availability-time-input" type="time" value={endAt} onChange={(e) => setEndAt(e.target.value)} style={{ ...timeInputStyle(theme), width: "100%", marginTop: 4 }} />
+              </label>
+            </div>
+          )}
+        </div>
 
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: "block", fontSize: 12, marginBottom: 4, color: c.muted }}>{t("portal.availability.editor.note")}</label>

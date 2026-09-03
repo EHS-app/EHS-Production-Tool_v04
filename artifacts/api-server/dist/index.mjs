@@ -74324,6 +74324,96 @@ var insertFreelancerProfileSchema = createInsertSchema(
   updatedAt: true
 });
 
+// ../../lib/db/src/schema/venues.ts
+var venuesTable = pgTable(
+  "venues",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    address: text("address").notNull().default(""),
+    website: text("website").notNull().default(""),
+    technicalContactName: text("technical_contact_name").notNull().default(""),
+    technicalContactPhone: text("technical_contact_phone").notNull().default(""),
+    technicalContactEmail: text("technical_contact_email").notNull().default(""),
+    riggingSpecs: jsonb("rigging_specs").notNull().default({}),
+    powerInfrastructure: jsonb("power_infrastructure").notNull().default({}),
+    logisticsAccess: jsonb("logistics_access").notNull().default({}),
+    siteFacilities: jsonb("site_facilities").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => [index("venues_name_idx").on(t.name)]
+);
+var insertVenueSchema = createInsertSchema(venuesTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+// ../../lib/db/src/schema/clients.ts
+var clientsTable = pgTable(
+  "clients",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyName: text("company_name").notNull(),
+    billingAddress: text("billing_address").notNull().default(""),
+    organizationNumber: text("organization_number").notNull().default(""),
+    primaryContacts: jsonb("primary_contacts").notNull().default([]),
+    defaultPaymentTermsDays: integer("default_payment_terms_days").notNull().default(14),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => [
+    index("clients_company_name_idx").on(t.companyName),
+    index("clients_organization_number_idx").on(t.organizationNumber)
+  ]
+);
+var insertClientSchema = createInsertSchema(clientsTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+// ../../lib/db/src/schema/projects.ts
+var projectsTable = pgTable(
+  "projects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").notNull(),
+    name: text("name").notNull().default("Untitled"),
+    venue: text("venue").notNull().default(""),
+    client: text("client").notNull().default(""),
+    easyjobNumber: text("easyjob_number"),
+    venueId: uuid("venue_id").references(() => venuesTable.id, {
+      onDelete: "set null"
+    }),
+    clientId: uuid("client_id").references(() => clientsTable.id, {
+      onDelete: "set null"
+    }),
+    clonedFromProjectId: uuid("cloned_from_project_id"),
+    data: jsonb("data").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => [
+    index("projects_user_id_idx").on(t.userId),
+    index("projects_easyjob_number_idx").on(t.easyjobNumber),
+    index("projects_venue_id_idx").on(t.venueId),
+    index("projects_client_id_idx").on(t.clientId),
+    index("projects_cloned_from_idx").on(t.clonedFromProjectId),
+    foreignKey({
+      columns: [t.clonedFromProjectId],
+      foreignColumns: [t.id],
+      name: "projects_cloned_from_project_id_fk"
+    }).onDelete("set null")
+  ]
+);
+var insertProjectSchema = createInsertSchema(projectsTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
 // ../../lib/db/src/schema/projectBriefs.ts
 var projectBriefsTable = pgTable(
   "project_briefs",
@@ -74333,6 +74423,12 @@ var projectBriefsTable = pgTable(
     id: text("id").primaryKey(),
     /** Clerk user id of the producer who created the brief. */
     ownerUserId: text("owner_user_id").notNull(),
+    /** Server-validated, stable provenance back to the Production Tool
+     * project that created this brief. Legacy briefs may be NULL and are
+     * still discoverable through projects.data.activeBriefId. */
+    projectId: uuid("project_id").references(() => projectsTable.id, {
+      onDelete: "set null"
+    }),
     projectName: text("project_name").notNull().default(""),
     client: text("client").notNull().default(""),
     venue: text("venue").notNull().default(""),
@@ -74345,7 +74441,10 @@ var projectBriefsTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },
-  (t) => [index("project_briefs_owner_idx").on(t.ownerUserId)]
+  (t) => [
+    index("project_briefs_owner_idx").on(t.ownerUserId),
+    index("project_briefs_project_idx").on(t.projectId)
+  ]
 );
 var insertProjectBriefSchema = createInsertSchema(
   projectBriefsTable
@@ -74508,96 +74607,6 @@ var insertBriefRoomAssignmentSchema = createInsertSchema(
   updatedAt: true
 });
 
-// ../../lib/db/src/schema/venues.ts
-var venuesTable = pgTable(
-  "venues",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    name: text("name").notNull(),
-    address: text("address").notNull().default(""),
-    website: text("website").notNull().default(""),
-    technicalContactName: text("technical_contact_name").notNull().default(""),
-    technicalContactPhone: text("technical_contact_phone").notNull().default(""),
-    technicalContactEmail: text("technical_contact_email").notNull().default(""),
-    riggingSpecs: jsonb("rigging_specs").notNull().default({}),
-    powerInfrastructure: jsonb("power_infrastructure").notNull().default({}),
-    logisticsAccess: jsonb("logistics_access").notNull().default({}),
-    siteFacilities: jsonb("site_facilities").notNull().default({}),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
-  },
-  (t) => [index("venues_name_idx").on(t.name)]
-);
-var insertVenueSchema = createInsertSchema(venuesTable).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true
-});
-
-// ../../lib/db/src/schema/clients.ts
-var clientsTable = pgTable(
-  "clients",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    companyName: text("company_name").notNull(),
-    billingAddress: text("billing_address").notNull().default(""),
-    organizationNumber: text("organization_number").notNull().default(""),
-    primaryContacts: jsonb("primary_contacts").notNull().default([]),
-    defaultPaymentTermsDays: integer("default_payment_terms_days").notNull().default(14),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
-  },
-  (t) => [
-    index("clients_company_name_idx").on(t.companyName),
-    index("clients_organization_number_idx").on(t.organizationNumber)
-  ]
-);
-var insertClientSchema = createInsertSchema(clientsTable).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true
-});
-
-// ../../lib/db/src/schema/projects.ts
-var projectsTable = pgTable(
-  "projects",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: text("user_id").notNull(),
-    name: text("name").notNull().default("Untitled"),
-    venue: text("venue").notNull().default(""),
-    client: text("client").notNull().default(""),
-    easyjobNumber: text("easyjob_number"),
-    venueId: uuid("venue_id").references(() => venuesTable.id, {
-      onDelete: "set null"
-    }),
-    clientId: uuid("client_id").references(() => clientsTable.id, {
-      onDelete: "set null"
-    }),
-    clonedFromProjectId: uuid("cloned_from_project_id"),
-    data: jsonb("data").notNull().default({}),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
-  },
-  (t) => [
-    index("projects_user_id_idx").on(t.userId),
-    index("projects_easyjob_number_idx").on(t.easyjobNumber),
-    index("projects_venue_id_idx").on(t.venueId),
-    index("projects_client_id_idx").on(t.clientId),
-    index("projects_cloned_from_idx").on(t.clonedFromProjectId),
-    foreignKey({
-      columns: [t.clonedFromProjectId],
-      foreignColumns: [t.id],
-      name: "projects_cloned_from_project_id_fk"
-    }).onDelete("set null")
-  ]
-);
-var insertProjectSchema = createInsertSchema(projectsTable).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true
-});
-
 // ../../lib/db/src/schema/timeEntries.ts
 var timeEntriesTable = pgTable(
   "time_entries",
@@ -74751,12 +74760,18 @@ var calendarHoldsTable = pgTable("calendar_holds", {
   id: text("id").primaryKey(),
   freelancerUserId: text("freelancer_user_id").notNull(),
   ownerUserId: text("owner_user_id").notNull(),
-  briefId: text("brief_id"),
+  briefId: text("brief_id").references(() => projectBriefsTable.id, {
+    onDelete: "cascade"
+  }),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-}, (t) => [index("calendar_holds_freelancer_time_idx").on(t.freelancerUserId, t.startsAt), index("calendar_holds_owner_idx").on(t.ownerUserId)]);
+}, (t) => [
+  index("calendar_holds_freelancer_time_idx").on(t.freelancerUserId, t.startsAt),
+  index("calendar_holds_owner_idx").on(t.ownerUserId),
+  index("calendar_holds_brief_idx").on(t.briefId)
+]);
 var calendarSyncJobsTable = pgTable("calendar_sync_jobs", {
   id: text("id").primaryKey(),
   connectionId: text("connection_id").notNull().references(() => calendarConnectionsTable.id, { onDelete: "cascade" }),
@@ -75013,7 +75028,7 @@ var insertOrganizationSettingsSchema = createInsertSchema(
   organizationSettingsTable
 ).omit({ createdAt: true, updatedAt: true });
 
-// ../../lib/db/src/index.ts
+// ../../lib/db/src/client.ts
 var { Pool: Pool3 } = esm_default;
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -75022,6 +75037,98 @@ if (!process.env.DATABASE_URL) {
 }
 var pool = new Pool3({ connectionString: process.env.DATABASE_URL });
 var db = drizzle(pool, { schema: schema_exports });
+
+// ../../lib/db/src/projectDeletion.ts
+var PROJECT_DELETE_FINANCIAL_CONFLICT = "This project cannot be deleted because it has approved or payroll-locked time or financial records. Those records must be preserved.";
+var PROJECT_BRIEF_PROVENANCE_LOCK = sql`
+  select pg_advisory_xact_lock(1886545254, 134756896)
+`;
+async function deleteOwnedProject(projectId, ownerUserId) {
+  return db.transaction(async (tx) => {
+    await tx.execute(PROJECT_BRIEF_PROVENANCE_LOCK);
+    const [project] = await tx.select({
+      id: projectsTable.id,
+      activeBriefId: sql`nullif(${projectsTable.data}->>'activeBriefId', '')`
+    }).from(projectsTable).where(
+      and(
+        eq(projectsTable.id, projectId),
+        eq(projectsTable.userId, ownerUserId)
+      )
+    ).limit(1).for("update");
+    if (!project) return { kind: "not_found" };
+    const finance = await tx.select({
+      easyjobRevenueMinor: projectFinanceSettingsTable.easyjobRevenueMinor
+    }).from(projectFinanceSettingsTable).where(eq(projectFinanceSettingsTable.projectId, projectId)).limit(1).for("update");
+    const recordedExpense = await tx.select({ id: projectExpensesTable.id }).from(projectExpensesTable).where(eq(projectExpensesTable.projectId, projectId)).limit(1).for("update");
+    if (recordedExpense.length > 0 || (finance[0]?.easyjobRevenueMinor ?? 0) > 0) {
+      return { kind: "financial_conflict" };
+    }
+    const linkedBriefWhere = project.activeBriefId ? or(
+      eq(projectBriefsTable.projectId, projectId),
+      eq(projectBriefsTable.id, project.activeBriefId)
+    ) : eq(projectBriefsTable.projectId, projectId);
+    const linkedBriefs = await tx.select({
+      id: projectBriefsTable.id,
+      ownerUserId: projectBriefsTable.ownerUserId,
+      projectId: projectBriefsTable.projectId
+    }).from(projectBriefsTable).where(linkedBriefWhere).for("update");
+    const linkedBriefIds = linkedBriefs.map((brief) => brief.id);
+    if (linkedBriefIds.length > 0) {
+      const linkedGigs = await tx.select({ id: gigsTable.id, status: gigsTable.status }).from(gigsTable).where(inArray(gigsTable.briefId, linkedBriefIds)).for("update");
+      if (linkedGigs.some(
+        (gig) => gig.status === "invoiced" || gig.status === "paid"
+      )) {
+        return { kind: "financial_conflict" };
+      }
+      const linkedGigIds = linkedGigs.map((gig) => gig.id);
+      const entryLinkWhere = linkedGigIds.length > 0 ? or(
+        inArray(timeEntriesTable.briefId, linkedBriefIds),
+        inArray(timeEntriesTable.gigId, linkedGigIds)
+      ) : inArray(timeEntriesTable.briefId, linkedBriefIds);
+      const linkedEntries = await tx.select({
+        id: timeEntriesTable.id,
+        status: timeEntriesTable.status,
+        approvedRateMinor: timeEntriesTable.approvedRateMinor,
+        approvedFlatFeeMinor: timeEntriesTable.approvedFlatFeeMinor,
+        approvedOvertimeMultiplierBasisPoints: timeEntriesTable.approvedOvertimeMultiplierBasisPoints
+      }).from(timeEntriesTable).where(entryLinkWhere).for("update");
+      if (linkedEntries.some(
+        (entry) => entry.status === "approved" || entry.status === "locked" || entry.approvedRateMinor != null || entry.approvedFlatFeeMinor != null || entry.approvedOvertimeMultiplierBasisPoints != null
+      )) {
+        return { kind: "financial_conflict" };
+      }
+      const externallyReferenced = await tx.select({
+        activeBriefId: sql`${projectsTable.data}->>'activeBriefId'`
+      }).from(projectsTable).where(
+        and(
+          ne(projectsTable.id, projectId),
+          inArray(
+            sql`${projectsTable.data}->>'activeBriefId'`,
+            linkedBriefIds
+          )
+        )
+      );
+      const externalIds = new Set(
+        externallyReferenced.map((row) => row.activeBriefId)
+      );
+      const safeBriefIds = linkedBriefs.filter(
+        (brief) => brief.ownerUserId === ownerUserId && !externalIds.has(brief.id) && (brief.projectId === projectId || brief.id === project.activeBriefId && (brief.projectId === null || brief.projectId === projectId))
+      ).map((brief) => brief.id);
+      if (safeBriefIds.length > 0) {
+        await tx.delete(gigsTable).where(inArray(gigsTable.briefId, safeBriefIds));
+        await tx.delete(calendarHoldsTable).where(inArray(calendarHoldsTable.briefId, safeBriefIds));
+        await tx.delete(projectBriefsTable).where(inArray(projectBriefsTable.id, safeBriefIds));
+      }
+    }
+    const removed = await tx.delete(projectsTable).where(
+      and(
+        eq(projectsTable.id, projectId),
+        eq(projectsTable.userId, ownerUserId)
+      )
+    ).returning({ id: projectsTable.id });
+    return removed.length === 1 ? { kind: "deleted" } : { kind: "not_found" };
+  });
+}
 
 // src/lib/venueMemoryHint.ts
 function arr(value) {
@@ -78438,6 +78545,9 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
       return;
     }
     const result = await db.transaction(async (tx) => {
+      if (typeof rawProjectId === "string") {
+        await tx.execute(PROJECT_BRIEF_PROVENANCE_LOCK);
+      }
       const existing = await tx.select({ ownerUserId: projectBriefsTable.ownerUserId }).from(projectBriefsTable).where(eq(projectBriefsTable.id, id)).limit(1);
       if (existing[0] && existing[0].ownerUserId !== userId2) {
         return { forbidden: true };
@@ -78445,6 +78555,7 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
       const inserted = await tx.insert(projectBriefsTable).values({
         id,
         ownerUserId: userId2,
+        projectId: typeof rawProjectId === "string" ? rawProjectId : null,
         ...indexed,
         data,
         venueTechnicalSnapshot: venueProjection.snapshot
@@ -78452,6 +78563,7 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
         target: projectBriefsTable.id,
         set: {
           ...indexed,
+          ...typeof rawProjectId === "string" ? { projectId: rawProjectId } : {},
           data,
           venueTechnicalSnapshot: venueProjection.snapshot,
           updatedAt: sql`now()`
@@ -81526,6 +81638,7 @@ var portalWork_default = router11;
 
 // src/routes/projects.ts
 var import_express14 = __toESM(require_express2(), 1);
+import { randomUUID as randomUUID6 } from "node:crypto";
 
 // src/lib/projectDefaults.ts
 function projectDataWithOrganizationDefaults(raw, snapshot) {
@@ -81538,7 +81651,7 @@ function projectFinanceSeed(rawData) {
   const minor = (key2) => typeof raw[key2] === "number" && Number.isSafeInteger(raw[key2]) && raw[key2] >= 0 && raw[key2] <= 2147483647 ? raw[key2] : 0;
   return {
     contractRevenueMinor: minor("contractRevenueMinor"),
-    easyjobRevenueMinor: raw.easyjobRevenueMinor === null ? null : minor("easyjobRevenueMinor"),
+    easyjobRevenueMinor: typeof raw.easyjobRevenueMinor === "number" && Number.isSafeInteger(raw.easyjobRevenueMinor) && raw.easyjobRevenueMinor >= 0 && raw.easyjobRevenueMinor <= 2147483647 ? raw.easyjobRevenueMinor : null,
     laborBudgetMinor: minor("laborBudgetMinor"),
     hotelBudgetMinor: minor("hotelBudgetMinor"),
     cateringBudgetMinor: minor("cateringBudgetMinor"),
@@ -81559,6 +81672,34 @@ var requireSignedIn10 = (req, res, next) => {
   next();
 };
 var MAX_DATA_BYTES2 = 2 * 1024 * 1024;
+function activeBriefIdIn(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const raw = data.activeBriefId;
+  if (raw === void 0 || raw === null || raw === "") return null;
+  if (typeof raw !== "string" || raw !== raw.trim() || raw.length > 64) {
+    return "invalid";
+  }
+  return raw;
+}
+async function validActiveBriefProvenance(tx, projectId, projectOwnerId, data) {
+  const briefId = activeBriefIdIn(data);
+  if (briefId === null) return true;
+  if (briefId === "invalid") return false;
+  const [brief] = await tx.select({
+    ownerUserId: projectBriefsTable.ownerUserId,
+    projectId: projectBriefsTable.projectId
+  }).from(projectBriefsTable).where(eq(projectBriefsTable.id, briefId)).limit(1);
+  if (!brief || brief.ownerUserId !== projectOwnerId || brief.projectId !== null && brief.projectId !== projectId) {
+    return false;
+  }
+  const [otherClaim] = await tx.select({ id: projectsTable.id }).from(projectsTable).where(
+    and(
+      ne(projectsTable.id, projectId),
+      eq(sql`${projectsTable.data}->>'activeBriefId'`, briefId)
+    )
+  ).limit(1);
+  return !otherClaim;
+}
 function linkedId(value) {
   if (value === void 0) return void 0;
   if (value === null || value === "") return null;
@@ -81672,7 +81813,8 @@ router12.get("/projects/:id", requireSignedIn10, async (req, res) => {
       ok: true,
       project: {
         ...projectResponse(row),
-        accessRole
+        accessRole,
+        status: typeof row.data?.activeBriefId === "string" && String(row.data.activeBriefId).trim() ? "active" : row.venue?.trim() || row.client?.trim() ? "planning" : "draft"
       }
     });
   } catch (err) {
@@ -81714,8 +81856,19 @@ router12.post("/projects", requireSignedIn10, async (req, res) => {
       data,
       organizationDefaultsSnapshot(organization)
     );
-    const row = await db.transaction(async (tx) => {
+    const projectId = randomUUID6();
+    const result = await db.transaction(async (tx) => {
+      await tx.execute(PROJECT_BRIEF_PROVENANCE_LOCK);
+      if (!await validActiveBriefProvenance(
+        tx,
+        projectId,
+        userId2,
+        projectData
+      )) {
+        return { kind: "invalid_brief" };
+      }
       const [created] = await tx.insert(projectsTable).values({
+        id: projectId,
         userId: userId2,
         name: typeof name === "string" ? name.slice(0, 200) : "Untitled",
         venue: links.venueName ?? (typeof venue === "string" ? venue.slice(0, 200) : ""),
@@ -81732,8 +81885,16 @@ router12.post("/projects", requireSignedIn10, async (req, res) => {
         ...projectFinanceSeed(projectData),
         updatedByUserId: userId2
       });
-      return created;
+      return { kind: "created", project: created };
     });
+    if (result.kind === "invalid_brief") {
+      res.status(400).json({
+        ok: false,
+        error: "The active brief must belong to the project owner and cannot be linked to another project."
+      });
+      return;
+    }
+    const row = result.project;
     res.json({
       ok: true,
       project: row ? projectResponse(row) : row
@@ -81806,21 +81967,43 @@ router12.patch("/projects/:id", requireSignedIn10, async (req, res) => {
       if (links.clientName !== void 0) updates.client = links.clientName;
     }
     if (clonedFromProjectId !== void 0) updates.clonedFromProjectId = clonedFromProjectId;
-    const [row] = await db.update(projectsTable).set(updates).where(eq(projectsTable.id, String(id))).returning({
-      id: projectsTable.id,
-      name: projectsTable.name,
-      venue: projectsTable.venue,
-      client: projectsTable.client,
-      easyjob_number: projectsTable.easyjobNumber,
-      venue_id: projectsTable.venueId,
-      client_id: projectsTable.clientId,
-      cloned_from_project_id: projectsTable.clonedFromProjectId,
-      updatedAt: projectsTable.updatedAt
+    const result = await db.transaction(async (tx) => {
+      await tx.execute(PROJECT_BRIEF_PROVENANCE_LOCK);
+      const [project] = await tx.select({ ownerUserId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, String(id))).limit(1).for("update");
+      if (!project) return { kind: "not_found" };
+      if (data !== void 0 && !await validActiveBriefProvenance(
+        tx,
+        String(id),
+        project.ownerUserId,
+        data
+      )) {
+        return { kind: "invalid_brief" };
+      }
+      const [updated] = await tx.update(projectsTable).set(updates).where(eq(projectsTable.id, String(id))).returning({
+        id: projectsTable.id,
+        name: projectsTable.name,
+        venue: projectsTable.venue,
+        client: projectsTable.client,
+        easyjob_number: projectsTable.easyjobNumber,
+        venue_id: projectsTable.venueId,
+        client_id: projectsTable.clientId,
+        cloned_from_project_id: projectsTable.clonedFromProjectId,
+        updatedAt: projectsTable.updatedAt
+      });
+      return updated ? { kind: "updated", project: updated } : { kind: "not_found" };
     });
-    if (!row) {
+    if (result.kind === "not_found") {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
+    if (result.kind === "invalid_brief") {
+      res.status(400).json({
+        ok: false,
+        error: "The active brief must belong to the project owner and cannot be linked to another project."
+      });
+      return;
+    }
+    const row = result.project;
     res.json({ ok: true, project: row });
   } catch (err) {
     req.log.error(err, "Failed to update project");
@@ -81835,9 +82018,17 @@ router12.delete("/projects/:id", requireSignedIn10, async (req, res) => {
     return;
   }
   try {
-    const result = await db.delete(projectsTable).where(and(eq(projectsTable.id, String(id)), eq(projectsTable.userId, userId2)));
-    if (result.rowCount === 0) {
+    const result = await deleteOwnedProject(String(id), userId2);
+    if (result.kind === "not_found") {
       res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    if (result.kind === "financial_conflict") {
+      res.status(409).json({
+        ok: false,
+        code: "PROJECT_FINANCIAL_RECORDS_LOCKED",
+        error: PROJECT_DELETE_FINANCIAL_CONFLICT
+      });
       return;
     }
     res.json({ ok: true });
@@ -84360,7 +84551,7 @@ import net from "node:net";
 import fs from "node:fs";
 
 // ../../node_modules/.pnpm/node-ical@0.27.1/node_modules/node-ical/ical.js
-import { randomUUID as randomUUID6 } from "node:crypto";
+import { randomUUID as randomUUID7 } from "node:crypto";
 
 // ../../node_modules/.pnpm/rrule-temporal@2.2.2/node_modules/rrule-temporal/dist/src-B2XO5sNr.js
 var expectedPositive = (entityName, num) => `Non-positive ${entityName}: ${num}`;
@@ -98852,7 +99043,7 @@ var ical = {
       }
       return finalizeEndedComponent(value, curr, stack, {
         storeRecurrenceOverride,
-        randomIdFactory: randomUUID6,
+        randomIdFactory: randomUUID7,
         utcAdd: tz_utils_default.utcAdd
       });
     },

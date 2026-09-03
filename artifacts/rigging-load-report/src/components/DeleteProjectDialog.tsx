@@ -20,7 +20,7 @@ interface Props {
   projectName: string;
   projectStatus: 'active' | 'planning' | 'draft';
   getToken: () => Promise<string | null>;
-  onSuccess: () => void;
+  onSuccess: () => void | Promise<void>;
   trigger: React.ReactNode;
 }
 
@@ -41,14 +41,20 @@ export function DeleteProjectDialog({
   const isActive = projectStatus === "active";
   const nameToMatch = projectName || t("shell.breadcrumb.untitled");
 
-  const isDeleteDisabled = isActive ? confirmText !== nameToMatch : false;
+  const confirmationMatches =
+    !isActive || confirmText.trim() === nameToMatch.trim();
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.preventDefault();
-    if (isDeleteDisabled || loading) return;
+    if (loading) return;
+    if (!confirmationMatches) {
+      setError("Please type the exact project name to confirm deletion.");
+      return;
+    }
     
     setLoading(true);
     setError("");
+    let succeeded = false;
     
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 20_000);
@@ -61,15 +67,15 @@ export function DeleteProjectDialog({
       });
       
       if (!res.ok) {
-        if (res.status === 409) {
-          const json = await res.json().catch(() => ({}));
-          throw new Error(json.error || t("project.delete.error.conflict"));
-        }
-        throw new Error(t("project.delete.error.generic"));
+        const json = await res.json().catch(() => null);
+        const serverMessage =
+          json && typeof json.error === "string" ? json.error : "";
+        throw new Error(serverMessage || t("project.delete.error.generic"));
       }
       
+      succeeded = true;
       toast.success(t("project.delete.success"));
-      onSuccess();
+      await onSuccess();
     } catch (err: any) {
       const message =
         err instanceof DOMException && err.name === "AbortError"
@@ -80,8 +86,11 @@ export function DeleteProjectDialog({
     } finally {
       window.clearTimeout(timeout);
       setLoading(false);
-      setOpen(false);
-      setConfirmText("");
+      if (succeeded) {
+        setOpen(false);
+        setConfirmText("");
+        setError("");
+      }
     }
   };
 
@@ -107,7 +116,10 @@ export function DeleteProjectDialog({
               type="text"
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               value={confirmText}
-              onChange={(e) => setConfirmText(e.target.value)}
+              onChange={(e) => {
+                setConfirmText(e.target.value);
+                if (error) setError("");
+              }}
               placeholder={nameToMatch}
             />
           </div>
@@ -129,7 +141,7 @@ export function DeleteProjectDialog({
           </AlertDialogCancel>
           <AlertDialogAction 
             onClick={handleDelete}
-            disabled={isDeleteDisabled || loading}
+            disabled={loading}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
             {loading ? t("project.delete.deleting") : t("project.delete.confirm")}

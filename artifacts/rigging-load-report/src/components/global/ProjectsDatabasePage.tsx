@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { Search, Plus, FileText, ChevronRight, Trash2 } from "lucide-react";
 import { DeleteProjectDialog } from "../DeleteProjectDialog";
 import { useT } from "../../lib/i18n/I18nContext";
@@ -31,28 +31,27 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, on
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  useEffect(() => {
-    let mounted = true;
-    async function load() {
-      try {
-        const token = await getToken();
-        const res = await fetch("/api/projects", {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!res.ok) throw new Error("Failed to load projects");
-        const json = await res.json();
-        if (mounted) {
-          setProjects(json.projects || []);
-        }
-      } catch (err: any) {
-        if (mounted) setError(err.message);
-      } finally {
-        if (mounted) setLoading(false);
-      }
+  const loadProjects = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const token = await getToken();
+      const res = await fetch("/api/projects", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Failed to load projects");
+      const json = await res.json();
+      setProjects(json.projects || []);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    load();
-    return () => { mounted = false; };
   }, [getToken]);
+
+  useEffect(() => {
+    void loadProjects();
+  }, [loadProjects]);
 
   const filtered = useMemo(() => {
     let list = projects;
@@ -187,8 +186,8 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, on
                             projectName={p.name}
                             projectStatus={p.status}
                             getToken={getToken}
-                            onSuccess={() => {
-                              setProjects(prev => prev.filter(x => x.id !== p.id));
+                            onSuccess={async () => {
+                              await loadProjects();
                               onProjectDeleted?.(p.id);
                             }}
                             trigger={

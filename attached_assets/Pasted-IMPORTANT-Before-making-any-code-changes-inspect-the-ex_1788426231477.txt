@@ -1,0 +1,93 @@
+IMPORTANT: Before making any code changes, inspect the existing calendar and availability functionality.
+
+The current database already contains:
+- calendar_availability
+- calendar_availability_rules
+- calendar_connections
+- calendar_busy_intervals
+- calendar_holds
+
+Reuse the existing architecture and database wherever possible.
+DO NOT create a second or duplicate calendar/availability system.
+
+FEATURE: Freelancer Availability Management
+
+On the Freelancer Portal, add an easy-to-use availability calendar.
+The freelancer should be able to select a date and specify intraday time ranges.
+For example:
+September 3:
+- 10:00 → 14:00 = BUSY
+- 14:00 → 18:00 = AVAILABLE
+The freelancer must be able to create multiple time blocks on the same day.
+
+1. AVAILABILITY TYPES
+Each time block must have one of these statuses:
+- AVAILABLE
+- BUSY
+The UI should make the distinction visually explicit (e.g. distinct theme-aware colors).
+
+2. CREATING A TIME BLOCK
+When the freelancer clicks a date/slot or selects "Add availability", show a modal with:
+- Date
+- Start time
+- End time
+- Status: Available / Busy
+- Optional note
+Example:
+- Date: September 3
+- Start: 10:00
+- End: 14:00
+- Status: Busy
+- Note: Personal appointment
+Save changes to backend storage.
+
+3. EDITING & DELETING
+The freelancer must be able to:
+- Edit an existing time block (start time, end time, status, note)
+- Delete the time block with a confirmation check.
+
+4. MULTIPLE BLOCKS PER DAY
+A freelancer must be able to have multiple non-overlapping blocks during the same day (e.g., 08:00–10:00 AVAILABLE, 10:00–13:00 BUSY, 13:00–18:00 AVAILABLE). Do not assume a whole day is purely available or busy.
+
+5. VALIDATION & OVERLAPS
+- End time cannot be before or equal to start time.
+- Detect overlapping time blocks and prevent silent overwriting.
+- Show clear validation error messages when conflicting time ranges are submitted.
+
+6. CALENDAR UI & RESPONSIVENESS
+Create a clean calendar interface for the Freelancer Portal:
+- Day and Week views.
+- Visual display of available vs busy blocks.
+- Click to edit/delete block.
+- Mobile-safe and responsive (390px viewport guard, theme-aware for light/dark mode).
+
+7. CONCEPT SEPARATION
+Keep these concepts separate:
+- Freelancer manual BUSY blocks
+- Freelancer manual AVAILABLE blocks
+- OAuth-imported external calendar BUSY intervals
+- Producer-created calendar holds
+Do not overwrite imported calendar busy intervals or producer holds with manual availability.
+
+8. PRODUCER / SEARCH QUERY SUPPORT
+Ensure the data structure natively supports querying for producer crew search (e.g., "Find freelancers available Sept 10 from 14:00–18:00").
+
+9. DATABASE & TIMEZONES
+- Use existing PostgreSQL + Drizzle architecture. Do NOT switch to Supabase or create duplicate tables.
+- Respect existing timezone storage strategies (ISO/UTC conversion) to ensure consistent date rendering.
+
+10. AUTHENTICATION & SECURITY
+- Backend-enforced authorization: Freelancers can ONLY view/create/edit/delete their own availability data.
+
+11. VERIFICATION REQUIREMENT
+Run `pnpm build` to verify 0 TypeScript errors.
+
+IMPORTANT BEFORE CODING:
+First inspect the existing Freelancer Portal and calendar/availability tables.
+Report back with:
+1. Which existing components and API endpoints you will reuse.
+2. Which database tables currently handle availability.
+3. Whether the current schema already supports intraday (hourly) availability.
+4. What database schema adjustments or additions (if any) are required.
+
+Wait for approval or proceed to implement once verified.

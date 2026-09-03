@@ -87,6 +87,10 @@ export type CrewMember = {
    *  run" by default. The producer can untick individual day-chips on
    *  the Crew tab to drop a person off specific days. */
   assignedDates?: string[];
+  /** UI-level shift selections keyed as `YYYY-MM-DD::phase`.
+   *  This keeps overlapping phases on the same calendar day independent
+   *  while `assignedDates` remains the backwards-compatible API payload. */
+  assignedShiftPhases?: string[];
   /** Contact phone copied from the freelancer's portal profile when
    *  the row was added via the Available Crew sidebar. Empty string
    *  for manual in-house rows. */
@@ -188,6 +192,15 @@ export function normalizeCrewMember(raw: unknown): CrewMember {
           .filter(
             (d): d is string =>
               typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d),
+          )
+          .sort()
+      : undefined,
+    assignedShiftPhases: Array.isArray(r.assignedShiftPhases)
+      ? (r.assignedShiftPhases as unknown[])
+          .filter(
+            (value): value is string =>
+              typeof value === "string" &&
+              /^\d{4}-\d{2}-\d{2}::(setup|rehearsal|show|downrig)$/.test(value),
           )
           .sort()
       : undefined,

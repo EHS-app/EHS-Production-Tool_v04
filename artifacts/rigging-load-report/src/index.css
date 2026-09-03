@@ -10758,3 +10758,200 @@ html[data-shell="linear"] .container {
   align-items: center;
   gap: 6px;
 }
+
+/* Crew booking day × phase matrix. Critical geometry and opaque surfaces
+ * are explicit because this control is portaled above every shell. */
+.crew-shift-matrix-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  border: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+}
+
+.crew-shift-matrix {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 12001;
+  display: flex;
+  width: min(760px, calc(100vw - 24px));
+  max-height: min(780px, calc(100dvh - 24px));
+  transform: translate(-50%, -50%);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card-bg, #ffffff);
+  color: var(--text-main, #0f172a);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.35);
+}
+
+.crew-shift-matrix-header,
+.crew-shift-matrix-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-color: var(--border);
+  background: var(--card-bg, #ffffff);
+}
+
+.crew-shift-matrix-header {
+  border-bottom: 1px solid var(--border);
+}
+
+.crew-shift-matrix-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.crew-shift-matrix-eyebrow {
+  margin: 0 0 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.crew-shift-matrix-close,
+.crew-shift-matrix-footer button,
+.crew-shift-day-actions button {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--light);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.crew-shift-matrix-close {
+  min-width: 44px;
+  padding: 0;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.crew-shift-matrix-scroll {
+  display: grid;
+  gap: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 18px;
+}
+
+.crew-shift-day {
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.crew-shift-day legend {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.crew-shift-day-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.crew-shift-day-actions button {
+  padding: 0 12px;
+}
+
+.crew-shift-day-actions button.is-active {
+  border-color: var(--primary, #f88000);
+  background: color-mix(in srgb, var(--primary, #f88000) 14%, transparent);
+  color: var(--primary, #f88000);
+}
+
+.crew-shift-phase-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.crew-shift-phase {
+  position: relative;
+  min-width: 0;
+}
+
+.crew-shift-phase input {
+  position: absolute;
+  top: 13px;
+  left: 12px;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--primary, #f88000);
+}
+
+.crew-shift-phase label {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  padding: 8px 10px 8px 38px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--light);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.crew-shift-phase input:checked + label {
+  border-color: var(--primary, #f88000);
+  background: color-mix(in srgb, var(--primary, #f88000) 12%, var(--card-bg, #fff));
+}
+
+.crew-shift-phase input:focus-visible + label {
+  outline: 2px solid var(--primary, #f88000);
+  outline-offset: 2px;
+}
+
+.crew-shift-matrix-footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+}
+
+.crew-shift-matrix-footer button {
+  min-width: 96px;
+  padding: 0 16px;
+}
+
+.crew-shift-matrix-footer button.is-primary {
+  border-color: var(--primary, #f88000);
+  background: var(--primary, #f88000);
+  color: #ffffff;
+}
+
+@media (max-width: 640px) {
+  .crew-shift-matrix-header,
+  .crew-shift-matrix-footer,
+  .crew-shift-matrix-scroll {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .crew-shift-phase-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .crew-shift-day-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}

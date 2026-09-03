@@ -12,3 +12,4 @@
 - [Organization settings governance](organization-settings-governance.md) — admin access is explicit; project defaults are server-owned snapshots and approved payroll remains immutable.
 - [Project deletion integrity](project-deletion-integrity.md) — project owners may hard-delete their full owned graph; unlink foreign-owned briefs and cancel client autosaves.
 - [Alert dialog runtime layout](alert-dialog-runtime-layout.md) — utility classes may be absent at runtime; verify computed fixed positioning for critical dialogs.
+- [Crew shift phase identity](crew-shift-phase-identity.md) — overlapping phases need date+phase UI identity; derive legacy assignedDates without collapsing same-day phase state.

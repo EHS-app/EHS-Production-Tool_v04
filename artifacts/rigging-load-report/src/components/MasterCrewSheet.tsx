@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   buildDayChips,
   mergeRoster,
@@ -14,6 +15,12 @@ import {
 } from "../lib/crew";
 import { NumberField } from "./NumberField";
 import { openMasterSheet, type MasterSheetRow } from "../lib/masterSheetExport";
+import {
+  assignedDatesFromShiftPhases,
+  crewShiftAssignmentKey,
+  setCrewShiftPhaseSelection,
+  type CrewShiftPhaseKey,
+} from "../lib/crewShiftAssignments";
 
 type FreelancerCandidate = {
   userId: string;
@@ -877,15 +884,30 @@ export function MasterCrewSheet({
                       local
                         ? (date) => {
                             const cur = new Set(local.assignedDates ?? []);
-                            if (cur.has(date)) cur.delete(date);
+                            const wasAssigned = cur.has(date);
+                            if (wasAssigned) cur.delete(date);
                             else cur.add(date);
                             const nextDates = [...cur].sort();
+                            const shiftKeys = new Set(
+                              local.assignedShiftPhases ??
+                                (local.assignedDates ?? []).flatMap((assignedDate) =>
+                                  SHIFT_PHASES.map((phase) =>
+                                    crewShiftAssignmentKey(assignedDate, phase.key),
+                                  ),
+                                ),
+                            );
+                            for (const phase of SHIFT_PHASES) {
+                              const key = crewShiftAssignmentKey(date, phase.key);
+                              if (wasAssigned) shiftKeys.delete(key);
+                              else shiftKeys.add(key);
+                            }
                             // Re-derive call/off from the project
                             // schedule so the row's shift always
                             // matches the days that are ticked on
                             // (earliest setup → latest downrig).
                             const patch: Partial<CrewMember> = {
                               assignedDates: nextDates,
+                              assignedShiftPhases: [...shiftKeys].sort(),
                             };
                             if (getTimesForDates) {
                               const t = getTimesForDates(nextDates, {
@@ -923,7 +945,7 @@ export function MasterCrewSheet({
                     onOpenProfile={onOpenProfile}
                     onLocalSetDays={
                       local
-                        ? (nextDates) => {
+                        ? (nextDates, nextShiftPhases) => {
                             // Replace the row's working days wholesale
                             // (used by the per-phase quick-pick
                             // buttons). Re-derives call/off from the
@@ -933,6 +955,9 @@ export function MasterCrewSheet({
                             const patch: Partial<CrewMember> = {
                               assignedDates: sorted,
                             };
+                            if (nextShiftPhases) {
+                              patch.assignedShiftPhases = [...nextShiftPhases].sort();
+                            }
                             if (getTimesForDates) {
                               const t = getTimesForDates(sorted, {
                                 callTime: local.callTime,
@@ -1170,7 +1195,10 @@ function MasterRow({
   phaseDays?: Partial<Record<string, ReadonlyArray<string>>>;
   /** Replace the local row's working days wholesale (used by the
    *  quick-pick buttons). Recomputes call/off from the schedule. */
-  onLocalSetDays?: (dates: ReadonlyArray<string>) => void;
+  onLocalSetDays?: (
+    dates: ReadonlyArray<string>,
+    shiftPhases?: ReadonlyArray<string>,
+  ) => void;
   onOpenProfile?: (userId: string) => void;
 }) {
   const chips = useMemo(
@@ -1334,132 +1362,22 @@ function MasterRow({
             </span>
           </div>
         )}
-        {/* Per-phase quick-pick buttons. Only on local rows that have
-            both a setter and at least one scheduled phase — clicking a
-            button replaces the row's working days with that phase's
-            days, so the producer can say "this person does Setup
-            only" or "Show only" with one click instead of toggling
-            every chip. "All" / "None" cover the simple cases. */}
+        {/* Date × phase state is intentionally stored independently from
+            assignedDates. Several phases may share one date, so deriving
+            phase state from the flat date array makes removing Load-out
+            also clear Show. The matrix keeps the exact selections while
+            still deriving the legacy assignedDates API payload. */}
         {editableLocal && onLocalSetDays && phaseDays
-          ? (() => {
-              const phaseEntries = (
-                ["setup", "rehearsal", "show", "downrig"] as const
-              )
-                .map((k) => ({ key: k, days: phaseDays[k] ?? [] }))
-                .filter((p) => p.days.length > 0);
-              // "All" must cover every workable day, not just the
-              // project's start→end range. Phases like Setup or Load
-              // Out can spill before/after the project window, and
-              // `projectDays` is sometimes null when no schedule has
-              // been imported yet — in either case the old "All" did
-              // nothing useful (or didn't render). Union project days
-              // with every phase day, dedupe, and sort so the button
-              // always reflects what's actually pickable.
-              const allDaysSet = new Set<string>(projectDays ?? []);
-              for (const p of phaseEntries) {
-                for (const d of p.days) allDaysSet.add(d);
-              }
-              const allDays = [...allDaysSet].sort();
-              const hasAnyButtons =
-                phaseEntries.length > 0 || allDays.length > 0;
-              if (!hasAnyButtons) return null;
-              const phaseLabel: Record<string, string> = {
-                setup: "Setup",
-                rehearsal: "Rehearsal",
-                show: "Show",
-                downrig: "Load Out",
-              };
-              // Phase is "active" when every one of its days is in the
-              // current assignedDates set. Toggling an active phase
-              // removes its days; toggling an inactive one adds them.
-              // This lets the producer combine phases — e.g. tap
-              // "Setup" then "Load Out" to get a setup+load-out crew
-              // member without the Show days in the middle.
-              const assignedSet = new Set(row.assignedDates);
-              const isPhaseActive = (days: ReadonlyArray<string>) =>
-                days.length > 0 && days.every((d) => assignedSet.has(d));
-              return (
-                <div
-                  className="roster-day-quickpick"
-                  role="group"
-                  aria-label="Quick-fill working days"
-                >
-                  <span className="roster-day-quickpick-label">Days:</span>
-                  {phaseEntries.map((p) => {
-                    const active = isPhaseActive(p.days);
-                    return (
-                      <button
-                        key={p.key}
-                        type="button"
-                        className={
-                          "roster-day-quickpick-btn" +
-                          (active ? " roster-day-quickpick-btn-active" : "")
-                        }
-                        aria-pressed={active}
-                        title={
-                          active
-                            ? `Remove ${phaseLabel[p.key]} days (${p.days.length})`
-                            : `Add ${phaseLabel[p.key]} days (${p.days.length})`
-                        }
-                        onClick={() => {
-                          const next = new Set(row.assignedDates);
-                          if (active) {
-                            for (const d of p.days) next.delete(d);
-                          } else {
-                            for (const d of p.days) next.add(d);
-                          }
-                          onLocalSetDays([...next]);
-                        }}
-                      >
-                        {phaseLabel[p.key]}
-                      </button>
-                    );
-                  })}
-                  {allDays.length > 0
-                    ? (() => {
-                        // Active when every workable day is already
-                        // assigned. Clicking an active "All" clears
-                        // everything (mirrors the phase buttons'
-                        // toggle behaviour) so the producer doesn't
-                        // need to hunt for "None" right after.
-                        const allActive = allDays.every((d) =>
-                          assignedSet.has(d),
-                        );
-                        return (
-                          <button
-                            type="button"
-                            className={
-                              "roster-day-quickpick-btn" +
-                              (allActive
-                                ? " roster-day-quickpick-btn-active"
-                                : "")
-                            }
-                            aria-pressed={allActive}
-                            title={
-                              allActive
-                                ? "Clear all working days"
-                                : `Work every day (${allDays.length})`
-                            }
-                            onClick={() =>
-                              onLocalSetDays(allActive ? [] : [...allDays])
-                            }
-                          >
-                            All
-                          </button>
-                        );
-                      })()
-                    : null}
-                  <button
-                    type="button"
-                    className="roster-day-quickpick-btn roster-day-quickpick-btn-clear"
-                    title="Clear all working days"
-                    onClick={() => onLocalSetDays([])}
-                  >
-                    None
-                  </button>
-                </div>
-              );
-            })()
+          ? (
+              <ShiftAssignmentMatrix
+                crewName={row.name}
+                assignedDates={row.assignedDates}
+                assignedShiftPhases={local?.assignedShiftPhases}
+                projectDays={projectDays}
+                phaseDays={phaseDays}
+                onSave={onLocalSetDays}
+              />
+            )
           : null}
       </td>
       <td>
@@ -1598,6 +1516,252 @@ function MasterRow({
         ) : null}
       </td>
     </tr>
+  );
+}
+
+const SHIFT_PHASES = [
+  { key: "setup", label: "Load-in" },
+  { key: "rehearsal", label: "Soundcheck" },
+  { key: "show", label: "Show" },
+  { key: "downrig", label: "Load-out" },
+] as const;
+
+function ShiftAssignmentMatrix({
+  crewName,
+  assignedDates,
+  assignedShiftPhases,
+  projectDays,
+  phaseDays,
+  onSave,
+}: {
+  crewName: string;
+  assignedDates: ReadonlyArray<string>;
+  assignedShiftPhases?: ReadonlyArray<string>;
+  projectDays: ReadonlyArray<string> | null;
+  phaseDays: Partial<Record<string, ReadonlyArray<string>>>;
+  onSave: (
+    dates: ReadonlyArray<string>,
+    shiftPhases?: ReadonlyArray<string>,
+  ) => void;
+}) {
+  const reactId = useId();
+  const idPrefix = reactId.replace(/[^a-zA-Z0-9_-]/g, "");
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<Set<string>>(new Set());
+  const allDays = useMemo(() => {
+    const days = new Set(projectDays ?? []);
+    for (const phase of SHIFT_PHASES) {
+      for (const date of phaseDays[phase.key] ?? []) days.add(date);
+    }
+    for (const date of assignedDates) days.add(date);
+    return [...days].sort();
+  }, [assignedDates, phaseDays, projectDays]);
+
+  const initialSelections = useCallback(() => {
+    if (assignedShiftPhases) return new Set(assignedShiftPhases);
+    return new Set(
+      assignedDates.flatMap((date) =>
+        SHIFT_PHASES.map((phase) => crewShiftAssignmentKey(date, phase.key)),
+      ),
+    );
+  }, [assignedDates, assignedShiftPhases]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
+  const openMatrix = () => {
+    setDraft(initialSelections());
+    setOpen(true);
+  };
+
+  const updatePhase = (
+    dateKey: string,
+    phaseName: CrewShiftPhaseKey,
+    checked: boolean,
+  ) => {
+    setDraft((current) => {
+      return setCrewShiftPhaseSelection(
+        current,
+        dateKey,
+        phaseName,
+        checked,
+      );
+    });
+  };
+
+  const toggleFullDay = (dateKey: string) => {
+    setDraft((current) => {
+      const next = new Set(current);
+      const keys = SHIFT_PHASES.map((phase) =>
+        crewShiftAssignmentKey(dateKey, phase.key),
+      );
+      const fullDay = keys.every((key) => next.has(key));
+      for (const key of keys) {
+        if (fullDay) next.delete(key);
+        else next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const applyDayToSelectedDays = (sourceDate: string) => {
+    setDraft((current) => {
+      const next = new Set(current);
+      const sourcePhases = SHIFT_PHASES.filter((phase) =>
+        next.has(crewShiftAssignmentKey(sourceDate, phase.key)),
+      );
+      const selectedDays = allDays.filter((date) =>
+        SHIFT_PHASES.some((phase) =>
+          next.has(crewShiftAssignmentKey(date, phase.key)),
+        ),
+      );
+      for (const date of selectedDays) {
+        for (const phase of SHIFT_PHASES) {
+          const key = crewShiftAssignmentKey(date, phase.key);
+          if (sourcePhases.some((source) => source.key === phase.key)) {
+            next.add(key);
+          } else {
+            next.delete(key);
+          }
+        }
+      }
+      return next;
+    });
+  };
+
+  const save = () => {
+    const dates = assignedDatesFromShiftPhases(draft);
+    onSave(dates, [...draft].sort());
+    setOpen(false);
+  };
+
+  const selectedDayCount = allDays.filter((date) =>
+    SHIFT_PHASES.some((phase) =>
+      (assignedShiftPhases ? new Set(assignedShiftPhases) : initialSelections())
+        .has(crewShiftAssignmentKey(date, phase.key)),
+    ),
+  ).length;
+
+  return (
+    <>
+      <button
+        type="button"
+        className="roster-day-quickpick-btn"
+        onClick={openMatrix}
+        disabled={allDays.length === 0}
+      >
+        Edit shifts{selectedDayCount > 0 ? ` (${selectedDayCount}d)` : ""}
+      </button>
+      {open && typeof document !== "undefined"
+        ? createPortal(
+            <>
+              <button
+                type="button"
+                className="crew-shift-matrix-backdrop"
+                aria-label="Close shift assignment matrix"
+                onClick={() => setOpen(false)}
+              />
+              <section
+                className="crew-shift-matrix"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={`${idPrefix}-shift-matrix-title`}
+              >
+                <header className="crew-shift-matrix-header">
+                  <div>
+                    <p className="crew-shift-matrix-eyebrow">Crew booking</p>
+                    <h3 id={`${idPrefix}-shift-matrix-title`}>
+                      Assign shifts{crewName ? ` — ${crewName}` : ""}
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    className="crew-shift-matrix-close"
+                    onClick={() => setOpen(false)}
+                    aria-label="Close"
+                  >
+                    ×
+                  </button>
+                </header>
+                <div className="crew-shift-matrix-scroll">
+                  {allDays.map((dateKey) => {
+                    const fullDay = SHIFT_PHASES.every((phase) =>
+                      draft.has(crewShiftAssignmentKey(dateKey, phase.key)),
+                    );
+                    return (
+                      <fieldset className="crew-shift-day" key={dateKey}>
+                        <legend>{dateKey}</legend>
+                        <div className="crew-shift-day-actions">
+                          <button
+                            type="button"
+                            className={fullDay ? "is-active" : ""}
+                            aria-pressed={fullDay}
+                            onClick={() => toggleFullDay(dateKey)}
+                          >
+                            {fullDay ? "Clear full day" : "Full Day"}
+                          </button>
+                          {allDays.length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => applyDayToSelectedDays(dateKey)}
+                            >
+                              Apply to All Selected Days
+                            </button>
+                          ) : null}
+                        </div>
+                        <div className="crew-shift-phase-grid">
+                          {SHIFT_PHASES.map((phase) => {
+                            const checkboxId = `${idPrefix}-shift-check-${dateKey}-${phase.key}`;
+                            const assignmentKey = crewShiftAssignmentKey(
+                              dateKey,
+                              phase.key,
+                            );
+                            return (
+                              <div
+                                className="crew-shift-phase"
+                                key={`${dateKey}-${phase.key}`}
+                              >
+                                <input
+                                  id={checkboxId}
+                                  type="checkbox"
+                                  checked={draft.has(assignmentKey)}
+                                  onChange={(event) =>
+                                    updatePhase(
+                                      dateKey,
+                                      phase.key,
+                                      event.target.checked,
+                                    )
+                                  }
+                                />
+                                <label htmlFor={checkboxId}>{phase.label}</label>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </fieldset>
+                    );
+                  })}
+                </div>
+                <footer className="crew-shift-matrix-footer">
+                  <button type="button" onClick={() => setOpen(false)}>
+                    Cancel
+                  </button>
+                  <button type="button" className="is-primary" onClick={save}>
+                    Save shifts
+                  </button>
+                </footer>
+              </section>
+            </>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }
 

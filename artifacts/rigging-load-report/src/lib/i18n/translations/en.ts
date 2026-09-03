@@ -605,6 +605,8 @@ export const en = {
 
   // ---------- Project meta card ----------
   "project.venueProject": "Venue / Project",
+  "project.projectName": "Project Name",
+  "project.venue": "Venue",
   "project.client": "Client",
   "project.schedule": "Schedule",
   "project.projectManager": "Project manager",
@@ -613,6 +615,7 @@ export const en = {
   "project.clientContact": "Client contact",
   "project.placeholder.clientContact": "Name · phone · email",
   "project.placeholder.venue": "e.g. Sentrum Scene",
+  "project.placeholder.projectName": "e.g., Summer Festival 2026",
   "project.placeholder.client": "Customer name",
   "project.placeholder.manager": "Name",
   "project.select.venue": "Select venue...",

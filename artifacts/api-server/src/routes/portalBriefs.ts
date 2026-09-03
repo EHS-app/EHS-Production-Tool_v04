@@ -103,6 +103,7 @@ function withoutUntrustedProfiles(raw: Record<string, unknown>): Record<string, 
     const project = { ...(clean.project as Record<string, unknown>) };
     for (const key of RESTRICTED_BRIEF_KEYS) delete project[key];
     if ("client" in project && typeof project.client !== "string") delete project.client;
+    if ("projectName" in project && typeof project.projectName !== "string") delete project.projectName;
     if ("venue" in project && typeof project.venue !== "string") delete project.venue;
     clean.project = project;
   }
@@ -200,11 +201,9 @@ function pickDate(raw: unknown): string | null {
  *
  *  Field mapping matches the canonical `ProjectBrief.project` shape in
  *  `artifacts/rigging-load-report/src/lib/projectBrief.ts`:
- *    - `project.venue`   → `venue`     (also used as `projectName`,
- *                                       since the venue is the
- *                                       de-facto project title in this
- *                                       domain — there is no separate
- *                                       project-name field)
+ *    - `project.projectName` → `projectName` (falls back to venue for
+ *                                           backwards-compatible briefs)
+ *    - `project.venue`       → `venue`
  *    - `project.client`  → `client`
  *    - `project.date`    → `startDate` (ISO YYYY-MM-DD; the brief
  *                                       schema uses `date` for the
@@ -225,11 +224,12 @@ function extractIndexed(data: Record<string, unknown>): {
       : {}) as Record<string, unknown>;
   const venue =
     typeof project.venue === "string" ? project.venue.slice(0, 280) : "";
+  const projectName =
+    typeof project.projectName === "string"
+      ? project.projectName.slice(0, 280)
+      : venue;
   return {
-    // Re-use venue as the project name — the brief schema has no
-    // separate name field and the producer's "my briefs" list shows
-    // `${venue}` (with `client` as a subtitle) anyway.
-    projectName: venue,
+    projectName,
     client:
       typeof project.client === "string" ? project.client.slice(0, 280) : "",
     venue,

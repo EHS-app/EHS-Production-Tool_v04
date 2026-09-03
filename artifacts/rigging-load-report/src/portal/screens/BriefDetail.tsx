@@ -685,7 +685,9 @@ export function BriefDetail({
             lineHeight: 1.15,
           }}
         >
-          {brief.project.venue || t("portal.briefs.untitledShow")}
+          {brief.project.projectName ||
+            brief.project.venue ||
+            t("portal.briefs.untitledShow")}
         </h1>
         {brief.project.client ? (
           <div

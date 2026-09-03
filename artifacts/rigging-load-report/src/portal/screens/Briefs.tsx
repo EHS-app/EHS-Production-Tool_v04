@@ -252,7 +252,9 @@ function BriefRow({
             whiteSpace: "nowrap",
           }}
         >
-          {brief.brief.project.venue || t("portal.briefs.untitledShow")}
+          {brief.brief.project.projectName ||
+            brief.brief.project.venue ||
+            t("portal.briefs.untitledShow")}
         </div>
         <div
           style={{

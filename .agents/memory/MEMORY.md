@@ -13,3 +13,4 @@
 - [Project deletion integrity](project-deletion-integrity.md) — project owners may hard-delete their full owned graph; unlink foreign-owned briefs and cancel client autosaves.
 - [Alert dialog runtime layout](alert-dialog-runtime-layout.md) — utility classes may be absent at runtime; verify computed fixed positioning for critical dialogs.
 - [Crew shift phase identity](crew-shift-phase-identity.md) — overlapping phases need date+phase UI identity; derive legacy assignedDates without collapsing same-day phase state.
+- [Project name and venue identity](project-name-venue-identity.md) — project titles and physical venues are distinct; keep legacy combined records readable without merging new payload fields.

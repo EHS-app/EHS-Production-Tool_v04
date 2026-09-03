@@ -601,14 +601,16 @@ export function gigFromBrief(brief: ProjectBrief): Gig {
   const target =
     brief.assignments.find((a) => a.crewId === brief.recipientCrewId) ??
     brief.assignments[0];
-  const venue = brief.project.venue || "Untitled show";
+  const projectName =
+    brief.project.projectName || brief.project.venue || "Untitled show";
+  const venue = brief.project.venue || "";
   // Prefer the explicit Client field. Fall back to preparedBy only for
   // legacy briefs that don't have a client set yet — keeps older
   // accepted Gigs from suddenly losing their "client" line.
   const client = brief.project.client || brief.project.preparedBy || "";
   return {
     id: newGigId(),
-    projectName: venue,
+    projectName,
     client,
     venue,
     role: target?.role ?? "",

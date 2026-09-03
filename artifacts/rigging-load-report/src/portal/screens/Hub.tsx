@@ -220,6 +220,7 @@ export function Hub({ theme, data }: { theme: ThemeMode; data: PortalData }) {
             {pendingBriefs.length === 1
               ? t("portal.hub.banner.singleNew", {
                   venue:
+                    pendingBriefs[0].brief.project.projectName ||
                     pendingBriefs[0].brief.project.venue ||
                     t("portal.hub.untitledShow"),
                 })

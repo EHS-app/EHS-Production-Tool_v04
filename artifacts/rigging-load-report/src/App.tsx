@@ -68,6 +68,10 @@ import { DeleteProjectDialog } from "./components/DeleteProjectDialog";
 import { FolderOpen as ShellFolderOpen, Copy as ShellCopy, Trash2 as ShellTrash2 } from "lucide-react";
 import { useI18n } from "./lib/i18n/I18nContext";
 import { buildBrief, type BuildBriefInput } from "./lib/projectBrief";
+import {
+  projectIdentityPayload,
+  resolveProjectName,
+} from "./lib/projectIdentity";
 import type { CrewRequestStatus } from "./lib/crew";
 import {
   exportScreenAsPng,
@@ -938,6 +942,9 @@ type ThemePref = "light" | "dark" | "system";
 
 type PersistedV2 = {
   theme: ThemePref;
+  /** Human-readable project title. Optional for legacy saved states,
+   *  where the previous combined venue field is used as the fallback. */
+  projectName?: string;
   venue: string;
   venueId?: string | null;
   /** External Easyjob reference. Optional for backwards compatibility. */
@@ -1325,6 +1332,9 @@ function App() {
   }, []);
   const theme: "light" | "dark" =
     themePref === "system" ? systemTheme : themePref;
+  const [projectName, setProjectName] = useState(
+    resolveProjectName(persisted?.projectName, persisted?.venue),
+  );
   const [venue, setVenue] = useState(persisted?.venue ?? "");
   const [venueId, setVenueId] = useState<string | null>(persisted?.venueId ?? null);
   const [easyjobNumber, setEasyjobNumber] = useState(persisted?.easyjobNumber ?? "");
@@ -1585,9 +1595,11 @@ function App() {
         Authorization: `Bearer ${token}`,
       };
       const body = {
-        name: data.venue || "",
-        venue: data.venue || "",
-        venue_id: data.venueId || null,
+        ...projectIdentityPayload(
+          data.projectName || "",
+          data.venue || "",
+          data.venueId,
+        ),
         client: data.client || "",
         client_id: data.clientId || null,
         easyjob_number: data.easyjobNumber || null,
@@ -1899,6 +1911,7 @@ function App() {
 
   const buildPersistedData = useCallback((): PersistedV2 => ({
     theme: themePref,
+    projectName,
     venue,
     venueId,
     easyjobNumber,
@@ -1927,7 +1940,8 @@ function App() {
     riggPlan,
     inspection,
   }), [
-    themePref, venue, easyjobNumber, client, reportDate, reportEndDate, extraSchedule,
+    themePref, projectName, venue, venueId, easyjobNumber, client, clientId,
+    reportDate, reportEndDate, extraSchedule,
     engineer, briefDescription, clientContact, systems, activeSystemId, showFixtures, mainView, linkedMeta,
     ledScreens, ledLinkedMeta, ledSettings, ledSystemState, stages, crew, soundItems,
     power, activeBriefId, riggPlan, inspection,
@@ -2293,6 +2307,7 @@ function App() {
    *  back into App-level state. Recomputed when any source field changes. */
   const briefInput = useMemo<BuildBriefInput>(() => {
     return {
+      projectName,
       venue,
       client,
       clientContact: clientContact.trim() ? clientContact : undefined,
@@ -4492,7 +4507,7 @@ function App() {
 
     const result = exportClientPack({
       project: {
-        eventName: venue,
+        eventName: projectName,
         client,
         venue,
         date: reportDate,
@@ -4586,7 +4601,7 @@ function App() {
 
     const input: ShowSimulationInput = {
       project: {
-        eventName: venue,
+        eventName: projectName,
         client,
         venue,
         date: reportDate,
@@ -4923,6 +4938,7 @@ function App() {
     // Rigging Report comes up blank instead of carrying over the
     // pre-seeded "4× FD34" row + first hoist.
     const fresh = makeEmptySystem("LX1");
+    setProjectName("");
     setVenue("");
     setVenueId(null);
     setEasyjobNumber("");
@@ -4983,6 +4999,7 @@ function App() {
 
   const hydrateFromData = useCallback((d: Partial<PersistedV2>) => {
     if (d.theme) setThemePref(d.theme);
+    setProjectName(resolveProjectName(d.projectName, d.venue));
     setVenue(d.venue ?? "");
     setVenueId(d.venueId ?? null);
     setEasyjobNumber(typeof d.easyjobNumber === "string" ? d.easyjobNumber : "");
@@ -5051,6 +5068,12 @@ function App() {
       if (!p?.data) return;
       hydrateFromData({
         ...(p.data as Partial<PersistedV2>),
+        projectName:
+          p.name ??
+          (p.data as Partial<PersistedV2>).projectName ??
+          (p.data as Partial<PersistedV2>).venue ??
+          p.venue ??
+          "",
         venueId: p.venue_id ?? (p.data as Partial<PersistedV2>).venueId,
         clientId: p.client_id ?? (p.data as Partial<PersistedV2>).clientId,
         venue: p.venue ?? (p.data as Partial<PersistedV2>).venue,
@@ -5090,9 +5113,9 @@ function App() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          name: venue || "",
-          venue: venue || "",
+          ...projectIdentityPayload(projectName, venue, venueId),
           client: client || "",
+          client_id: clientId || null,
           easyjob_number: easyjobNumber || null,
           data,
         }),
@@ -5110,7 +5133,16 @@ function App() {
         }
       }
     } catch { /* network error */ }
-  }, [getToken, buildPersistedData, venue, client, easyjobNumber]);
+  }, [
+    getToken,
+    buildPersistedData,
+    projectName,
+    venue,
+    venueId,
+    client,
+    clientId,
+    easyjobNumber,
+  ]);
 
   const handleProjectDelete = useCallback((deletedId: string) => {
     if (currentProjectId === deletedId) {
@@ -5723,7 +5755,7 @@ function App() {
               panels: ledPanels,
               settings: ledSettings,
               beamCatalog: ledBeamsCatalog,
-              projectName: venue,
+              projectName,
               venue,
               client,
               reportDate,
@@ -5748,6 +5780,7 @@ function App() {
       allLedScreens,
       ledPanels,
       ledSettings,
+      projectName,
       venue,
       client,
       reportDate,
@@ -5814,7 +5847,17 @@ function App() {
         />
       </div>
       <div className="meta-field">
-        <label>{tr("project.venueProject")}</label>
+        <label>{tr("project.projectName")}</label>
+        <input
+          type="text"
+          value={projectName}
+          onChange={(event) => setProjectName(event.target.value)}
+          placeholder={tr("project.placeholder.projectName")}
+          maxLength={200}
+        />
+      </div>
+      <div className="meta-field">
+        <label>{tr("project.venue")}</label>
         <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
           <input
             list="project-venue-options"
@@ -5838,7 +5881,7 @@ function App() {
             <button
               type="button"
               className="ehs-ghost-btn"
-              style={{ padding: "0 8px", height: 34, fontSize: 13 }}
+              style={{ padding: "0 8px", minHeight: 44, fontSize: 13 }}
               onClick={() => setShowVenueSpecs(true)}
             >
               Specs
@@ -6035,7 +6078,7 @@ function App() {
         onChangeView={(v) => setMainView(v as MainView)}
         workspaceLabel="Production Tool"
         workspaceLogoSrc={ehsLogo}
-        projectTitle={venue || tr("shell.breadcrumb.untitled")}
+        projectTitle={projectName || tr("shell.breadcrumb.untitled")}
         projectStatus={projectStatus}
         badges={overviewBadges}
         showCatering={!!activeBriefId}
@@ -6060,7 +6103,7 @@ function App() {
           currentProjectAccessRole === "owner" && currentProjectId ? (
             <DeleteProjectDialog
               projectId={currentProjectId}
-              projectName={venue || tr("shell.breadcrumb.untitled")}
+              projectName={projectName || tr("shell.breadcrumb.untitled")}
               projectStatus={currentProjectServerStatus}
               getToken={getToken}
               onSuccess={() => {
@@ -6101,7 +6144,7 @@ function App() {
       >
       {mainView === "oversikt" && (
         <OverviewView
-          projectTitle={venue || tr("shell.breadcrumb.untitled")}
+          projectTitle={projectName || tr("shell.breadcrumb.untitled")}
           dateLabel={dateLabel}
           venueLabel={venue}
           metaSlot={projectMetaSlot}
@@ -6254,12 +6297,21 @@ function App() {
       <div className="system-identity project-card" style={{ display: "none" }}>
         <div className="project-meta">
           <div className="meta-field">
-            <label>{tr("project.venueProject")}</label>
+            <label>{tr("project.projectName")}</label>
+            <input
+              type="text"
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              placeholder={tr("project.placeholder.projectName")}
+            />
+          </div>
+          <div className="meta-field">
+            <label>{tr("project.venue")}</label>
             <input
               type="text"
               value={venue}
               onChange={(e) => setVenue(e.target.value)}
-              placeholder={tr("project.placeholder.venue")}
+              placeholder={tr("project.select.venue")}
             />
           </div>
           <div className="meta-field">
@@ -7202,7 +7254,7 @@ function App() {
           onDeleteSystem={removeSystem}
           onJumpToRigging={() => setMainView("rigging")}
           onApplyExtractedItems={applyExtractedItems}
-          projectName={venue}
+          projectName={projectName}
           floorPlans={floorPlanLibrary.plans}
           activeFloorPlanId={floorPlanLibrary.activeId}
           onAddFloorPlan={addFloorPlan}

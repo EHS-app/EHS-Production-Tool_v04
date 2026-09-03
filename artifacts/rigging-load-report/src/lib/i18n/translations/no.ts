@@ -617,6 +617,8 @@ export const no: Translations = {
   // production terminology that the EHS team prefers to read in
   // English regardless of locale.
   "project.venueProject": "Venue / Project",
+  "project.projectName": "Prosjektnavn",
+  "project.venue": "Spillested",
   "project.client": "Kunde",
   "project.schedule": "Tidsplan",
   "project.projectManager": "Prosjektleder",
@@ -625,6 +627,7 @@ export const no: Translations = {
   "project.clientContact": "Kundekontakt",
   "project.placeholder.clientContact": "Navn · telefon · e-post",
   "project.placeholder.venue": "f.eks. Sentrum Scene",
+  "project.placeholder.projectName": "f.eks. Sommerfestivalen 2026",
   "project.placeholder.client": "Kundenavn",
   "project.placeholder.manager": "Navn",
   "project.select.venue": "Velg venue...",

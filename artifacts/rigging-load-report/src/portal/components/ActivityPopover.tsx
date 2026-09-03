@@ -192,6 +192,7 @@ export function ActivityPopover({
                       <ActivityRow
                         key={assignment.briefId}
                         title={
+                          assignment.brief.project.projectName ||
                           assignment.brief.project.venue ||
                           assignment.brief.project.client ||
                           t("portal.activity.assignment")

@@ -254,6 +254,9 @@ export type ProjectBrief = {
    *  a "generic" link that's the same for everyone on the call. */
   recipientCrewId: string | null;
   project: {
+    /** Human-readable project title. Optional for legacy briefs, which use
+     *  venue as the fallback title. */
+    projectName?: string;
     venue: string;
     /** Client / customer the show is being delivered for. Optional —
      *  empty string when the producer hasn't filled it in. Surfaced on
@@ -420,6 +423,7 @@ export type BriefSchedule = Partial<
 >;
 
 export type BuildBriefInput = {
+  projectName: string;
   venue: string;
   /** Client / customer name. Empty string when not yet filled in. */
   client: string;
@@ -718,6 +722,7 @@ export function buildBrief(input: BuildBriefInput): ProjectBrief {
     briefId: newBriefId(),
     recipientCrewId: input.recipientCrewId,
     project: {
+      projectName: input.projectName,
       venue: input.venue,
       client: input.client,
       ...(input.clientContact && input.clientContact.trim()
@@ -1125,6 +1130,7 @@ export function normalizeBrief(raw: unknown): ProjectBrief | null {
     recipientCrewId:
       typeof r.recipientCrewId === "string" ? r.recipientCrewId : null,
     project: {
+      projectName: asString(project.projectName, asString(project.venue)),
       venue: asString(project.venue),
       client: asString(project.client),
       ...(typeof project.clientContact === "string" &&

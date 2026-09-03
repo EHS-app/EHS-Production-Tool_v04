@@ -8580,7 +8580,7 @@ html[data-shell="linear"] .container {
   min-width: 0;
 }
 .ehs-overview-meta-slot .meta-field label {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -8596,6 +8596,7 @@ html[data-shell="linear"] .container {
   font-family: inherit;
   width: 100%;
   box-sizing: border-box;
+  min-height: 44px;
   transition: border-color 120ms ease, background 120ms ease;
 }
 .ehs-overview-meta-slot .meta-field input:focus {

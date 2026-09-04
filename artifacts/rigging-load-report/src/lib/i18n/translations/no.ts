@@ -1419,6 +1419,8 @@ export const no: Translations = {
   "portal.availability.editor.invalidTime": "Den valgte tiden er ugyldig eller tvetydig i din tidssone.",
   "portal.availability.editor.endBeforeStart": "Sluttid må være etter starttid.",
   "portal.availability.view.weekOf": "Uke {date}",
+  "portal.availability.weekNumber": "Uke",
+  "portal.availability.weekNumberAria": "Uke {week}",
   "portal.availability.editor.save": "Lagre",
   "portal.availability.editor.close": "Lukk",
   "portal.brief.logistics.title": "Brief & Logistikk",

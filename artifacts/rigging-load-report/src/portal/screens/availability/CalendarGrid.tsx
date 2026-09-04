@@ -2,7 +2,7 @@ import React, { useCallback, useState, useRef, useMemo } from "react";
 import { PALETTE, type ThemeMode } from "../../lib/portalTheme";
 import { useT } from "../../../lib/i18n/I18nContext";
 import type { CalendarEntry, ExternalBusy, CalendarHold } from "./types";
-import { overlapsLocalDay, localTimeOnly, isoDateOnly } from "./utils";
+import { overlapsLocalDay, localTimeOnly, isoDateOnly, getIsoWeekNumber } from "./utils";
 import { Clock } from "lucide-react";
 
 export function CalendarGrid({
@@ -160,7 +160,10 @@ export function CalendarGrid({
 
   return (
     <div style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }} onPointerLeave={cancelSelection} onPointerCancel={cancelSelection}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 4 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "40px repeat(7, 1fr)", gap: 4, marginBottom: 4 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: c.muted, textAlign: "center", padding: "4px 0", textTransform: "uppercase" }} aria-hidden="true">
+          {t("portal.availability.weekNumber" as any)}
+        </div>
         {["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((wk) => (
           <div key={wk} style={{ fontSize: 11, fontWeight: 700, color: c.muted, textAlign: "center", padding: "4px 0", textTransform: "uppercase" }}>
             {t(`portal.availability.weekday.${wk}` as any)}
@@ -168,9 +171,37 @@ export function CalendarGrid({
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gridTemplateRows: viewMode === "month" ? `repeat(${Math.ceil(cells.length / 7)}, minmax(60px, 1fr))` : "minmax(120px, 1fr)", gap: 4, flex: 1, minHeight: 0 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "40px repeat(7, 1fr)", gridTemplateRows: viewMode === "month" ? `repeat(${Math.ceil(cells.length / 7)}, minmax(60px, 1fr))` : "minmax(120px, 1fr)", gap: 4, flex: 1, minHeight: 0 }}>
         {cells.map((cell, i) => {
-          if (!cell.iso) return <div key={i} />;
+          const isFirstOfWeek = i % 7 === 0;
+          let weekNumberNode = null;
+          if (isFirstOfWeek) {
+            let refDate = cell.date;
+            if (!refDate) {
+               for (let j = i; j < i + 7; j++) {
+                 if (cells[j]?.date) { refDate = cells[j].date; break; }
+               }
+            }
+            const weekNumber = refDate ? getIsoWeekNumber(refDate) : "";
+            weekNumberNode = (
+              <div
+                key={`week-${i}`}
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", color: c.muted, fontSize: 11, fontWeight: 700 }}
+                aria-label={(t("portal.availability.weekNumberAria" as any) || "").replace("{week}", String(weekNumber))}
+              >
+                W{weekNumber}
+              </div>
+            );
+          }
+
+          if (!cell.iso) {
+            return (
+              <React.Fragment key={i}>
+                {weekNumberNode}
+                <div />
+              </React.Fragment>
+            );
+          }
 
           const isToday = cell.iso === isoDateOnly(today);
           const dayEntries = entries.filter(e => overlapsLocalDay(e.startAt, e.endAt, cell.iso!));
@@ -221,8 +252,9 @@ export function CalendarGrid({
           const selEnd = isSelectionEnd(cell.iso);
 
           return (
+            <React.Fragment key={i}>
+              {weekNumberNode}
             <div
-              key={i}
               role="button"
               tabIndex={0}
               aria-label={`${cell.iso}: ${isAvailable ? t("portal.availability.legend.available") : isUnavailable ? t("portal.availability.legend.unavailable") : "Neutral"}`}
@@ -342,6 +374,7 @@ export function CalendarGrid({
                 ) : null}
               </div>
             </div>
+            </React.Fragment>
           );
         })}
       </div>

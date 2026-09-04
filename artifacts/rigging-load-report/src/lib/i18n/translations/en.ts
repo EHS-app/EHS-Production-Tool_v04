@@ -1400,6 +1400,8 @@ export const en = {
   "portal.availability.editor.invalidTime": "The selected time is invalid or ambiguous in your timezone.",
   "portal.availability.editor.endBeforeStart": "End time must be after start time.",
   "portal.availability.view.weekOf": "Week of {date}",
+  "portal.availability.weekNumber": "Week",
+  "portal.availability.weekNumberAria": "Week {week}",
   "portal.availability.editor.save": "Save",
   "portal.availability.editor.close": "Close",
   "portal.brief.logistics.title": "Brief & Logistics",

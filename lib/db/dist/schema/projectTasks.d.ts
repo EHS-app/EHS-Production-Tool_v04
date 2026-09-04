@@ -212,9 +212,9 @@ export declare const projectTasksTable: import("drizzle-orm/pg-core").PgTableWit
 }>;
 export declare const insertProjectTaskSchema: z.ZodObject<{
     status: z.ZodOptional<z.ZodString>;
+    projectId: z.ZodUUID;
     title: z.ZodString;
     description: z.ZodOptional<z.ZodString>;
-    projectId: z.ZodUUID;
     priority: z.ZodOptional<z.ZodString>;
     department: z.ZodOptional<z.ZodString>;
     dueDate: z.ZodOptional<z.ZodNullable<z.ZodString>>;

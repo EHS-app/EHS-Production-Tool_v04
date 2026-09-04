@@ -65,6 +65,7 @@ import { VenuesDatabasePage } from "./components/global/VenuesDatabasePage";
 import { ClientsDatabasePage } from "./components/global/ClientsDatabasePage";
 import { SettingsPage } from "./components/global/SettingsPage";
 import { DeleteProjectDialog } from "./components/DeleteProjectDialog";
+import { ProjectStatusDialog } from "./components/ProjectStatusDialog";
 import { FolderOpen as ShellFolderOpen, Copy as ShellCopy, Trash2 as ShellTrash2 } from "lucide-react";
 import { useI18n } from "./lib/i18n/I18nContext";
 import { buildBrief, type BuildBriefInput } from "./lib/projectBrief";
@@ -73,6 +74,11 @@ import {
   resolveProjectName,
 } from "./lib/projectIdentity";
 import type { CrewRequestStatus } from "./lib/crew";
+import {
+  getNextProjectStatus,
+  normalizeProjectStatus,
+  type ProjectStatus,
+} from "./lib/projectStatus";
 import {
   exportScreenAsPng,
   getLogoDataUrl,
@@ -775,6 +781,16 @@ function globalViewFromPath(path: string): GlobalView | null {
   return entry?.[0] ?? null;
 }
 
+function projectIdFromPath(path: string): string | null {
+  const match = /^\/project\/([^/?#]+)\/?$/.exec(path);
+  if (!match || match[1] === "new") return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
+
 type ShowFixture = {
   id: string;
   name: string;
@@ -1411,7 +1427,10 @@ function App() {
 
   const [mainView, setMainView] = useState<MainView>(persisted?.mainView ?? "oversikt");
   const [globalView, setGlobalView] = useState<GlobalView | null>(
-    () => globalViewFromPath(location) ?? "home",
+    () =>
+      projectIdFromPath(location)
+        ? null
+        : (globalViewFromPath(location) ?? "home"),
   );
   const navigateGlobalView = useCallback((view: GlobalView) => {
     setGlobalView(view);
@@ -1575,7 +1594,17 @@ function App() {
   const [currentProjectAccessRole, setCurrentProjectAccessRole] = useState<
     "owner" | "editor" | "viewer" | null
   >(null);
-  const [currentProjectServerStatus, setCurrentProjectServerStatus] = useState<"active" | "planning" | "draft">("draft");
+  const [currentProjectServerStatus, setCurrentProjectServerStatus] =
+    useState<ProjectStatus>("draft");
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [statusChanging, setStatusChanging] = useState(false);
+  const [statusChangeError, setStatusChangeError] = useState("");
+  const [dispatchRetryOpen, setDispatchRetryOpen] = useState(false);
+  const [dispatchRetryLoading, setDispatchRetryLoading] = useState(false);
+  const [dispatchRetryError, setDispatchRetryError] = useState("");
+  const [dispatchRetryResult, setDispatchRetryResult] = useState<
+    "sent" | "alreadySent" | null
+  >(null);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     activeProjects: 0,
     planningProjects: 0,
@@ -1585,21 +1614,28 @@ function App() {
   const projectSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const projectSaveVersion = useRef(0);
   const suppressCloudSave = useRef(false);
-  const cloudSaveInFlight = useRef(false);
+  const hydratedProjectRouteRef = useRef<string | null>(null);
+  // Every project write joins this promise chain. This prevents a status
+  // transition from overtaking an autosave, while retaining debounced saves.
+  const cloudSaveQueue = useRef<Promise<void>>(Promise.resolve());
 
   const cloudSave = useCallback(async (data: PersistedV2) => {
+    const isTerminal =
+      currentProjectServerStatus === "completed" ||
+      currentProjectServerStatus === "archived";
     if (
       currentProjectId &&
-      currentProjectAccessRole !== "owner" &&
-      currentProjectAccessRole !== "editor"
+      (currentProjectAccessRole !== "owner" &&
+        currentProjectAccessRole !== "editor")
     ) {
       return;
     }
-    if (cloudSaveInFlight.current) return;
-    cloudSaveInFlight.current = true;
-    try {
+    // Terminal records are intentionally not mutated by autosave. The
+    // completed → archived status endpoint remains the sole permitted write.
+    if (currentProjectId && isTerminal) return;
+    const run = async () => {
       const token = await getToken();
-      if (!token) return;
+      if (!token) throw new Error("Sign in to save the project.");
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
@@ -1629,27 +1665,43 @@ function App() {
           body: JSON.stringify(body),
         });
       }
-      if (res.ok) {
-        const json = await res.json();
-        if (!currentProjectId && json.project?.id) {
-          setCurrentProjectId(json.project.id);
-          try {
-            localStorage.setItem("ehs-current-project-id", json.project.id);
-          } catch { /* ignore */ }
-        }
-        setCloudSavedAt(
-          new Date().toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.project) {
+        throw new Error(
+          json?.error ||
+            `Could not save the project${res.status ? ` (${res.status})` : ""}.`,
         );
       }
-    } catch {
-      /* network error — will retry on next change */
-    } finally {
-      cloudSaveInFlight.current = false;
-    }
-  }, [currentProjectAccessRole, currentProjectId, getToken]);
+      setCurrentProjectServerStatus(
+        normalizeProjectStatus(
+          json.project.status,
+          currentProjectServerStatus,
+        ),
+      );
+      if (!currentProjectId && json.project.id) {
+        setCurrentProjectId(json.project.id);
+        try {
+          localStorage.setItem("ehs-current-project-id", json.project.id);
+        } catch { /* ignore */ }
+      }
+      setCloudSavedAt(
+        new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      );
+    };
+    // Recover the queue for later autosaves but preserve this caller's
+    // rejection, so a lifecycle transition can stop before status mutation.
+    const queued = cloudSaveQueue.current.catch(() => undefined).then(run);
+    cloudSaveQueue.current = queued;
+    return queued;
+  }, [
+    currentProjectAccessRole,
+    currentProjectId,
+    currentProjectServerStatus,
+    getToken,
+  ]);
 
   const cloudSaveRef = useRef(cloudSave);
   useEffect(() => { cloudSaveRef.current = cloudSave; }, [cloudSave]);
@@ -1671,7 +1723,9 @@ function App() {
         const json = await res.json();
         if (!cancelled) {
           setCurrentProjectAccessRole(json.project?.accessRole ?? null);
-          setCurrentProjectServerStatus(json.project?.status || "draft");
+          setCurrentProjectServerStatus(
+            normalizeProjectStatus(json.project?.status),
+          );
         }
       } catch {
         // Keep cloud writes paused until access can be resolved safely.
@@ -1986,7 +2040,10 @@ function App() {
     const ver = ++projectSaveVersion.current;
     projectSaveTimer.current = setTimeout(() => {
       if (ver !== projectSaveVersion.current) return;
-      void cloudSaveRef.current(data);
+      // Autosave failures are retried on a subsequent edit; only an
+      // authoritative caller (such as a lifecycle transition) needs the
+      // rejection surfaced synchronously.
+      void cloudSaveRef.current(data).catch(() => undefined);
     }, 5000);
 
     return () => {
@@ -3383,6 +3440,13 @@ function App() {
       dietaryTags?: string[];
       allergens?: string[];
     }[]) => {
+      if (
+        currentProjectServerStatus === "completed" ||
+        currentProjectServerStatus === "archived"
+      ) {
+        setSendError(tr("project.status.terminalDispatchDisabled"));
+        return;
+      }
       if (rows.length === 0 || sendingRequests) return;
       const uniqueRows = Array.from(
         new Map(rows.map((row) => [row.userId, row])).values(),
@@ -3583,6 +3647,8 @@ function App() {
       reportDate,
       reportEndDate,
       extraSchedule,
+      currentProjectServerStatus,
+      tr,
     ],
   );
 
@@ -5154,9 +5220,14 @@ function App() {
     await cloudSaveRef.current(buildPersistedData());
   }, [buildPersistedData]);
 
-  const loadProject = useCallback(async (id: string) => {
+  const loadProject = useCallback(async (
+    id: string,
+    options: { flushCurrent?: boolean } = {},
+  ) => {
     try {
-      await flushPendingSave();
+      if (options.flushCurrent !== false) {
+        await flushPendingSave();
+      }
       const token = await getToken();
       if (!token) return;
       const res = await fetch(`/api/projects/${id}`, {
@@ -5187,14 +5258,38 @@ function App() {
       });
       setMainView("oversikt");
       setCurrentProjectId(id);
+      hydratedProjectRouteRef.current = id;
       setCurrentProjectAccessRole(p.accessRole ?? null);
-      setCurrentProjectServerStatus(p.status || "draft");
+      setCurrentProjectServerStatus(normalizeProjectStatus(p.status));
       setCloudSavedAt(
         new Date(p.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       );
       try { localStorage.setItem("ehs-current-project-id", id); } catch { /* ignore */ }
     } catch { /* network error */ }
   }, [getToken, hydrateFromData, flushPendingSave]);
+
+  // Project URLs are first-class routes, not merely a side effect of the
+  // database click handler. Keep the latest loader in a ref so editing the
+  // project (which changes buildPersistedData/flushPendingSave identities)
+  // cannot retrigger route hydration and overwrite in-progress work.
+  const loadProjectRef = useRef(loadProject);
+  useEffect(() => {
+    loadProjectRef.current = loadProject;
+  }, [loadProject]);
+  useEffect(() => {
+    const routeProjectId = projectIdFromPath(location);
+    if (!routeProjectId) {
+      hydratedProjectRouteRef.current = null;
+      return;
+    }
+    setGlobalView(null);
+    if (hydratedProjectRouteRef.current === routeProjectId) return;
+    hydratedProjectRouteRef.current = routeProjectId;
+    // On direct navigation/reload there is no previous in-memory project to
+    // flush. Saving localStorage here could overwrite the requested server
+    // project before it is fetched.
+    void loadProjectRef.current(routeProjectId, { flushCurrent: false });
+  }, [location]);
 
   const newProject = useCallback(async () => {
     await flushPendingSave();
@@ -5226,6 +5321,9 @@ function App() {
           setMainView("oversikt");
           setCurrentProjectId(json.project.id);
           setCurrentProjectAccessRole("owner");
+          setCurrentProjectServerStatus(
+            normalizeProjectStatus(json.project.status),
+          );
           try { localStorage.setItem("ehs-current-project-id", json.project.id); } catch { /* ignore */ }
           setCloudSavedAt(
             new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
@@ -5249,6 +5347,151 @@ function App() {
       cleanupProjectState();
     }
   }, [currentProjectId, cleanupProjectState]);
+
+  const linkedUnsentFreelancers = useMemo(() => {
+    const alreadyRequested = new Set(
+      crew
+        .filter((member) => member.freelancerUserId && member.requestStatus)
+        .map((member) => member.freelancerUserId!),
+    );
+    const seen = new Set<string>();
+    return crew.flatMap((member) => {
+      const id = member.freelancerUserId;
+      if (!id || member.requestStatus || alreadyRequested.has(id) || seen.has(id)) {
+        return [];
+      }
+      seen.add(id);
+      return [{ id, name: member.name || id }];
+    });
+  }, [crew]);
+
+  const nextProjectStatus = getNextProjectStatus(currentProjectServerStatus);
+  const projectIsTerminal =
+    currentProjectServerStatus === "completed" ||
+    currentProjectServerStatus === "archived";
+
+  const changeProjectStatus = useCallback(async (reason?: string) => {
+    const target = getNextProjectStatus(currentProjectServerStatus);
+    if (!currentProjectId || !target || statusChanging) return;
+    setStatusChanging(true);
+    setStatusChangeError("");
+    try {
+      // Persist crew and project edits first so activation dispatch sees the
+      // latest linked freelancers. The status endpoint owns dispatch and is
+      // idempotent; the client does not issue a second brief request batch.
+      try {
+        await flushPendingSave();
+      } catch (saveCause) {
+        throw new Error(
+          saveCause instanceof Error
+            ? `${tr("project.status.saveBeforeTransitionError")} ${saveCause.message}`
+            : tr("project.status.saveBeforeTransitionError"),
+        );
+      }
+      const token = await getToken();
+      if (!token) throw new Error(tr("project.status.authError"));
+      const res = await fetch(`/api/projects/${currentProjectId}/status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: target, ...(reason ? { reason } : {}) }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok || !json.project) {
+        throw new Error(json?.error || tr("project.status.error"));
+      }
+      const confirmedStatus = normalizeProjectStatus(
+        json.status ?? json.project.status,
+        target,
+      );
+      setCurrentProjectServerStatus(confirmedStatus);
+      const dispatchedBriefId =
+        json.dispatch?.briefId ?? json.dispatch?.brief?.id ?? null;
+      if (typeof dispatchedBriefId === "string" && dispatchedBriefId) {
+        setActiveBriefId(dispatchedBriefId);
+      }
+      setStatusDialogOpen(false);
+    } catch (cause) {
+      setStatusChangeError(
+        cause instanceof Error ? cause.message : tr("project.status.error"),
+      );
+    } finally {
+      setStatusChanging(false);
+    }
+  }, [
+    currentProjectId,
+    currentProjectServerStatus,
+    flushPendingSave,
+    getToken,
+    statusChanging,
+    tr,
+  ]);
+
+  const retryFailedDispatch = useCallback(async () => {
+    if (
+      !currentProjectId ||
+      currentProjectServerStatus !== "active" ||
+      dispatchRetryLoading
+    ) {
+      return;
+    }
+    setDispatchRetryLoading(true);
+    setDispatchRetryError("");
+    try {
+      const token = await getToken();
+      if (!token) throw new Error(tr("project.status.authError"));
+      const res = await fetch(`/api/projects/${currentProjectId}/status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          status: "active",
+          retryFailedDispatch: true,
+        }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || tr("project.status.retry.error"));
+      }
+      if (
+        json.dispatch?.failed === true ||
+        json.dispatch?.status === "failed" ||
+        json.dispatch?.outcome === "failed"
+      ) {
+        throw new Error(
+          json.dispatch?.error || json.error || tr("project.status.retry.error"),
+        );
+      }
+      // This operational retry deliberately leaves lifecycle state untouched.
+      // The server is authoritative for idempotency and may report a no-op.
+      const dispatchedBriefId =
+        json.dispatch?.briefId ?? json.dispatch?.brief?.id ?? null;
+      if (typeof dispatchedBriefId === "string" && dispatchedBriefId) {
+        setActiveBriefId(dispatchedBriefId);
+      }
+      const alreadySent =
+        json.dispatch?.alreadySent === true ||
+        json.dispatch?.status === "already_sent" ||
+        json.dispatch?.status === "noop";
+      setDispatchRetryResult(alreadySent ? "alreadySent" : "sent");
+    } catch (cause) {
+      setDispatchRetryError(
+        cause instanceof Error ? cause.message : tr("project.status.retry.error"),
+      );
+    } finally {
+      setDispatchRetryLoading(false);
+    }
+  }, [
+    currentProjectId,
+    currentProjectServerStatus,
+    dispatchRetryLoading,
+    getToken,
+    tr,
+  ]);
 
   const metricsByActive = useMemo(() => computeMetrics(activeSystem), [activeSystem]);
 
@@ -5753,27 +5996,7 @@ function App() {
     ],
   );
 
-  const projectStatus = useMemo<{
-    label: string;
-    tone: "success" | "warning" | "danger" | "neutral";
-  }>(() => {
-    if (projectTotals.overloadedPoints > 0) {
-      return { label: `● ${tr("overview.status.overload")}`, tone: "danger" };
-    }
-    if (systems.length === 0 && crew.length === 0) {
-      return { label: `● ${tr("overview.status.empty")}`, tone: "neutral" };
-    }
-    if (activeBriefId) {
-      return { label: `● ${tr("overview.status.active")}`, tone: "success" };
-    }
-    return { label: `● ${tr("overview.status.draft")}`, tone: "neutral" };
-  }, [
-    projectTotals.overloadedPoints,
-    systems.length,
-    crew.length,
-    activeBriefId,
-    tr,
-  ]);
+  const projectStatus = currentProjectServerStatus;
 
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? undefined;
   const userName =
@@ -5886,6 +6109,21 @@ function App() {
       reportDate,
     ],
   );
+
+  const activeDispatchRetryAction: ShellAction = {
+    id: "retry-dispatch",
+    label: tr("project.status.action.retryDispatch"),
+    icon: ShellRotateCcw,
+    variant: "secondary",
+    onClick: () => {
+      setDispatchRetryError("");
+      setDispatchRetryResult(null);
+      setDispatchRetryOpen(true);
+    },
+    title: tr("project.status.retry.title", {
+      name: projectName || tr("shell.breadcrumb.untitled"),
+    }),
+  };
 
   const shellOverflowActions: ShellAction[] = useMemo(
     () => [
@@ -6180,13 +6418,37 @@ function App() {
         workspaceLogoSrc={ehsLogo}
         projectTitle={projectName || tr("shell.breadcrumb.untitled")}
         projectStatus={projectStatus}
+        onProjectStatusClick={
+          currentProjectId &&
+          currentProjectAccessRole !== "viewer" &&
+          nextProjectStatus
+            ? () => {
+                setStatusChangeError("");
+                setStatusDialogOpen(true);
+              }
+            : undefined
+        }
         badges={overviewBadges}
         showCatering={!!activeBriefId}
         showHotel={!!activeBriefId}
         savedAt={savedAt}
-        primaryActions={currentProjectAccessRole === "viewer" ? [] : shellPrimaryActions}
-        secondaryActions={shellSecondaryActions}
-        overflowActions={shellOverflowActions}
+        primaryActions={
+          currentProjectAccessRole === "viewer" || projectIsTerminal
+            ? []
+            : shellPrimaryActions
+        }
+        secondaryActions={
+          currentProjectServerStatus === "active" &&
+          (currentProjectAccessRole === "owner" ||
+            currentProjectAccessRole === "editor")
+            ? [activeDispatchRetryAction, ...shellSecondaryActions]
+            : shellSecondaryActions
+        }
+        overflowActions={
+          projectIsTerminal
+            ? shellOverflowActions.filter((action) => action.id !== "save-as-new")
+            : shellOverflowActions
+        }
         themePref={themePref}
         onChangeTheme={setThemePref}
         userInitial={userInitial}
@@ -6198,7 +6460,11 @@ function App() {
         onHome={() => navigateGlobalView("home")}
         onOpenProjects={() => navigateGlobalView("projects")}
         cloudSavedAt={cloudSavedAt}
-        onResetProject={currentProjectAccessRole === "viewer" ? undefined : resetAll}
+        onResetProject={
+          currentProjectAccessRole === "viewer" || projectIsTerminal
+            ? undefined
+            : resetAll
+        }
         deleteProjectTrigger={
           currentProjectAccessRole === "owner" && currentProjectId ? (
             <DeleteProjectDialog
@@ -6239,8 +6505,15 @@ function App() {
             />
           ) : undefined
         }
-        readOnly={currentProjectAccessRole === "viewer" && mainView !== "chat"}
-        readOnlyLabel="View-only project · changes are disabled"
+        readOnly={
+          projectIsTerminal ||
+          (currentProjectAccessRole === "viewer" && mainView !== "chat")
+        }
+        readOnlyLabel={
+          projectIsTerminal
+            ? "Completed or archived project · changes are disabled"
+            : "View-only project · changes are disabled"
+        }
       >
       {mainView === "oversikt" && (
         <OverviewView
@@ -6331,14 +6604,14 @@ function App() {
             <span className="autosave-pill" title="Saved locally in your browser">
               ● Saved {savedAt}
             </span>
-            <button
+            {!projectIsTerminal ? <button
               className="btn btn-pill"
               onClick={resetAll}
               title={tr("header.reset")}
             >
               <span className="btn-pill-icon" aria-hidden>↻</span>
               <span>{tr("header.reset")}</span>
-            </button>
+            </button> : null}
             <button
               className="btn btn-pill"
               onClick={downloadCsv}
@@ -6379,14 +6652,14 @@ function App() {
               <span className="btn-pill-icon" aria-hidden>▶</span>
               <span>{tr("header.simulateShow")}</span>
             </button>
-            <button
+            {!projectIsTerminal ? <button
               className="btn btn-pill btn-pill-primary"
               onClick={() => setShareOpen(true)}
               title="Generate per-crew brief links to share with freelancers"
             >
               <span className="btn-pill-icon" aria-hidden>↗</span>
               <span>{tr("header.shareWithCrew")}</span>
-            </button>
+            </button> : null}
           </div>
         </div>
       </div>
@@ -7303,6 +7576,7 @@ function App() {
           onRemove={removeCrew}
           onDuplicate={duplicateCrew}
           onSendLinkedRequests={sendLinkedCrewRequests}
+          readOnly={projectIsTerminal || currentProjectAccessRole === "viewer"}
           sendingLinkedRequests={sendingRequests}
           activeBriefId={activeBriefId}
           getToken={getToken}
@@ -7600,6 +7874,37 @@ function App() {
         </div>
       )}
       </AppShell>
+      {currentProjectId && nextProjectStatus ? (
+        <ProjectStatusDialog
+          open={statusDialogOpen}
+          onOpenChange={(open) => {
+            if (!statusChanging) setStatusDialogOpen(open);
+          }}
+          fromStatus={currentProjectServerStatus}
+          toStatus={nextProjectStatus}
+          projectName={projectName || tr("shell.breadcrumb.untitled")}
+          eligibleFreelancers={linkedUnsentFreelancers}
+          loading={statusChanging}
+          error={statusChangeError}
+          onConfirm={changeProjectStatus}
+        />
+      ) : null}
+      {currentProjectId && currentProjectServerStatus === "active" ? (
+        <ProjectStatusDialog
+          open={dispatchRetryOpen}
+          onOpenChange={(open) => {
+            if (!dispatchRetryLoading) setDispatchRetryOpen(open);
+          }}
+          fromStatus="active"
+          toStatus="active"
+          projectName={projectName || tr("shell.breadcrumb.untitled")}
+          loading={dispatchRetryLoading}
+          error={dispatchRetryError}
+          dispatchRetry
+          dispatchRetryResult={dispatchRetryResult}
+          onConfirm={retryFailedDispatch}
+        />
+      ) : null}
     </div>
   );
 }

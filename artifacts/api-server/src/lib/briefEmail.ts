@@ -90,8 +90,8 @@ export async function dispatchBriefRequestEmails(args: {
   client: string;
   startDate: string | null;
   endDate: string | null;
-}): Promise<void> {
-  if (args.newRecipientUserIds.length === 0) return;
+}): Promise<{ sent: number; skipped: number; outcomes: { freelancerUserId: string; sent: boolean }[] }> {
+  if (args.newRecipientUserIds.length === 0) return { sent: 0, skipped: 0, outcomes: [] };
   try {
     const baseUrl = pickPortalBaseUrl();
     if (!baseUrl) {
@@ -99,7 +99,7 @@ export async function dispatchBriefRequestEmails(args: {
         { briefId: args.briefId },
         "skipping brief emails: no REPLIT_DOMAINS or REPLIT_DEV_DOMAIN",
       );
-      return;
+      return { sent: 0, skipped: args.newRecipientUserIds.length, outcomes: args.newRecipientUserIds.map((freelancerUserId) => ({ freelancerUserId, sent: false })) };
     }
     const link = `${baseUrl}/?view=portal&brief=${encodeURIComponent(
       args.briefId,
@@ -120,8 +120,12 @@ export async function dispatchBriefRequestEmails(args: {
       );
 
     const profileIds = new Set(profiles.map((p) => p.userId));
+    let sent = 0;
+    let skipped = args.newRecipientUserIds.length - profileIds.size;
+    const outcomes: { freelancerUserId: string; sent: boolean }[] = [];
     for (const uid of args.newRecipientUserIds) {
       if (!profileIds.has(uid)) {
+        outcomes.push({ freelancerUserId: uid, sent: false });
         logger.info(
           { briefId: args.briefId, freelancerUserId: uid },
           "brief email skipped: no freelancer profile",
@@ -132,6 +136,8 @@ export async function dispatchBriefRequestEmails(args: {
     for (const p of profiles) {
       const to = (p.email ?? "").trim();
       if (!to) {
+        skipped += 1;
+        outcomes.push({ freelancerUserId: p.userId, sent: false });
         logger.info(
           { briefId: args.briefId, freelancerUserId: p.userId },
           "brief email skipped: no email on freelancer profile",
@@ -155,6 +161,8 @@ export async function dispatchBriefRequestEmails(args: {
         textBody: body,
       });
       if (result.ok) {
+        sent += 1;
+        outcomes.push({ freelancerUserId: p.userId, sent: true });
         logger.info(
           {
             briefId: args.briefId,
@@ -164,6 +172,8 @@ export async function dispatchBriefRequestEmails(args: {
           "brief request email sent",
         );
       } else {
+        skipped += 1;
+        outcomes.push({ freelancerUserId: p.userId, sent: false });
         // Intentionally do NOT log the recipient address — userId is
         // enough to correlate with the freelancer profile, and avoids
         // dropping PII into the log stream.
@@ -177,6 +187,7 @@ export async function dispatchBriefRequestEmails(args: {
         );
       }
     }
+    return { sent, skipped, outcomes };
   } catch (err) {
     logger.error(
       {
@@ -185,5 +196,6 @@ export async function dispatchBriefRequestEmails(args: {
       },
       "dispatchBriefRequestEmails failed",
     );
+    return { sent: 0, skipped: args.newRecipientUserIds.length, outcomes: args.newRecipientUserIds.map((freelancerUserId) => ({ freelancerUserId, sent: false })) };
   }
 }

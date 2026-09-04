@@ -225,8 +225,8 @@ export declare const insertProjectBriefSchema: z.ZodObject<{
     data: z.ZodType<import("drizzle-zod").Json, unknown, z.core.$ZodTypeInternals<import("drizzle-zod").Json, unknown>>;
     venue: z.ZodOptional<z.ZodString>;
     client: z.ZodOptional<z.ZodString>;
-    ownerUserId: z.ZodString;
     projectId: z.ZodOptional<z.ZodNullable<z.ZodUUID>>;
+    ownerUserId: z.ZodString;
     projectName: z.ZodOptional<z.ZodString>;
     startDate: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     endDate: z.ZodOptional<z.ZodNullable<z.ZodString>>;

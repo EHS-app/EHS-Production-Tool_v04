@@ -14,3 +14,4 @@
 - [Alert dialog runtime layout](alert-dialog-runtime-layout.md) — utility classes may be absent at runtime; verify computed fixed positioning for critical dialogs.
 - [Crew shift phase identity](crew-shift-phase-identity.md) — overlapping phases need date+phase UI identity; derive legacy assignedDates without collapsing same-day phase state.
 - [Project name and venue identity](project-name-venue-identity.md) — project titles and physical venues are distinct; keep legacy combined records readable without merging new payload fields.
+- [Freelancer dispatch delivery semantics](freelancer-dispatch-delivery-semantics.md) — never auto-reclaim ambiguous in-flight email claims; prefer at-most-once initiation over duplicate freelancer notifications.

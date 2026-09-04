@@ -25759,7 +25759,7 @@ var require_wait = __commonJS({
         return;
       }
       let prior = current;
-      const check2 = (backoff) => {
+      const check3 = (backoff) => {
         if (Date.now() > max) {
           done(null, "timed-out");
         } else {
@@ -25767,7 +25767,7 @@ var require_wait = __commonJS({
             prior = current;
             current = Atomics.load(state, index2);
             if (current === prior) {
-              check2(backoff >= MAX_TIMEOUT ? MAX_TIMEOUT : backoff * 2);
+              check3(backoff >= MAX_TIMEOUT ? MAX_TIMEOUT : backoff * 2);
             } else {
               if (current === expected) done(null, "ok");
               else done(null, "not-equal");
@@ -25775,7 +25775,7 @@ var require_wait = __commonJS({
           }, backoff);
         }
       };
-      check2(1);
+      check3(1);
     }
     function waitDiff(state, index2, expected, timeout, done) {
       const max = Date.now() + timeout;
@@ -25784,7 +25784,7 @@ var require_wait = __commonJS({
         done(null, "ok");
         return;
       }
-      const check2 = (backoff) => {
+      const check3 = (backoff) => {
         if (Date.now() > max) {
           done(null, "timed-out");
         } else {
@@ -25793,12 +25793,12 @@ var require_wait = __commonJS({
             if (current !== expected) {
               done(null, "ok");
             } else {
-              check2(backoff >= MAX_TIMEOUT ? MAX_TIMEOUT : backoff * 2);
+              check3(backoff >= MAX_TIMEOUT ? MAX_TIMEOUT : backoff * 2);
             }
           }, backoff);
         }
       };
-      check2(1);
+      check3(1);
     }
     module.exports = { wait, waitDiff };
   }
@@ -30199,11 +30199,11 @@ var require_is_glob = __commonJS({
       if (isExtglob(str)) {
         return true;
       }
-      var check2 = strictCheck;
+      var check3 = strictCheck;
       if (options && options.strict === false) {
-        check2 = relaxedCheck;
+        check3 = relaxedCheck;
       }
-      return check2(str);
+      return check3(str);
     };
   }
 });
@@ -47891,7 +47891,7 @@ var ZodType = class {
     const result = await (isAsync(maybeAsyncResult) ? maybeAsyncResult : Promise.resolve(maybeAsyncResult));
     return handleResult(ctx, result);
   }
-  refine(check2, message) {
+  refine(check3, message) {
     const getIssueProperties = (val) => {
       if (typeof message === "string" || typeof message === "undefined") {
         return { message };
@@ -47902,7 +47902,7 @@ var ZodType = class {
       }
     };
     return this._refinement((val, ctx) => {
-      const result = check2(val);
+      const result = check3(val);
       const setError = () => ctx.addIssue({
         code: ZodIssueCode.custom,
         ...getIssueProperties(val)
@@ -47925,9 +47925,9 @@ var ZodType = class {
       }
     });
   }
-  refinement(check2, refinementData) {
+  refinement(check3, refinementData) {
     return this._refinement((val, ctx) => {
-      if (!check2(val)) {
+      if (!check3(val)) {
         ctx.addIssue(typeof refinementData === "function" ? refinementData(val, ctx) : refinementData);
         return false;
       } else {
@@ -48149,70 +48149,70 @@ var ZodString = class _ZodString2 extends ZodType {
     }
     const status = new ParseStatus();
     let ctx = void 0;
-    for (const check2 of this._def.checks) {
-      if (check2.kind === "min") {
-        if (input.data.length < check2.value) {
+    for (const check3 of this._def.checks) {
+      if (check3.kind === "min") {
+        if (input.data.length < check3.value) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.too_small,
-            minimum: check2.value,
+            minimum: check3.value,
             type: "string",
             inclusive: true,
             exact: false,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "max") {
-        if (input.data.length > check2.value) {
+      } else if (check3.kind === "max") {
+        if (input.data.length > check3.value) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.too_big,
-            maximum: check2.value,
+            maximum: check3.value,
             type: "string",
             inclusive: true,
             exact: false,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "length") {
-        const tooBig = input.data.length > check2.value;
-        const tooSmall = input.data.length < check2.value;
+      } else if (check3.kind === "length") {
+        const tooBig = input.data.length > check3.value;
+        const tooSmall = input.data.length < check3.value;
         if (tooBig || tooSmall) {
           ctx = this._getOrReturnCtx(input, ctx);
           if (tooBig) {
             addIssueToContext(ctx, {
               code: ZodIssueCode.too_big,
-              maximum: check2.value,
+              maximum: check3.value,
               type: "string",
               inclusive: true,
               exact: true,
-              message: check2.message
+              message: check3.message
             });
           } else if (tooSmall) {
             addIssueToContext(ctx, {
               code: ZodIssueCode.too_small,
-              minimum: check2.value,
+              minimum: check3.value,
               type: "string",
               inclusive: true,
               exact: true,
-              message: check2.message
+              message: check3.message
             });
           }
           status.dirty();
         }
-      } else if (check2.kind === "email") {
+      } else if (check3.kind === "email") {
         if (!emailRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "email",
             code: ZodIssueCode.invalid_string,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "emoji") {
+      } else if (check3.kind === "emoji") {
         if (!emojiRegex) {
           emojiRegex = new RegExp(_emojiRegex, "u");
         }
@@ -48221,61 +48221,61 @@ var ZodString = class _ZodString2 extends ZodType {
           addIssueToContext(ctx, {
             validation: "emoji",
             code: ZodIssueCode.invalid_string,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "uuid") {
+      } else if (check3.kind === "uuid") {
         if (!uuidRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "uuid",
             code: ZodIssueCode.invalid_string,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "nanoid") {
+      } else if (check3.kind === "nanoid") {
         if (!nanoidRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "nanoid",
             code: ZodIssueCode.invalid_string,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "cuid") {
+      } else if (check3.kind === "cuid") {
         if (!cuidRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "cuid",
             code: ZodIssueCode.invalid_string,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "cuid2") {
+      } else if (check3.kind === "cuid2") {
         if (!cuid2Regex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "cuid2",
             code: ZodIssueCode.invalid_string,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "ulid") {
+      } else if (check3.kind === "ulid") {
         if (!ulidRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "ulid",
             code: ZodIssueCode.invalid_string,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "url") {
+      } else if (check3.kind === "url") {
         try {
           new URL(input.data);
         } catch {
@@ -48283,153 +48283,153 @@ var ZodString = class _ZodString2 extends ZodType {
           addIssueToContext(ctx, {
             validation: "url",
             code: ZodIssueCode.invalid_string,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "regex") {
-        check2.regex.lastIndex = 0;
-        const testResult = check2.regex.test(input.data);
+      } else if (check3.kind === "regex") {
+        check3.regex.lastIndex = 0;
+        const testResult = check3.regex.test(input.data);
         if (!testResult) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "regex",
             code: ZodIssueCode.invalid_string,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "trim") {
+      } else if (check3.kind === "trim") {
         input.data = input.data.trim();
-      } else if (check2.kind === "includes") {
-        if (!input.data.includes(check2.value, check2.position)) {
+      } else if (check3.kind === "includes") {
+        if (!input.data.includes(check3.value, check3.position)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.invalid_string,
-            validation: { includes: check2.value, position: check2.position },
-            message: check2.message
+            validation: { includes: check3.value, position: check3.position },
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "toLowerCase") {
+      } else if (check3.kind === "toLowerCase") {
         input.data = input.data.toLowerCase();
-      } else if (check2.kind === "toUpperCase") {
+      } else if (check3.kind === "toUpperCase") {
         input.data = input.data.toUpperCase();
-      } else if (check2.kind === "startsWith") {
-        if (!input.data.startsWith(check2.value)) {
+      } else if (check3.kind === "startsWith") {
+        if (!input.data.startsWith(check3.value)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.invalid_string,
-            validation: { startsWith: check2.value },
-            message: check2.message
+            validation: { startsWith: check3.value },
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "endsWith") {
-        if (!input.data.endsWith(check2.value)) {
+      } else if (check3.kind === "endsWith") {
+        if (!input.data.endsWith(check3.value)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.invalid_string,
-            validation: { endsWith: check2.value },
-            message: check2.message
+            validation: { endsWith: check3.value },
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "datetime") {
-        const regex = datetimeRegex(check2);
+      } else if (check3.kind === "datetime") {
+        const regex = datetimeRegex(check3);
         if (!regex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.invalid_string,
             validation: "datetime",
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "date") {
+      } else if (check3.kind === "date") {
         const regex = dateRegex;
         if (!regex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.invalid_string,
             validation: "date",
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "time") {
-        const regex = timeRegex(check2);
+      } else if (check3.kind === "time") {
+        const regex = timeRegex(check3);
         if (!regex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.invalid_string,
             validation: "time",
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "duration") {
+      } else if (check3.kind === "duration") {
         if (!durationRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "duration",
             code: ZodIssueCode.invalid_string,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "ip") {
-        if (!isValidIP(input.data, check2.version)) {
+      } else if (check3.kind === "ip") {
+        if (!isValidIP(input.data, check3.version)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "ip",
             code: ZodIssueCode.invalid_string,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "jwt") {
-        if (!isValidJWT(input.data, check2.alg)) {
+      } else if (check3.kind === "jwt") {
+        if (!isValidJWT(input.data, check3.alg)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "jwt",
             code: ZodIssueCode.invalid_string,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "cidr") {
-        if (!isValidCidr(input.data, check2.version)) {
+      } else if (check3.kind === "cidr") {
+        if (!isValidCidr(input.data, check3.version)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "cidr",
             code: ZodIssueCode.invalid_string,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "base64") {
+      } else if (check3.kind === "base64") {
         if (!base64Regex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "base64",
             code: ZodIssueCode.invalid_string,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "base64url") {
+      } else if (check3.kind === "base64url") {
         if (!base64urlRegex.test(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             validation: "base64url",
             code: ZodIssueCode.invalid_string,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
       } else {
-        util.assertNever(check2);
+        util.assertNever(check3);
       }
     }
     return { status: status.value, value: input.data };
@@ -48441,10 +48441,10 @@ var ZodString = class _ZodString2 extends ZodType {
       ...errorUtil.errToObj(message)
     });
   }
-  _addCheck(check2) {
+  _addCheck(check3) {
     return new _ZodString2({
       ...this._def,
-      checks: [...this._def.checks, check2]
+      checks: [...this._def.checks, check3]
     });
   }
   email(message) {
@@ -48709,67 +48709,67 @@ var ZodNumber = class _ZodNumber extends ZodType {
     }
     let ctx = void 0;
     const status = new ParseStatus();
-    for (const check2 of this._def.checks) {
-      if (check2.kind === "int") {
+    for (const check3 of this._def.checks) {
+      if (check3.kind === "int") {
         if (!util.isInteger(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.invalid_type,
             expected: "integer",
             received: "float",
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "min") {
-        const tooSmall = check2.inclusive ? input.data < check2.value : input.data <= check2.value;
+      } else if (check3.kind === "min") {
+        const tooSmall = check3.inclusive ? input.data < check3.value : input.data <= check3.value;
         if (tooSmall) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.too_small,
-            minimum: check2.value,
+            minimum: check3.value,
             type: "number",
-            inclusive: check2.inclusive,
+            inclusive: check3.inclusive,
             exact: false,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "max") {
-        const tooBig = check2.inclusive ? input.data > check2.value : input.data >= check2.value;
+      } else if (check3.kind === "max") {
+        const tooBig = check3.inclusive ? input.data > check3.value : input.data >= check3.value;
         if (tooBig) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.too_big,
-            maximum: check2.value,
+            maximum: check3.value,
             type: "number",
-            inclusive: check2.inclusive,
+            inclusive: check3.inclusive,
             exact: false,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "multipleOf") {
-        if (floatSafeRemainder(input.data, check2.value) !== 0) {
+      } else if (check3.kind === "multipleOf") {
+        if (floatSafeRemainder(input.data, check3.value) !== 0) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.not_multiple_of,
-            multipleOf: check2.value,
-            message: check2.message
+            multipleOf: check3.value,
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "finite") {
+      } else if (check3.kind === "finite") {
         if (!Number.isFinite(input.data)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.not_finite,
-            message: check2.message
+            message: check3.message
           });
           status.dirty();
         }
       } else {
-        util.assertNever(check2);
+        util.assertNever(check3);
       }
     }
     return { status: status.value, value: input.data };
@@ -48800,10 +48800,10 @@ var ZodNumber = class _ZodNumber extends ZodType {
       ]
     });
   }
-  _addCheck(check2) {
+  _addCheck(check3) {
     return new _ZodNumber({
       ...this._def,
-      checks: [...this._def.checks, check2]
+      checks: [...this._def.checks, check3]
     });
   }
   int(message) {
@@ -48938,45 +48938,45 @@ var ZodBigInt = class _ZodBigInt extends ZodType {
     }
     let ctx = void 0;
     const status = new ParseStatus();
-    for (const check2 of this._def.checks) {
-      if (check2.kind === "min") {
-        const tooSmall = check2.inclusive ? input.data < check2.value : input.data <= check2.value;
+    for (const check3 of this._def.checks) {
+      if (check3.kind === "min") {
+        const tooSmall = check3.inclusive ? input.data < check3.value : input.data <= check3.value;
         if (tooSmall) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.too_small,
             type: "bigint",
-            minimum: check2.value,
-            inclusive: check2.inclusive,
-            message: check2.message
+            minimum: check3.value,
+            inclusive: check3.inclusive,
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "max") {
-        const tooBig = check2.inclusive ? input.data > check2.value : input.data >= check2.value;
+      } else if (check3.kind === "max") {
+        const tooBig = check3.inclusive ? input.data > check3.value : input.data >= check3.value;
         if (tooBig) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.too_big,
             type: "bigint",
-            maximum: check2.value,
-            inclusive: check2.inclusive,
-            message: check2.message
+            maximum: check3.value,
+            inclusive: check3.inclusive,
+            message: check3.message
           });
           status.dirty();
         }
-      } else if (check2.kind === "multipleOf") {
-        if (input.data % check2.value !== BigInt(0)) {
+      } else if (check3.kind === "multipleOf") {
+        if (input.data % check3.value !== BigInt(0)) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.not_multiple_of,
-            multipleOf: check2.value,
-            message: check2.message
+            multipleOf: check3.value,
+            message: check3.message
           });
           status.dirty();
         }
       } else {
-        util.assertNever(check2);
+        util.assertNever(check3);
       }
     }
     return { status: status.value, value: input.data };
@@ -49016,10 +49016,10 @@ var ZodBigInt = class _ZodBigInt extends ZodType {
       ]
     });
   }
-  _addCheck(check2) {
+  _addCheck(check3) {
     return new _ZodBigInt({
       ...this._def,
-      checks: [...this._def.checks, check2]
+      checks: [...this._def.checks, check3]
     });
   }
   positive(message) {
@@ -49139,35 +49139,35 @@ var ZodDate = class _ZodDate extends ZodType {
     }
     const status = new ParseStatus();
     let ctx = void 0;
-    for (const check2 of this._def.checks) {
-      if (check2.kind === "min") {
-        if (input.data.getTime() < check2.value) {
+    for (const check3 of this._def.checks) {
+      if (check3.kind === "min") {
+        if (input.data.getTime() < check3.value) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.too_small,
-            message: check2.message,
+            message: check3.message,
             inclusive: true,
             exact: false,
-            minimum: check2.value,
+            minimum: check3.value,
             type: "date"
           });
           status.dirty();
         }
-      } else if (check2.kind === "max") {
-        if (input.data.getTime() > check2.value) {
+      } else if (check3.kind === "max") {
+        if (input.data.getTime() > check3.value) {
           ctx = this._getOrReturnCtx(input, ctx);
           addIssueToContext(ctx, {
             code: ZodIssueCode.too_big,
-            message: check2.message,
+            message: check3.message,
             inclusive: true,
             exact: false,
-            maximum: check2.value,
+            maximum: check3.value,
             type: "date"
           });
           status.dirty();
         }
       } else {
-        util.assertNever(check2);
+        util.assertNever(check3);
       }
     }
     return {
@@ -49175,10 +49175,10 @@ var ZodDate = class _ZodDate extends ZodType {
       value: new Date(input.data.getTime())
     };
   }
-  _addCheck(check2) {
+  _addCheck(check3) {
     return new _ZodDate({
       ...this._def,
-      checks: [...this._def.checks, check2]
+      checks: [...this._def.checks, check3]
     });
   }
   min(minDate, message) {
@@ -59079,6 +59079,33 @@ var SelectionProxyHandler = class _SelectionProxyHandler {
   }
 };
 
+// ../../node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.18.0_pg@8.20.0/node_modules/drizzle-orm/pg-core/checks.js
+var CheckBuilder = class {
+  constructor(name, value) {
+    this.name = name;
+    this.value = value;
+  }
+  static [entityKind] = "PgCheckBuilder";
+  brand;
+  /** @internal */
+  build(table) {
+    return new Check(table, this);
+  }
+};
+var Check = class {
+  constructor(table, builder) {
+    this.table = table;
+    this.name = builder.name;
+    this.value = builder.value;
+  }
+  static [entityKind] = "PgCheck";
+  name;
+  value;
+};
+function check(name, value) {
+  return new CheckBuilder(name, value);
+}
+
 // ../../node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.18.0_pg@8.20.0/node_modules/drizzle-orm/pg-core/indexes.js
 var IndexBuilderOn = class {
   constructor(unique, name) {
@@ -62788,6 +62815,7 @@ __export(schema_exports, {
   MANUAL_EXPENSE_CATEGORIES: () => MANUAL_EXPENSE_CATEGORIES,
   TIME_ENTRY_STATUSES: () => TIME_ENTRY_STATUSES,
   briefAssignmentsTable: () => briefAssignmentsTable,
+  briefDispatchesTable: () => briefDispatchesTable,
   briefRoomAssignmentsTable: () => briefRoomAssignmentsTable,
   calendarAvailabilityRulesTable: () => calendarAvailabilityRulesTable,
   calendarAvailabilityTable: () => calendarAvailabilityTable,
@@ -62802,6 +62830,7 @@ __export(schema_exports, {
   freelancerProfilesTable: () => freelancerProfilesTable,
   gigsTable: () => gigsTable,
   insertBriefAssignmentSchema: () => insertBriefAssignmentSchema,
+  insertBriefDispatchSchema: () => insertBriefDispatchSchema,
   insertBriefRoomAssignmentSchema: () => insertBriefRoomAssignmentSchema,
   insertClientSchema: () => insertClientSchema,
   insertFeedbackReportSchema: () => insertFeedbackReportSchema,
@@ -62814,6 +62843,7 @@ __export(schema_exports, {
   insertProjectMemberSchema: () => insertProjectMemberSchema,
   insertProjectMessageSchema: () => insertProjectMessageSchema,
   insertProjectSchema: () => insertProjectSchema,
+  insertProjectStatusHistorySchema: () => insertProjectStatusHistorySchema,
   insertProjectTaskSchema: () => insertProjectTaskSchema,
   insertTimeEntrySchema: () => insertTimeEntrySchema,
   insertTransportRunSchema: () => insertTransportRunSchema,
@@ -62827,6 +62857,7 @@ __export(schema_exports, {
   projectFinanceSettingsTable: () => projectFinanceSettingsTable,
   projectMembersTable: () => projectMembersTable,
   projectMessagesTable: () => projectMessagesTable,
+  projectStatusHistoryTable: () => projectStatusHistoryTable,
   projectTasksTable: () => projectTasksTable,
   projectsTable: () => projectsTable,
   timeEntriesTable: () => timeEntriesTable,
@@ -62923,7 +62954,7 @@ __export(external_exports, {
   bigint: () => bigint3,
   boolean: () => boolean3,
   catch: () => _catch2,
-  check: () => check,
+  check: () => check2,
   cidrv4: () => cidrv42,
   cidrv6: () => cidrv62,
   clone: () => clone,
@@ -73015,7 +73046,7 @@ var ZodType2 = /* @__PURE__ */ $constructor("ZodType", (inst, def) => {
   inst.parseAsync = async (data, params) => parseAsync2(inst, data, params, { callee: inst.parseAsync });
   inst.safeParseAsync = async (data, params) => safeParseAsync2(inst, data, params);
   inst.spa = inst.safeParseAsync;
-  inst.refine = (check2, params) => inst.check(refine(check2, params));
+  inst.refine = (check3, params) => inst.check(refine(check3, params));
   inst.superRefine = (refinement) => inst.check(superRefine(refinement));
   inst.overwrite = (fn) => inst.check(_overwrite(fn));
   inst.optional = () => optional(inst);
@@ -73861,7 +73892,7 @@ var ZodCustom = /* @__PURE__ */ $constructor("ZodCustom", (inst, def) => {
   $ZodCustom.init(inst, def);
   ZodType2.init(inst, def);
 });
-function check(fn) {
+function check2(fn) {
   const ch = new $ZodCheck({
     check: "custom"
     // ...util.normalizeParams(params),
@@ -73876,7 +73907,7 @@ function refine(fn, _params = {}) {
   return _refine(ZodCustom, fn, _params);
 }
 function superRefine(fn) {
-  const ch = check((payload) => {
+  const ch = check2((payload) => {
     payload.addIssue = (issue2) => {
       if (typeof issue2 === "string") {
         payload.issues.push(util_exports.issue(issue2, payload.value, ch._zod.def));
@@ -74391,6 +74422,10 @@ var projectsTable = pgTable(
       onDelete: "set null"
     }),
     clonedFromProjectId: uuid("cloned_from_project_id"),
+    /** Nullable only so rows created before the lifecycle rollout can be
+     * derived from their legacy project data until they are backfilled. */
+    status: text("status"),
+    statusUpdatedAt: timestamp("status_updated_at", { withTimezone: true }),
     data: jsonb("data").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
@@ -74405,10 +74440,77 @@ var projectsTable = pgTable(
       columns: [t.clonedFromProjectId],
       foreignColumns: [t.id],
       name: "projects_cloned_from_project_id_fk"
-    }).onDelete("set null")
+    }).onDelete("set null"),
+    check(
+      "projects_status_check",
+      sql`${t.status} is null or ${t.status} in ('draft', 'planning', 'active', 'completed', 'archived')`
+    )
+  ]
+);
+var projectStatusHistoryTable = pgTable(
+  "project_status_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projectsTable.id, { onDelete: "cascade" }),
+    fromStatus: text("from_status"),
+    toStatus: text("to_status").notNull(),
+    actorUserId: text("actor_user_id").notNull(),
+    reason: text("reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => [
+    index("project_status_history_project_idx").on(t.projectId, t.createdAt),
+    check(
+      "project_status_history_from_check",
+      sql`${t.fromStatus} is null or ${t.fromStatus} in ('draft', 'planning', 'active', 'completed', 'archived')`
+    ),
+    check(
+      "project_status_history_to_check",
+      sql`${t.toStatus} in ('draft', 'planning', 'active', 'completed', 'archived')`
+    )
+  ]
+);
+var briefDispatchesTable = pgTable(
+  "brief_dispatches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    briefId: text("brief_id").notNull(),
+    freelancerUserId: text("freelancer_user_id").notNull(),
+    state: text("state").notNull().default("pending"),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    failedAt: timestamp("failed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => [
+    index("brief_dispatches_brief_idx").on(t.briefId),
+    index("brief_dispatches_state_idx").on(t.state),
+    index("brief_dispatches_brief_freelancer_unique").on(
+      t.briefId,
+      t.freelancerUserId
+    ),
+    check(
+      "brief_dispatches_state_check",
+      sql`${t.state} in ('pending', 'dispatching', 'sent', 'failed')`
+    )
   ]
 );
 var insertProjectSchema = createInsertSchema(projectsTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+var insertProjectStatusHistorySchema = createInsertSchema(
+  projectStatusHistoryTable
+).omit({
+  id: true,
+  createdAt: true
+});
+var insertBriefDispatchSchema = createInsertSchema(
+  briefDispatchesTable
+).omit({
   id: true,
   createdAt: true,
   updatedAt: true
@@ -75092,6 +75194,7 @@ async function deleteOwnedProject(projectId, ownerUserId) {
         await tx.delete(gigsTable).where(inArray(gigsTable.id, linkedGigIds));
       }
       await tx.delete(briefAssignmentsTable).where(inArray(briefAssignmentsTable.briefId, linkedBriefIds));
+      await tx.delete(briefDispatchesTable).where(inArray(briefDispatchesTable.briefId, linkedBriefIds));
       await tx.delete(briefRoomAssignmentsTable).where(inArray(briefRoomAssignmentsTable.briefId, linkedBriefIds));
       await tx.delete(calendarHoldsTable).where(inArray(calendarHoldsTable.briefId, linkedBriefIds));
       await tx.update(projectsTable).set({
@@ -77631,7 +77734,7 @@ var portalProfile_default = router6;
 
 // src/routes/portalBriefs.ts
 var import_express9 = __toESM(require_express2(), 1);
-import { randomUUID as randomUUID2 } from "node:crypto";
+import { randomUUID as randomUUID3 } from "node:crypto";
 
 // src/lib/roomPairing.ts
 function rangesOverlap(aIn, aOut, bIn, bOut) {
@@ -77881,7 +77984,7 @@ function buildBody(args) {
   return lines.join("\n");
 }
 async function dispatchBriefRequestEmails(args) {
-  if (args.newRecipientUserIds.length === 0) return;
+  if (args.newRecipientUserIds.length === 0) return { sent: 0, skipped: 0, outcomes: [] };
   try {
     const baseUrl = pickPortalBaseUrl();
     if (!baseUrl) {
@@ -77889,7 +77992,7 @@ async function dispatchBriefRequestEmails(args) {
         { briefId: args.briefId },
         "skipping brief emails: no REPLIT_DOMAINS or REPLIT_DEV_DOMAIN"
       );
-      return;
+      return { sent: 0, skipped: args.newRecipientUserIds.length, outcomes: args.newRecipientUserIds.map((freelancerUserId) => ({ freelancerUserId, sent: false })) };
     }
     const link = `${baseUrl}/?view=portal&brief=${encodeURIComponent(
       args.briefId
@@ -77905,8 +78008,12 @@ async function dispatchBriefRequestEmails(args) {
       inArray(freelancerProfilesTable.userId, args.newRecipientUserIds)
     );
     const profileIds = new Set(profiles.map((p) => p.userId));
+    let sent = 0;
+    let skipped = args.newRecipientUserIds.length - profileIds.size;
+    const outcomes = [];
     for (const uid2 of args.newRecipientUserIds) {
       if (!profileIds.has(uid2)) {
+        outcomes.push({ freelancerUserId: uid2, sent: false });
         logger.info(
           { briefId: args.briefId, freelancerUserId: uid2 },
           "brief email skipped: no freelancer profile"
@@ -77916,6 +78023,8 @@ async function dispatchBriefRequestEmails(args) {
     for (const p of profiles) {
       const to = (p.email ?? "").trim();
       if (!to) {
+        skipped += 1;
+        outcomes.push({ freelancerUserId: p.userId, sent: false });
         logger.info(
           { briefId: args.briefId, freelancerUserId: p.userId },
           "brief email skipped: no email on freelancer profile"
@@ -77939,6 +78048,8 @@ async function dispatchBriefRequestEmails(args) {
         textBody: body
       });
       if (result.ok) {
+        sent += 1;
+        outcomes.push({ freelancerUserId: p.userId, sent: true });
         logger.info(
           {
             briefId: args.briefId,
@@ -77948,6 +78059,8 @@ async function dispatchBriefRequestEmails(args) {
           "brief request email sent"
         );
       } else {
+        skipped += 1;
+        outcomes.push({ freelancerUserId: p.userId, sent: false });
         logger.warn(
           {
             briefId: args.briefId,
@@ -77958,6 +78071,7 @@ async function dispatchBriefRequestEmails(args) {
         );
       }
     }
+    return { sent, skipped, outcomes };
   } catch (err) {
     logger.error(
       {
@@ -77966,6 +78080,7 @@ async function dispatchBriefRequestEmails(args) {
       },
       "dispatchBriefRequestEmails failed"
     );
+    return { sent: 0, skipped: args.newRecipientUserIds.length, outcomes: args.newRecipientUserIds.map((freelancerUserId) => ({ freelancerUserId, sent: false })) };
   }
 }
 
@@ -78220,6 +78335,172 @@ async function getProjectAccess(projectId, userId2) {
     )
   ).limit(1);
   return membership?.role === "editor" || membership?.role === "viewer" ? membership.role : null;
+}
+
+// src/lib/projectLifecycle.ts
+import { randomUUID as randomUUID2 } from "node:crypto";
+var PROJECT_STATUSES = [
+  "draft",
+  "planning",
+  "active",
+  "completed",
+  "archived"
+];
+function isProjectStatus(value) {
+  return typeof value === "string" && PROJECT_STATUSES.includes(value);
+}
+function deriveLegacyProjectStatus(project) {
+  if (isProjectStatus(project.status)) return project.status;
+  const data = project.data && typeof project.data === "object" && !Array.isArray(project.data) ? project.data : {};
+  if (typeof data.activeBriefId === "string" && data.activeBriefId.trim()) return "active";
+  if (project.venue?.trim() || project.client?.trim()) return "planning";
+  return "draft";
+}
+function classifyProjectTransition(from, to) {
+  if (from === to) return "idempotent";
+  const fromIndex = PROJECT_STATUSES.indexOf(from);
+  const toIndex = PROJECT_STATUSES.indexOf(to);
+  if (toIndex < fromIndex) return "backward";
+  return toIndex === fromIndex + 1 ? "forward" : "skipped";
+}
+function canTransitionProject(role) {
+  return role === "owner" || role === "editor";
+}
+function isActivationTransition(from, to) {
+  return from === "planning" && to === "active";
+}
+function effectiveBriefProjectId(storedProjectId, suppliedProjectId) {
+  if (storedProjectId && suppliedProjectId && storedProjectId !== suppliedProjectId) {
+    return "conflict";
+  }
+  return suppliedProjectId ?? storedProjectId ?? null;
+}
+function isDispatchClaimable(state, retryFailed = false) {
+  return state === "pending" || retryFailed && state === "failed";
+}
+function recipientsFromBriefData(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return [];
+  const assignments = data.assignments;
+  if (!Array.isArray(assignments)) return [];
+  const recipients = /* @__PURE__ */ new Map();
+  for (const value of assignments) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const row = value;
+    if (typeof row.freelancerUserId !== "string" || !row.freelancerUserId.trim() || row.freelancerUserId !== row.freelancerUserId.trim() || row.freelancerUserId.length > 255) continue;
+    const crewId = typeof row.crewId === "string" ? row.crewId.slice(0, 255) : "";
+    if (!recipients.has(row.freelancerUserId)) {
+      recipients.set(row.freelancerUserId, crewId);
+    }
+  }
+  return [...recipients].map(([freelancerUserId, crewId]) => ({
+    freelancerUserId,
+    crewId
+  }));
+}
+async function synchronizeBriefAssignments(tx, briefId, recipients) {
+  const newRecipientUserIds = [];
+  let existingRecipientCount = 0;
+  for (const recipient of recipients) {
+    const inserted = await tx.insert(briefAssignmentsTable).values({
+      id: randomUUID2(),
+      briefId,
+      freelancerUserId: recipient.freelancerUserId,
+      crewId: recipient.crewId
+    }).onConflictDoNothing({
+      target: [
+        briefAssignmentsTable.briefId,
+        briefAssignmentsTable.freelancerUserId
+      ]
+    }).returning({ id: briefAssignmentsTable.id });
+    if (inserted.length > 0) newRecipientUserIds.push(recipient.freelancerUserId);
+    else existingRecipientCount += 1;
+    await tx.update(briefAssignmentsTable).set({ crewId: recipient.crewId, updatedAt: sql`now()` }).where(and(
+      eq(briefAssignmentsTable.briefId, briefId),
+      eq(briefAssignmentsTable.freelancerUserId, recipient.freelancerUserId)
+    ));
+    await tx.insert(briefDispatchesTable).values({
+      briefId,
+      freelancerUserId: recipient.freelancerUserId,
+      state: "pending"
+    }).onConflictDoNothing({
+      target: [
+        briefDispatchesTable.briefId,
+        briefDispatchesTable.freelancerUserId
+      ]
+    });
+  }
+  return { newRecipientUserIds, existingRecipientCount };
+}
+async function claimBriefDispatches(tx, briefId, recipients, retryFailed = false) {
+  if (recipients.length === 0) {
+    return { newRecipientUserIds: [], sent: 0, alreadySent: 0, skipped: 0 };
+  }
+  const ids = recipients.map((recipient) => recipient.freelancerUserId);
+  const profiles = await tx.select({ userId: freelancerProfilesTable.userId }).from(freelancerProfilesTable).where(inArray(freelancerProfilesTable.userId, ids));
+  const eligibleIds = new Set(profiles.map((profile) => profile.userId));
+  let skipped = 0;
+  let alreadySent = 0;
+  const newRecipientUserIds = [];
+  for (const recipient of recipients) {
+    if (!eligibleIds.has(recipient.freelancerUserId)) {
+      skipped += 1;
+      continue;
+    }
+    const [dispatch] = await tx.select({
+      state: briefDispatchesTable.state,
+      leaseExpiresAt: briefDispatchesTable.leaseExpiresAt
+    }).from(briefDispatchesTable).where(and(
+      eq(briefDispatchesTable.briefId, briefId),
+      eq(briefDispatchesTable.freelancerUserId, recipient.freelancerUserId)
+    )).limit(1).for("update");
+    if (!dispatch) {
+      await tx.insert(briefDispatchesTable).values({
+        briefId,
+        freelancerUserId: recipient.freelancerUserId,
+        state: "pending"
+      });
+    }
+    const state = dispatch?.state ?? "pending";
+    if (!isDispatchClaimable(
+      state,
+      retryFailed
+    )) {
+      alreadySent += 1;
+      continue;
+    }
+    const claimed = await tx.update(briefDispatchesTable).set({
+      state: "dispatching",
+      claimedAt: sql`now()`,
+      leaseExpiresAt: sql`now() + interval '15 minutes'`,
+      updatedAt: sql`now()`
+    }).where(and(
+      eq(briefDispatchesTable.briefId, briefId),
+      eq(briefDispatchesTable.freelancerUserId, recipient.freelancerUserId),
+      eq(briefDispatchesTable.state, state)
+    )).returning({ id: briefDispatchesTable.id });
+    if (claimed.length > 0) newRecipientUserIds.push(recipient.freelancerUserId);
+    else alreadySent += 1;
+  }
+  return {
+    newRecipientUserIds,
+    sent: newRecipientUserIds.length,
+    alreadySent,
+    skipped
+  };
+}
+async function completeBriefDispatches(briefId, outcomes) {
+  await db.transaction(async (tx) => {
+    for (const outcome of outcomes) {
+      await tx.update(briefDispatchesTable).set(outcome.sent ? { state: "sent", sentAt: sql`now()`, leaseExpiresAt: null, updatedAt: sql`now()` } : { state: "failed", failedAt: sql`now()`, leaseExpiresAt: null, updatedAt: sql`now()` }).where(and(
+        eq(briefDispatchesTable.briefId, briefId),
+        eq(briefDispatchesTable.freelancerUserId, outcome.freelancerUserId),
+        eq(briefDispatchesTable.state, "dispatching")
+      ));
+    }
+  });
+}
+function emptyDispatchSummary() {
+  return { sent: 0, alreadySent: 0, skipped: 0 };
 }
 
 // src/routes/portalBriefs.ts
@@ -78540,7 +78821,7 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
     res.status(413).json({ ok: false, error: "Brief too large." });
     return;
   }
-  const id = typeof body.id === "string" && body.id.trim() ? body.id.trim().slice(0, 64) : randomUUID2();
+  const id = typeof body.id === "string" && body.id.trim() ? body.id.trim().slice(0, 64) : randomUUID3();
   const indexed = extractIndexed(data);
   const recipients = readRecipients(
     data,
@@ -78564,17 +78845,31 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
       return;
     }
     const result = await db.transaction(async (tx) => {
-      if (typeof rawProjectId === "string") {
-        await tx.execute(PROJECT_BRIEF_PROVENANCE_LOCK);
-      }
-      const existing = await tx.select({ ownerUserId: projectBriefsTable.ownerUserId }).from(projectBriefsTable).where(eq(projectBriefsTable.id, id)).limit(1);
+      await tx.execute(PROJECT_BRIEF_PROVENANCE_LOCK);
+      const existing = await tx.select({
+        ownerUserId: projectBriefsTable.ownerUserId,
+        projectId: projectBriefsTable.projectId
+      }).from(projectBriefsTable).where(eq(projectBriefsTable.id, id)).limit(1).for("update");
       if (existing[0] && existing[0].ownerUserId !== userId2) {
         return { forbidden: true };
+      }
+      const effectiveProjectId = effectiveBriefProjectId(
+        existing[0]?.projectId,
+        typeof rawProjectId === "string" ? rawProjectId : null
+      );
+      if (effectiveProjectId === "conflict") {
+        return { terminalProject: true };
+      }
+      let effectiveProjectStatus = null;
+      if (effectiveProjectId) {
+        const [effectiveProject] = await tx.select().from(projectsTable).where(eq(projectsTable.id, effectiveProjectId)).limit(1).for("update");
+        if (!effectiveProject || effectiveProject.userId !== userId2 || ["completed", "archived"].includes(deriveLegacyProjectStatus(effectiveProject))) return { terminalProject: true };
+        effectiveProjectStatus = deriveLegacyProjectStatus(effectiveProject);
       }
       const inserted = await tx.insert(projectBriefsTable).values({
         id,
         ownerUserId: userId2,
-        projectId: typeof rawProjectId === "string" ? rawProjectId : null,
+        projectId: effectiveProjectId,
         ...indexed,
         data,
         venueTechnicalSnapshot: venueProjection.snapshot
@@ -78588,45 +78883,40 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
           updatedAt: sql`now()`
         }
       }).returning();
-      const newRecipientUserIds = [];
-      for (const a of recipients) {
-        const insertedRows = await tx.insert(briefAssignmentsTable).values({
-          id: randomUUID2(),
-          briefId: id,
-          freelancerUserId: a.freelancerUserId,
-          crewId: a.crewId
-        }).onConflictDoNothing({
-          target: [
-            briefAssignmentsTable.briefId,
-            briefAssignmentsTable.freelancerUserId
-          ]
-        }).returning({ id: briefAssignmentsTable.id });
-        if (insertedRows.length > 0) {
-          newRecipientUserIds.push(a.freelancerUserId);
-        }
-        await tx.update(briefAssignmentsTable).set({ crewId: a.crewId, updatedAt: sql`now()` }).where(
-          and(
-            eq(briefAssignmentsTable.briefId, id),
-            eq(briefAssignmentsTable.freelancerUserId, a.freelancerUserId)
-          )
-        );
-      }
-      return { brief: inserted[0] ?? null, newRecipientUserIds };
+      const assignmentSync = await synchronizeBriefAssignments(tx, id, recipients);
+      const dispatch = effectiveProjectStatus === "active" ? await claimBriefDispatches(tx, id, recipients) : null;
+      return {
+        brief: inserted[0] ?? null,
+        newRecipientUserIds: assignmentSync.newRecipientUserIds,
+        dispatch
+      };
     });
     if ("forbidden" in result) {
       res.status(403).json({ ok: false, error: "Not your brief." });
       return;
     }
-    void dispatchBriefRequestEmails({
-      briefId: id,
-      ownerUserId: userId2,
-      newRecipientUserIds: result.newRecipientUserIds,
-      projectName: indexed.projectName,
-      venue: indexed.venue,
-      client: indexed.client,
-      startDate: indexed.startDate,
-      endDate: indexed.endDate
-    });
+    if ("terminalProject" in result) {
+      res.status(409).json({ ok: false, error: "Completed and archived projects are read-only." });
+      return;
+    }
+    if (result.dispatch?.newRecipientUserIds.length) {
+      void (async () => {
+        const delivery = await dispatchBriefRequestEmails({
+          briefId: id,
+          ownerUserId: userId2,
+          newRecipientUserIds: result.dispatch.newRecipientUserIds,
+          projectName: indexed.projectName,
+          venue: indexed.venue,
+          client: indexed.client,
+          startDate: indexed.startDate,
+          endDate: indexed.endDate
+        });
+        await completeBriefDispatches(id, delivery.outcomes);
+      })().catch((err) => logger.error(
+        { err: err instanceof Error ? err.message : String(err), briefId: id },
+        "portal brief dispatch completion failed"
+      ));
+    }
     res.json({ ok: true, brief: result.brief });
   } catch (err) {
     logger.error(
@@ -78802,7 +79092,7 @@ router7.post(
           const updatedGig = await tx.update(gigsTable).set(setClause).where(eq(gigsTable.id, existingGig[0].id)).returning();
           gigRow = updatedGig[0] ?? null;
         } else {
-          const newId = `gig_${randomUUID2()}`;
+          const newId = `gig_${randomUUID3()}`;
           const insertedGig = await tx.insert(gigsTable).values({
             id: newId,
             freelancerUserId: userId2,
@@ -80154,7 +80444,7 @@ var portalBriefs_default = router7;
 
 // src/routes/portalGigs.ts
 var import_express10 = __toESM(require_express2(), 1);
-import { randomUUID as randomUUID3 } from "node:crypto";
+import { randomUUID as randomUUID4 } from "node:crypto";
 var router8 = (0, import_express10.Router)();
 var requireSignedIn6 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
@@ -80255,7 +80545,7 @@ router8.post("/portal/gigs", requireSignedIn6, async (req, res) => {
   const userId2 = req._userId;
   const body = req.body ?? {};
   const clientId = typeof body.id === "string" && body.id.trim() ? body.id.trim().slice(0, 64) : "";
-  const id = clientId || randomUUID3();
+  const id = clientId || randomUUID4();
   const fields = normaliseGig(body);
   try {
     if (clientId) {
@@ -80384,7 +80674,7 @@ var portalGigs_default = router8;
 
 // src/routes/portalTimeEntries.ts
 var import_express11 = __toESM(require_express2(), 1);
-import { randomUUID as randomUUID4 } from "node:crypto";
+import { randomUUID as randomUUID5 } from "node:crypto";
 
 // src/lib/organizationSettings.ts
 var ORGANIZATION_SETTINGS_ID = "singleton";
@@ -80646,7 +80936,7 @@ router9.put(
       return;
     }
     if (!prior) {
-      const id = randomUUID4();
+      const id = randomUUID5();
       const inserted = await db.insert(timeEntriesTable).values({
         id,
         gigId,
@@ -81049,7 +81339,7 @@ var portalTimeEntries_default = router9;
 
 // src/routes/portalCalendar.ts
 var import_express12 = __toESM(require_express2(), 1);
-import { createHash as createHash2, randomBytes as randomBytes2, randomUUID as randomUUID5 } from "node:crypto";
+import { createHash as createHash2, randomBytes as randomBytes2, randomUUID as randomUUID6 } from "node:crypto";
 
 // src/lib/calendarIcs.ts
 var esc2 = (s2) => s2.replace(/\\/g, "\\\\").replace(/\r?\n/g, "\\n").replace(/[,;]/g, "\\$&");
@@ -81107,7 +81397,7 @@ function safeConnection(row) {
   };
 }
 async function queueSync(connectionId) {
-  await db.insert(calendarSyncJobsTable).values({ id: randomUUID5(), connectionId }).onConflictDoUpdate({
+  await db.insert(calendarSyncJobsTable).values({ id: randomUUID6(), connectionId }).onConflictDoUpdate({
     target: calendarSyncJobsTable.connectionId,
     set: { runAfter: sql`now()`, leasedUntil: null, updatedAt: sql`now()` }
   });
@@ -81282,7 +81572,7 @@ router10.post(
         if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6 || !Number.isInteger(sm) || !Number.isInteger(em) || sm < 0 || em > 1440 || em <= sm || !until || until <= starts || until.getTime() - starts.getTime() > 366 * 864e5)
           return void res.status(400).json({ ok: false, error: "Invalid bounded weekly rule." });
         const [rule] = await db.insert(calendarAvailabilityRulesTable).values({
-          id: randomUUID5(),
+          id: randomUUID6(),
           userId: uid(req),
           status,
           weekday,
@@ -81306,7 +81596,7 @@ router10.post(
           );
           if (conflicts.length) return null;
           const [created] = await tx.insert(calendarAvailabilityTable).values({
-            id: randomUUID5(),
+            id: randomUUID6(),
             userId: uid(req),
             status,
             startsAt: starts,
@@ -81405,7 +81695,7 @@ router10.patch(
 router10.post("/portal/calendar/bulk", requireSignedIn8, async (req, res) => {
   const entries = Array.isArray(req.body?.entries) ? req.body.entries.slice(0, 100) : [];
   const values = entries.map((b) => ({
-    id: randomUUID5(),
+    id: randomUUID6(),
     userId: uid(req),
     status: b.status,
     startsAt: iso(b.startsAt),
@@ -81442,7 +81732,7 @@ router10.post("/portal/calendar/bulk", requireSignedIn8, async (req, res) => {
               const preserved = [];
               if (existing.startsAt < value.startsAt) {
                 preserved.push({
-                  id: randomUUID5(),
+                  id: randomUUID6(),
                   userId: existing.userId,
                   status: existing.status,
                   startsAt: existing.startsAt,
@@ -81454,7 +81744,7 @@ router10.post("/portal/calendar/bulk", requireSignedIn8, async (req, res) => {
               }
               if (existing.endsAt > value.endsAt) {
                 preserved.push({
-                  id: randomUUID5(),
+                  id: randomUUID6(),
                   userId: existing.userId,
                   status: existing.status,
                   startsAt: value.endsAt,
@@ -81681,7 +81971,7 @@ router10.get(
         expires_at: Date.now() + Math.max(60, Number(tokens.expires_in) || 3600) * 1e3
       };
       const [connection] = await db.insert(calendarConnectionsTable).values({
-        id: randomUUID5(),
+        id: randomUUID6(),
         userId: state.userId,
         provider,
         encryptedCredentials: seal(JSON.stringify(credential))
@@ -81712,7 +82002,7 @@ router10.post(
       const u = new URL(url2);
       if (u.protocol !== "https:" || u.username || u.password) throw Error();
       const [row] = await db.insert(calendarConnectionsTable).values({
-        id: randomUUID5(),
+        id: randomUUID6(),
         userId: uid(req),
         provider: "ics",
         encryptedCredentials: seal(url2)
@@ -81772,7 +82062,7 @@ router10.post(
     ).limit(1);
     if (!row[0])
       return void res.status(404).json({ ok: false, error: "Connection not found." });
-    await db.insert(calendarSyncJobsTable).values({ id: randomUUID5(), connectionId: id }).onConflictDoUpdate({
+    await db.insert(calendarSyncJobsTable).values({ id: randomUUID6(), connectionId: id }).onConflictDoUpdate({
       target: calendarSyncJobsTable.connectionId,
       set: { runAfter: sql`now()`, leasedUntil: null, updatedAt: sql`now()` }
     });
@@ -81814,7 +82104,7 @@ router10.post("/portal/calendar/holds", requireSignedIn8, async (req, res) => {
     return void res.status(400).json({ ok: false, error: "Invalid hold timezone." });
   }
   const [hold] = await db.insert(calendarHoldsTable).values({
-    id: randomUUID5(),
+    id: randomUUID6(),
     freelancerUserId: b.freelancerUserId,
     ownerUserId: uid(req),
     briefId: b.briefId,
@@ -81903,7 +82193,7 @@ var portalWork_default = router11;
 
 // src/routes/projects.ts
 var import_express14 = __toESM(require_express2(), 1);
-import { randomUUID as randomUUID6 } from "node:crypto";
+import { randomUUID as randomUUID7 } from "node:crypto";
 
 // src/lib/projectDefaults.ts
 function projectDataWithOrganizationDefaults(raw, snapshot) {
@@ -82012,7 +82302,7 @@ router12.get("/projects", requireSignedIn10, async (req, res) => {
       reportDate: sql`${projectsTable.data}->>'reportDate'`,
       reportEndDate: sql`${projectsTable.data}->>'reportEndDate'`,
       crewCount: sql`case when jsonb_typeof(${projectsTable.data}->'crew') = 'array' then jsonb_array_length(${projectsTable.data}->'crew') else 0 end`,
-      status: sql`case when nullif(${projectsTable.data}->>'activeBriefId', '') is not null then 'active' when nullif(${projectsTable.venue}, '') is not null or nullif(${projectsTable.client}, '') is not null then 'planning' else 'draft' end`,
+      status: sql`coalesce(${projectsTable.status}, case when nullif(${projectsTable.data}->>'activeBriefId', '') is not null then 'active' when nullif(${projectsTable.venue}, '') is not null or nullif(${projectsTable.client}, '') is not null then 'planning' else 'draft' end)`,
       createdAt: projectsTable.createdAt,
       updatedAt: projectsTable.updatedAt,
       accessRole: sql`case when ${projectsTable.userId} = ${userId2} then 'owner' else ${projectMembersTable.role} end`
@@ -82079,7 +82369,7 @@ router12.get("/projects/:id", requireSignedIn10, async (req, res) => {
       project: {
         ...projectResponse(row),
         accessRole,
-        status: typeof row.data?.activeBriefId === "string" && String(row.data.activeBriefId).trim() ? "active" : row.venue?.trim() || row.client?.trim() ? "planning" : "draft"
+        status: deriveLegacyProjectStatus(row)
       }
     });
   } catch (err) {
@@ -82121,7 +82411,7 @@ router12.post("/projects", requireSignedIn10, async (req, res) => {
       data,
       organizationDefaultsSnapshot(organization)
     );
-    const projectId = randomUUID6();
+    const projectId = randomUUID7();
     const result = await db.transaction(async (tx) => {
       await tx.execute(PROJECT_BRIEF_PROVENANCE_LOCK);
       if (!await validActiveBriefProvenance(
@@ -82142,7 +82432,9 @@ router12.post("/projects", requireSignedIn10, async (req, res) => {
         clientId: links.clientId,
         clonedFromProjectId: links.clonedFromProjectId,
         easyjobNumber: typeof easyjob_number === "string" ? easyjob_number.trim().slice(0, 100) || null : null,
-        data: projectData
+        data: projectData,
+        status: "draft",
+        statusUpdatedAt: sql`now()`
       }).returning();
       if (!created) throw new Error("Project insert returned no row.");
       await tx.insert(projectFinanceSettingsTable).values({
@@ -82234,27 +82526,20 @@ router12.patch("/projects/:id", requireSignedIn10, async (req, res) => {
     if (clonedFromProjectId !== void 0) updates.clonedFromProjectId = clonedFromProjectId;
     const result = await db.transaction(async (tx) => {
       await tx.execute(PROJECT_BRIEF_PROVENANCE_LOCK);
-      const [project] = await tx.select({ ownerUserId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, String(id))).limit(1).for("update");
+      const [project] = await tx.select().from(projectsTable).where(eq(projectsTable.id, String(id))).limit(1).for("update");
       if (!project) return { kind: "not_found" };
+      if (["completed", "archived"].includes(deriveLegacyProjectStatus(project))) {
+        return { kind: "terminal" };
+      }
       if (data !== void 0 && !await validActiveBriefProvenance(
         tx,
         String(id),
-        project.ownerUserId,
+        project.userId,
         data
       )) {
         return { kind: "invalid_brief" };
       }
-      const [updated] = await tx.update(projectsTable).set(updates).where(eq(projectsTable.id, String(id))).returning({
-        id: projectsTable.id,
-        name: projectsTable.name,
-        venue: projectsTable.venue,
-        client: projectsTable.client,
-        easyjob_number: projectsTable.easyjobNumber,
-        venue_id: projectsTable.venueId,
-        client_id: projectsTable.clientId,
-        cloned_from_project_id: projectsTable.clonedFromProjectId,
-        updatedAt: projectsTable.updatedAt
-      });
+      const [updated] = await tx.update(projectsTable).set(updates).where(eq(projectsTable.id, String(id))).returning();
       return updated ? { kind: "updated", project: updated } : { kind: "not_found" };
     });
     if (result.kind === "not_found") {
@@ -82268,11 +82553,188 @@ router12.patch("/projects/:id", requireSignedIn10, async (req, res) => {
       });
       return;
     }
+    if (result.kind === "terminal") {
+      res.status(409).json({ ok: false, error: "Completed and archived projects are read-only." });
+      return;
+    }
     const row = result.project;
-    res.json({ ok: true, project: row });
+    res.json({
+      ok: true,
+      project: {
+        ...projectResponse(row),
+        accessRole,
+        status: deriveLegacyProjectStatus(row)
+      }
+    });
   } catch (err) {
     req.log.error(err, "Failed to update project");
     res.status(500).json({ ok: false, error: "Failed to update project." });
+  }
+});
+router12.post("/projects/:id/status", requireSignedIn10, async (req, res) => {
+  const userId2 = req._userId;
+  const id = String(req.params.id ?? "");
+  const requestedStatus = req.body?.status;
+  const reason = req.body?.reason;
+  const retryFailedDispatch = req.body?.retryFailedDispatch === true;
+  if (!UUID_PATTERN.test(id)) {
+    res.status(404).json({ ok: false, error: "Project not found." });
+    return;
+  }
+  if (!isProjectStatus(requestedStatus)) {
+    res.status(400).json({
+      ok: false,
+      error: "status must be one of draft, planning, active, completed, or archived."
+    });
+    return;
+  }
+  if (reason !== void 0 && (typeof reason !== "string" || reason.trim().length > 1e3)) {
+    res.status(400).json({ ok: false, error: "reason must be a string of at most 1000 characters." });
+    return;
+  }
+  try {
+    const accessRole = await getProjectAccess(id, userId2);
+    if (!accessRole) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    if (!canTransitionProject(accessRole)) {
+      res.status(403).json({ ok: false, error: "Project is read-only." });
+      return;
+    }
+    const result = await db.transaction(async (tx) => {
+      const [locked] = await tx.select().from(projectsTable).where(eq(projectsTable.id, id)).limit(1).for("update");
+      if (!locked) return { kind: "not_found" };
+      if (locked.userId !== userId2) {
+        const [membership] = await tx.select({ role: projectMembersTable.role }).from(projectMembersTable).where(and(
+          eq(projectMembersTable.projectId, id),
+          eq(projectMembersTable.userId, userId2),
+          eq(projectMembersTable.role, "editor")
+        )).limit(1);
+        if (!membership) return { kind: "forbidden" };
+      }
+      const currentStatus = deriveLegacyProjectStatus(locked);
+      const transition = classifyProjectTransition(currentStatus, requestedStatus);
+      if (transition === "backward" || transition === "skipped") {
+        return { kind: "invalid_transition", currentStatus, transition };
+      }
+      if (transition === "idempotent" && !(requestedStatus === "active" && retryFailedDispatch)) {
+        let project = locked;
+        if (!isProjectStatus(locked.status)) {
+          const [backfilled] = await tx.update(projectsTable).set({
+            status: currentStatus,
+            statusUpdatedAt: locked.updatedAt
+          }).where(eq(projectsTable.id, id)).returning();
+          if (backfilled) project = backfilled;
+        }
+        return {
+          kind: "success",
+          project,
+          status: currentStatus,
+          idempotent: true,
+          dispatch: emptyDispatchSummary(),
+          email: null
+        };
+      }
+      let dispatch2 = emptyDispatchSummary();
+      let email3 = null;
+      if (isActivationTransition(currentStatus, requestedStatus) || currentStatus === "active" && requestedStatus === "active" && retryFailedDispatch) {
+        const briefId = activeBriefIdIn(locked.data);
+        if (!briefId || briefId === "invalid") {
+          return { kind: "missing_brief" };
+        }
+        const [brief] = await tx.select().from(projectBriefsTable).where(eq(projectBriefsTable.id, briefId)).limit(1);
+        if (!brief || brief.ownerUserId !== locked.userId || brief.projectId !== null && brief.projectId !== id) {
+          return { kind: "missing_brief" };
+        }
+        const gated = await claimBriefDispatches(
+          tx,
+          brief.id,
+          recipientsFromBriefData(brief.data),
+          retryFailedDispatch
+        );
+        dispatch2 = {
+          sent: gated.sent,
+          alreadySent: gated.alreadySent,
+          skipped: gated.skipped
+        };
+        if (gated.newRecipientUserIds.length > 0) {
+          email3 = {
+            briefId: brief.id,
+            ownerUserId: brief.ownerUserId,
+            newRecipientUserIds: gated.newRecipientUserIds,
+            projectName: brief.projectName,
+            venue: brief.venue,
+            client: brief.client,
+            startDate: brief.startDate,
+            endDate: brief.endDate
+          };
+        }
+      }
+      const [updated] = transition === "idempotent" ? [locked] : await tx.update(projectsTable).set({
+        status: requestedStatus,
+        statusUpdatedAt: sql`now()`,
+        updatedAt: sql`now()`
+      }).where(eq(projectsTable.id, id)).returning();
+      if (!updated) return { kind: "not_found" };
+      if (transition !== "idempotent") {
+        await tx.insert(projectStatusHistoryTable).values({
+          projectId: id,
+          fromStatus: currentStatus,
+          toStatus: requestedStatus,
+          actorUserId: userId2,
+          reason: typeof reason === "string" ? reason.trim() || null : null
+        });
+      }
+      return {
+        kind: "success",
+        project: updated,
+        status: requestedStatus,
+        idempotent: transition === "idempotent",
+        dispatch: dispatch2,
+        email: email3
+      };
+    });
+    if (result.kind === "not_found") {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    if (result.kind === "forbidden") {
+      res.status(403).json({ ok: false, error: "Project is read-only." });
+      return;
+    }
+    if (result.kind === "invalid_transition") {
+      res.status(409).json({
+        ok: false,
+        error: result.transition === "backward" ? "Project status cannot move backward." : "Project status can advance only one stage at a time.",
+        status: result.currentStatus
+      });
+      return;
+    }
+    if (result.kind === "missing_brief") {
+      res.status(409).json({
+        ok: false,
+        error: "A valid active brief owned by the project owner is required for activation."
+      });
+      return;
+    }
+    const dispatch = { ...result.dispatch };
+    if (result.email) {
+      const emailResult = await dispatchBriefRequestEmails(result.email);
+      await completeBriefDispatches(result.email.briefId, emailResult.outcomes);
+      dispatch.sent = emailResult.sent;
+      dispatch.skipped += emailResult.skipped;
+    }
+    res.json({
+      ok: true,
+      project: projectResponse(result.project),
+      status: result.status,
+      idempotent: result.idempotent,
+      dispatch
+    });
+  } catch (err) {
+    req.log.error(err, "Failed to transition project status");
+    res.status(500).json({ ok: false, error: "Failed to transition project status." });
   }
 });
 router12.delete("/projects/:id", requireSignedIn10, async (req, res) => {
@@ -84808,7 +85270,7 @@ import net from "node:net";
 import fs from "node:fs";
 
 // ../../node_modules/.pnpm/node-ical@0.27.1/node_modules/node-ical/ical.js
-import { randomUUID as randomUUID7 } from "node:crypto";
+import { randomUUID as randomUUID8 } from "node:crypto";
 
 // ../../node_modules/.pnpm/rrule-temporal@2.2.2/node_modules/rrule-temporal/dist/src-B2XO5sNr.js
 var expectedPositive = (entityName, num) => `Non-positive ${entityName}: ${num}`;
@@ -99300,7 +99762,7 @@ var ical = {
       }
       return finalizeEndedComponent(value, curr, stack, {
         storeRecurrenceOverride,
-        randomIdFactory: randomUUID7,
+        randomIdFactory: randomUUID8,
         utcAdd: tz_utils_default.utcAdd
       });
     },

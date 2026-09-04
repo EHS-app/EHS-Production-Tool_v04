@@ -60,6 +60,7 @@ type Props = {
   >;
   /** Exact project schedule times keyed by date+phase. */
   phaseShiftTimes?: CrewShiftTimeMap;
+  readOnly?: boolean;
 };
 
 /** Crew & Logistics view — one master sheet, one optional adequacy
@@ -86,6 +87,7 @@ export function CrewReportView({
   getTimesForDates,
   phaseDays,
   phaseShiftTimes,
+  readOnly = false,
 }: Props) {
   // Headcount source for the adequacy meter: the merged roster the
   // master sheet is actually displaying (gig + local), bubbled up
@@ -207,6 +209,7 @@ export function CrewReportView({
             phaseShiftTimes={phaseShiftTimes}
             compactHeader
             onOpenProfile={(id) => setProfileUserId(id)}
+            readOnly={readOnly}
           />
           {/* Adequacy panel — kept as a sidekick BELOW the master
               sheet so it doesn't compete for attention. Still surfaces

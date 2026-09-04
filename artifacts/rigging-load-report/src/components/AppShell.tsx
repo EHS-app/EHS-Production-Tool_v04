@@ -38,6 +38,10 @@ import { FeedbackDialog } from "./FeedbackDialog";
 import { LanguageSelector } from "./LanguageSelector";
 import { Toaster } from "./ui/sonner";
 import {
+  PROJECT_STATUS_META,
+  type ProjectStatus,
+} from "../lib/projectStatus";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -104,7 +108,8 @@ interface AppShellProps {
   workspaceSublabel?: string;
   workspaceLogoSrc?: string;
   projectTitle: string;
-  projectStatus?: { label: string; tone: "success" | "warning" | "danger" | "neutral" };
+  projectStatus?: ProjectStatus;
+  onProjectStatusClick?: () => void;
   badges: Partial<Record<ShellView, number>>;
   showCatering: boolean;
   showHotel: boolean;
@@ -223,6 +228,7 @@ export function AppShell({
   workspaceSublabel,
   projectTitle,
   projectStatus,
+  onProjectStatusClick,
   badges,
   showCatering,
   showHotel,
@@ -559,12 +565,20 @@ export function AppShell({
               {projectTitle || t("shell.breadcrumb.untitled")}
             </span>
             {projectStatus ? (
-              <span
+              <button
+                type="button"
                 className="ehs-shell-status"
-                style={statusToneStyle(projectStatus.tone)}
+                style={{
+                  ...statusToneStyle(PROJECT_STATUS_META[projectStatus].tone),
+                  cursor: onProjectStatusClick ? "pointer" : "default",
+                }}
+                onClick={onProjectStatusClick}
+                disabled={!onProjectStatusClick}
+                title={onProjectStatusClick ? t("project.status.change") : undefined}
               >
-                {projectStatus.label}
-              </span>
+                ● {t(`project.status.${projectStatus}` as Parameters<typeof t>[0])}
+                {onProjectStatusClick ? <ChevronDown size={11} aria-hidden /> : null}
+              </button>
             ) : null}
             {cloudSavedAt ? (
               <span className="ehs-shell-saved ehs-shell-saved--cloud" title={t("shell.savedCloud", { time: cloudSavedAt })}>

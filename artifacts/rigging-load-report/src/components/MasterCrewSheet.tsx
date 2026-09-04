@@ -26,6 +26,7 @@ import {
   type CrewShiftPhaseKey,
   type CrewShiftTimeMap,
 } from "../lib/crewShiftAssignments";
+import { useT } from "../lib/i18n/I18nContext";
 
 type FreelancerCandidate = {
   userId: string;
@@ -102,6 +103,7 @@ export function MasterCrewSheet({
   phaseShiftTimes,
   compactHeader = false,
   onOpenProfile,
+  readOnly = false,
 }: {
   /** Active brief id from App.tsx. When null/empty the sheet renders
    *  ONLY local crew (no portal data) and shows a friendly empty
@@ -179,7 +181,11 @@ export function MasterCrewSheet({
    *  Print, Add) are still rendered. */
   compactHeader?: boolean;
   onOpenProfile?: (userId: string) => void;
+  /** Terminal projects remain visible for records, but crew changes and
+   * request dispatch are intentionally unavailable. */
+  readOnly?: boolean;
 }) {
+  const t = useT();
   const [data, setData] = useState<RosterResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -589,6 +595,13 @@ export function MasterCrewSheet({
   },
     [localCrew],
   );
+  const confirmAndSendLinkedRequests = useCallback(() => {
+    if (readOnly || !onSendLinkedRequests || linkedUnsentMembers.length === 0) return;
+    const confirmed = window.confirm(
+      t("crew.requests.confirm", { count: linkedUnsentMembers.length }),
+    );
+    if (confirmed) void onSendLinkedRequests(linkedUnsentMembers);
+  }, [linkedUnsentMembers, onSendLinkedRequests, readOnly, t]);
 
   return (
     <section className="led-card roster-card master-sheet-card">
@@ -698,12 +711,12 @@ export function MasterCrewSheet({
           </button>
           <button
             type="button"
-            onClick={() => void onSendLinkedRequests?.(linkedUnsentMembers)}
-            disabled={
+            onClick={confirmAndSendLinkedRequests}
+            disabled={readOnly || (
               linkedUnsentMembers.length === 0 ||
               sendingLinkedRequests ||
               !onSendLinkedRequests
-            }
+            )}
             className="crew-send-linked-button"
           >
             {sendingLinkedRequests
@@ -717,6 +730,7 @@ export function MasterCrewSheet({
           <button
             type="button"
             onClick={onAdd}
+            disabled={readOnly}
             style={{
               display: "inline-flex",
               flex: "0 0 auto",
@@ -780,12 +794,12 @@ export function MasterCrewSheet({
             <button
               type="button"
               className="btn btn-soft"
-              onClick={() => void onSendLinkedRequests?.(linkedUnsentMembers)}
-              disabled={
+               onClick={confirmAndSendLinkedRequests}
+              disabled={readOnly || (
                 linkedUnsentMembers.length === 0 ||
                 sendingLinkedRequests ||
                 !onSendLinkedRequests
-              }
+              )}
               title="Send the project brief to linked freelancers who have not been requested yet"
             >
               {sendingLinkedRequests
@@ -800,6 +814,7 @@ export function MasterCrewSheet({
               type="button"
               className="btn btn-primary"
               onClick={onAdd}
+              disabled={readOnly}
               title="Add a manual crew member to the local call sheet"
             >
               + Add crew

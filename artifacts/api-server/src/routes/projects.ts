@@ -6,6 +6,7 @@ import {
   db,
   deleteOwnedProject,
   PROJECT_BRIEF_PROVENANCE_LOCK,
+  projectStatusHistoryTable,
   projectBriefsTable,
   projectMembersTable,
   projectFinanceSettingsTable,
@@ -25,6 +26,18 @@ import {
   projectDataWithOrganizationDefaults,
   projectFinanceSeed,
 } from "../lib/projectDefaults";
+import { dispatchBriefRequestEmails } from "../lib/briefEmail";
+import {
+  canTransitionProject,
+  classifyProjectTransition,
+  completeBriefDispatches,
+  deriveLegacyProjectStatus,
+  emptyDispatchSummary,
+  claimBriefDispatches,
+  isActivationTransition,
+  isProjectStatus,
+  recipientsFromBriefData,
+} from "../lib/projectLifecycle";
 
 const router: IRouter = Router();
 
@@ -163,7 +176,7 @@ router.get("/projects", requireSignedIn, async (req, res) => {
         reportDate: sql<unknown>`${projectsTable.data}->>'reportDate'`,
         reportEndDate: sql<unknown>`${projectsTable.data}->>'reportEndDate'`,
         crewCount: sql<number>`case when jsonb_typeof(${projectsTable.data}->'crew') = 'array' then jsonb_array_length(${projectsTable.data}->'crew') else 0 end`,
-        status: sql<"active" | "planning" | "draft">`case when nullif(${projectsTable.data}->>'activeBriefId', '') is not null then 'active' when nullif(${projectsTable.venue}, '') is not null or nullif(${projectsTable.client}, '') is not null then 'planning' else 'draft' end`,
+        status: sql<string>`coalesce(${projectsTable.status}, case when nullif(${projectsTable.data}->>'activeBriefId', '') is not null then 'active' when nullif(${projectsTable.venue}, '') is not null or nullif(${projectsTable.client}, '') is not null then 'planning' else 'draft' end)`,
         createdAt: projectsTable.createdAt,
         updatedAt: projectsTable.updatedAt,
         accessRole: sql<"owner" | "editor" | "viewer">`case when ${projectsTable.userId} = ${userId} then 'owner' else ${projectMembersTable.role} end`,
@@ -244,13 +257,7 @@ router.get("/projects/:id", requireSignedIn, async (req, res) => {
       project: {
         ...projectResponse(row),
         accessRole,
-        status:
-          typeof (row.data as Record<string, unknown> | null)?.activeBriefId === "string" &&
-          String((row.data as Record<string, unknown>).activeBriefId).trim()
-            ? "active"
-            : row.venue?.trim() || row.client?.trim()
-              ? "planning"
-              : "draft",
+        status: deriveLegacyProjectStatus(row),
       },
     });
   } catch (err) {
@@ -316,6 +323,8 @@ router.post("/projects", requireSignedIn, async (req, res) => {
               ? easyjob_number.trim().slice(0, 100) || null
               : null,
           data: projectData,
+          status: "draft",
+          statusUpdatedAt: sql`now()`,
         })
         .returning();
       if (!created) throw new Error("Project insert returned no row.");
@@ -409,18 +418,21 @@ router.patch("/projects/:id", requireSignedIn, async (req, res) => {
     const result = await db.transaction(async (tx) => {
       await tx.execute(PROJECT_BRIEF_PROVENANCE_LOCK);
       const [project] = await tx
-        .select({ ownerUserId: projectsTable.userId })
+        .select()
         .from(projectsTable)
         .where(eq(projectsTable.id, String(id)))
         .limit(1)
         .for("update");
       if (!project) return { kind: "not_found" as const };
+      if (["completed", "archived"].includes(deriveLegacyProjectStatus(project))) {
+        return { kind: "terminal" as const };
+      }
       if (
         data !== undefined &&
         !(await validActiveBriefProvenance(
           tx,
           String(id),
-          project.ownerUserId,
+          project.userId,
           data,
         ))
       ) {
@@ -430,17 +442,7 @@ router.patch("/projects/:id", requireSignedIn, async (req, res) => {
         .update(projectsTable)
         .set(updates)
         .where(eq(projectsTable.id, String(id)))
-        .returning({
-          id: projectsTable.id,
-          name: projectsTable.name,
-          venue: projectsTable.venue,
-          client: projectsTable.client,
-          easyjob_number: projectsTable.easyjobNumber,
-          venue_id: projectsTable.venueId,
-          client_id: projectsTable.clientId,
-          cloned_from_project_id: projectsTable.clonedFromProjectId,
-          updatedAt: projectsTable.updatedAt,
-        });
+        .returning();
       return updated
         ? { kind: "updated" as const, project: updated }
         : { kind: "not_found" as const };
@@ -457,11 +459,223 @@ router.patch("/projects/:id", requireSignedIn, async (req, res) => {
       });
       return;
     }
+    if (result.kind === "terminal") {
+      res.status(409).json({ ok: false, error: "Completed and archived projects are read-only." });
+      return;
+    }
     const row = result.project;
-    res.json({ ok: true, project: row });
+    res.json({
+      ok: true,
+      project: {
+        ...projectResponse(row),
+        accessRole,
+        status: deriveLegacyProjectStatus(row),
+      },
+    });
   } catch (err) {
     req.log.error(err, "Failed to update project");
     res.status(500).json({ ok: false, error: "Failed to update project." });
+  }
+});
+
+router.post("/projects/:id/status", requireSignedIn, async (req, res) => {
+  const userId = (req as unknown as { _userId: string })._userId;
+  const id = String(req.params.id ?? "");
+  const requestedStatus = req.body?.status;
+  const reason = req.body?.reason;
+  const retryFailedDispatch = req.body?.retryFailedDispatch === true;
+  if (!UUID_PATTERN.test(id)) {
+    res.status(404).json({ ok: false, error: "Project not found." });
+    return;
+  }
+  if (!isProjectStatus(requestedStatus)) {
+    res.status(400).json({
+      ok: false,
+      error: "status must be one of draft, planning, active, completed, or archived.",
+    });
+    return;
+  }
+  if (
+    reason !== undefined &&
+    (typeof reason !== "string" || reason.trim().length > 1000)
+  ) {
+    res.status(400).json({ ok: false, error: "reason must be a string of at most 1000 characters." });
+    return;
+  }
+  try {
+    const accessRole = await getProjectAccess(id, userId);
+    if (!accessRole) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    if (!canTransitionProject(accessRole)) {
+      res.status(403).json({ ok: false, error: "Project is read-only." });
+      return;
+    }
+    const result = await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select()
+        .from(projectsTable)
+        .where(eq(projectsTable.id, id))
+        .limit(1)
+        .for("update");
+      if (!locked) return { kind: "not_found" as const };
+      if (locked.userId !== userId) {
+        const [membership] = await tx
+          .select({ role: projectMembersTable.role })
+          .from(projectMembersTable)
+          .where(and(
+            eq(projectMembersTable.projectId, id),
+            eq(projectMembersTable.userId, userId),
+            eq(projectMembersTable.role, "editor"),
+          ))
+          .limit(1);
+        if (!membership) return { kind: "forbidden" as const };
+      }
+      const currentStatus = deriveLegacyProjectStatus(locked);
+      const transition = classifyProjectTransition(currentStatus, requestedStatus);
+      if (transition === "backward" || transition === "skipped") {
+        return { kind: "invalid_transition" as const, currentStatus, transition };
+      }
+      if (transition === "idempotent" && !(requestedStatus === "active" && retryFailedDispatch)) {
+        let project = locked;
+        if (!isProjectStatus(locked.status)) {
+          const [backfilled] = await tx
+            .update(projectsTable)
+            .set({
+              status: currentStatus,
+              statusUpdatedAt: locked.updatedAt,
+            })
+            .where(eq(projectsTable.id, id))
+            .returning();
+          if (backfilled) project = backfilled;
+        }
+        return {
+          kind: "success" as const,
+          project,
+          status: currentStatus,
+          idempotent: true,
+          dispatch: emptyDispatchSummary(),
+          email: null,
+        };
+      }
+
+      let dispatch = emptyDispatchSummary();
+      let email: Parameters<typeof dispatchBriefRequestEmails>[0] | null = null;
+      if (isActivationTransition(currentStatus, requestedStatus) ||
+        (currentStatus === "active" && requestedStatus === "active" && retryFailedDispatch)) {
+        const briefId = activeBriefIdIn(locked.data);
+        if (!briefId || briefId === "invalid") {
+          return { kind: "missing_brief" as const };
+        }
+        const [brief] = await tx
+          .select()
+          .from(projectBriefsTable)
+          .where(eq(projectBriefsTable.id, briefId))
+          .limit(1);
+        if (
+          !brief ||
+          brief.ownerUserId !== locked.userId ||
+          (brief.projectId !== null && brief.projectId !== id)
+        ) {
+          return { kind: "missing_brief" as const };
+        }
+        const gated = await claimBriefDispatches(
+          tx,
+          brief.id,
+          recipientsFromBriefData(brief.data),
+          retryFailedDispatch,
+        );
+        dispatch = {
+          sent: gated.sent,
+          alreadySent: gated.alreadySent,
+          skipped: gated.skipped,
+        };
+        if (gated.newRecipientUserIds.length > 0) {
+          email = {
+            briefId: brief.id,
+            ownerUserId: brief.ownerUserId,
+            newRecipientUserIds: gated.newRecipientUserIds,
+            projectName: brief.projectName,
+            venue: brief.venue,
+            client: brief.client,
+            startDate: brief.startDate,
+            endDate: brief.endDate,
+          };
+        }
+      }
+      const [updated] = transition === "idempotent"
+        ? [locked]
+        : await tx
+        .update(projectsTable)
+        .set({
+          status: requestedStatus,
+          statusUpdatedAt: sql`now()`,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(projectsTable.id, id))
+        .returning();
+      if (!updated) return { kind: "not_found" as const };
+      if (transition !== "idempotent") {
+        await tx.insert(projectStatusHistoryTable).values({
+          projectId: id,
+          fromStatus: currentStatus,
+          toStatus: requestedStatus,
+          actorUserId: userId,
+          reason: typeof reason === "string" ? reason.trim() || null : null,
+        });
+      }
+      return {
+        kind: "success" as const,
+        project: updated,
+        status: requestedStatus,
+        idempotent: transition === "idempotent",
+        dispatch,
+        email,
+      };
+    });
+    if (result.kind === "not_found") {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    if (result.kind === "forbidden") {
+      res.status(403).json({ ok: false, error: "Project is read-only." });
+      return;
+    }
+    if (result.kind === "invalid_transition") {
+      res.status(409).json({
+        ok: false,
+        error: result.transition === "backward"
+          ? "Project status cannot move backward."
+          : "Project status can advance only one stage at a time.",
+        status: result.currentStatus,
+      });
+      return;
+    }
+    if (result.kind === "missing_brief") {
+      res.status(409).json({
+        ok: false,
+        error: "A valid active brief owned by the project owner is required for activation.",
+      });
+      return;
+    }
+    const dispatch = { ...result.dispatch };
+    if (result.email) {
+      const emailResult = await dispatchBriefRequestEmails(result.email);
+      await completeBriefDispatches(result.email.briefId, emailResult.outcomes);
+      dispatch.sent = emailResult.sent;
+      dispatch.skipped += emailResult.skipped;
+    }
+    res.json({
+      ok: true,
+      project: projectResponse(result.project),
+      status: result.status,
+      idempotent: result.idempotent,
+      dispatch,
+    });
+  } catch (err) {
+    req.log.error(err, "Failed to transition project status");
+    res.status(500).json({ ok: false, error: "Failed to transition project status." });
   }
 });
 

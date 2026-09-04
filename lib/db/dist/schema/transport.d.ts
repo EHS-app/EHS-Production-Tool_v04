@@ -453,8 +453,8 @@ export declare const insertTransportVehicleSchema: z.ZodObject<{
 }>;
 export declare const insertTransportRunSchema: z.ZodObject<{
     status: z.ZodOptional<z.ZodString>;
-    title: z.ZodString;
     projectId: z.ZodUUID;
+    title: z.ZodString;
     vehicleId: z.ZodUUID;
     driverUserId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     origin: z.ZodOptional<z.ZodString>;

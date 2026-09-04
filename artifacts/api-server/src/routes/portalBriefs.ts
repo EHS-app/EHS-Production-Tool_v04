@@ -26,6 +26,13 @@ import { autoAssignedDatesFor } from "../lib/roleSchedule";
 import { rollupItinerary } from "../lib/itineraryRollup";
 import { getProjectAccess, UUID_PATTERN } from "../lib/projectAccess";
 import {
+  claimBriefDispatches,
+  completeBriefDispatches,
+  deriveLegacyProjectStatus,
+  effectiveBriefProjectId,
+  synchronizeBriefAssignments,
+} from "../lib/projectLifecycle";
+import {
   classifyDietary,
   splitAllergens,
   DIETARY_TAGS,
@@ -611,24 +618,49 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
       return;
     }
     const result = await db.transaction(async (tx) => {
-      if (typeof rawProjectId === "string") {
-        await tx.execute(PROJECT_BRIEF_PROVENANCE_LOCK);
-      }
+      await tx.execute(PROJECT_BRIEF_PROVENANCE_LOCK);
       // If the brief already exists, only the original owner may update it.
       const existing = await tx
-        .select({ ownerUserId: projectBriefsTable.ownerUserId })
+        .select({
+          ownerUserId: projectBriefsTable.ownerUserId,
+          projectId: projectBriefsTable.projectId,
+        })
         .from(projectBriefsTable)
         .where(eq(projectBriefsTable.id, id))
-        .limit(1);
+        .limit(1)
+        .for("update");
       if (existing[0] && existing[0].ownerUserId !== userId) {
         return { forbidden: true as const };
+      }
+      // An existing brief retains its project when project_id is omitted.
+      // Never permit a supplied id to silently reassign its provenance.
+      const effectiveProjectId = effectiveBriefProjectId(
+        existing[0]?.projectId,
+        typeof rawProjectId === "string" ? rawProjectId : null,
+      );
+      if (effectiveProjectId === "conflict") {
+        return { terminalProject: true as const };
+      }
+      let effectiveProjectStatus = null;
+      if (effectiveProjectId) {
+        const [effectiveProject] = await tx.select()
+          .from(projectsTable)
+          .where(eq(projectsTable.id, effectiveProjectId))
+          .limit(1)
+          .for("update");
+        if (
+          !effectiveProject ||
+          effectiveProject.userId !== userId ||
+          ["completed", "archived"].includes(deriveLegacyProjectStatus(effectiveProject))
+        ) return { terminalProject: true as const };
+        effectiveProjectStatus = deriveLegacyProjectStatus(effectiveProject);
       }
       const inserted = await tx
         .insert(projectBriefsTable)
         .values({
           id,
           ownerUserId: userId,
-          projectId: typeof rawProjectId === "string" ? rawProjectId : null,
+          projectId: effectiveProjectId,
           ...indexed,
           data: data as Record<string, unknown>,
           venueTechnicalSnapshot: venueProjection.snapshot,
@@ -653,66 +685,40 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
       // preserves a recipient's accept history through a producer
       // reorganisation. The client can flag "removed" using the
       // brief's current `recipients` list as the source of truth.
-      const newRecipientUserIds: string[] = [];
-      for (const a of recipients) {
-        // .returning() on an onConflictDoNothing insert yields one row
-        // when the row was actually inserted, and zero rows when an
-        // existing assignment already covered this (briefId,
-        // freelancerUserId) pair. We use that to decide whether to send
-        // the request email — resends to existing recipients must NOT
-        // generate a duplicate email.
-        const insertedRows = await tx
-          .insert(briefAssignmentsTable)
-          .values({
-            id: randomUUID(),
-            briefId: id,
-            freelancerUserId: a.freelancerUserId,
-            crewId: a.crewId,
-          })
-          .onConflictDoNothing({
-            target: [
-              briefAssignmentsTable.briefId,
-              briefAssignmentsTable.freelancerUserId,
-            ],
-          })
-          .returning({ id: briefAssignmentsTable.id });
-        if (insertedRows.length > 0) {
-          newRecipientUserIds.push(a.freelancerUserId);
-        }
-        // Refresh crewId in case the producer renamed the crew row.
-        // No-op when the insert above did the work (same crewId).
-        await tx
-          .update(briefAssignmentsTable)
-          .set({ crewId: a.crewId, updatedAt: sql`now()` })
-          .where(
-            and(
-              eq(briefAssignmentsTable.briefId, id),
-              eq(briefAssignmentsTable.freelancerUserId, a.freelancerUserId),
-            ),
-          );
-      }
-      return { brief: inserted[0] ?? null, newRecipientUserIds };
+      const assignmentSync = await synchronizeBriefAssignments(tx, id, recipients);
+      const dispatch = effectiveProjectStatus === "active"
+        ? await claimBriefDispatches(tx, id, recipients)
+        : null;
+      return {
+        brief: inserted[0] ?? null,
+        newRecipientUserIds: assignmentSync.newRecipientUserIds,
+        dispatch,
+      };
     });
     if ("forbidden" in result) {
       res.status(403).json({ ok: false, error: "Not your brief." });
       return;
     }
-    // Fire-and-forget Norwegian email to every freelancer whose
-    // assignment row was just created. Resends never fire because
-    // .returning() on the conflict-do-nothing insert yields zero rows
-    // for already-existing pairs. We never await this — email delivery
-    // must not block the producer's HTTP response, but we log every
-    // send and every failure inside dispatchBriefRequestEmails.
-    void dispatchBriefRequestEmails({
-      briefId: id,
-      ownerUserId: userId,
-      newRecipientUserIds: result.newRecipientUserIds,
-      projectName: indexed.projectName,
-      venue: indexed.venue,
-      client: indexed.client,
-      startDate: indexed.startDate,
-      endDate: indexed.endDate,
-    });
+    if ("terminalProject" in result) {
+      res.status(409).json({ ok: false, error: "Completed and archived projects are read-only." });
+      return;
+    }
+    // Planning/draft saves only populate the durable outbox. An active
+    // project claims newly pending deliveries post-commit.
+    if (result.dispatch?.newRecipientUserIds.length) {
+      void (async () => {
+        const delivery = await dispatchBriefRequestEmails({
+          briefId: id, ownerUserId: userId,
+          newRecipientUserIds: result.dispatch!.newRecipientUserIds,
+          projectName: indexed.projectName, venue: indexed.venue, client: indexed.client,
+          startDate: indexed.startDate, endDate: indexed.endDate,
+        });
+        await completeBriefDispatches(id, delivery.outcomes);
+      })().catch((err: unknown) => logger.error(
+        { err: err instanceof Error ? err.message : String(err), briefId: id },
+        "portal brief dispatch completion failed",
+      ));
+    }
     res.json({ ok: true, brief: result.brief });
   } catch (err) {
     logger.error(

@@ -465,17 +465,17 @@ export declare const timeEntriesTable: import("drizzle-orm/pg-core").PgTableWith
 }>;
 export declare const insertTimeEntrySchema: z.ZodObject<{
     id: z.ZodString;
-    freelancerUserId: z.ZodString;
-    briefId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    notes: z.ZodOptional<z.ZodString>;
     status: z.ZodOptional<z.ZodString>;
+    briefId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    freelancerUserId: z.ZodString;
+    decidedAt: z.ZodOptional<z.ZodNullable<z.ZodDate>>;
+    notes: z.ZodOptional<z.ZodString>;
     gigId: z.ZodString;
     workDate: z.ZodString;
     startMinute: z.ZodOptional<z.ZodNullable<z.ZodInt>>;
     endMinute: z.ZodOptional<z.ZodNullable<z.ZodInt>>;
     breakMinutes: z.ZodOptional<z.ZodInt>;
     decidedByUserId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    decidedAt: z.ZodOptional<z.ZodNullable<z.ZodDate>>;
     rejectionReason: z.ZodOptional<z.ZodString>;
     producerAdjustmentMinutes: z.ZodOptional<z.ZodInt>;
     producerBreakMinutes: z.ZodOptional<z.ZodNullable<z.ZodInt>>;

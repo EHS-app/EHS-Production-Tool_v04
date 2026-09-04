@@ -2,6 +2,7 @@ import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { db } from "./client";
 import {
   briefAssignmentsTable,
+  briefDispatchesTable,
   briefRoomAssignmentsTable,
   calendarHoldsTable,
   gigsTable,
@@ -118,6 +119,9 @@ export async function deleteOwnedProject(
       await tx
         .delete(briefAssignmentsTable)
         .where(inArray(briefAssignmentsTable.briefId, linkedBriefIds));
+      await tx
+        .delete(briefDispatchesTable)
+        .where(inArray(briefDispatchesTable.briefId, linkedBriefIds));
       await tx
         .delete(briefRoomAssignmentsTable)
         .where(inArray(briefRoomAssignmentsTable.briefId, linkedBriefIds));

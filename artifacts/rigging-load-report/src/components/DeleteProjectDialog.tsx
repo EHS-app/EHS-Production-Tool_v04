@@ -3,6 +3,7 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import { Trash2 } from "lucide-react";
 import { useT } from "../lib/i18n/I18nContext";
 import { toast } from "sonner";
+import type { ProjectStatus } from "../lib/projectStatus";
 import {
   AlertDialog,
   AlertDialogPortal,
@@ -19,7 +20,7 @@ import {
 interface Props {
   projectId: string;
   projectName: string;
-  projectStatus: 'active' | 'planning' | 'draft';
+  projectStatus: ProjectStatus;
   getToken: () => Promise<string | null>;
   onSuccess: () => void | Promise<void>;
   trigger: React.ReactNode;
@@ -39,11 +40,14 @@ export function DeleteProjectDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const isActive = projectStatus === "active";
+  const requiresTypedConfirmation =
+    projectStatus === "active" ||
+    projectStatus === "completed" ||
+    projectStatus === "archived";
   const nameToMatch = projectName || t("shell.breadcrumb.untitled");
 
   const confirmationMatches =
-    !isActive || confirmText.trim() === nameToMatch.trim();
+    !requiresTypedConfirmation || confirmText.trim() === nameToMatch.trim();
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -156,9 +160,16 @@ export function DeleteProjectDialog({
             <AlertDialogDescription className="text-sm leading-relaxed text-slate-300">
               {t("project.delete.description", { name: nameToMatch })}
             </AlertDialogDescription>
+            {(projectStatus === "completed" || projectStatus === "archived") ? (
+              <p className="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-200">
+                {projectStatus === "completed"
+                  ? t("project.delete.completedPolicy")
+                  : t("project.delete.archivedPolicy")}
+              </p>
+            ) : null}
           </AlertDialogHeader>
 
-          {isActive && (
+          {requiresTypedConfirmation && (
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-200">
                 {t("project.delete.confirmLabel")} <span className="font-bold text-white">{nameToMatch}</span>

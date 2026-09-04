@@ -1,7 +1,15 @@
 import React, { useCallback, useEffect, useState, useMemo } from "react";
-import { Search, Plus, FileText, ChevronRight, Trash2 } from "lucide-react";
+import { Search, Plus, FileText, ChevronRight, Trash2, ArrowRight } from "lucide-react";
 import { DeleteProjectDialog } from "../DeleteProjectDialog";
+import { ProjectStatusDialog } from "../ProjectStatusDialog";
 import { useT } from "../../lib/i18n/I18nContext";
+import {
+  getNextProjectStatus,
+  PROJECT_STATUS_META,
+  PROJECT_STATUS_ORDER,
+  normalizeProjectStatus,
+  type ProjectStatus,
+} from "../../lib/projectStatus";
 
 export type ProjectRow = {
   id: string;
@@ -10,7 +18,8 @@ export type ProjectRow = {
   client: string;
   easyjob_number: string | null;
   crewCount: number;
-  status: 'active' | 'planning' | 'draft';
+  status: ProjectStatus;
+  eligibleUnsentFreelancers?: Array<{ id: string; name: string }>;
   createdAt: string;
   updatedAt: string;
   accessRole: string;
@@ -30,6 +39,9 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, on
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [transitionProject, setTransitionProject] = useState<ProjectRow | null>(null);
+  const [transitionLoading, setTransitionLoading] = useState(false);
+  const [transitionError, setTransitionError] = useState("");
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -41,13 +53,63 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, on
       });
       if (!res.ok) throw new Error("Failed to load projects");
       const json = await res.json();
-      setProjects(json.projects || []);
+      setProjects(
+        (json.projects || []).map((project: ProjectRow) => ({
+          ...project,
+          status: normalizeProjectStatus(project.status),
+        })),
+      );
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
   }, [getToken]);
+
+  const nextStatus = transitionProject
+    ? getNextProjectStatus(transitionProject.status)
+    : null;
+
+  const changeStatus = useCallback(async (reason?: string) => {
+    if (!transitionProject) return;
+    const target = getNextProjectStatus(transitionProject.status);
+    if (!target || transitionLoading) return;
+    setTransitionLoading(true);
+    setTransitionError("");
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/projects/${transitionProject.id}/status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ status: target, ...(reason ? { reason } : {}) }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok || !json.project) {
+        throw new Error(json?.error || t("project.status.error"));
+      }
+      const confirmedStatus = normalizeProjectStatus(
+        json.status ?? json.project.status,
+        target,
+      );
+      setProjects((all) =>
+        all.map((project) =>
+          project.id === transitionProject.id
+            ? { ...project, ...json.project, status: confirmedStatus }
+            : project,
+        ),
+      );
+      setTransitionProject(null);
+    } catch (cause) {
+      setTransitionError(
+        cause instanceof Error ? cause.message : t("project.status.error"),
+      );
+    } finally {
+      setTransitionLoading(false);
+    }
+  }, [getToken, t, transitionLoading, transitionProject]);
 
   useEffect(() => {
     void loadProjects();
@@ -107,14 +169,16 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, on
             />
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {(["all", "active", "planning", "draft"] as const).map(f => (
+            {(["all", ...PROJECT_STATUS_ORDER] as const).map(f => (
               <button
                 key={f}
                 className={statusFilter === f ? "ehs-primary-btn" : "ehs-ghost-btn"}
                 style={{ padding: "6px 12px", fontSize: "12px", borderRadius: 999 }}
                 onClick={() => setStatusFilter(f)}
               >
-                {f.charAt(0).toUpperCase() + f.slice(1)}
+                {f === "all"
+                  ? t("project.status.all")
+                  : t(`project.status.${f}` as Parameters<typeof t>[0])}
               </button>
             ))}
           </div>
@@ -170,7 +234,15 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, on
                     <td>{p.easyjob_number ? <span style={{ fontFamily: "monospace", color: "var(--text-muted)" }}>{p.easyjob_number}</span> : "—"}</td>
                     <td>{p.crewCount} <span style={{ color: "var(--text-muted)", fontSize: 11 }}>pax</span></td>
                     <td>
-                      <span className={`ehs-badge ${p.status}`}>{p.status.toUpperCase()}</span>
+                      <span
+                        className={`ehs-badge ${p.status}`}
+                        style={{
+                          color: PROJECT_STATUS_META[p.status].color,
+                          background: PROJECT_STATUS_META[p.status].background,
+                        }}
+                      >
+                        {t(`project.status.${p.status}` as Parameters<typeof t>[0])}
+                      </span>
                     </td>
                     <td style={{ color: "var(--text-muted)", fontSize: 12 }}>{formatDate(p.updatedAt)}</td>
                     <td>
@@ -180,6 +252,23 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, on
                     </td>
                     <td style={{ textAlign: "right", paddingRight: 16 }}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+                        {(p.accessRole === "owner" || p.accessRole === "editor") &&
+                        getNextProjectStatus(p.status) ? (
+                          <button
+                            type="button"
+                            className="ehs-ghost-btn"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setTransitionError("");
+                              setTransitionProject(p);
+                            }}
+                            title={t("project.status.change")}
+                            aria-label={t("project.status.change")}
+                            style={{ padding: "5px 8px" }}
+                          >
+                            <ArrowRight size={14} />
+                          </button>
+                        ) : null}
                         {p.accessRole === "owner" && (
                           <DeleteProjectDialog
                             projectId={p.id}
@@ -215,6 +304,21 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, on
           </div>
         )}
       </div>
+      {transitionProject && nextStatus ? (
+        <ProjectStatusDialog
+          open
+          onOpenChange={(open) => {
+            if (!open && !transitionLoading) setTransitionProject(null);
+          }}
+          fromStatus={transitionProject.status}
+          toStatus={nextStatus}
+          projectName={transitionProject.name || t("shell.breadcrumb.untitled")}
+          eligibleFreelancers={transitionProject.eligibleUnsentFreelancers}
+          loading={transitionLoading}
+          error={transitionError}
+          onConfirm={changeStatus}
+        />
+      ) : null}
     </div>
   );
 }

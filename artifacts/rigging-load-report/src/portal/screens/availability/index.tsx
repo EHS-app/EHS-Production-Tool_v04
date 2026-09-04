@@ -623,9 +623,17 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
           text-overflow: ellipsis;
         }
         @media (max-width: 520px) {
+          .availability-cell-badges {
+            top: 44px;
+            left: 2px;
+            right: 2px;
+            max-height: calc(100% - 47px);
+          }
           .availability-time-badge {
             justify-content: center;
-            padding: 2px;
+            min-height: 14px;
+            padding: 1px 2px;
+            font-size: 8px;
           }
           .availability-time-badge__label { display: none; }
         }

@@ -171,7 +171,7 @@ export function CalendarGrid({
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "40px repeat(7, 1fr)", gridTemplateRows: viewMode === "month" ? `repeat(${Math.ceil(cells.length / 7)}, minmax(60px, 1fr))` : "minmax(120px, 1fr)", gap: 4, flex: 1, minHeight: 0 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "40px repeat(7, 1fr)", gridTemplateRows: viewMode === "month" ? `repeat(${Math.ceil(cells.length / 7)}, minmax(104px, auto))` : "minmax(120px, auto)", gap: 4, minHeight: 0 }}>
         {cells.map((cell, i) => {
           const isFirstOfWeek = i % 7 === 0;
           let weekNumberNode = null;
@@ -278,7 +278,6 @@ export function CalendarGrid({
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "flex-start",
-                paddingTop: 8,
                 fontSize: 13,
                 fontWeight: 700,
                 borderRadius: 8,
@@ -296,7 +295,7 @@ export function CalendarGrid({
               className="availability-cell"
             >
               {/* Day Number */}
-              <div style={{ position: "absolute", top: 7, left: 0, right: 0, textAlign: "center" }}>
+              <div className="availability-day-number">
                 {cell.day}
               </div>
 
@@ -464,6 +463,21 @@ export function CalendarGrid({
           outline: 2px solid ${c.accent};
           outline-offset: 2px;
         }
+        .availability-cell {
+          padding: 8px 3px 3px;
+        }
+        .availability-day-number {
+          position: absolute;
+          top: 7px;
+          left: 7px;
+          z-index: 3;
+          min-width: 16px;
+          font-size: 13px;
+          line-height: 18px;
+          font-weight: 800;
+          text-align: left;
+          pointer-events: none;
+        }
         .availability-edit-btn {
           position: absolute;
           top: 4px;
@@ -481,15 +495,29 @@ export function CalendarGrid({
           opacity: 1;
           transition: background 150ms ease, color 150ms ease;
           z-index: 10;
-        };
-          cursor: pointer;
-          opacity: 0;
-          transition: opacity 150ms ease, background 150ms ease, color 150ms ease;
-          z-index: 10;
         }
         .availability-edit-btn:hover {
           background: ${c.border};
           color: ${c.text};
+        }
+        @media (max-width: 520px) {
+          .availability-cell {
+            padding: 5px 2px 2px;
+          }
+          .availability-day-number {
+            top: 4px;
+            left: 4px;
+            min-width: 13px;
+            font-size: 11px;
+            line-height: 18px;
+          }
+          .availability-edit-btn {
+            top: 23px;
+            right: 3px;
+            width: 18px;
+            height: 18px;
+            border-radius: 5px;
+          }
         }
         
       `}</style>

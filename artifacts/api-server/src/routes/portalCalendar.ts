@@ -4,6 +4,7 @@ import { and, eq, gt, gte, lt, lte, ne, or, sql } from "drizzle-orm";
 import {
   db,
   calendarAvailabilityRulesTable,
+  calendarAvailabilityRuleExceptionsTable,
   calendarAvailabilityTable,
   calendarBusyIntervalsTable,
   calendarConnectionsTable,
@@ -22,6 +23,16 @@ import {
   localDateRangeToInstants,
   parseCalendarInstant,
 } from "../lib/calendarTime";
+import {
+  isAllDayWeeklyRule,
+  ruleOccurrenceExceptionKey,
+  ruleOccurrencesOverlappingRange,
+} from "../lib/calendarAvailabilityRules";
+import {
+  isSerializationFailure,
+  splitAvailabilityAroundRange,
+  validateBulkAvailabilityReplacement,
+} from "../lib/calendarAvailabilityBulk";
 import { logger } from "../lib/logger";
 import { getUserType } from "../middleware/userType";
 
@@ -140,11 +151,13 @@ function expandRules(rules: any[], fromDate: string, toDate: string): any[] {
         out.push({
           id: `${rule.id}:${occurrence.date}`,
           ruleId: rule.id,
+          occurrenceDate: occurrence.date,
           status: rule.status,
           startsAt: occurrence.startsAt,
           endsAt: occurrence.endsAt,
           timezone: rule.timezone,
           privateNote: rule.privateNote,
+          allDay: isAllDayWeeklyRule(rule),
           virtual: true,
         });
       }
@@ -164,98 +177,124 @@ router.get("/portal/calendar", requireSignedIn, async (req, res) => {
       .status(400)
       .json({ ok: false, error: "Invalid calendar timezone." });
   }
-  if (
-    r.invalid ||
-    r.to.getTime() - r.from.getTime() > 366 * 86400000
-  )
+  if (r.invalid || r.to.getTime() - r.from.getTime() > 366 * 86400000)
     return void res.status(400).json({
       ok: false,
       error: "Calendar range must be between 0 and 366 days.",
     });
   try {
-    const [availability, rules, busy, gigs, connections, holds, subscription] =
-      await Promise.all([
-        db
-          .select()
-          .from(calendarAvailabilityTable)
-          .where(
-            and(
-              eq(calendarAvailabilityTable.userId, uid(req)),
-              lt(calendarAvailabilityTable.startsAt, r.to),
-              gt(calendarAvailabilityTable.endsAt, r.from),
+    const [
+      availability,
+      rules,
+      exceptions,
+      busy,
+      gigs,
+      connections,
+      holds,
+      subscription,
+    ] = await Promise.all([
+      db
+        .select()
+        .from(calendarAvailabilityTable)
+        .where(
+          and(
+            eq(calendarAvailabilityTable.userId, uid(req)),
+            lt(calendarAvailabilityTable.startsAt, r.to),
+            gt(calendarAvailabilityTable.endsAt, r.from),
+          ),
+        ),
+      db
+        .select()
+        .from(calendarAvailabilityRulesTable)
+        .where(
+          and(
+            eq(calendarAvailabilityRulesTable.userId, uid(req)),
+            gte(calendarAvailabilityRulesTable.until, r.from),
+          ),
+        ),
+      db
+        .select({
+          ruleId: calendarAvailabilityRuleExceptionsTable.ruleId,
+          occurrenceDate:
+            calendarAvailabilityRuleExceptionsTable.occurrenceDate,
+        })
+        .from(calendarAvailabilityRuleExceptionsTable)
+        .where(eq(calendarAvailabilityRuleExceptionsTable.userId, uid(req))),
+      db
+        .select({
+          id: calendarBusyIntervalsTable.id,
+          startsAt: calendarBusyIntervalsTable.startsAt,
+          endsAt: calendarBusyIntervalsTable.endsAt,
+          provider: calendarConnectionsTable.provider,
+        })
+        .from(calendarBusyIntervalsTable)
+        .innerJoin(
+          calendarConnectionsTable,
+          eq(
+            calendarBusyIntervalsTable.connectionId,
+            calendarConnectionsTable.id,
+          ),
+        )
+        .where(
+          and(
+            eq(calendarConnectionsTable.userId, uid(req)),
+            lt(calendarBusyIntervalsTable.startsAt, r.to),
+            gt(calendarBusyIntervalsTable.endsAt, r.from),
+          ),
+        ),
+      db
+        .select()
+        .from(gigsTable)
+        .where(
+          and(
+            eq(gigsTable.freelancerUserId, uid(req)),
+            lte(gigsTable.startDate, r.toDate),
+            gte(
+              sql`COALESCE(${gigsTable.endDate}, ${gigsTable.startDate})`,
+              r.fromDate,
             ),
           ),
-        db
-          .select()
-          .from(calendarAvailabilityRulesTable)
-          .where(
-            and(
-              eq(calendarAvailabilityRulesTable.userId, uid(req)),
-              gte(calendarAvailabilityRulesTable.until, r.from),
-            ),
+        ),
+      db
+        .select()
+        .from(calendarConnectionsTable)
+        .where(eq(calendarConnectionsTable.userId, uid(req))),
+      db
+        .select({
+          id: calendarHoldsTable.id,
+          startsAt: calendarHoldsTable.startsAt,
+          endsAt: calendarHoldsTable.endsAt,
+          expiresAt: calendarHoldsTable.expiresAt,
+        })
+        .from(calendarHoldsTable)
+        .where(
+          and(
+            eq(calendarHoldsTable.freelancerUserId, uid(req)),
+            gte(calendarHoldsTable.expiresAt, new Date()),
+            lt(calendarHoldsTable.startsAt, r.to),
+            gt(calendarHoldsTable.endsAt, r.from),
           ),
-        db
-          .select({
-            id: calendarBusyIntervalsTable.id,
-            startsAt: calendarBusyIntervalsTable.startsAt,
-            endsAt: calendarBusyIntervalsTable.endsAt,
-            provider: calendarConnectionsTable.provider,
-          })
-          .from(calendarBusyIntervalsTable)
-          .innerJoin(
-            calendarConnectionsTable,
-            eq(
-              calendarBusyIntervalsTable.connectionId,
-              calendarConnectionsTable.id,
-            ),
-          )
-          .where(
-            and(
-              eq(calendarConnectionsTable.userId, uid(req)),
-              lt(calendarBusyIntervalsTable.startsAt, r.to),
-              gt(calendarBusyIntervalsTable.endsAt, r.from),
-            ),
+        ),
+      db
+        .select()
+        .from(calendarSubscriptionsTable)
+        .where(eq(calendarSubscriptionsTable.userId, uid(req)))
+        .limit(1),
+    ]);
+    const exceptionKeys = new Set(
+      exceptions.map((exception) =>
+        ruleOccurrenceExceptionKey(exception.ruleId, exception.occurrenceDate),
+      ),
+    );
+    const expanded = expandRules(rules, r.fromDate, r.toDate).filter(
+      (occurrence) =>
+        !exceptionKeys.has(
+          ruleOccurrenceExceptionKey(
+            occurrence.ruleId,
+            occurrence.occurrenceDate,
           ),
-        db
-          .select()
-          .from(gigsTable)
-          .where(
-            and(
-              eq(gigsTable.freelancerUserId, uid(req)),
-              lte(gigsTable.startDate, r.toDate),
-              gte(
-                sql`COALESCE(${gigsTable.endDate}, ${gigsTable.startDate})`,
-                r.fromDate,
-              ),
-            ),
-          ),
-        db
-          .select()
-          .from(calendarConnectionsTable)
-          .where(eq(calendarConnectionsTable.userId, uid(req))),
-        db
-          .select({
-            id: calendarHoldsTable.id,
-            startsAt: calendarHoldsTable.startsAt,
-            endsAt: calendarHoldsTable.endsAt,
-            expiresAt: calendarHoldsTable.expiresAt,
-          })
-          .from(calendarHoldsTable)
-          .where(
-            and(
-              eq(calendarHoldsTable.freelancerUserId, uid(req)),
-              gte(calendarHoldsTable.expiresAt, new Date()),
-              lt(calendarHoldsTable.startsAt, r.to),
-              gt(calendarHoldsTable.endsAt, r.from),
-            ),
-          ),
-        db
-          .select()
-          .from(calendarSubscriptionsTable)
-          .where(eq(calendarSubscriptionsTable.userId, uid(req)))
-          .limit(1),
-      ]);
-    const expanded = expandRules(rules, r.fromDate, r.toDate);
+        ),
+    );
     const aliased = [...availability, ...expanded].map((a: any) => ({
       ...a,
       startAt: a.startsAt,
@@ -273,7 +312,7 @@ router.get("/portal/calendar", requireSignedIn, async (req, res) => {
       busy,
       externalBusy: busy,
       gigs,
-      holds,
+      holds: holds.map((hold) => ({ ...hold, status: "hold" })),
       connections: connections.map(safeConnection),
       feed: {
         enabled: Boolean(subscription[0]),
@@ -487,104 +526,86 @@ router.patch(
   },
 );
 router.post("/portal/calendar/bulk", requireSignedIn, async (req, res) => {
-  const entries = Array.isArray(req.body?.entries)
-    ? req.body.entries.slice(0, 100)
-    : [];
-  const values = entries
-    .map((b: any) => ({
-      id: randomUUID(),
-      userId: uid(req),
-      status: b.status,
-      startsAt: iso(b.startsAt),
-      endsAt: iso(b.endsAt),
-      timezone: typeof b.timezone === "string" ? b.timezone : "UTC",
-      allDay: Boolean(b.allDay),
-      privateNote:
-        typeof b.privateNote === "string" ? b.privateNote.slice(0, 2000) : "",
-    }))
-    .filter(
-      (x: any) =>
-        ["available", "unavailable", "tentative"].includes(x.status) &&
-        x.startsAt &&
-        x.endsAt &&
-        x.endsAt > x.startsAt,
-    );
-  if (!values.length)
-    return void res
-      .status(400)
-      .json({ ok: false, error: "No valid availability entries." });
+  const parsed = validateBulkAvailabilityReplacement(
+    req.body,
+    uid(req),
+    randomUUID,
+  );
+  if (!parsed.ok)
+    return void res.status(400).json({ ok: false, error: parsed.error });
+  const { rangeStart, rangeEnd, values } = parsed.replacement;
   try {
     const created = await db.transaction(
       async (tx) => {
-        const inserted = [];
-        for (const value of values) {
-          const overlapping = await tx
-            .select()
-            .from(calendarAvailabilityTable)
-            .where(
-              and(
-                eq(calendarAvailabilityTable.userId, uid(req)),
-                lt(calendarAvailabilityTable.startsAt, value.endsAt),
-                gt(calendarAvailabilityTable.endsAt, value.startsAt),
-              ),
-            );
-
-          if (overlapping.length) {
-            await tx
-              .delete(calendarAvailabilityTable)
-              .where(
-                and(
-                  eq(calendarAvailabilityTable.userId, uid(req)),
-                  lt(calendarAvailabilityTable.startsAt, value.endsAt),
-                  gt(calendarAvailabilityTable.endsAt, value.startsAt),
-                ),
-              );
-
-            const fragments = overlapping.flatMap((existing) => {
-              const preserved = [];
-              if (existing.startsAt < value.startsAt) {
-                preserved.push({
-                  id: randomUUID(),
-                  userId: existing.userId,
-                  status: existing.status,
-                  startsAt: existing.startsAt,
-                  endsAt: value.startsAt,
-                  timezone: existing.timezone,
-                  allDay: existing.allDay,
-                  privateNote: existing.privateNote,
-                });
-              }
-              if (existing.endsAt > value.endsAt) {
-                preserved.push({
-                  id: randomUUID(),
-                  userId: existing.userId,
-                  status: existing.status,
-                  startsAt: value.endsAt,
-                  endsAt: existing.endsAt,
-                  timezone: existing.timezone,
-                  allDay: existing.allDay,
-                  privateNote: existing.privateNote,
-                });
-              }
-              return preserved;
+        const rules = await tx
+          .select()
+          .from(calendarAvailabilityRulesTable)
+          .where(eq(calendarAvailabilityRulesTable.userId, uid(req)))
+          .for("update");
+        const suppressedOccurrences = ruleOccurrencesOverlappingRange(
+          rules,
+          rangeStart,
+          rangeEnd,
+        );
+        for (const occurrence of suppressedOccurrences) {
+          await tx
+            .insert(calendarAvailabilityRuleExceptionsTable)
+            .values({
+              id: randomUUID(),
+              userId: uid(req),
+              ruleId: occurrence.ruleId,
+              occurrenceDate: occurrence.occurrenceDate,
+            })
+            .onConflictDoUpdate({
+              target: [
+                calendarAvailabilityRuleExceptionsTable.userId,
+                calendarAvailabilityRuleExceptionsTable.ruleId,
+                calendarAvailabilityRuleExceptionsTable.occurrenceDate,
+              ],
+              set: { userId: uid(req) },
             });
-            if (fragments.length) {
-              await tx.insert(calendarAvailabilityTable).values(fragments);
-            }
-          }
-
-          const [entry] = await tx
-            .insert(calendarAvailabilityTable)
-            .values(value as any)
-            .returning();
-          inserted.push(entry);
         }
-        return inserted;
+        const overlapping = await tx
+          .select()
+          .from(calendarAvailabilityTable)
+          .where(
+            and(
+              eq(calendarAvailabilityTable.userId, uid(req)),
+              lt(calendarAvailabilityTable.startsAt, rangeEnd),
+              gt(calendarAvailabilityTable.endsAt, rangeStart),
+            ),
+          )
+          .for("update");
+        await tx
+          .delete(calendarAvailabilityTable)
+          .where(
+            and(
+              eq(calendarAvailabilityTable.userId, uid(req)),
+              lt(calendarAvailabilityTable.startsAt, rangeEnd),
+              gt(calendarAvailabilityTable.endsAt, rangeStart),
+            ),
+          );
+        const fragments = splitAvailabilityAroundRange(
+          overlapping as any,
+          rangeStart,
+          rangeEnd,
+          randomUUID,
+        );
+        if (fragments.length)
+          await tx.insert(calendarAvailabilityTable).values(fragments as any);
+        if (!values.length) return [];
+        return tx.insert(calendarAvailabilityTable).values(values).returning();
       },
       { isolationLevel: "serializable" },
     );
     res.json({ ok: true, availability: created });
   } catch (err) {
+    if (isSerializationFailure(err))
+      return void res.status(409).json({
+        ok: false,
+        error:
+          "Availability changed concurrently. Retry the range replacement.",
+      });
     logger.error({ err }, "bulk availability save failed");
     res
       .status(500)
@@ -676,10 +697,7 @@ router.post(
 );
 async function renderFeed(userId: string) {
   const [gigs, holds] = await Promise.all([
-    db
-      .select()
-      .from(gigsTable)
-      .where(eq(gigsTable.freelancerUserId, userId)),
+    db.select().from(gigsTable).where(eq(gigsTable.freelancerUserId, userId)),
     db
       .select()
       .from(calendarHoldsTable)
@@ -1013,7 +1031,8 @@ router.post("/portal/calendar/holds", requireSignedIn, async (req, res) => {
     !expires ||
     ends <= starts ||
     expires <= new Date() ||
-    expires.getTime() > Math.min(Date.now() + 48 * 60 * 60 * 1000, starts.getTime())
+    expires.getTime() >
+      Math.min(Date.now() + 48 * 60 * 60 * 1000, starts.getTime())
   )
     return void res.status(400).json({ ok: false, error: "Invalid hold." });
   const [[brief], [freelancer]] = await Promise.all([
@@ -1046,10 +1065,7 @@ router.post("/portal/calendar/holds", requireSignedIn, async (req, res) => {
       : "UTC";
   try {
     const holdStartDate = localDateInZone(starts, timezone);
-    const holdEndDate = localDateInZone(
-      new Date(ends.getTime() - 1),
-      timezone,
-    );
+    const holdEndDate = localDateInZone(new Date(ends.getTime() - 1), timezone);
     if (
       !brief.startDate ||
       holdStartDate !== brief.startDate ||

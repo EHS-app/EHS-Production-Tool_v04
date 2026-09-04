@@ -1,0 +1,53 @@
+PROPOSAL & IMPLEMENTATION: FREELANCER CALENDAR UX/UI HYBRID REDESIGN
+
+Please inspect and execute a complete UX/UI redesign of the Freelancer Portal Availability Calendar component (`artifacts/rigging-load-report/src/portal/screens/Availability.tsx` and all related calendar sub-components/styles).
+
+Goal: Replace the all-or-nothing month selection with an intuitive, user-friendly hybrid calendar that supports bulk presets, single-day cell toggles, multi-day range selection, AND partial-day / intra-day hour specificity (e.g., 08:00–16:00), with zero viewport clipping or double scrollbars at 1920x1080.
+
+---
+
+### 1. LAYOUT & VIEWPORT ARCHITECTURE
+- Container Structure: Ensure the main container is built as a full-height, responsive flex/grid view (100dvh or constrained flex-1) optimized for 1920x1080 desktop display.
+- Scroll Discipline: Eliminate page-level double scrollbars. Keep header controls fixed, the calendar grid neatly proportioned, and the bottom action bar sticky at the bottom.
+
+---
+
+### 2. PRESET ACTIONS & BULK CONTROL TOOLBAR
+Add a top or bottom preset action bar offering explicit bulk actions for the visible month:
+1. [ Set Month Available ] -> Bulk marks all dates in the current month as Available (Green).
+2. [ Set Month Busy ] -> Bulk marks all dates in the current month as Busy/Unavailable (Red/Dark).
+3. [ Clear Month / Reset ] -> Clears all availability for the visible month back to Neutral/Empty (White/Gray).
+
+---
+
+### 3. INTERACTIVE CELL, RANGE & HOURLY CONTROLS
+Implement direct interactive gestures on the calendar grid cells:
+- Single Click Toggle: Clicking any individual day cell cycles its state (Neutral -> Available -> Busy -> Neutral).
+- Click & Drag Range Selection: Support click-and-drag across multiple contiguous date cells to highlight and bulk-set a custom sub-range (e.g., setting March 12-15 as Busy).
+- Intra-Day Hour Granularity: 
+  - Preserve/implement the option to set custom hour windows for partial availability (e.g., Available 08:00–16:00 or Busy after 18:00).
+  - Display partial-day cells on the grid with a distinct partial badge/split indicator (showing the start/end time window).
+
+---
+
+### 4. ATOMIC INTERVAL SPLITTING & DATABASE BACKFILL
+Ensure the API requests sent from the calendar handle timestamp intervals atomically:
+- If a user modifies a date, sub-range, or hourly window within an existing longer period, atomically split the database interval (using Postgres timestamp ranges / btree_gist) so surrounding available periods are preserved cleanly without gaps or invalid overlaps.
+
+---
+
+### 5. VISUAL DESIGN & ACCESSIBILITY
+- High-Contrast Indicators:
+  - Solid Green: Available all day
+  - Solid Red/Dark: Busy all day
+  - Split / Badge (e.g., "08:00–16:00"): Partial-day hourly availability
+  - Amber / Badge icon: Booked / Dispatched to Active Show
+  - Neutral / Muted fill: Not Set
+- Accessible Buttons: Add `aria-pressed` states and clean visual focus ring highlights to all toggle buttons.
+
+---
+
+### VERIFICATION REQUIREMENTS
+1. Run `pnpm build` to confirm zero TypeScript errors.
+2. Verify calendar layout in Browser Preview at 1920x1080 resolution (zero clipping, zero double scrollbars).
+3. Test single-cell clicks, "Clear Month" reset button, multi-day drag selections, and hourly time entry.

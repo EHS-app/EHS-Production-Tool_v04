@@ -1,15 +1,42 @@
 const RFC3339_WITH_OFFSET =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 export function parseCalendarInstant(value: unknown): Date | null {
+  if (typeof value !== "string") return null;
+  const match = RFC3339_WITH_OFFSET.exec(value);
+  if (!match) return null;
+  const [, year, month, day, hour, minute, second = "0"] = match;
+  const yearNumber = Number(year);
+  const monthNumber = Number(month);
+  const dayNumber = Number(day);
+  const leapYear =
+    yearNumber % 4 === 0 &&
+    (yearNumber % 100 !== 0 || yearNumber % 400 === 0);
+  const daysInMonth = [
+    0,
+    31,
+    leapYear ? 29 : 28,
+    31,
+    30,
+    31,
+    30,
+    31,
+    31,
+    30,
+    31,
+    30,
+    31,
+  ][monthNumber] ?? 0;
   if (
-    typeof value !== "string" ||
-    !RFC3339_WITH_OFFSET.test(value) ||
-    Number.isNaN(Date.parse(value))
-  ) {
+    dayNumber < 1 ||
+    dayNumber > daysInMonth ||
+    Number(hour) > 23 ||
+    Number(minute) > 59 ||
+    Number(second) > 59
+  )
     return null;
-  }
-  return new Date(value);
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : new Date(parsed);
 }
 
 export function overlapsHalfOpen(

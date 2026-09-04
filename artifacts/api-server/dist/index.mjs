@@ -62817,6 +62817,7 @@ __export(schema_exports, {
   briefAssignmentsTable: () => briefAssignmentsTable,
   briefDispatchesTable: () => briefDispatchesTable,
   briefRoomAssignmentsTable: () => briefRoomAssignmentsTable,
+  calendarAvailabilityRuleExceptionsTable: () => calendarAvailabilityRuleExceptionsTable,
   calendarAvailabilityRulesTable: () => calendarAvailabilityRulesTable,
   calendarAvailabilityTable: () => calendarAvailabilityTable,
   calendarBusyIntervalsTable: () => calendarBusyIntervalsTable,
@@ -74793,56 +74794,103 @@ var TIME_ENTRY_STATUSES = [
 ];
 
 // ../../lib/db/src/schema/calendar.ts
-var calendarAvailabilityTable = pgTable("calendar_availability", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").notNull(),
-  status: text("status").notNull(),
-  // available | unavailable | tentative
-  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
-  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
-  timezone: text("timezone").notNull().default("UTC"),
-  allDay: boolean("all_day").notNull().default(false),
-  privateNote: text("private_note").notNull().default(""),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
-}, (t) => [index("calendar_availability_user_time_idx").on(t.userId, t.startsAt)]);
-var calendarAvailabilityRulesTable = pgTable("calendar_availability_rules", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").notNull(),
-  status: text("status").notNull(),
-  weekday: integer("weekday").notNull(),
-  startMinute: integer("start_minute").notNull(),
-  endMinute: integer("end_minute").notNull(),
-  timezone: text("timezone").notNull().default("UTC"),
-  /** Anchor prevents a weekly rule from projecting backward indefinitely. */
-  startsOn: timestamp("starts_on", { withTimezone: true }).notNull(),
-  until: timestamp("until", { withTimezone: true }).notNull(),
-  privateNote: text("private_note").notNull().default(""),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
-}, (t) => [index("calendar_rules_user_until_idx").on(t.userId, t.until)]);
-var calendarConnectionsTable = pgTable("calendar_connections", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").notNull(),
-  provider: text("provider").notNull(),
-  // google | microsoft | ics
-  encryptedCredentials: text("encrypted_credentials").notNull().default(""),
-  settings: jsonb("settings").notNull().default({}),
-  syncCursor: jsonb("sync_cursor").notNull().default({}),
-  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
-  lastError: text("last_error").notNull().default(""),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
-}, (t) => [index("calendar_connections_user_idx").on(t.userId), uniqueIndex("calendar_connections_user_provider_idx").on(t.userId, t.provider)]);
-var calendarBusyIntervalsTable = pgTable("calendar_busy_intervals", {
-  id: text("id").primaryKey(),
-  connectionId: text("connection_id").notNull().references(() => calendarConnectionsTable.id, { onDelete: "cascade" }),
-  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
-  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
-  sourceKey: text("source_key").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
-}, (t) => [index("calendar_busy_connection_time_idx").on(t.connectionId, t.startsAt), uniqueIndex("calendar_busy_source_idx").on(t.connectionId, t.sourceKey)]);
+var calendarAvailabilityTable = pgTable(
+  "calendar_availability",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    status: text("status").notNull(),
+    // available | unavailable | tentative
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    timezone: text("timezone").notNull().default("UTC"),
+    allDay: boolean("all_day").notNull().default(false),
+    privateNote: text("private_note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => [
+    index("calendar_availability_user_time_idx").on(t.userId, t.startsAt)
+  ]
+);
+var calendarAvailabilityRulesTable = pgTable(
+  "calendar_availability_rules",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    status: text("status").notNull(),
+    weekday: integer("weekday").notNull(),
+    startMinute: integer("start_minute").notNull(),
+    endMinute: integer("end_minute").notNull(),
+    timezone: text("timezone").notNull().default("UTC"),
+    /** Anchor prevents a weekly rule from projecting backward indefinitely. */
+    startsOn: timestamp("starts_on", { withTimezone: true }).notNull(),
+    until: timestamp("until", { withTimezone: true }).notNull(),
+    privateNote: text("private_note").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => [index("calendar_rules_user_until_idx").on(t.userId, t.until)]
+);
+var calendarAvailabilityRuleExceptionsTable = pgTable(
+  "calendar_availability_rule_exceptions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    ruleId: text("rule_id").notNull().references(() => calendarAvailabilityRulesTable.id, {
+      onDelete: "cascade"
+    }),
+    occurrenceDate: text("occurrence_date").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => [
+    uniqueIndex("calendar_rule_exception_owner_rule_date_idx").on(
+      t.userId,
+      t.ruleId,
+      t.occurrenceDate
+    ),
+    index("calendar_rule_exception_owner_idx").on(t.userId)
+  ]
+);
+var calendarConnectionsTable = pgTable(
+  "calendar_connections",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    provider: text("provider").notNull(),
+    // google | microsoft | ics
+    encryptedCredentials: text("encrypted_credentials").notNull().default(""),
+    settings: jsonb("settings").notNull().default({}),
+    syncCursor: jsonb("sync_cursor").notNull().default({}),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    lastError: text("last_error").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => [
+    index("calendar_connections_user_idx").on(t.userId),
+    uniqueIndex("calendar_connections_user_provider_idx").on(
+      t.userId,
+      t.provider
+    )
+  ]
+);
+var calendarBusyIntervalsTable = pgTable(
+  "calendar_busy_intervals",
+  {
+    id: text("id").primaryKey(),
+    connectionId: text("connection_id").notNull().references(() => calendarConnectionsTable.id, { onDelete: "cascade" }),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    sourceKey: text("source_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => [
+    index("calendar_busy_connection_time_idx").on(t.connectionId, t.startsAt),
+    uniqueIndex("calendar_busy_source_idx").on(t.connectionId, t.sourceKey)
+  ]
+);
 var calendarSubscriptionsTable = pgTable("calendar_subscriptions", {
   userId: text("user_id").primaryKey(),
   tokenHash: text("token_hash").notNull(),
@@ -74850,40 +74898,58 @@ var calendarSubscriptionsTable = pgTable("calendar_subscriptions", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   rotatedAt: timestamp("rotated_at", { withTimezone: true }).notNull().defaultNow()
 });
-var calendarOAuthStatesTable = pgTable("calendar_oauth_states", {
-  stateHash: text("state_hash").primaryKey(),
-  userId: text("user_id").notNull(),
-  provider: text("provider").notNull(),
-  encryptedVerifier: text("encrypted_verifier").notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-}, (t) => [index("calendar_oauth_states_expiry_idx").on(t.expiresAt)]);
-var calendarHoldsTable = pgTable("calendar_holds", {
-  id: text("id").primaryKey(),
-  freelancerUserId: text("freelancer_user_id").notNull(),
-  ownerUserId: text("owner_user_id").notNull(),
-  briefId: text("brief_id").references(() => projectBriefsTable.id, {
-    onDelete: "cascade"
-  }),
-  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
-  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
-}, (t) => [
-  index("calendar_holds_freelancer_time_idx").on(t.freelancerUserId, t.startsAt),
-  index("calendar_holds_owner_idx").on(t.ownerUserId),
-  index("calendar_holds_brief_idx").on(t.briefId)
-]);
-var calendarSyncJobsTable = pgTable("calendar_sync_jobs", {
-  id: text("id").primaryKey(),
-  connectionId: text("connection_id").notNull().references(() => calendarConnectionsTable.id, { onDelete: "cascade" }),
-  runAfter: timestamp("run_after", { withTimezone: true }).notNull().defaultNow(),
-  leasedUntil: timestamp("leased_until", { withTimezone: true }),
-  attempts: integer("attempts").notNull().default(0),
-  lastError: text("last_error").notNull().default(""),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
-}, (t) => [uniqueIndex("calendar_sync_job_connection_idx").on(t.connectionId), index("calendar_sync_job_due_idx").on(t.runAfter)]);
+var calendarOAuthStatesTable = pgTable(
+  "calendar_oauth_states",
+  {
+    stateHash: text("state_hash").primaryKey(),
+    userId: text("user_id").notNull(),
+    provider: text("provider").notNull(),
+    encryptedVerifier: text("encrypted_verifier").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => [index("calendar_oauth_states_expiry_idx").on(t.expiresAt)]
+);
+var calendarHoldsTable = pgTable(
+  "calendar_holds",
+  {
+    id: text("id").primaryKey(),
+    freelancerUserId: text("freelancer_user_id").notNull(),
+    ownerUserId: text("owner_user_id").notNull(),
+    briefId: text("brief_id").references(() => projectBriefsTable.id, {
+      onDelete: "cascade"
+    }),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => [
+    index("calendar_holds_freelancer_time_idx").on(
+      t.freelancerUserId,
+      t.startsAt
+    ),
+    index("calendar_holds_owner_idx").on(t.ownerUserId),
+    index("calendar_holds_brief_idx").on(t.briefId)
+  ]
+);
+var calendarSyncJobsTable = pgTable(
+  "calendar_sync_jobs",
+  {
+    id: text("id").primaryKey(),
+    connectionId: text("connection_id").notNull().references(() => calendarConnectionsTable.id, { onDelete: "cascade" }),
+    runAfter: timestamp("run_after", { withTimezone: true }).notNull().defaultNow(),
+    leasedUntil: timestamp("leased_until", { withTimezone: true }),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (t) => [
+    uniqueIndex("calendar_sync_job_connection_idx").on(t.connectionId),
+    index("calendar_sync_job_due_idx").on(t.runAfter)
+  ]
+);
 
 // ../../lib/db/src/schema/feedbackReports.ts
 var feedbackReportsTable = pgTable("feedback_reports", {
@@ -76923,12 +76989,38 @@ var requireEmployee = async (req, res, next) => {
 };
 
 // src/lib/calendarTime.ts
-var RFC3339_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
+var RFC3339_WITH_OFFSET = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 function parseCalendarInstant(value) {
-  if (typeof value !== "string" || !RFC3339_WITH_OFFSET.test(value) || Number.isNaN(Date.parse(value))) {
+  if (typeof value !== "string") return null;
+  const match2 = RFC3339_WITH_OFFSET.exec(value);
+  if (!match2) return null;
+  const [, year, month, day, hour, minute, second = "0"] = match2;
+  const yearNumber = Number(year);
+  const monthNumber = Number(month);
+  const dayNumber = Number(day);
+  const leapYear = yearNumber % 4 === 0 && (yearNumber % 100 !== 0 || yearNumber % 400 === 0);
+  const daysInMonth = [
+    0,
+    31,
+    leapYear ? 29 : 28,
+    31,
+    30,
+    31,
+    30,
+    31,
+    31,
+    30,
+    31,
+    30,
+    31
+  ][monthNumber] ?? 0;
+  if (dayNumber < 1 || dayNumber > daysInMonth || Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59)
     return null;
-  }
-  return new Date(value);
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : new Date(parsed);
+}
+function overlapsHalfOpen(leftStart, leftEnd, rightStart, rightEnd) {
+  return leftStart < rightEnd && leftEnd > rightStart;
 }
 function dateInTimeZone(value, timezone) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -81358,6 +81450,186 @@ END:VCALENDAR\r
 
 // src/routes/portalCalendar.ts
 init_calendarCrypto();
+
+// src/lib/calendarAvailabilityRules.ts
+function isAllDayWeeklyRule(rule) {
+  return rule.startMinute === 0 && rule.endMinute === 1440;
+}
+function ruleOccurrencesOverlappingRange(rules, rangeStart, rangeEnd) {
+  const occurrences = [];
+  const lastInstantInRange = new Date(rangeEnd.getTime() - 1);
+  for (const rule of rules) {
+    try {
+      const fromDate = dateInTimeZone(rangeStart, rule.timezone);
+      const toDate = dateInTimeZone(lastInstantInRange, rule.timezone);
+      for (const occurrence of expandWeeklyRuleOccurrences(
+        rule,
+        fromDate,
+        toDate
+      )) {
+        if (overlapsHalfOpen(
+          occurrence.startsAt,
+          occurrence.endsAt,
+          rangeStart,
+          rangeEnd
+        ))
+          occurrences.push({
+            ruleId: rule.id,
+            userId: rule.userId,
+            occurrenceDate: occurrence.date,
+            startsAt: occurrence.startsAt,
+            endsAt: occurrence.endsAt
+          });
+      }
+    } catch {
+    }
+  }
+  return occurrences;
+}
+function ruleOccurrenceExceptionKey(ruleId, occurrenceDate) {
+  return `${ruleId}:${occurrenceDate}`;
+}
+
+// src/lib/calendarAvailabilityBulk.ts
+var AVAILABILITY_STATUSES = [
+  "available",
+  "unavailable",
+  "tentative"
+];
+function isValidCalendarTimezone(value) {
+  if (typeof value !== "string" || value.length === 0 || value.length >= 80)
+    return false;
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: value }).format(0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function validateBulkAvailabilityReplacement(body, userId2, idFactory) {
+  if (!body || typeof body !== "object")
+    return { ok: false, error: "Provide a valid replacement range." };
+  const input = body;
+  const rangeStart = parseCalendarInstant(input.rangeStart);
+  const rangeEnd = parseCalendarInstant(input.rangeEnd);
+  if (!rangeStart || !rangeEnd || rangeEnd <= rangeStart)
+    return {
+      ok: false,
+      error: "rangeStart and rangeEnd must be explicit-offset RFC3339 timestamps with rangeEnd after rangeStart."
+    };
+  if (!Array.isArray(input.entries))
+    return { ok: false, error: "entries must be an array." };
+  if (input.entries.length > 100)
+    return {
+      ok: false,
+      error: "A replacement may contain at most 100 entries."
+    };
+  const values = [];
+  for (let index2 = 0; index2 < input.entries.length; index2++) {
+    const raw = input.entries[index2];
+    if (!raw || typeof raw !== "object" || Array.isArray(raw))
+      return { ok: false, error: `Entry ${index2 + 1} must be an object.` };
+    const entry = raw;
+    if (typeof entry.status !== "string" || !AVAILABILITY_STATUSES.includes(entry.status))
+      return {
+        ok: false,
+        error: `Entry ${index2 + 1} has an unsupported status.`
+      };
+    const startsAt = parseCalendarInstant(entry.startsAt);
+    const endsAt = parseCalendarInstant(entry.endsAt);
+    if (!startsAt || !endsAt)
+      return {
+        ok: false,
+        error: `Entry ${index2 + 1} timestamps must be explicit-offset RFC3339 values.`
+      };
+    if (endsAt <= startsAt)
+      return {
+        ok: false,
+        error: `Entry ${index2 + 1} end time must be after its start time.`
+      };
+    if (startsAt < rangeStart || endsAt > rangeEnd)
+      return {
+        ok: false,
+        error: `Entry ${index2 + 1} must be fully contained in the replacement range.`
+      };
+    if (!isValidCalendarTimezone(entry.timezone))
+      return {
+        ok: false,
+        error: `Entry ${index2 + 1} has an invalid timezone.`
+      };
+    if (entry.allDay !== void 0 && typeof entry.allDay !== "boolean")
+      return {
+        ok: false,
+        error: `Entry ${index2 + 1} allDay must be a boolean.`
+      };
+    if (entry.privateNote !== void 0 && typeof entry.privateNote !== "string")
+      return {
+        ok: false,
+        error: `Entry ${index2 + 1} privateNote must be a string.`
+      };
+    values.push({
+      id: idFactory(),
+      userId: userId2,
+      status: entry.status,
+      startsAt,
+      endsAt,
+      timezone: entry.timezone,
+      allDay: entry.allDay ?? false,
+      privateNote: (entry.privateNote ?? "").slice(0, 2e3)
+    });
+  }
+  values.sort(
+    (left, right) => left.startsAt.getTime() - right.startsAt.getTime()
+  );
+  for (let index2 = 1; index2 < values.length; index2++) {
+    if (values[index2].startsAt < values[index2 - 1].endsAt)
+      return {
+        ok: false,
+        error: "Replacement entries must not overlap."
+      };
+  }
+  return { ok: true, replacement: { rangeStart, rangeEnd, values } };
+}
+function splitAvailabilityAroundRange(rows, rangeStart, rangeEnd, idFactory) {
+  return rows.flatMap((row) => {
+    const fragments = [];
+    const metadata = {
+      userId: row.userId,
+      status: row.status,
+      timezone: row.timezone,
+      allDay: row.allDay,
+      privateNote: row.privateNote,
+      ...row.createdAt ? { createdAt: row.createdAt } : {},
+      ...row.updatedAt ? { updatedAt: row.updatedAt } : {}
+    };
+    if (row.startsAt < rangeStart)
+      fragments.push({
+        id: idFactory(),
+        ...metadata,
+        startsAt: row.startsAt,
+        endsAt: rangeStart
+      });
+    if (row.endsAt > rangeEnd)
+      fragments.push({
+        id: idFactory(),
+        ...metadata,
+        startsAt: rangeEnd,
+        endsAt: row.endsAt
+      });
+    return fragments;
+  });
+}
+function isSerializationFailure(error40) {
+  let current = error40;
+  for (let depth = 0; depth < 4 && current; depth++) {
+    if (typeof current === "object" && "code" in current && current.code === "40001")
+      return true;
+    current = typeof current === "object" && "cause" in current ? current.cause : null;
+  }
+  return false;
+}
+
+// src/routes/portalCalendar.ts
 var router10 = (0, import_express12.Router)();
 var requireSignedIn8 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
@@ -81441,11 +81713,13 @@ function expandRules(rules, fromDate, toDate) {
         out.push({
           id: `${rule.id}:${occurrence.date}`,
           ruleId: rule.id,
+          occurrenceDate: occurrence.date,
           status: rule.status,
           startsAt: occurrence.startsAt,
           endsAt: occurrence.endsAt,
           timezone: rule.timezone,
           privateNote: rule.privateNote,
+          allDay: isAllDayWeeklyRule(rule),
           virtual: true
         });
       }
@@ -81467,7 +81741,16 @@ router10.get("/portal/calendar", requireSignedIn8, async (req, res) => {
       error: "Calendar range must be between 0 and 366 days."
     });
   try {
-    const [availability, rules, busy, gigs, connections, holds, subscription2] = await Promise.all([
+    const [
+      availability,
+      rules,
+      exceptions,
+      busy,
+      gigs,
+      connections,
+      holds,
+      subscription2
+    ] = await Promise.all([
       db.select().from(calendarAvailabilityTable).where(
         and(
           eq(calendarAvailabilityTable.userId, uid(req)),
@@ -81481,6 +81764,10 @@ router10.get("/portal/calendar", requireSignedIn8, async (req, res) => {
           gte(calendarAvailabilityRulesTable.until, r.from)
         )
       ),
+      db.select({
+        ruleId: calendarAvailabilityRuleExceptionsTable.ruleId,
+        occurrenceDate: calendarAvailabilityRuleExceptionsTable.occurrenceDate
+      }).from(calendarAvailabilityRuleExceptionsTable).where(eq(calendarAvailabilityRuleExceptionsTable.userId, uid(req))),
       db.select({
         id: calendarBusyIntervalsTable.id,
         startsAt: calendarBusyIntervalsTable.startsAt,
@@ -81525,7 +81812,19 @@ router10.get("/portal/calendar", requireSignedIn8, async (req, res) => {
       ),
       db.select().from(calendarSubscriptionsTable).where(eq(calendarSubscriptionsTable.userId, uid(req))).limit(1)
     ]);
-    const expanded = expandRules(rules, r.fromDate, r.toDate);
+    const exceptionKeys = new Set(
+      exceptions.map(
+        (exception) => ruleOccurrenceExceptionKey(exception.ruleId, exception.occurrenceDate)
+      )
+    );
+    const expanded = expandRules(rules, r.fromDate, r.toDate).filter(
+      (occurrence) => !exceptionKeys.has(
+        ruleOccurrenceExceptionKey(
+          occurrence.ruleId,
+          occurrence.occurrenceDate
+        )
+      )
+    );
     const aliased = [...availability, ...expanded].map((a) => ({
       ...a,
       startAt: a.startsAt,
@@ -81540,7 +81839,7 @@ router10.get("/portal/calendar", requireSignedIn8, async (req, res) => {
       busy,
       externalBusy: busy,
       gigs,
-      holds,
+      holds: holds.map((hold) => ({ ...hold, status: "hold" })),
       connections: connections.map(safeConnection),
       feed: {
         enabled: Boolean(subscription2[0]),
@@ -81693,82 +81992,72 @@ router10.patch(
   }
 );
 router10.post("/portal/calendar/bulk", requireSignedIn8, async (req, res) => {
-  const entries = Array.isArray(req.body?.entries) ? req.body.entries.slice(0, 100) : [];
-  const values = entries.map((b) => ({
-    id: randomUUID6(),
-    userId: uid(req),
-    status: b.status,
-    startsAt: iso(b.startsAt),
-    endsAt: iso(b.endsAt),
-    timezone: typeof b.timezone === "string" ? b.timezone : "UTC",
-    allDay: Boolean(b.allDay),
-    privateNote: typeof b.privateNote === "string" ? b.privateNote.slice(0, 2e3) : ""
-  })).filter(
-    (x) => ["available", "unavailable", "tentative"].includes(x.status) && x.startsAt && x.endsAt && x.endsAt > x.startsAt
+  const parsed = validateBulkAvailabilityReplacement(
+    req.body,
+    uid(req),
+    randomUUID6
   );
-  if (!values.length)
-    return void res.status(400).json({ ok: false, error: "No valid availability entries." });
+  if (!parsed.ok)
+    return void res.status(400).json({ ok: false, error: parsed.error });
+  const { rangeStart, rangeEnd, values } = parsed.replacement;
   try {
     const created = await db.transaction(
       async (tx) => {
-        const inserted = [];
-        for (const value of values) {
-          const overlapping = await tx.select().from(calendarAvailabilityTable).where(
-            and(
-              eq(calendarAvailabilityTable.userId, uid(req)),
-              lt(calendarAvailabilityTable.startsAt, value.endsAt),
-              gt(calendarAvailabilityTable.endsAt, value.startsAt)
-            )
-          );
-          if (overlapping.length) {
-            await tx.delete(calendarAvailabilityTable).where(
-              and(
-                eq(calendarAvailabilityTable.userId, uid(req)),
-                lt(calendarAvailabilityTable.startsAt, value.endsAt),
-                gt(calendarAvailabilityTable.endsAt, value.startsAt)
-              )
-            );
-            const fragments = overlapping.flatMap((existing) => {
-              const preserved = [];
-              if (existing.startsAt < value.startsAt) {
-                preserved.push({
-                  id: randomUUID6(),
-                  userId: existing.userId,
-                  status: existing.status,
-                  startsAt: existing.startsAt,
-                  endsAt: value.startsAt,
-                  timezone: existing.timezone,
-                  allDay: existing.allDay,
-                  privateNote: existing.privateNote
-                });
-              }
-              if (existing.endsAt > value.endsAt) {
-                preserved.push({
-                  id: randomUUID6(),
-                  userId: existing.userId,
-                  status: existing.status,
-                  startsAt: value.endsAt,
-                  endsAt: existing.endsAt,
-                  timezone: existing.timezone,
-                  allDay: existing.allDay,
-                  privateNote: existing.privateNote
-                });
-              }
-              return preserved;
-            });
-            if (fragments.length) {
-              await tx.insert(calendarAvailabilityTable).values(fragments);
-            }
-          }
-          const [entry] = await tx.insert(calendarAvailabilityTable).values(value).returning();
-          inserted.push(entry);
+        const rules = await tx.select().from(calendarAvailabilityRulesTable).where(eq(calendarAvailabilityRulesTable.userId, uid(req))).for("update");
+        const suppressedOccurrences = ruleOccurrencesOverlappingRange(
+          rules,
+          rangeStart,
+          rangeEnd
+        );
+        for (const occurrence of suppressedOccurrences) {
+          await tx.insert(calendarAvailabilityRuleExceptionsTable).values({
+            id: randomUUID6(),
+            userId: uid(req),
+            ruleId: occurrence.ruleId,
+            occurrenceDate: occurrence.occurrenceDate
+          }).onConflictDoUpdate({
+            target: [
+              calendarAvailabilityRuleExceptionsTable.userId,
+              calendarAvailabilityRuleExceptionsTable.ruleId,
+              calendarAvailabilityRuleExceptionsTable.occurrenceDate
+            ],
+            set: { userId: uid(req) }
+          });
         }
-        return inserted;
+        const overlapping = await tx.select().from(calendarAvailabilityTable).where(
+          and(
+            eq(calendarAvailabilityTable.userId, uid(req)),
+            lt(calendarAvailabilityTable.startsAt, rangeEnd),
+            gt(calendarAvailabilityTable.endsAt, rangeStart)
+          )
+        ).for("update");
+        await tx.delete(calendarAvailabilityTable).where(
+          and(
+            eq(calendarAvailabilityTable.userId, uid(req)),
+            lt(calendarAvailabilityTable.startsAt, rangeEnd),
+            gt(calendarAvailabilityTable.endsAt, rangeStart)
+          )
+        );
+        const fragments = splitAvailabilityAroundRange(
+          overlapping,
+          rangeStart,
+          rangeEnd,
+          randomUUID6
+        );
+        if (fragments.length)
+          await tx.insert(calendarAvailabilityTable).values(fragments);
+        if (!values.length) return [];
+        return tx.insert(calendarAvailabilityTable).values(values).returning();
       },
       { isolationLevel: "serializable" }
     );
     res.json({ ok: true, availability: created });
   } catch (err) {
+    if (isSerializationFailure(err))
+      return void res.status(409).json({
+        ok: false,
+        error: "Availability changed concurrently. Retry the range replacement."
+      });
     logger.error({ err }, "bulk availability save failed");
     res.status(500).json({ ok: false, error: "Could not update availability." });
   }
@@ -82090,10 +82379,7 @@ router10.post("/portal/calendar/holds", requireSignedIn8, async (req, res) => {
   const timezone = typeof b.timezone === "string" && b.timezone.length < 80 ? b.timezone : "UTC";
   try {
     const holdStartDate = localDateInZone(starts, timezone);
-    const holdEndDate = localDateInZone(
-      new Date(ends.getTime() - 1),
-      timezone
-    );
+    const holdEndDate = localDateInZone(new Date(ends.getTime() - 1), timezone);
     if (!brief.startDate || holdStartDate !== brief.startDate || holdEndDate !== (brief.endDate ?? brief.startDate)) {
       return void res.status(400).json({
         ok: false,

@@ -146,8 +146,8 @@ export function CalendarGrid({
 
   function entryTimeLabel(entry: CalendarEntry): string {
     return entry.allDay
-      ? "All day"
-      : `${localTimeOnly(entry.startAt)} - ${localTimeOnly(entry.endAt)}`;
+      ? t("portal.availability.editor.allDay")
+      : `${localTimeOnly(entry.startAt)}–${localTimeOnly(entry.endAt)}`;
   }
 
   const selectionCount = useMemo(() => {
@@ -307,48 +307,64 @@ export function CalendarGrid({
                 onPointerUp={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
-                  openEditor(cell.iso!, effectiveEntry);
+                  openEditor(cell.iso!);
                 }}
-                title={t("portal.availability.openEditor")}
+                title={t("portal.availability.addTimeBlock") as string}
+                aria-label={t("portal.availability.addTimeBlock") as string}
               >
                 <Clock size={12} />
               </button>
 
-              <div className="availability-cell-badges">
-                {visibleDayEntries.map((entry) =>
-                  entry.ruleId ? (
-                  <span
-                    key={`${entry.ruleId || entry.id}-${entry.startAt}`}
-                    className={`availability-time-badge availability-time-badge--${entry.status}`}
-                    title={`${entryTimeLabel(entry)}${entry.note ? ` · ${entry.note}` : ""}`}
-                  >
-                    <span className="availability-time-badge__dot" />
-                    <span className="availability-time-badge__label">
-                      {entryTimeLabel(entry)}
-                    </span>
-                  </span>
-                  ) : (
-                    <span
-                      key={entry.id}
+              <div
+                className="availability-cell-badges"
+                onPointerDown={(event) => event.stopPropagation()}
+                onPointerUp={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+              >
+                {visibleDayEntries.map((entry) => {
+                  const key = entry.ruleId ? `${entry.ruleId}-${entry.startAt}` : entry.id;
+                  const title = `${entryTimeLabel(entry)}${entry.note ? ` · ${entry.note}` : ""}`;
+                  const statusLabel =
+                    entry.status === "available"
+                      ? t("portal.availability.legend.available")
+                      : entry.status === "unavailable"
+                        ? t("portal.availability.legend.unavailable")
+                        : t("portal.availability.legend.tentative");
+                  const ariaLabel = `${statusLabel}, ${entryTimeLabel(entry)}`;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
                       className={`availability-time-badge availability-time-badge--${entry.status}`}
-                      title={`${entryTimeLabel(entry)}${entry.note ? ` · ${entry.note}` : ""}`}
+                      title={title}
+                      aria-label={ariaLabel}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onPointerUp={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditor(cell.iso!, entry);
+                      }}
+                      style={{ cursor: "pointer", fontFamily: "inherit", textAlign: "left", margin: 0, appearance: "none" }}
                     >
                       <span className="availability-time-badge__dot" />
                       <span className="availability-time-badge__label">
                         {entryTimeLabel(entry)}
                       </span>
-                    </span>
-                  ),
-                )}
+                    </button>
+                  );
+                })}
                 {dayHolds.map((hold) => (
                   <span
                     key={hold.id}
                     className="availability-time-badge availability-time-badge--tentative"
-                    title={`${t("portal.availability.legend.hold")} ${localTimeOnly(hold.startAt)}-${localTimeOnly(hold.endAt)}`}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onPointerUp={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    title={`${t("portal.availability.legend.hold")} ${localTimeOnly(hold.startAt)}–${localTimeOnly(hold.endAt)}`}
                   >
                     <span className="availability-time-badge__dot" />
                     <span className="availability-time-badge__label">
-                      {t("portal.availability.legend.hold")} {localTimeOnly(hold.startAt)}-{localTimeOnly(hold.endAt)}
+                      {t("portal.availability.legend.hold")} {localTimeOnly(hold.startAt)}–{localTimeOnly(hold.endAt)}
                     </span>
                   </span>
                 ))}
@@ -356,16 +372,19 @@ export function CalendarGrid({
                   <span
                     key={busy.id}
                     className="availability-time-badge availability-time-badge--unavailable"
-                    title={`${localTimeOnly(busy.startAt)} - ${localTimeOnly(busy.endAt)}`}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onPointerUp={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    title={`${localTimeOnly(busy.startAt)}–${localTimeOnly(busy.endAt)}`}
                   >
                     <span className="availability-time-badge__dot" />
                     <span className="availability-time-badge__label">
-                      {localTimeOnly(busy.startAt)} - {localTimeOnly(busy.endAt)}
+                      {localTimeOnly(busy.startAt)}–{localTimeOnly(busy.endAt)}
                     </span>
                   </span>
                 ))}
                 {hasGig ? (
-                  <span className="availability-time-badge availability-time-badge--gig">
+                  <span className="availability-time-badge availability-time-badge--gig" onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
                     <span className="availability-time-badge__dot" />
                     <span className="availability-time-badge__label">
                       {t("portal.availability.legend.gig")}

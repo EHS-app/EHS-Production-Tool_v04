@@ -405,7 +405,7 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, minHeight: "100%", height: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <header style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "space-between", flexShrink: 0 }}>
         <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>{t("portal.availability.title")}</h1>
         <div style={{ display: "flex", gap: 8, background: c.cardBgSubtle, padding: 4, borderRadius: 8, border: `1px solid ${c.border}` }}>
@@ -422,8 +422,7 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
           padding: 16,
           display: "flex",
           flexDirection: "column",
-          flex: 1,
-          overflow: "hidden" // Help contain inner content in flex if needed
+          overflow: "visible"
         }}>
           <div style={{ display: "flex", alignItems: "center", marginBottom: 12, gap: 8, flexShrink: 0 }}>
             <button onClick={() => shiftDate(-1)} style={navBtnStyle(theme)} aria-label={t("portal.availability.prev")}>‹</button>
@@ -437,7 +436,7 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
             </div>
           </div>
 
-          <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+          <div style={{ overflowY: "visible", minHeight: 0 }}>
             <CalendarGrid
               theme={theme}
               cells={cells}
@@ -453,7 +452,7 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
               viewMode={viewMode}
             />
             
-            <div style={{ marginTop: 14, display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center", fontSize: 12, color: c.muted }}>
+            <div style={{ marginTop: 10, marginBottom: 8, display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center", fontSize: 12, color: c.muted }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                 <span style={{ width: 12, height: 12, borderRadius: 6, background: "#16a34a" }} />
                 <span>{t("portal.availability.legend.available")}</span>
@@ -572,7 +571,8 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
           gap: 3px;
           max-height: calc(100% - 31px);
           overflow-y: auto;
-          pointer-events: none;
+          pointer-events: auto;
+          scrollbar-width: thin;
         }
         .availability-time-badge {
           display: flex;
@@ -636,9 +636,10 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
         }
         .availability-toggle-bar {
           margin-top: 8px;
-          padding: 6px 12px;
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+          padding: 8px 12px;
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: space-between;
           align-items: center;
           gap: 12px;
           border: 1px solid ${c.border};
@@ -650,9 +651,16 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
           font-size: 12px;
           font-weight: 700;
         }
-        .availability-toggle-bar__buttons { display: flex; gap: 8px; }
+        .availability-toggle-bar__buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        @media (max-width: 600px) {
+          .availability-toggle-bar { flex-direction: column; align-items: stretch; }
+          .availability-toggle-bar__label { text-align: center; }
+          .availability-toggle-bar__buttons { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+          .availability-toggle-bar__buttons > button:last-child { grid-column: 1 / -1; }
+        }
         .availability-toggle {
           min-width: 116px;
+          min-height: 44px;
           padding: 8px 16px;
           display: inline-flex;
           align-items: center;

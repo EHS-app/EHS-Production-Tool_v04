@@ -1302,6 +1302,8 @@ export const en = {
   "portal.availability.bulk.monthAvailable": "Mark Month Available",
   "portal.availability.bulk.monthUnavailable": "Mark Month Unavailable",
   "portal.availability.bulk.freeFromToday": "Mark Free From Today",
+  "portal.availability.bulk.available": "Available",
+  "portal.availability.bulk.busy": "Busy",
   "portal.availability.connectedAccounts": "Connected Accounts",
   "portal.availability.notConnected": "Not connected",
   "portal.availability.connectedAs": "Connected as",

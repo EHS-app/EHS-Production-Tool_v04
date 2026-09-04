@@ -513,11 +513,83 @@ router.post("/portal/calendar/bulk", requireSignedIn, async (req, res) => {
     return void res
       .status(400)
       .json({ ok: false, error: "No valid availability entries." });
-  const created = await db
-    .insert(calendarAvailabilityTable)
-    .values(values as any)
-    .returning();
-  res.json({ ok: true, availability: created });
+  try {
+    const created = await db.transaction(
+      async (tx) => {
+        const inserted = [];
+        for (const value of values) {
+          const overlapping = await tx
+            .select()
+            .from(calendarAvailabilityTable)
+            .where(
+              and(
+                eq(calendarAvailabilityTable.userId, uid(req)),
+                lt(calendarAvailabilityTable.startsAt, value.endsAt),
+                gt(calendarAvailabilityTable.endsAt, value.startsAt),
+              ),
+            );
+
+          if (overlapping.length) {
+            await tx
+              .delete(calendarAvailabilityTable)
+              .where(
+                and(
+                  eq(calendarAvailabilityTable.userId, uid(req)),
+                  lt(calendarAvailabilityTable.startsAt, value.endsAt),
+                  gt(calendarAvailabilityTable.endsAt, value.startsAt),
+                ),
+              );
+
+            const fragments = overlapping.flatMap((existing) => {
+              const preserved = [];
+              if (existing.startsAt < value.startsAt) {
+                preserved.push({
+                  id: randomUUID(),
+                  userId: existing.userId,
+                  status: existing.status,
+                  startsAt: existing.startsAt,
+                  endsAt: value.startsAt,
+                  timezone: existing.timezone,
+                  allDay: existing.allDay,
+                  privateNote: existing.privateNote,
+                });
+              }
+              if (existing.endsAt > value.endsAt) {
+                preserved.push({
+                  id: randomUUID(),
+                  userId: existing.userId,
+                  status: existing.status,
+                  startsAt: value.endsAt,
+                  endsAt: existing.endsAt,
+                  timezone: existing.timezone,
+                  allDay: existing.allDay,
+                  privateNote: existing.privateNote,
+                });
+              }
+              return preserved;
+            });
+            if (fragments.length) {
+              await tx.insert(calendarAvailabilityTable).values(fragments);
+            }
+          }
+
+          const [entry] = await tx
+            .insert(calendarAvailabilityTable)
+            .values(value as any)
+            .returning();
+          inserted.push(entry);
+        }
+        return inserted;
+      },
+      { isolationLevel: "serializable" },
+    );
+    res.json({ ok: true, availability: created });
+  } catch (err) {
+    logger.error({ err }, "bulk availability save failed");
+    res
+      .status(500)
+      .json({ ok: false, error: "Could not update availability." });
+  }
 });
 router.delete(
   "/portal/calendar/availability/:id",

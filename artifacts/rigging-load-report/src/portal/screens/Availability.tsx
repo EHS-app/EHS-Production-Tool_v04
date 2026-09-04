@@ -13,6 +13,9 @@ type CalendarEntry = {
   endAt: string;
   allDay: boolean;
   note?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  virtual?: boolean;
 };
 
 type ExternalBusy = {
@@ -140,6 +143,7 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
   const [icsUrl, setIcsUrl] = useState("");
 
   const [loading, setLoading] = useState(false);
+  const [activeBulkStatus, setActiveBulkStatus] = useState<"available" | "unavailable" | null>(null);
 
   const baseUrl = (typeof import.meta !== "undefined" && (import.meta as any).env?.BASE_URL) || "/";
 
@@ -169,6 +173,9 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
           endAt: e.endsAt || e.endAt,
           allDay: e.allDay,
           note: e.privateNote || e.note,
+          createdAt: e.createdAt,
+          updatedAt: e.updatedAt,
+          virtual: Boolean(e.virtual),
         })));
         setExternalBusy((json.externalBusy || []).map((entry: any) => ({
           id: entry.id,
@@ -390,31 +397,44 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
   }, [data.gigs]);
 
 
-  const handleBulk = async (status: string, scope: "month" | "today") => {
-    const token = await getToken();
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    let startLocal, endLocal;
-    if (scope === "month") {
+  useEffect(() => {
+    setActiveBulkStatus(null);
+  }, [viewMode, viewYear, viewMonth, viewWeekStart]);
+
+  const handleBulk = async (status: "available" | "unavailable") => {
+    setLoading(true);
+    try {
+      const token = await getToken();
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      let startLocal: string;
+      let endLocal: string;
+      if (viewMode === "month") {
       startLocal = `${isoDateOnly(new Date(viewYear, viewMonth, 1))}T00:00:00`;
       endLocal = `${isoDateOnly(new Date(viewYear, viewMonth + 1, 1))}T00:00:00`;
-    } else {
-      startLocal = `${isoDateOnly(today)}T00:00:00`;
-      endLocal = `${isoDateOnly(new Date(today.getFullYear() + 1, today.getMonth(), today.getDate()))}T00:00:00`;
-    }
-    const startsAt = new Date(startLocal).toISOString();
-    const endsAt = new Date(endLocal).toISOString();
+      } else {
+        const weekEnd = new Date(viewWeekStart);
+        weekEnd.setDate(weekEnd.getDate() + 7);
+        startLocal = `${isoDateOnly(viewWeekStart)}T00:00:00`;
+        endLocal = `${isoDateOnly(weekEnd)}T00:00:00`;
+      }
+      const startsAt = new Date(startLocal).toISOString();
+      const endsAt = new Date(endLocal).toISOString();
 
-    const res = await fetch(`${baseUrl}api/portal/calendar/bulk`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ entries: [{ status, startsAt, endsAt, allDay: true }] })
-    });
-    if (!res.ok) {
-       toast.error(await res.text());
-       return;
+      const res = await fetch(`${baseUrl}api/portal/calendar/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ entries: [{ status, startsAt, endsAt, timezone: tz, allDay: true }] })
+      });
+      if (!res.ok) {
+        toast.error(await responseError(res));
+        return;
+      }
+      setActiveBulkStatus(status);
+      toast.success(status === "available" ? "View marked available" : "View marked busy");
+      await loadCalendar();
+    } finally {
+      setLoading(false);
     }
-    toast.success("Bulk update applied successfully");
-    loadCalendar();
   };
 
   return (
@@ -461,9 +481,20 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
                 overlapsLocalDay(e.startAt, e.endAt, cell.iso!),
               );
 
-              let isAvailable = dayEntries.some(e => e.status === "available");
-              let isUnavailable = dayEntries.some(e => e.status === "unavailable") || dayBusy.length > 0;
-              let isTentative = dayEntries.some(e => e.status === "tentative");
+              const effectiveEntry = [...dayEntries].sort((a, b) => {
+                if (a.virtual !== b.virtual) return a.virtual ? 1 : -1;
+                const aTime = new Date(a.updatedAt || a.createdAt || a.startAt).getTime();
+                const bTime = new Date(b.updatedAt || b.createdAt || b.startAt).getTime();
+                return bTime - aTime;
+              })[0];
+              const visibleDayEntries = dayBusy.length > 0
+                ? dayEntries.filter((entry) => entry.status === "unavailable")
+                : effectiveEntry
+                  ? dayEntries.filter((entry) => entry.status === effectiveEntry.status)
+                  : [];
+
+              let isAvailable = dayBusy.length === 0 && effectiveEntry?.status === "available";
+              let isUnavailable = dayBusy.length > 0 || effectiveEntry?.status === "unavailable";
 
               // Local migration fallback if server provides nothing for this day
               if (dayEntries.length === 0 && dayBusy.length === 0) {
@@ -518,7 +549,7 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
                     </span>
                   </button>
                   <div className="availability-cell-badges">
-                    {dayEntries.map((entry) =>
+                    {visibleDayEntries.map((entry) =>
                       entry.ruleId ? (
                       <span
                         key={`${entry.ruleId || entry.id}-${entry.startAt}`}
@@ -578,10 +609,32 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
             <LegendDot color="#6366f1" label={t("portal.availability.legend.gig")} />
           </div>
 
-          <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
-            <button onClick={() => handleBulk("available", "month")} style={btnPill(theme)}>{t("portal.availability.bulk.monthAvailable")}</button>
-            <button onClick={() => handleBulk("unavailable", "month")} style={btnPill(theme)}>{t("portal.availability.bulk.monthUnavailable")}</button>
-            <button onClick={() => handleBulk("available", "today")} style={btnPill(theme)}>{t("portal.availability.bulk.freeFromToday")}</button>
+          <div className="availability-toggle-bar">
+            <span className="availability-toggle-bar__label">
+              {viewMode === "month" ? monthName : t("portal.availability.view.week")}
+            </span>
+            <div className="availability-toggle-bar__buttons" role="group" aria-label="Set availability for current view">
+              <button
+                type="button"
+                aria-pressed={activeBulkStatus === "available"}
+                disabled={loading}
+                onClick={() => handleBulk("available")}
+                className={`availability-toggle availability-toggle--available${activeBulkStatus === "available" ? " is-active" : ""}`}
+              >
+                <span className="availability-toggle__dot" />
+                {t("portal.availability.bulk.available")}
+              </button>
+              <button
+                type="button"
+                aria-pressed={activeBulkStatus === "unavailable"}
+                disabled={loading}
+                onClick={() => handleBulk("unavailable")}
+                className={`availability-toggle availability-toggle--busy${activeBulkStatus === "unavailable" ? " is-active" : ""}`}
+              >
+                <span className="availability-toggle__dot" />
+                {t("portal.availability.bulk.busy")}
+              </button>
+            </div>
           </div>
 
         </div>
@@ -770,6 +823,60 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
           outline: none;
           border-color: #f97316 !important;
           box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.45);
+        }
+        .availability-toggle-bar {
+          margin-top: 8px;
+          padding: 6px 12px;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+          align-items: center;
+          gap: 12px;
+          border: 1px solid ${c.border};
+          border-radius: 12px;
+          background: ${c.cardBgSubtle};
+        }
+        .availability-toggle-bar__label {
+          color: ${c.muted};
+          font-size: 12px;
+          font-weight: 700;
+        }
+        .availability-toggle-bar__buttons { display: flex; gap: 8px; }
+        .availability-toggle {
+          min-width: 116px;
+          padding: 8px 16px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          border: 1px solid ${c.border};
+          border-radius: 999px;
+          background: ${c.cardBg};
+          color: ${c.text};
+          font-size: 13px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: background .15s ease, border-color .15s ease, box-shadow .15s ease, color .15s ease;
+        }
+        .availability-toggle:disabled { cursor: wait; opacity: .65; }
+        .availability-toggle__dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: currentColor;
+        }
+        .availability-toggle--available { color: #15803d; }
+        .availability-toggle--busy { color: #b91c1c; }
+        .availability-toggle--available.is-active {
+          color: #fff;
+          border-color: #16a34a;
+          background: #16a34a;
+          box-shadow: 0 0 0 3px rgba(22, 163, 74, .2);
+        }
+        .availability-toggle--busy.is-active {
+          color: #fff;
+          border-color: #dc2626;
+          background: #dc2626;
+          box-shadow: 0 0 0 3px rgba(220, 38, 38, .2);
         }
       `}</style>
     </div>

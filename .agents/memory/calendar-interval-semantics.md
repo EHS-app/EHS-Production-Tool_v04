@@ -8,3 +8,9 @@ Treat every calendar interval as half-open: `[start, end)`. An interval that end
 **Why:** Inclusive overlap checks created false conflicts at handoff boundaries. Separately, grouping persisted UTC timestamps by string date prefixes caused one local all-day recurrence to appear on adjacent days around timezone offsets.
 
 **How to apply:** Require offset-bearing instants at API boundaries, compare overlaps with `start < rangeEnd && end > rangeStart`, and convert instants through the viewer's timezone before assigning them to calendar dates or editing local times.
+
+Bulk availability changes must replace every overlapping manual availability state inside the selected interval while preserving any portions before or after that interval. A calendar date must expose one effective manual status; synced external busy time takes visual precedence over manual availability.
+
+**Why:** Appending month-wide availability created simultaneous green and red layers. Deleting whole spanning intervals would fix the month while silently erasing availability outside it.
+
+**How to apply:** Split overlapping stored intervals at the bulk range boundaries, remove the covered portions, insert the replacement state atomically, and render only the effective status for each local day.

@@ -1321,6 +1321,8 @@ export const no: Translations = {
   "portal.availability.bulk.monthAvailable": "Marker Måned Tilgjengelig",
   "portal.availability.bulk.monthUnavailable": "Marker Måned Opptatt",
   "portal.availability.bulk.freeFromToday": "Marker Ledig Fra I Dag",
+  "portal.availability.bulk.available": "Tilgjengelig",
+  "portal.availability.bulk.busy": "Opptatt",
   "portal.availability.connectedAccounts": "Tilkoblede Kontoer",
   "portal.availability.notConnected": "Ikke tilkoblet",
   "portal.availability.connectedAs": "Tilkoblet som",

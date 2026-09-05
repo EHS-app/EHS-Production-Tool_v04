@@ -190,6 +190,23 @@ export declare const projectsTable: import("drizzle-orm/pg-core").PgTableWithCol
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        archivedAt: import("drizzle-orm/pg-core").PgColumn<{
+            name: "archived_at";
+            tableName: "projects";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         data: import("drizzle-orm/pg-core").PgColumn<{
             name: "data";
             tableName: "projects";
@@ -562,6 +579,7 @@ export declare const insertProjectSchema: z.ZodObject<{
     clonedFromProjectId: z.ZodOptional<z.ZodNullable<z.ZodUUID>>;
     status: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     statusUpdatedAt: z.ZodOptional<z.ZodNullable<z.ZodDate>>;
+    archivedAt: z.ZodOptional<z.ZodNullable<z.ZodDate>>;
 }, {
     out: {};
     in: {};

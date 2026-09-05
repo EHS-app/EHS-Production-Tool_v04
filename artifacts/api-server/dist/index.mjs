@@ -74427,6 +74427,7 @@ var projectsTable = pgTable(
      * derived from their legacy project data until they are backfilled. */
     status: text("status"),
     statusUpdatedAt: timestamp("status_updated_at", { withTimezone: true }),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     data: jsonb("data").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
@@ -74437,6 +74438,7 @@ var projectsTable = pgTable(
     index("projects_venue_id_idx").on(t.venueId),
     index("projects_client_id_idx").on(t.clientId),
     index("projects_cloned_from_idx").on(t.clonedFromProjectId),
+    index("projects_archived_at_idx").on(t.archivedAt),
     foreignKey({
       columns: [t.clonedFromProjectId],
       foreignColumns: [t.id],
@@ -75210,37 +75212,33 @@ var db = drizzle(pool, { schema: schema_exports });
 var PROJECT_BRIEF_PROVENANCE_LOCK = sql`
   select pg_advisory_xact_lock(1886545254, 134756896)
 `;
-async function deleteOwnedProject(projectId, ownerUserId) {
+async function hardDeleteProject(projectId) {
   return db.transaction(async (tx) => {
     await tx.execute(PROJECT_BRIEF_PROVENANCE_LOCK);
     const [project] = await tx.select({
       id: projectsTable.id,
+      ownerUserId: projectsTable.userId,
       activeBriefId: sql`nullif(${projectsTable.data}->>'activeBriefId', '')`
-    }).from(projectsTable).where(
-      and(
-        eq(projectsTable.id, projectId),
-        eq(projectsTable.userId, ownerUserId)
-      )
-    ).limit(1).for("update");
+    }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1).for("update");
     if (!project) return { kind: "not_found" };
     await tx.update(projectBriefsTable).set({ projectId: null, updatedAt: /* @__PURE__ */ new Date() }).where(
       and(
         eq(projectBriefsTable.projectId, projectId),
-        ne(projectBriefsTable.ownerUserId, ownerUserId)
+        ne(projectBriefsTable.ownerUserId, project.ownerUserId)
       )
     );
     const linkedBriefWhere = project.activeBriefId ? or(
       and(
         eq(projectBriefsTable.projectId, projectId),
-        eq(projectBriefsTable.ownerUserId, ownerUserId)
+        eq(projectBriefsTable.ownerUserId, project.ownerUserId)
       ),
       and(
         eq(projectBriefsTable.id, project.activeBriefId),
-        eq(projectBriefsTable.ownerUserId, ownerUserId)
+        eq(projectBriefsTable.ownerUserId, project.ownerUserId)
       )
     ) : and(
       eq(projectBriefsTable.projectId, projectId),
-      eq(projectBriefsTable.ownerUserId, ownerUserId)
+      eq(projectBriefsTable.ownerUserId, project.ownerUserId)
     );
     const linkedBriefs = await tx.select({
       id: projectBriefsTable.id,
@@ -75281,12 +75279,7 @@ async function deleteOwnedProject(projectId, ownerUserId) {
     await tx.delete(projectMembersTable).where(eq(projectMembersTable.projectId, projectId));
     await tx.delete(transportRunsTable).where(eq(transportRunsTable.projectId, projectId));
     await tx.update(projectsTable).set({ clonedFromProjectId: null, updatedAt: /* @__PURE__ */ new Date() }).where(eq(projectsTable.clonedFromProjectId, projectId));
-    const removed = await tx.delete(projectsTable).where(
-      and(
-        eq(projectsTable.id, projectId),
-        eq(projectsTable.userId, ownerUserId)
-      )
-    ).returning({ id: projectsTable.id });
+    const removed = await tx.delete(projectsTable).where(eq(projectsTable.id, projectId)).returning({ id: projectsTable.id });
     return removed.length === 1 ? { kind: "deleted" } : { kind: "not_found" };
   });
 }
@@ -78416,21 +78409,17 @@ var UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 function isProjectWriter(role) {
   return role === "owner" || role === "editor";
 }
-async function getProjectAccess(projectId, userId2) {
-  const [project] = await db.select({ ownerId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
-  if (!project) return null;
-  if (project.ownerId === userId2) return "owner";
-  const [membership] = await db.select({ role: projectMembersTable.role }).from(projectMembersTable).where(
-    and(
-      eq(projectMembersTable.projectId, projectId),
-      eq(projectMembersTable.userId, userId2)
-    )
-  ).limit(1);
-  return membership?.role === "editor" || membership?.role === "viewer" ? membership.role : null;
+function isProjectArchived(project) {
+  return project.archivedAt != null || project.status === "archived";
 }
-async function getEmployeeProjectAccess(projectId, userId2) {
-  const [project] = await db.select({ ownerId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
+async function getEmployeeProjectAccess(projectId, userId2, options = {}) {
+  const [project] = await db.select({
+    ownerId: projectsTable.userId,
+    archivedAt: projectsTable.archivedAt,
+    status: projectsTable.status
+  }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
   if (!project) return null;
+  if (!options.includeArchived && isProjectArchived(project)) return null;
   if (project.ownerId === userId2) return "owner";
   const [membership] = await db.select({ role: projectMembersTable.role }).from(projectMembersTable).where(
     and(
@@ -78609,6 +78598,27 @@ function emptyDispatchSummary() {
 
 // src/routes/portalBriefs.ts
 var router7 = (0, import_express9.Router)();
+var requireUnarchivedBriefProject = async (req, res, next) => {
+  const briefId = String(req.params.id ?? "");
+  try {
+    const [row] = await db.select({
+      projectId: projectBriefsTable.projectId,
+      archivedAt: projectsTable.archivedAt,
+      status: projectsTable.status
+    }).from(projectBriefsTable).leftJoin(projectsTable, eq(projectsTable.id, projectBriefsTable.projectId)).where(eq(projectBriefsTable.id, briefId)).limit(1);
+    if (row?.projectId && isProjectArchived(row)) {
+      res.status(409).json({
+        ok: false,
+        error: "Archived projects must be restored before producer changes."
+      });
+      return;
+    }
+    next();
+  } catch (error40) {
+    req.log.error(error40, "Failed to verify brief project archive state");
+    res.status(500).json({ ok: false, error: "Could not verify project state." });
+  }
+};
 var requireSignedIn5 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
@@ -78697,7 +78707,7 @@ function freelancerBriefData(raw, storedSnapshot) {
 async function safeVenueSnapshot(userId2, projectId, directVenueId) {
   let venueId = directVenueId;
   if (projectId) {
-    const access = await getProjectAccess(projectId, userId2);
+    const access = await getEmployeeProjectAccess(projectId, userId2);
     if (!access) return { snapshot: null, error: "Project not found." };
     const [project] = await db.select({ venueId: projectsTable.venueId }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
     venueId = project?.venueId ?? null;
@@ -78993,7 +79003,7 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
       let effectiveProjectStatus = null;
       if (effectiveProjectId) {
         const [effectiveProject] = await tx.select().from(projectsTable).where(eq(projectsTable.id, effectiveProjectId)).limit(1).for("update");
-        if (!effectiveProject || effectiveProject.userId !== userId2 || ["completed", "archived"].includes(deriveLegacyProjectStatus(effectiveProject))) return { terminalProject: true };
+        if (!effectiveProject || effectiveProject.userId !== userId2 || isProjectArchived(effectiveProject) || ["completed", "archived"].includes(deriveLegacyProjectStatus(effectiveProject))) return { terminalProject: true };
         effectiveProjectStatus = deriveLegacyProjectStatus(effectiveProject);
       }
       const inserted = await tx.insert(projectBriefsTable).values({
@@ -79570,6 +79580,7 @@ router7.get(
 router7.patch(
   "/portal/briefs/:id/hotel/:gigId",
   requireEmployee,
+  requireUnarchivedBriefProject,
   async (req, res) => {
     const userId2 = req._userId;
     const briefId = String(req.params.id ?? "");
@@ -79712,6 +79723,7 @@ router7.patch(
 router7.patch(
   "/portal/briefs/:id/roster/:gigId/dates",
   requireEmployee,
+  requireUnarchivedBriefProject,
   async (req, res) => {
     const userId2 = req._userId;
     const briefId = String(req.params.id ?? "");
@@ -80103,6 +80115,7 @@ router7.get(
 router7.post(
   "/portal/briefs/:id/hotel/lock",
   requireEmployee,
+  requireUnarchivedBriefProject,
   async (req, res) => {
     const userId2 = req._userId;
     const briefId = String(req.params.id ?? "");
@@ -80191,6 +80204,7 @@ router7.post(
 router7.post(
   "/portal/briefs/:id/hotel/unlock",
   requireEmployee,
+  requireUnarchivedBriefProject,
   async (req, res) => {
     const userId2 = req._userId;
     const briefId = String(req.params.id ?? "");
@@ -80229,6 +80243,7 @@ router7.post(
 router7.post(
   "/portal/briefs/:id/hotel/swap",
   requireEmployee,
+  requireUnarchivedBriefProject,
   async (req, res) => {
     const userId2 = req._userId;
     const briefId = String(req.params.id ?? "");
@@ -82516,11 +82531,237 @@ router11.get("/portal/my-tasks", requireSignedIn9, async (req, res) => {
 var portalWork_default = router11;
 
 // src/routes/projects.ts
-var import_express15 = __toESM(require_express2(), 1);
+var import_express17 = __toESM(require_express2(), 1);
 import { randomUUID as randomUUID7 } from "node:crypto";
 
-// src/lib/projectManagers.ts
+// src/routes/admin.ts
+var import_express14 = __toESM(require_express2(), 1);
 var clerk3 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+var ADMIN_EMAIL_DOMAIN = "@ehs.no";
+var ADMIN_EMAILS = new Set(
+  (process.env.ADMIN_EMAILS ?? "olti@ehs.no").split(",").map((email3) => email3.trim().toLowerCase()).filter(Boolean)
+);
+function getEmailFromUser(user) {
+  const list2 = user.emailAddresses ?? [];
+  const primary = list2.find(
+    (entry) => entry.id === user.primaryEmailAddressId
+  );
+  if (typeof primary?.emailAddress === "string") {
+    return primary.emailAddress;
+  }
+  return list2.find((entry) => typeof entry.emailAddress === "string")?.emailAddress ?? null;
+}
+function getVerifiedPrimaryEhsEmail(user) {
+  if (!user.primaryEmailAddressId) return null;
+  const primary = (user.emailAddresses ?? []).find(
+    (entry) => entry.id === user.primaryEmailAddressId
+  );
+  const email3 = primary?.emailAddress?.trim().toLowerCase();
+  if (primary?.verification?.status !== "verified" || !email3?.endsWith(ADMIN_EMAIL_DOMAIN)) {
+    return null;
+  }
+  return email3;
+}
+var requireAdmin = async (req, res, next) => {
+  const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
+  const userId2 = auth?.userId ?? null;
+  if (!userId2) {
+    res.status(401).json({ ok: false, error: "Sign in required." });
+    return;
+  }
+  if (!clerk3) {
+    res.status(503).json({ ok: false, error: "Admin API unavailable (Clerk not configured)." });
+    return;
+  }
+  try {
+    const caller = await clerk3.users.getUser(userId2);
+    const email3 = getVerifiedPrimaryEhsEmail(caller);
+    if (!email3 || !ADMIN_EMAILS.has(email3)) {
+      res.status(403).json({
+        ok: false,
+        error: "Admin tools require an authorized EHS administrator."
+      });
+      return;
+    }
+    req._adminEmail = email3;
+    next();
+  } catch (err) {
+    logger.warn(
+      {
+        scope: "admin",
+        userId: userId2,
+        err: err instanceof Error ? err.message : String(err)
+      },
+      "admin gate: Clerk getUser failed"
+    );
+    res.status(500).json({ ok: false, error: "Admin auth check failed." });
+  }
+};
+var router12 = (0, import_express14.Router)();
+router12.get("/admin/me", requireAdmin, (_req, res) => {
+  res.json({ ok: true, isAdmin: true });
+});
+router12.post("/admin/claim-employee", requireAdmin, async (req, res) => {
+  if (!clerk3) {
+    res.status(503).json({ ok: false, error: "Clerk not configured." });
+    return;
+  }
+  const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
+  const userId2 = auth?.userId ?? null;
+  if (!userId2) {
+    res.status(401).json({ ok: false, error: "Sign in required." });
+    return;
+  }
+  try {
+    const user = await clerk3.users.getUser(userId2);
+    await clerk3.users.updateUserMetadata(userId2, {
+      publicMetadata: {
+        ...user.publicMetadata ?? {},
+        userType: "employee"
+      }
+    });
+    await db.delete(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId2));
+    res.json({ ok: true, userType: "employee" });
+  } catch (err) {
+    logger.error(
+      {
+        scope: "admin",
+        userId: userId2,
+        err: err instanceof Error ? err.message : String(err)
+      },
+      "admin: self-service employee classification failed"
+    );
+    res.status(500).json({ ok: false, error: "Failed to update user type." });
+  }
+});
+router12.post("/admin/set-user-type", requireAdmin, async (req, res) => {
+  if (!clerk3) {
+    res.status(503).json({ ok: false, error: "Clerk not configured." });
+    return;
+  }
+  const body = req.body ?? {};
+  const email3 = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const userType = body.userType === "freelancer" ? "freelancer" : "employee";
+  if (!email3 || !email3.includes("@")) {
+    res.status(400).json({ ok: false, error: "Valid email required." });
+    return;
+  }
+  try {
+    const list2 = await clerk3.users.getUserList({ emailAddress: [email3] });
+    const users = Array.isArray(list2) ? list2 : list2.data || [];
+    if (users.length === 0) {
+      res.status(404).json({ ok: false, error: "No user found with that email." });
+      return;
+    }
+    const results = [];
+    for (const u of users) {
+      const previousType = (u.publicMetadata ?? {})?.userType;
+      await clerk3.users.updateUserMetadata(u.id, {
+        publicMetadata: { ...u.publicMetadata ?? {}, userType }
+      });
+      let freelancerProfileDeleted = false;
+      if (userType === "employee") {
+        try {
+          const del = await db.delete(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, u.id)).returning({ userId: freelancerProfilesTable.userId });
+          freelancerProfileDeleted = del.length > 0;
+        } catch (err) {
+          logger.warn(
+            {
+              scope: "admin",
+              userId: u.id,
+              err: err instanceof Error ? err.message : String(err)
+            },
+            "admin: failed to delete freelancer_profiles row"
+          );
+        }
+      }
+      results.push({
+        userId: u.id,
+        email: getEmailFromUser(u),
+        previousType,
+        newType: userType,
+        freelancerProfileDeleted
+      });
+    }
+    const adminEmail = req._adminEmail;
+    logger.info(
+      { scope: "admin", adminEmail, email: email3, userType, results },
+      "admin: set-user-type completed"
+    );
+    res.json({ ok: true, results });
+  } catch (err) {
+    logger.error(
+      {
+        scope: "admin",
+        email: email3,
+        err: err instanceof Error ? err.message : String(err)
+      },
+      "admin: set-user-type failed"
+    );
+    res.status(500).json({ ok: false, error: "Failed to update user." });
+  }
+});
+router12.post("/admin/delete-user", requireAdmin, async (req, res) => {
+  if (!clerk3) {
+    res.status(503).json({ ok: false, error: "Clerk not configured." });
+    return;
+  }
+  const body = req.body ?? {};
+  const email3 = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (!email3 || !email3.includes("@")) {
+    res.status(400).json({ ok: false, error: "Valid email required." });
+    return;
+  }
+  const adminEmail = req._adminEmail;
+  if (adminEmail && adminEmail.toLowerCase() === email3) {
+    res.status(400).json({ ok: false, error: "Refusing to delete the calling admin account." });
+    return;
+  }
+  try {
+    const list2 = await clerk3.users.getUserList({ emailAddress: [email3] });
+    const users = Array.isArray(list2) ? list2 : list2.data || [];
+    if (users.length === 0) {
+      res.status(404).json({ ok: false, error: "No user found with that email." });
+      return;
+    }
+    const deleted = [];
+    for (const u of users) {
+      try {
+        await db.delete(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, u.id));
+      } catch (err) {
+        logger.warn(
+          {
+            scope: "admin",
+            userId: u.id,
+            err: err instanceof Error ? err.message : String(err)
+          },
+          "admin: failed to delete freelancer_profiles row during user delete"
+        );
+      }
+      await clerk3.users.deleteUser(u.id);
+      deleted.push({ userId: u.id, email: getEmailFromUser(u) });
+    }
+    logger.info(
+      { scope: "admin", adminEmail, email: email3, deleted },
+      "admin: delete-user completed"
+    );
+    res.json({ ok: true, deleted });
+  } catch (err) {
+    logger.error(
+      {
+        scope: "admin",
+        email: email3,
+        err: err instanceof Error ? err.message : String(err)
+      },
+      "admin: delete-user failed"
+    );
+    res.status(500).json({ ok: false, error: "Failed to delete user." });
+  }
+});
+var admin_default = router12;
+
+// src/lib/projectManagers.ts
+var clerk4 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
 var CLERK_BATCH_SIZE = 100;
 function fallbackManager(userId2) {
   return { userId: userId2, name: "Unknown manager", email: null, avatarUrl: null };
@@ -82542,11 +82783,11 @@ function managerFromUser(user) {
 async function getProjectManagers(ownerIds) {
   const ids = [...new Set(ownerIds)].filter(Boolean);
   const managers = new Map(ids.map((id) => [id, fallbackManager(id)]));
-  if (!clerk3 || ids.length === 0) return managers;
+  if (!clerk4 || ids.length === 0) return managers;
   for (let start = 0; start < ids.length; start += CLERK_BATCH_SIZE) {
     const batch = ids.slice(start, start + CLERK_BATCH_SIZE);
     try {
-      const result = await clerk3.users.getUserList({
+      const result = await clerk4.users.getUserList({
         userId: batch,
         limit: batch.length
       });
@@ -82589,7 +82830,7 @@ function projectFinanceSeed(rawData) {
 }
 
 // src/routes/projects.ts
-var router12 = (0, import_express15.Router)();
+var router13 = (0, import_express17.Router)();
 var requireSignedIn10 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
@@ -82660,8 +82901,9 @@ function projectResponse(row) {
     cloned_from_project_id: row.clonedFromProjectId
   };
 }
-router12.get("/projects", requireSignedIn10, async (req, res) => {
+router13.get("/projects", requireSignedIn10, async (req, res) => {
   const userId2 = req._userId;
+  const includeArchived = req.query.includeArchived === "true";
   try {
     const rows = await db.select({
       id: projectsTable.id,
@@ -82677,6 +82919,8 @@ router12.get("/projects", requireSignedIn10, async (req, res) => {
       reportEndDate: sql`${projectsTable.data}->>'reportEndDate'`,
       crewCount: sql`case when jsonb_typeof(${projectsTable.data}->'crew') = 'array' then jsonb_array_length(${projectsTable.data}->'crew') else 0 end`,
       status: sql`coalesce(${projectsTable.status}, case when nullif(${projectsTable.data}->>'activeBriefId', '') is not null then 'active' when nullif(${projectsTable.venue}, '') is not null or nullif(${projectsTable.client}, '') is not null then 'planning' else 'draft' end)`,
+      archivedAt: projectsTable.archivedAt,
+      isArchived: sql`coalesce(${projectsTable.archivedAt} is not null or ${projectsTable.status} = 'archived', false)`,
       createdAt: projectsTable.createdAt,
       updatedAt: projectsTable.updatedAt,
       accessRole: sql`case when ${projectsTable.userId} = ${userId2} then 'owner' when ${projectMembersTable.role} in ('editor', 'viewer') then ${projectMembersTable.role} else 'editor' end`
@@ -82685,6 +82929,11 @@ router12.get("/projects", requireSignedIn10, async (req, res) => {
       and(
         eq(projectMembersTable.projectId, projectsTable.id),
         eq(projectMembersTable.userId, userId2)
+      )
+    ).where(
+      includeArchived ? void 0 : and(
+        isNull(projectsTable.archivedAt),
+        or(isNull(projectsTable.status), ne(projectsTable.status, "archived"))
       )
     ).orderBy(desc(projectsTable.updatedAt));
     const managers = await getProjectManagers(rows.map((row) => row.created_by));
@@ -82718,7 +82967,7 @@ router12.get("/projects", requireSignedIn10, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to list projects." });
   }
 });
-router12.get("/projects/:id", requireSignedIn10, async (req, res) => {
+router13.get("/projects/:id", requireSignedIn10, async (req, res) => {
   const userId2 = req._userId;
   const { id } = req.params;
   if (!UUID_PATTERN.test(String(id))) {
@@ -82726,7 +82975,9 @@ router12.get("/projects/:id", requireSignedIn10, async (req, res) => {
     return;
   }
   try {
-    const accessRole = await getEmployeeProjectAccess(String(id), userId2);
+    const accessRole = await getEmployeeProjectAccess(String(id), userId2, {
+      includeArchived: true
+    });
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -82744,7 +82995,8 @@ router12.get("/projects/:id", requireSignedIn10, async (req, res) => {
         created_by: row.userId,
         manager: managers.get(row.userId),
         accessRole,
-        status: deriveLegacyProjectStatus(row)
+        status: deriveLegacyProjectStatus(row),
+        isArchived: isProjectArchived(row)
       }
     });
   } catch (err) {
@@ -82752,7 +83004,7 @@ router12.get("/projects/:id", requireSignedIn10, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to load project." });
   }
 });
-router12.post("/projects", requireSignedIn10, async (req, res) => {
+router13.post("/projects", requireSignedIn10, async (req, res) => {
   const userId2 = req._userId;
   const {
     name,
@@ -82836,7 +83088,7 @@ router12.post("/projects", requireSignedIn10, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to create project." });
   }
 });
-router12.patch("/projects/:id", requireSignedIn10, async (req, res) => {
+router13.patch("/projects/:id", requireSignedIn10, async (req, res) => {
   const userId2 = req._userId;
   const { id } = req.params;
   const {
@@ -82903,7 +83155,7 @@ router12.patch("/projects/:id", requireSignedIn10, async (req, res) => {
       await tx.execute(PROJECT_BRIEF_PROVENANCE_LOCK);
       const [project] = await tx.select().from(projectsTable).where(eq(projectsTable.id, String(id))).limit(1).for("update");
       if (!project) return { kind: "not_found" };
-      if (["completed", "archived"].includes(deriveLegacyProjectStatus(project))) {
+      if (isProjectArchived(project) || ["completed", "archived"].includes(deriveLegacyProjectStatus(project))) {
         return { kind: "terminal" };
       }
       if (data !== void 0 && !await validActiveBriefProvenance(
@@ -82946,7 +83198,7 @@ router12.patch("/projects/:id", requireSignedIn10, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to update project." });
   }
 });
-router12.post("/projects/:id/status", requireSignedIn10, async (req, res) => {
+router13.post("/projects/:id/status", requireSignedIn10, async (req, res) => {
   const userId2 = req._userId;
   const id = String(req.params.id ?? "");
   const requestedStatus = req.body?.status;
@@ -83041,6 +83293,7 @@ router12.post("/projects/:id/status", requireSignedIn10, async (req, res) => {
       const [updated] = transition === "idempotent" ? [locked] : await tx.update(projectsTable).set({
         status: requestedStatus,
         statusUpdatedAt: sql`now()`,
+        archivedAt: requestedStatus === "archived" ? sql`now()` : locked.archivedAt,
         updatedAt: sql`now()`
       }).where(eq(projectsTable.id, id)).returning();
       if (!updated) return { kind: "not_found" };
@@ -83100,30 +83353,103 @@ router12.post("/projects/:id/status", requireSignedIn10, async (req, res) => {
     res.status(500).json({ ok: false, error: "Failed to transition project status." });
   }
 });
-router12.delete("/projects/:id", requireSignedIn10, async (req, res) => {
-  const userId2 = req._userId;
+async function setProjectArchived(req, res, archived) {
   const { id } = req.params;
   if (!UUID_PATTERN.test(String(id))) {
     res.status(404).json({ ok: false, error: "Project not found." });
     return;
   }
   try {
-    const result = await deleteOwnedProject(String(id), userId2);
+    const userId2 = req._userId;
+    const accessRole = await getEmployeeProjectAccess(String(id), userId2, {
+      includeArchived: true
+    });
+    if (!accessRole) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    if (!isProjectWriter(accessRole)) {
+      res.status(403).json({ ok: false, error: "Project is read-only." });
+      return;
+    }
+    const result = await db.transaction(async (tx) => {
+      const [locked] = await tx.select().from(projectsTable).where(eq(projectsTable.id, String(id))).limit(1).for("update");
+      if (!locked) return { kind: "not_found" };
+      const currentStatus = deriveLegacyProjectStatus(locked);
+      const restoredStatus = !archived && currentStatus === "archived" ? "completed" : currentStatus;
+      const [project] = await tx.update(projectsTable).set({
+        archivedAt: archived ? sql`now()` : null,
+        status: restoredStatus,
+        statusUpdatedAt: restoredStatus !== currentStatus ? sql`now()` : locked.statusUpdatedAt,
+        updatedAt: sql`now()`
+      }).where(eq(projectsTable.id, String(id))).returning();
+      if (!project) return { kind: "not_found" };
+      if (restoredStatus !== currentStatus) {
+        await tx.insert(projectStatusHistoryTable).values({
+          projectId: String(id),
+          fromStatus: currentStatus,
+          toStatus: restoredStatus,
+          actorUserId: userId2,
+          reason: "Restored from archive"
+        });
+      }
+      return { kind: "updated", project };
+    });
     if (result.kind === "not_found") {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
-    res.status(200).json({ success: true, id: String(id) });
+    res.json({
+      ok: true,
+      project: {
+        ...projectResponse(result.project),
+        accessRole,
+        status: deriveLegacyProjectStatus(result.project),
+        isArchived: isProjectArchived(result.project)
+      }
+    });
   } catch (err) {
-    req.log.error(err, "Failed to delete project");
-    res.status(500).json({ error: "Failed to delete project." });
+    req.log.error(err, archived ? "Failed to archive project" : "Failed to restore project");
+    res.status(500).json({
+      ok: false,
+      error: archived ? "Failed to archive project." : "Failed to restore project."
+    });
   }
+}
+router13.post("/projects/:id/archive", requireSignedIn10, async (req, res) => {
+  await setProjectArchived(req, res, true);
 });
-var projects_default = router12;
+router13.post("/projects/:id/unarchive", requireSignedIn10, async (req, res) => {
+  await setProjectArchived(req, res, false);
+});
+router13.delete(
+  "/projects/:id",
+  requireSignedIn10,
+  requireAdmin,
+  async (req, res) => {
+    const { id } = req.params;
+    if (!UUID_PATTERN.test(String(id))) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    try {
+      const result = await hardDeleteProject(String(id));
+      if (result.kind === "not_found") {
+        res.status(404).json({ ok: false, error: "Project not found." });
+        return;
+      }
+      res.status(200).json({ success: true, id: String(id) });
+    } catch (err) {
+      req.log.error(err, "Failed to permanently delete project");
+      res.status(500).json({ error: "Failed to permanently delete project." });
+    }
+  }
+);
+var projects_default = router13;
 
 // src/routes/inspectionExtract.ts
-var import_express16 = __toESM(require_express2(), 1);
-var router13 = (0, import_express16.Router)();
+var import_express18 = __toESM(require_express2(), 1);
+var router14 = (0, import_express18.Router)();
 var requireSignedIn11 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
@@ -83241,9 +83567,9 @@ function normalizeResult(raw) {
     general: normalizeItems(obj.general)
   };
 }
-router13.post(
+router14.post(
   "/inspection/extract",
-  (0, import_express16.json)({ limit: "100kb" }),
+  (0, import_express18.json)({ limit: "100kb" }),
   requireSignedIn11,
   rateLimit2,
   async (req, res) => {
@@ -83292,230 +83618,7 @@ router13.post(
     }
   }
 );
-var inspectionExtract_default = router13;
-
-// src/routes/admin.ts
-var import_express17 = __toESM(require_express2(), 1);
-var clerk4 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
-var ADMIN_EMAIL_DOMAIN = "@ehs.no";
-var ADMIN_EMAILS = new Set(
-  (process.env.ADMIN_EMAILS ?? "olti@ehs.no").split(",").map((email3) => email3.trim().toLowerCase()).filter(Boolean)
-);
-function getEmailFromUser(user) {
-  const list2 = user.emailAddresses ?? [];
-  const primary = list2.find(
-    (entry) => entry.id === user.primaryEmailAddressId
-  );
-  if (typeof primary?.emailAddress === "string") {
-    return primary.emailAddress;
-  }
-  return list2.find((entry) => typeof entry.emailAddress === "string")?.emailAddress ?? null;
-}
-function getVerifiedPrimaryEhsEmail(user) {
-  if (!user.primaryEmailAddressId) return null;
-  const primary = (user.emailAddresses ?? []).find(
-    (entry) => entry.id === user.primaryEmailAddressId
-  );
-  const email3 = primary?.emailAddress?.trim().toLowerCase();
-  if (primary?.verification?.status !== "verified" || !email3?.endsWith(ADMIN_EMAIL_DOMAIN)) {
-    return null;
-  }
-  return email3;
-}
-var requireAdmin = async (req, res, next) => {
-  const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
-  const userId2 = auth?.userId ?? null;
-  if (!userId2) {
-    res.status(401).json({ ok: false, error: "Sign in required." });
-    return;
-  }
-  if (!clerk4) {
-    res.status(503).json({ ok: false, error: "Admin API unavailable (Clerk not configured)." });
-    return;
-  }
-  try {
-    const caller = await clerk4.users.getUser(userId2);
-    const email3 = getVerifiedPrimaryEhsEmail(caller);
-    if (!email3 || !ADMIN_EMAILS.has(email3)) {
-      res.status(403).json({
-        ok: false,
-        error: "Admin tools require an authorized EHS administrator."
-      });
-      return;
-    }
-    req._adminEmail = email3;
-    next();
-  } catch (err) {
-    logger.warn(
-      {
-        scope: "admin",
-        userId: userId2,
-        err: err instanceof Error ? err.message : String(err)
-      },
-      "admin gate: Clerk getUser failed"
-    );
-    res.status(500).json({ ok: false, error: "Admin auth check failed." });
-  }
-};
-var router14 = (0, import_express17.Router)();
-router14.post("/admin/claim-employee", requireAdmin, async (req, res) => {
-  if (!clerk4) {
-    res.status(503).json({ ok: false, error: "Clerk not configured." });
-    return;
-  }
-  const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
-  const userId2 = auth?.userId ?? null;
-  if (!userId2) {
-    res.status(401).json({ ok: false, error: "Sign in required." });
-    return;
-  }
-  try {
-    const user = await clerk4.users.getUser(userId2);
-    await clerk4.users.updateUserMetadata(userId2, {
-      publicMetadata: {
-        ...user.publicMetadata ?? {},
-        userType: "employee"
-      }
-    });
-    await db.delete(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, userId2));
-    res.json({ ok: true, userType: "employee" });
-  } catch (err) {
-    logger.error(
-      {
-        scope: "admin",
-        userId: userId2,
-        err: err instanceof Error ? err.message : String(err)
-      },
-      "admin: self-service employee classification failed"
-    );
-    res.status(500).json({ ok: false, error: "Failed to update user type." });
-  }
-});
-router14.post("/admin/set-user-type", requireAdmin, async (req, res) => {
-  if (!clerk4) {
-    res.status(503).json({ ok: false, error: "Clerk not configured." });
-    return;
-  }
-  const body = req.body ?? {};
-  const email3 = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  const userType = body.userType === "freelancer" ? "freelancer" : "employee";
-  if (!email3 || !email3.includes("@")) {
-    res.status(400).json({ ok: false, error: "Valid email required." });
-    return;
-  }
-  try {
-    const list2 = await clerk4.users.getUserList({ emailAddress: [email3] });
-    const users = Array.isArray(list2) ? list2 : list2.data || [];
-    if (users.length === 0) {
-      res.status(404).json({ ok: false, error: "No user found with that email." });
-      return;
-    }
-    const results = [];
-    for (const u of users) {
-      const previousType = (u.publicMetadata ?? {})?.userType;
-      await clerk4.users.updateUserMetadata(u.id, {
-        publicMetadata: { ...u.publicMetadata ?? {}, userType }
-      });
-      let freelancerProfileDeleted = false;
-      if (userType === "employee") {
-        try {
-          const del = await db.delete(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, u.id)).returning({ userId: freelancerProfilesTable.userId });
-          freelancerProfileDeleted = del.length > 0;
-        } catch (err) {
-          logger.warn(
-            {
-              scope: "admin",
-              userId: u.id,
-              err: err instanceof Error ? err.message : String(err)
-            },
-            "admin: failed to delete freelancer_profiles row"
-          );
-        }
-      }
-      results.push({
-        userId: u.id,
-        email: getEmailFromUser(u),
-        previousType,
-        newType: userType,
-        freelancerProfileDeleted
-      });
-    }
-    const adminEmail = req._adminEmail;
-    logger.info(
-      { scope: "admin", adminEmail, email: email3, userType, results },
-      "admin: set-user-type completed"
-    );
-    res.json({ ok: true, results });
-  } catch (err) {
-    logger.error(
-      {
-        scope: "admin",
-        email: email3,
-        err: err instanceof Error ? err.message : String(err)
-      },
-      "admin: set-user-type failed"
-    );
-    res.status(500).json({ ok: false, error: "Failed to update user." });
-  }
-});
-router14.post("/admin/delete-user", requireAdmin, async (req, res) => {
-  if (!clerk4) {
-    res.status(503).json({ ok: false, error: "Clerk not configured." });
-    return;
-  }
-  const body = req.body ?? {};
-  const email3 = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  if (!email3 || !email3.includes("@")) {
-    res.status(400).json({ ok: false, error: "Valid email required." });
-    return;
-  }
-  const adminEmail = req._adminEmail;
-  if (adminEmail && adminEmail.toLowerCase() === email3) {
-    res.status(400).json({ ok: false, error: "Refusing to delete the calling admin account." });
-    return;
-  }
-  try {
-    const list2 = await clerk4.users.getUserList({ emailAddress: [email3] });
-    const users = Array.isArray(list2) ? list2 : list2.data || [];
-    if (users.length === 0) {
-      res.status(404).json({ ok: false, error: "No user found with that email." });
-      return;
-    }
-    const deleted = [];
-    for (const u of users) {
-      try {
-        await db.delete(freelancerProfilesTable).where(eq(freelancerProfilesTable.userId, u.id));
-      } catch (err) {
-        logger.warn(
-          {
-            scope: "admin",
-            userId: u.id,
-            err: err instanceof Error ? err.message : String(err)
-          },
-          "admin: failed to delete freelancer_profiles row during user delete"
-        );
-      }
-      await clerk4.users.deleteUser(u.id);
-      deleted.push({ userId: u.id, email: getEmailFromUser(u) });
-    }
-    logger.info(
-      { scope: "admin", adminEmail, email: email3, deleted },
-      "admin: delete-user completed"
-    );
-    res.json({ ok: true, deleted });
-  } catch (err) {
-    logger.error(
-      {
-        scope: "admin",
-        email: email3,
-        err: err instanceof Error ? err.message : String(err)
-      },
-      "admin: delete-user failed"
-    );
-    res.status(500).json({ ok: false, error: "Failed to delete user." });
-  }
-});
-var admin_default = router14;
+var inspectionExtract_default = router14;
 
 // src/routes/feedback.ts
 var import_express20 = __toESM(require_express2(), 1);
@@ -83889,8 +83992,12 @@ function verifiedEhsIdentity(user) {
   return primary?.verification?.status === "verified" && result.email?.endsWith("@ehs.no") ? result : null;
 }
 async function ownerProject(projectId, userId2) {
-  const [project] = await db.select({ ownerId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
-  return project?.ownerId === userId2 ? project : null;
+  const [project] = await db.select({
+    ownerId: projectsTable.userId,
+    archivedAt: projectsTable.archivedAt,
+    status: projectsTable.status
+  }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
+  return project?.ownerId === userId2 && !isProjectArchived(project) ? project : null;
 }
 router17.get("/projects/:projectId/members", async (req, res) => {
   const projectId = param2(req.params.projectId);
@@ -84577,7 +84684,13 @@ async function loadEconomy(callerUserId) {
   ).leftJoin(
     projectFinanceSettingsTable,
     eq(projectFinanceSettingsTable.projectId, projectsTable.id)
-  ).where(isNotNull(sql`nullif(${projectsTable.data}->>'activeBriefId', '')`));
+  ).where(
+    and(
+      isNotNull(sql`nullif(${projectsTable.data}->>'activeBriefId', '')`),
+      isNull(projectsTable.archivedAt),
+      or(isNull(projectsTable.status), ne(projectsTable.status, "archived"))
+    )
+  );
   const projectIds = projects.map((project) => project.id);
   const activeBriefIds = projects.map((project) => project.activeBriefId);
   const [expenses, laborRows] = await Promise.all([
@@ -84837,7 +84950,7 @@ router21.patch(
     }
     try {
       const callerUserId = userId(req);
-      const access = await getProjectAccess(projectId, callerUserId);
+      const access = await getEmployeeProjectAccess(projectId, callerUserId);
       if (!access) {
         res.status(404).json({ ok: false, error: "Project not found." });
         return;

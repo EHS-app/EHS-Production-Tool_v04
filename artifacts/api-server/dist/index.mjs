@@ -78073,18 +78073,17 @@ async function sendGmail(args) {
   }
 }
 
+// src/lib/portalUrl.ts
+var PORTAL_BASE_URL = "https://app.ehs.no";
+function buildPortalBriefUrl(briefId) {
+  const url2 = new URL("/", PORTAL_BASE_URL);
+  url2.searchParams.set("view", "portal");
+  url2.searchParams.set("brief", briefId);
+  return url2.toString();
+}
+
 // src/lib/briefEmail.ts
 var clerk3 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
-function pickPortalBaseUrl() {
-  const domains = process.env.REPLIT_DOMAINS;
-  if (domains && domains.trim()) {
-    const first = domains.split(",")[0].trim();
-    if (first) return `https://${first}`;
-  }
-  const dev = process.env.REPLIT_DEV_DOMAIN;
-  if (dev && dev.trim()) return `https://${dev.trim()}`;
-  return "";
-}
 async function lookupProducerName(userId2) {
   if (!clerk3) return "produsent";
   try {
@@ -78134,17 +78133,7 @@ function buildBody(args) {
 async function dispatchBriefRequestEmails(args) {
   if (args.newRecipientUserIds.length === 0) return { sent: 0, skipped: 0, outcomes: [] };
   try {
-    const baseUrl = pickPortalBaseUrl();
-    if (!baseUrl) {
-      logger.warn(
-        { briefId: args.briefId },
-        "skipping brief emails: no REPLIT_DOMAINS or REPLIT_DEV_DOMAIN"
-      );
-      return { sent: 0, skipped: args.newRecipientUserIds.length, outcomes: args.newRecipientUserIds.map((freelancerUserId) => ({ freelancerUserId, sent: false })) };
-    }
-    const link = `${baseUrl}/?view=portal&brief=${encodeURIComponent(
-      args.briefId
-    )}`;
+    const link = buildPortalBriefUrl(args.briefId);
     const producerName = await lookupProducerName(args.ownerUserId);
     const subject = `Ny foresp\xF8rsel fra ${producerName}`;
     const dateRange = formatDateRange(args.startDate, args.endDate);

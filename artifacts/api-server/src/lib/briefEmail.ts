@@ -3,21 +3,11 @@ import { createClerkClient } from "@clerk/express";
 import { db, freelancerProfilesTable } from "@workspace/db";
 import { logger } from "./logger";
 import { sendGmail } from "./gmail";
+import { buildPortalBriefUrl } from "./portalUrl";
 
 const clerk = process.env.CLERK_SECRET_KEY
   ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
   : null;
-
-function pickPortalBaseUrl(): string {
-  const domains = process.env.REPLIT_DOMAINS;
-  if (domains && domains.trim()) {
-    const first = domains.split(",")[0].trim();
-    if (first) return `https://${first}`;
-  }
-  const dev = process.env.REPLIT_DEV_DOMAIN;
-  if (dev && dev.trim()) return `https://${dev.trim()}`;
-  return "";
-}
 
 async function lookupProducerName(userId: string): Promise<string> {
   if (!clerk) return "produsent";
@@ -93,17 +83,7 @@ export async function dispatchBriefRequestEmails(args: {
 }): Promise<{ sent: number; skipped: number; outcomes: { freelancerUserId: string; sent: boolean }[] }> {
   if (args.newRecipientUserIds.length === 0) return { sent: 0, skipped: 0, outcomes: [] };
   try {
-    const baseUrl = pickPortalBaseUrl();
-    if (!baseUrl) {
-      logger.warn(
-        { briefId: args.briefId },
-        "skipping brief emails: no REPLIT_DOMAINS or REPLIT_DEV_DOMAIN",
-      );
-      return { sent: 0, skipped: args.newRecipientUserIds.length, outcomes: args.newRecipientUserIds.map((freelancerUserId) => ({ freelancerUserId, sent: false })) };
-    }
-    const link = `${baseUrl}/?view=portal&brief=${encodeURIComponent(
-      args.briefId,
-    )}`;
+    const link = buildPortalBriefUrl(args.briefId);
     const producerName = await lookupProducerName(args.ownerUserId);
     const subject = `Ny forespørsel fra ${producerName}`;
     const dateRange = formatDateRange(args.startDate, args.endDate);

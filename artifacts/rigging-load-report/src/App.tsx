@@ -8591,6 +8591,23 @@ const SCHEDULE_PHASES_ORDER: SchedulePhaseKey[] = [
   "downrig",
 ];
 
+function addIsoCalendarDay(iso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return "";
+  const date = new Date(
+    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])),
+  );
+  if (
+    date.getUTCFullYear() !== Number(match[1]) ||
+    date.getUTCMonth() !== Number(match[2]) - 1 ||
+    date.getUTCDate() !== Number(match[3])
+  ) {
+    return "";
+  }
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
 function fmtShortDate(iso: string): string {
   if (!iso) return "";
   const d = new Date(iso + "T00:00:00");
@@ -8711,6 +8728,52 @@ function ScheduleField({
     return arr.length > 0 ? arr : [emptySeg()];
   };
 
+  const phaseSegments = (
+    key: SchedulePhaseKey,
+    schedule: ExtraSchedule,
+  ): ScheduleSegment[] => {
+    if (key !== "show") return schedule[key] ?? [];
+    return [
+      {
+        from: reportDate,
+        to: reportEndDate,
+        fromTime: schedule.show?.[0]?.fromTime ?? "",
+        toTime: schedule.show?.[0]?.toTime ?? "",
+      },
+      ...(schedule.show ?? []).slice(1),
+    ];
+  };
+
+  const lastPhaseDate = (
+    key: SchedulePhaseKey,
+    schedule: ExtraSchedule,
+  ): string => {
+    const segments = phaseSegments(key, schedule);
+    for (let idx = segments.length - 1; idx >= 0; idx -= 1) {
+      const date = segments[idx].to || segments[idx].from;
+      if (addIsoCalendarDay(date)) return date;
+    }
+    return "";
+  };
+
+  const defaultDateForAddedDay = (
+    key: SchedulePhaseKey,
+    schedule: ExtraSchedule,
+  ): string => {
+    const withinPhase = lastPhaseDate(key, schedule);
+    if (withinPhase) return addIsoCalendarDay(withinPhase);
+
+    const phaseIndex = SCHEDULE_PHASES_ORDER.indexOf(key);
+    for (let idx = phaseIndex - 1; idx >= 0; idx -= 1) {
+      const previousPhaseDate = lastPhaseDate(
+        SCHEDULE_PHASES_ORDER[idx],
+        schedule,
+      );
+      if (previousPhaseDate) return addIsoCalendarDay(previousPhaseDate);
+    }
+    return "";
+  };
+
   const setSegment = (
     key: SchedulePhaseKey,
     idx: number,
@@ -8776,12 +8839,26 @@ function ScheduleField({
   };
 
   const addDay = (key: SchedulePhaseKey) => {
+    if (key === "show" && !reportDate && !reportEndDate) {
+      const defaultDate = defaultDateForAddedDay(key, extraSchedule);
+      if (defaultDate) {
+        onChangeReportDate(defaultDate);
+        onChangeReportEndDate(defaultDate);
+        return;
+      }
+    }
     onChangeExtraSchedule((prev) => {
       const arr = [...(prev[key] ?? [])];
+      const defaultDate = defaultDateForAddedDay(key, prev);
+      const newSegment: ScheduleSegment = {
+        ...emptySeg(),
+        from: defaultDate,
+        to: defaultDate,
+      };
       // For Show the first storage slot is reserved for the primary
       // times; tap-to-add must always create a *new* row beyond that.
       if (key === "show" && arr.length === 0) arr.push(emptySeg());
-      arr.push(emptySeg());
+      arr.push(newSegment);
       return { ...prev, [key]: arr };
     });
   };
@@ -8812,9 +8889,22 @@ function ScheduleField({
   };
 
   const clearAll = () => {
-    onChangeReportDate(new Date().toISOString().slice(0, 10));
+    onChangeReportDate("");
     onChangeReportEndDate("");
     onChangeExtraSchedule(() => ({}));
+  };
+
+  const clearPhase = (key: SchedulePhaseKey) => {
+    if (key === "show") {
+      onChangeReportDate("");
+      onChangeReportEndDate("");
+    }
+    onChangeExtraSchedule((prev) => {
+      if (!(key in prev)) return prev;
+      const out = { ...prev };
+      delete out[key];
+      return out;
+    });
   };
 
   return (
@@ -8911,6 +9001,13 @@ function ScheduleField({
         >
           {SCHEDULE_PHASES_ORDER.map((key) => {
             const segments = getSegments(key);
+            const phaseActive = segments.some(
+              (segment) =>
+                segment.from ||
+                segment.to ||
+                segment.fromTime ||
+                segment.toTime,
+            );
             const inputStyle = {
               padding: "6px 8px",
               border: "1px solid var(--border-color)",
@@ -8945,18 +9042,46 @@ function ScheduleField({
                   paddingBottom: 4,
                 }}
               >
-                <span
+                <div
                   style={{
-                    fontSize: 11,
-                    fontWeight: 800,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.4,
-                    color: "var(--text-muted)",
                     paddingTop: 8,
+                    display: "grid",
+                    gap: 5,
                   }}
                 >
-                  {SCHEDULE_PHASE_LABELS[key]}
-                </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      letterSpacing: 0.4,
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    {SCHEDULE_PHASE_LABELS[key]}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => clearPhase(key)}
+                    disabled={!phaseActive}
+                    aria-label={`Clear ${SCHEDULE_PHASE_LABELS[key]} phase`}
+                    style={{
+                      justifySelf: "start",
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--text-muted)",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: 0.3,
+                      padding: 0,
+                      cursor: phaseActive ? "pointer" : "default",
+                      opacity: phaseActive ? 0.85 : 0.35,
+                    }}
+                  >
+                    Clear
+                  </button>
+                </div>
                 <div style={{ display: "grid", gap: 10 }}>
                   {segments.map((ph, idx) => {
                     const removable = !(key === "show" && idx === 0);

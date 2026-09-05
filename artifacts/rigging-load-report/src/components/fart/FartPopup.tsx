@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useAuth } from "@clerk/react";
 import { useT } from "../../lib/i18n/I18nContext";
 import {
   playFart,
@@ -96,7 +97,11 @@ export function FartPopup({
   onClose: () => void;
 }) {
   const t = useT();
+  const { getToken } = useAuth();
   const [name, setName] = useState("");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
   const [phase, setPhase] = useState<"input" | "overlay">("input");
   const [intensity, setIntensity] = useState<FartIntensity>("medium");
   const [headlineKey, setHeadlineKey] = useState<(typeof HEADLINE_KEYS)[number]>(
@@ -152,6 +157,9 @@ export function FartPopup({
     }
     setPhase("input");
     setName("");
+    setMessage("");
+    setSending(false);
+    setSendError("");
     // Defer to allow the input to mount before focusing.
     requestAnimationFrame(() => inputRef.current?.focus());
   }, [open, teardownEffects]);
@@ -178,10 +186,33 @@ export function FartPopup({
   }, [open, handleClose]);
 
   const trimmedName = name.trim();
+  const trimmedMessage = message.trim();
 
-  const submit = useCallback(() => {
-    if (!trimmedName) return;
+  const submit = useCallback(async () => {
+    if (!trimmedName || !trimmedMessage || sending) return;
     const chosen = randomIntensity();
+    setSending(true);
+    setSendError("");
+    try {
+      const token = await getToken();
+      const response = await fetch("/api/fart-alerts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          senderName: trimmedName,
+          message: trimmedMessage,
+          intensity: chosen,
+        }),
+      });
+      if (!response.ok) throw new Error("broadcast failed");
+    } catch {
+      setSending(false);
+      setSendError(t("fart.broadcastError"));
+      return;
+    }
     setIntensity(chosen);
     setHeadlineKey(
       HEADLINE_KEYS[Math.floor(Math.random() * HEADLINE_KEYS.length)],
@@ -209,7 +240,14 @@ export function FartPopup({
       overlayTimerRef.current = null;
       handleClose();
     }, OVERLAY_DURATION_MS[chosen]);
-  }, [trimmedName, handleClose]);
+  }, [
+    getToken,
+    trimmedMessage,
+    trimmedName,
+    sending,
+    handleClose,
+    t,
+  ]);
 
   // Memoise cloud configs so they don't re-randomise on every render
   // while the overlay is mounted.
@@ -248,6 +286,19 @@ export function FartPopup({
             }}
             maxLength={40}
           />
+          <textarea
+            className="fart-popup-input fart-popup-message"
+            value={message}
+            placeholder={t("fart.message.placeholder")}
+            onChange={(e) => setMessage(e.target.value)}
+            maxLength={160}
+            rows={3}
+          />
+          {sendError ? (
+            <div className="fart-popup-error" role="alert">
+              {sendError}
+            </div>
+          ) : null}
           <div className="fart-popup-row">
             <button
               type="button"
@@ -259,10 +310,10 @@ export function FartPopup({
             <button
               type="button"
               className="fart-popup-button primary"
-              onClick={submit}
-              disabled={!trimmedName}
+              onClick={() => void submit()}
+              disabled={!trimmedName || !trimmedMessage || sending}
             >
-              {t("fart.submit")}
+              {sending ? t("fart.sending") : t("fart.submit")}
             </button>
           </div>
         </div>
@@ -300,8 +351,11 @@ export function FartPopup({
           {c.emoji}
         </span>
       ))}
-      <div className="fart-overlay-text">
-        {t(headlineKey, { name: trimmedName || "Someone" })}
+      <div className="fart-overlay-content">
+        <div className="fart-overlay-text">
+          {trimmedMessage || t(headlineKey, { name: trimmedName || "Someone" })}
+        </div>
+        <div className="fart-overlay-sender">— {trimmedName}</div>
       </div>
     </div>,
     document.body,

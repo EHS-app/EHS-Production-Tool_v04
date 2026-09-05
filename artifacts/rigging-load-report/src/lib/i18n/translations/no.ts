@@ -753,7 +753,10 @@ export const no: Translations = {
   // ---------- Fart button (lighthearted feature) ----------
   "fart.tooltip": "Akutt promp",
   "fart.input.placeholder": "Skriv inn navn",
+  "fart.message.placeholder": "Skriv en melding til teamet",
   "fart.submit": "Promp 💨",
+  "fart.sending": "Sender…",
+  "fart.broadcastError": "Kunne ikke sende varselet. Prøv igjen.",
   "fart.title.default": "{name} prompet nettopp 💨",
   "fart.title.destroyed": "{name} ødela atmosfæren 💨",
   "fart.title.nuclear": "{name} slapp løs en atombombe 💨",

@@ -91,6 +91,12 @@ function getCtx(): AudioContext | null {
   }
 }
 
+/** Prime browser audio during any ordinary employee interaction so a later
+ * team broadcast can play even though the broadcast itself is not a click. */
+export function prepareFartAudio(): void {
+  getCtx();
+}
+
 /**
  * Build a short brown-noise buffer (= integrated white noise → low-pass
  * spectrum) which is the closest thing to the rumbly base layer of an

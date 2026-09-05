@@ -100,6 +100,16 @@
   font-family: inherit;
   box-sizing: border-box;
 }
+.fart-popup-message {
+  margin-top: 10px;
+  resize: vertical;
+  min-height: 76px;
+}
+.fart-popup-error {
+  margin-top: 8px;
+  color: #b42318;
+  font-size: 13px;
+}
 @media (prefers-color-scheme: dark) {
   .fart-popup-input {
     border-color: rgba(255, 255, 255, 0.18);
@@ -171,6 +181,21 @@
   text-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
   padding: 0 16px;
   animation: fart-bounce 700ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.fart-overlay-content {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  padding: 0 16px;
+}
+.fart-overlay-content .fart-overlay-text {
+  padding: 0;
+}
+.fart-overlay-sender {
+  margin-top: 14px;
+  color: rgba(255, 255, 255, 0.9);
+  font: 700 clamp(16px, 2vw, 24px) system-ui, sans-serif;
+  text-shadow: 0 3px 12px rgba(0, 0, 0, 0.55);
 }
 
 /* Greenish humour flash, tucked under the text but above the dark

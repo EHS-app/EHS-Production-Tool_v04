@@ -22,6 +22,7 @@ import globalTasksRouter from "./globalTasks";
 import economyRouter from "./economy";
 import masterDataRouter from "./masterData";
 import settingsRouter from "./settings";
+import fartAlertsRouter from "./fartAlerts";
 import { requireEmployee } from "../middleware/userType";
 
 const router: IRouter = Router();
@@ -59,6 +60,8 @@ router.use("/economy", requireEmployee);
 router.use(economyRouter);
 router.use("/inspection", requireEmployee);
 router.use(inspectionExtractRouter);
+router.use("/fart-alerts", requireEmployee);
+router.use(fartAlertsRouter);
 
 // Admin tools — gated internally to @ehs.no callers via its own
 // `requireAdmin` middleware. Mounted outside `requireEmployee` so we

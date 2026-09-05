@@ -17,3 +17,4 @@
 - [Freelancer dispatch delivery semantics](freelancer-dispatch-delivery-semantics.md) — never auto-reclaim ambiguous in-flight email claims; prefer at-most-once initiation over duplicate freelancer notifications.
 - [Recurring availability overrides](recurring-availability-overrides.md) — day/range replacement suppresses overlapping weekly occurrences by owner-scoped local-date exceptions in the same transaction.
 - [Clerk freelancer backfill](clerk-freelancer-backfill.md) — sync missing legacy freelancers insert-only; never overwrite local profiles, and degrade safely when Clerk is unavailable.
+- [Ephemeral team broadcasts](ephemeral-team-broadcasts.md) — use Postgres NOTIFY plus authenticated SSE across autoscale; bound listener and slow-client resources.

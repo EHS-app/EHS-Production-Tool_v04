@@ -20488,27 +20488,27 @@ var require_router = __commonJS({
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module.exports = Router25;
+    module.exports = Router26;
     module.exports.Route = Route;
-    function Router25(options) {
-      if (!(this instanceof Router25)) {
-        return new Router25(options);
+    function Router26(options) {
+      if (!(this instanceof Router26)) {
+        return new Router26(options);
       }
       const opts = options || {};
-      function router25(req, res, next) {
-        router25.handle(req, res, next);
+      function router26(req, res, next) {
+        router26.handle(req, res, next);
       }
-      Object.setPrototypeOf(router25, this);
-      router25.caseSensitive = opts.caseSensitive;
-      router25.mergeParams = opts.mergeParams;
-      router25.params = {};
-      router25.strict = opts.strict;
-      router25.stack = [];
-      return router25;
+      Object.setPrototypeOf(router26, this);
+      router26.caseSensitive = opts.caseSensitive;
+      router26.mergeParams = opts.mergeParams;
+      router26.params = {};
+      router26.strict = opts.strict;
+      router26.stack = [];
+      return router26;
     }
-    Router25.prototype = function() {
+    Router26.prototype = function() {
     };
-    Router25.prototype.param = function param4(name, fn) {
+    Router26.prototype.param = function param4(name, fn) {
       if (!name) {
         throw new TypeError("argument name is required");
       }
@@ -20528,7 +20528,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router25.prototype.handle = function handle(req, res, callback) {
+    Router26.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -20655,7 +20655,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router25.prototype.use = function use(handler) {
+    Router26.prototype.use = function use(handler) {
       let offset = 0;
       let path2 = "/";
       if (typeof handler !== "function") {
@@ -20688,7 +20688,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router25.prototype.route = function route(path2) {
+    Router26.prototype.route = function route(path2) {
       const route2 = new Route(path2);
       const layer = new Layer(path2, {
         sensitive: this.caseSensitive,
@@ -20703,7 +20703,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router25.prototype[method] = function(path2) {
+      Router26.prototype[method] = function(path2) {
         const route = this.route(path2);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
@@ -20886,13 +20886,13 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = __require("node:path").resolve;
     var once = require_once();
-    var Router25 = require_router();
+    var Router26 = require_router();
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app2 = exports = module.exports = {};
     var trustProxyDefaultSymbol = "@@symbol:trust_proxy_default";
     app2.init = function init() {
-      var router25 = null;
+      var router26 = null;
       this.cache = /* @__PURE__ */ Object.create(null);
       this.engines = /* @__PURE__ */ Object.create(null);
       this.settings = /* @__PURE__ */ Object.create(null);
@@ -20901,13 +20901,13 @@ var require_application = __commonJS({
         configurable: true,
         enumerable: true,
         get: function getrouter() {
-          if (router25 === null) {
-            router25 = new Router25({
+          if (router26 === null) {
+            router26 = new Router26({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
           }
-          return router25;
+          return router26;
         }
       });
     };
@@ -20978,15 +20978,15 @@ var require_application = __commonJS({
       if (fns.length === 0) {
         throw new TypeError("app.use() requires a middleware function");
       }
-      var router25 = this.router;
+      var router26 = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router25.use(path2, fn2);
+          return router26.use(path2, fn2);
         }
         debug(".use app under %s", path2);
         fn2.mountpath = path2;
         fn2.parent = this;
-        router25.use(path2, function mounted_app(req, res, next) {
+        router26.use(path2, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -23513,7 +23513,7 @@ var require_express = __commonJS({
     var EventEmitter = __require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router25 = require_router();
+    var Router26 = require_router();
     var req = require_request();
     var res = require_response();
     exports = module.exports = createApplication;
@@ -23535,8 +23535,8 @@ var require_express = __commonJS({
     exports.application = proto;
     exports.request = req;
     exports.response = res;
-    exports.Route = Router25.Route;
-    exports.Router = Router25;
+    exports.Route = Router26.Route;
+    exports.Router = Router26;
     exports.json = bodyParser.json;
     exports.raw = bodyParser.raw;
     exports.static = require_serve_static();
@@ -33123,11 +33123,11 @@ var require_router2 = __commonJS({
     var debug = debug_1.Debug.extend("router");
     async function getTarget(req, config3) {
       let newTarget;
-      const router25 = config3.router;
-      if ((0, is_plain_object_1.isPlainObject)(router25)) {
-        newTarget = getTargetFromProxyTable(req, router25);
-      } else if (typeof router25 === "function") {
-        newTarget = await router25(req);
+      const router26 = config3.router;
+      if ((0, is_plain_object_1.isPlainObject)(router26)) {
+        newTarget = getTargetFromProxyTable(req, router26);
+      } else if (typeof router26 === "function") {
+        newTarget = await router26(req);
       }
       return newTarget;
     }
@@ -33170,7 +33170,7 @@ var require_http_proxy_middleware = __commonJS({
     var get_plugins_1 = require_get_plugins();
     var path_filter_1 = require_path_filter();
     var PathRewriter = require_path_rewriter();
-    var Router25 = require_router2();
+    var Router26 = require_router2();
     var debug_1 = require_debug2();
     var function_1 = require_function();
     var logger_1 = require_logger2();
@@ -33241,7 +33241,7 @@ var require_http_proxy_middleware = __commonJS({
         this.applyRouter = async (req, options2) => {
           let newTarget;
           if (options2.router) {
-            newTarget = await Router25.getTarget(req, options2);
+            newTarget = await Router26.getTarget(req, options2);
             if (newTarget) {
               (0, debug_1.Debug)('router new target: "%s"', newTarget);
               options2.target = newTarget;
@@ -39055,7 +39055,7 @@ var init_calendarCrypto = __esm({
 });
 
 // src/app.ts
-var import_express33 = __toESM(require_express2(), 1);
+var import_express34 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 
@@ -47229,7 +47229,7 @@ function clerkProxyMiddleware() {
 }
 
 // src/routes/index.ts
-var import_express32 = __toESM(require_express2(), 1);
+var import_express33 = __toESM(require_express2(), 1);
 
 // src/routes/health.ts
 var import_express = __toESM(require_express2(), 1);
@@ -85681,44 +85681,281 @@ router23.put("/settings", requireAdmin, async (req, res) => {
 });
 var settings_default = router23;
 
-// src/routes/index.ts
+// src/routes/fartAlerts.ts
+var import_express32 = __toESM(require_express2(), 1);
+
+// src/lib/fartBroadcast.ts
+import { randomUUID as randomUUID8 } from "node:crypto";
+var CHANNEL = "ehs_fart_alerts";
+var subscribers = /* @__PURE__ */ new Set();
+var listenerRecord = null;
+var connectionPromise = null;
+var reconnectTimer = null;
+var shuttingDown = false;
+var listenerGeneration = 0;
+function isFartAlert(value) {
+  if (!value || typeof value !== "object") return false;
+  const alert = value;
+  return typeof alert.id === "string" && typeof alert.senderUserId === "string" && typeof alert.senderName === "string" && typeof alert.message === "string" && (alert.intensity === "small" || alert.intensity === "medium" || alert.intensity === "nuclear") && typeof alert.createdAt === "string";
+}
+function scheduleReconnect() {
+  if (shuttingDown || reconnectTimer || listenerRecord || connectionPromise || subscribers.size === 0) {
+    return;
+  }
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    void ensureFartBroadcastListener();
+  }, 2e3);
+  reconnectTimer.unref();
+}
+async function ensureFartBroadcastListener() {
+  if (listenerRecord || connectionPromise || shuttingDown || subscribers.size === 0) {
+    return;
+  }
+  const generation = ++listenerGeneration;
+  connectionPromise = (async () => {
+    const client = await pool.connect();
+    let released = false;
+    let closing = false;
+    let closeError;
+    const detach = () => {
+      client.off("notification", onNotification);
+      client.off("error", onError);
+      client.off("end", onEnd);
+    };
+    const dispose = (error40) => {
+      if (released) return;
+      released = true;
+      detach();
+      if (listenerRecord === record2) listenerRecord = null;
+      client.release(error40);
+    };
+    const close = async () => {
+      if (released || closing) return;
+      closing = true;
+      client.off("notification", onNotification);
+      client.off("end", onEnd);
+      if (listenerRecord === record2) listenerRecord = null;
+      let releaseError;
+      try {
+        await client.query(`UNLISTEN ${CHANNEL}`);
+      } catch (error40) {
+        releaseError = error40 instanceof Error ? error40 : new Error(String(error40));
+      } finally {
+        released = true;
+        closing = false;
+        client.off("error", onError);
+        client.release(closeError ?? releaseError);
+      }
+    };
+    const onNotification = (notification) => {
+      if (notification.channel !== CHANNEL || !notification.payload) return;
+      try {
+        const parsed = JSON.parse(notification.payload);
+        if (!isFartAlert(parsed)) {
+          logger.warn({ scope: "fartBroadcast" }, "ignored invalid fart alert");
+          return;
+        }
+        for (const subscriber of subscribers) subscriber(parsed);
+      } catch (error40) {
+        logger.warn(
+          {
+            scope: "fartBroadcast",
+            error: error40 instanceof Error ? error40.message : String(error40)
+          },
+          "could not parse fart alert"
+        );
+      }
+    };
+    const onError = (error40) => {
+      logger.warn(
+        { scope: "fartBroadcast", error: error40.message },
+        "fart broadcast listener disconnected"
+      );
+      if (closing) {
+        closeError ??= error40;
+        return;
+      }
+      dispose(error40);
+      if (generation === listenerGeneration) scheduleReconnect();
+    };
+    const onEnd = () => {
+      dispose();
+      if (generation === listenerGeneration) scheduleReconnect();
+    };
+    const record2 = {
+      client,
+      generation,
+      dispose,
+      close
+    };
+    client.on("notification", onNotification);
+    client.on("error", onError);
+    client.on("end", onEnd);
+    try {
+      await client.query(`LISTEN ${CHANNEL}`);
+      if (generation !== listenerGeneration || shuttingDown || subscribers.size === 0) {
+        await close();
+        return;
+      }
+      listenerRecord = record2;
+      logger.info({ scope: "fartBroadcast" }, "fart broadcast listener ready");
+    } catch (error40) {
+      dispose(error40 instanceof Error ? error40 : new Error(String(error40)));
+      throw error40;
+    }
+  })().catch((error40) => {
+    logger.warn(
+      {
+        scope: "fartBroadcast",
+        error: error40 instanceof Error ? error40.message : String(error40)
+      },
+      "could not start fart broadcast listener"
+    );
+  }).finally(() => {
+    if (generation === listenerGeneration) {
+      connectionPromise = null;
+      scheduleReconnect();
+    }
+  });
+  await connectionPromise;
+}
+async function disconnectFartBroadcastListener() {
+  listenerGeneration += 1;
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+  connectionPromise = null;
+  const record2 = listenerRecord;
+  listenerRecord = null;
+  if (record2) await record2.close();
+}
+function subscribeToFartAlerts(subscriber) {
+  subscribers.add(subscriber);
+  void ensureFartBroadcastListener();
+  return () => {
+    subscribers.delete(subscriber);
+    if (subscribers.size === 0) void disconnectFartBroadcastListener();
+  };
+}
+async function broadcastFartAlert(input) {
+  const alert = {
+    id: randomUUID8(),
+    ...input,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  await pool.query("select pg_notify($1, $2)", [
+    CHANNEL,
+    JSON.stringify(alert)
+  ]);
+  return alert;
+}
+
+// src/routes/fartAlerts.ts
 var router24 = (0, import_express32.Router)();
-router24.use(health_default);
-router24.use(devAutoSignIn_default);
-router24.use("/rigplan", requireEmployee);
-router24.use(rigplanAnalyze_default);
-router24.use(venueMemory_default);
-router24.use("/storage", requireEmployee);
-router24.use(storage_default);
-router24.use("/projects", requireEmployee);
-router24.use(projectTasks_default);
-router24.use(projectMembers_default);
-router24.use(projectMessages_default);
-router24.use(projects_default);
-router24.use("/venues", requireEmployee);
-router24.use("/clients", requireEmployee);
-router24.use(masterData_default);
-router24.use("/transport", requireEmployee);
-router24.use(transport_default);
-router24.use("/tasks", requireEmployee);
-router24.use(globalTasks_default);
-router24.use("/economy", requireEmployee);
-router24.use(economy_default);
-router24.use("/inspection", requireEmployee);
-router24.use(inspectionExtract_default);
-router24.use(admin_default);
-router24.use(settings_default);
-router24.use(feedback_default);
-router24.use(portalProfile_default);
-router24.use(portalBriefs_default);
-router24.use(portalGigs_default);
-router24.use(portalTimeEntries_default);
-router24.use(portalCalendar_default);
-router24.use(portalWork_default);
-var routes_default = router24;
+var intensities = /* @__PURE__ */ new Set(["small", "medium", "nuclear"]);
+router24.get("/fart-alerts/stream", (req, res) => {
+  res.status(200);
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+  if (!res.write(": connected\n\n")) {
+    res.end();
+    return;
+  }
+  let closed = false;
+  let heartbeat = null;
+  let unsubscribe = () => {
+  };
+  const cleanup = () => {
+    if (closed) return;
+    closed = true;
+    if (heartbeat) clearInterval(heartbeat);
+    heartbeat = null;
+    unsubscribe();
+    if (!res.writableEnded) res.end();
+  };
+  unsubscribe = subscribeToFartAlerts((alert) => {
+    if (closed || !res.write(`event: fart-alert
+data: ${JSON.stringify(alert)}
+
+`)) {
+      req.log.warn({ scope: "fartAlerts" }, "fart alert stream backpressure");
+      cleanup();
+    }
+  });
+  heartbeat = setInterval(() => {
+    if (closed || !res.write(": heartbeat\n\n")) cleanup();
+  }, 2e4);
+  heartbeat.unref();
+  req.once("close", cleanup);
+  res.once("close", cleanup);
+});
+router24.post("/fart-alerts", async (req, res) => {
+  const body = req.body ?? {};
+  const senderName = typeof body.senderName === "string" ? body.senderName.trim() : "";
+  const message = typeof body.message === "string" ? body.message.trim() : "";
+  const intensity = typeof body.intensity === "string" ? body.intensity : "";
+  if (!senderName || senderName.length > 40 || !message || message.length > 160 || !intensities.has(intensity)) {
+    res.status(400).json({ ok: false, error: "Invalid fart alert." });
+    return;
+  }
+  try {
+    const alert = await broadcastFartAlert({
+      senderUserId: req._userId,
+      senderName,
+      message,
+      intensity
+    });
+    res.status(202).json({ ok: true, alert });
+  } catch (error40) {
+    req.log.error(error40, "Failed to broadcast fart alert");
+    res.status(503).json({ ok: false, error: "Fart broadcast unavailable." });
+  }
+});
+var fartAlerts_default = router24;
+
+// src/routes/index.ts
+var router25 = (0, import_express33.Router)();
+router25.use(health_default);
+router25.use(devAutoSignIn_default);
+router25.use("/rigplan", requireEmployee);
+router25.use(rigplanAnalyze_default);
+router25.use(venueMemory_default);
+router25.use("/storage", requireEmployee);
+router25.use(storage_default);
+router25.use("/projects", requireEmployee);
+router25.use(projectTasks_default);
+router25.use(projectMembers_default);
+router25.use(projectMessages_default);
+router25.use(projects_default);
+router25.use("/venues", requireEmployee);
+router25.use("/clients", requireEmployee);
+router25.use(masterData_default);
+router25.use("/transport", requireEmployee);
+router25.use(transport_default);
+router25.use("/tasks", requireEmployee);
+router25.use(globalTasks_default);
+router25.use("/economy", requireEmployee);
+router25.use(economy_default);
+router25.use("/inspection", requireEmployee);
+router25.use(inspectionExtract_default);
+router25.use("/fart-alerts", requireEmployee);
+router25.use(fartAlerts_default);
+router25.use(admin_default);
+router25.use(settings_default);
+router25.use(feedback_default);
+router25.use(portalProfile_default);
+router25.use(portalBriefs_default);
+router25.use(portalGigs_default);
+router25.use(portalTimeEntries_default);
+router25.use(portalCalendar_default);
+router25.use(portalWork_default);
+var routes_default = router25;
 
 // src/app.ts
-var app = (0, import_express33.default)();
+var app = (0, import_express34.default)();
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -85743,12 +85980,12 @@ app.use((0, import_cors.default)());
 var PATHS_WITHOUT_GLOBAL_JSON = /* @__PURE__ */ new Set([
   "/api/rigplan/analyze"
 ]);
-var globalJsonParser = import_express33.default.json({ limit: "256kb" });
+var globalJsonParser = import_express34.default.json({ limit: "256kb" });
 app.use((req, res, next) => {
   if (PATHS_WITHOUT_GLOBAL_JSON.has(req.path)) return next();
   return globalJsonParser(req, res, next);
 });
-app.use(import_express33.default.urlencoded({ extended: true }));
+app.use(import_express34.default.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 app.use("/api", routes_default);
 var app_default = app;
@@ -85765,7 +86002,7 @@ import net from "node:net";
 import fs from "node:fs";
 
 // ../../node_modules/.pnpm/node-ical@0.27.1/node_modules/node-ical/ical.js
-import { randomUUID as randomUUID8 } from "node:crypto";
+import { randomUUID as randomUUID9 } from "node:crypto";
 
 // ../../node_modules/.pnpm/rrule-temporal@2.2.2/node_modules/rrule-temporal/dist/src-B2XO5sNr.js
 var expectedPositive = (entityName, num) => `Non-positive ${entityName}: ${num}`;
@@ -100257,7 +100494,7 @@ var ical = {
       }
       return finalizeEndedComponent(value, curr, stack, {
         storeRecurrenceOverride,
-        randomIdFactory: randomUUID8,
+        randomIdFactory: randomUUID9,
         utcAdd: tz_utils_default.utcAdd
       });
     },

@@ -1,6 +1,9 @@
 import { useState } from "react";
+import { useAuth } from "@clerk/react";
 import { useT } from "../../lib/i18n/I18nContext";
+import { FartBroadcastOverlay } from "./FartBroadcastOverlay";
 import { FartPopup } from "./FartPopup";
+import { useFartAlerts } from "./useFartAlerts";
 import "./fart.css";
 
 /**
@@ -22,7 +25,9 @@ import "./fart.css";
  */
 export function FartButton() {
   const t = useT();
+  const { getToken, userId } = useAuth();
   const [open, setOpen] = useState(false);
+  const { alert, clearAlert } = useFartAlerts(getToken, userId);
   return (
     <>
       <button
@@ -35,6 +40,9 @@ export function FartButton() {
         <span aria-hidden>💨</span>
       </button>
       <FartPopup open={open} onClose={() => setOpen(false)} />
+      {alert ? (
+        <FartBroadcastOverlay alert={alert} onClose={clearAlert} />
+      ) : null}
     </>
   );
 }

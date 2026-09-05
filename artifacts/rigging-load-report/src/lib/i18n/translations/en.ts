@@ -736,7 +736,10 @@ export const en = {
   // ---------- Fart button (lighthearted feature) ----------
   "fart.tooltip": "Emergency Fart",
   "fart.input.placeholder": "Enter name",
+  "fart.message.placeholder": "Enter a message for the team",
   "fart.submit": "Fart 💨",
+  "fart.sending": "Broadcasting…",
+  "fart.broadcastError": "Could not broadcast the alert. Please try again.",
   "fart.title.default": "{name} just farted 💨",
   "fart.title.destroyed": "{name} destroyed the atmosphere 💨",
   "fart.title.nuclear": "{name} unleashed a nuclear blast 💨",

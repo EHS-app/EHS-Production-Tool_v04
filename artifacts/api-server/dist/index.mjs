@@ -78428,7 +78428,7 @@ async function getProjectAccess(projectId, userId2) {
   ).limit(1);
   return membership?.role === "editor" || membership?.role === "viewer" ? membership.role : null;
 }
-async function getEmployeeProjectReadAccess(projectId, userId2) {
+async function getEmployeeProjectAccess(projectId, userId2) {
   const [project] = await db.select({ ownerId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
   if (!project) return null;
   if (project.ownerId === userId2) return "owner";
@@ -78438,7 +78438,7 @@ async function getEmployeeProjectReadAccess(projectId, userId2) {
       eq(projectMembersTable.userId, userId2)
     )
   ).limit(1);
-  return membership?.role === "editor" || membership?.role === "viewer" ? membership.role : "viewer";
+  return membership?.role === "editor" || membership?.role === "viewer" ? membership.role : "editor";
 }
 
 // src/lib/projectLifecycle.ts
@@ -78913,7 +78913,7 @@ router7.get("/portal/briefs/:id", requireSignedIn5, async (req, res) => {
           });
           return;
         }
-        if (userType !== "employee" || !await getEmployeeProjectReadAccess(brief.projectId, userId2)) {
+        if (userType !== "employee" || !await getEmployeeProjectAccess(brief.projectId, userId2)) {
           res.status(403).json({ ok: false, error: "Not your brief." });
           return;
         }
@@ -82647,7 +82647,7 @@ async function resolveLinks(userId2, venueId, clientId, clonedFromProjectId) {
     clientName = client.name;
   }
   if (clonedFromProjectId) {
-    if (!await getProjectAccess(clonedFromProjectId, userId2)) return null;
+    if (!await getEmployeeProjectAccess(clonedFromProjectId, userId2)) return null;
   }
   return { venueId, venueName, clientId, clientName, clonedFromProjectId };
 }
@@ -82679,7 +82679,7 @@ router12.get("/projects", requireSignedIn10, async (req, res) => {
       status: sql`coalesce(${projectsTable.status}, case when nullif(${projectsTable.data}->>'activeBriefId', '') is not null then 'active' when nullif(${projectsTable.venue}, '') is not null or nullif(${projectsTable.client}, '') is not null then 'planning' else 'draft' end)`,
       createdAt: projectsTable.createdAt,
       updatedAt: projectsTable.updatedAt,
-      accessRole: sql`case when ${projectsTable.userId} = ${userId2} then 'owner' when ${projectMembersTable.role} in ('editor', 'viewer') then ${projectMembersTable.role} else 'viewer' end`
+      accessRole: sql`case when ${projectsTable.userId} = ${userId2} then 'owner' when ${projectMembersTable.role} in ('editor', 'viewer') then ${projectMembersTable.role} else 'editor' end`
     }).from(projectsTable).leftJoin(
       projectMembersTable,
       and(
@@ -82726,7 +82726,7 @@ router12.get("/projects/:id", requireSignedIn10, async (req, res) => {
     return;
   }
   try {
-    const accessRole = await getEmployeeProjectReadAccess(String(id), userId2);
+    const accessRole = await getEmployeeProjectAccess(String(id), userId2);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -82876,7 +82876,7 @@ router12.patch("/projects/:id", requireSignedIn10, async (req, res) => {
   }
   if (data !== void 0) updates.data = data;
   try {
-    const accessRole = await getProjectAccess(String(id), userId2);
+    const accessRole = await getEmployeeProjectAccess(String(id), userId2);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -82968,7 +82968,7 @@ router12.post("/projects/:id/status", requireSignedIn10, async (req, res) => {
     return;
   }
   try {
-    const accessRole = await getProjectAccess(id, userId2);
+    const accessRole = await getEmployeeProjectAccess(id, userId2);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -82980,14 +82980,6 @@ router12.post("/projects/:id/status", requireSignedIn10, async (req, res) => {
     const result = await db.transaction(async (tx) => {
       const [locked] = await tx.select().from(projectsTable).where(eq(projectsTable.id, id)).limit(1).for("update");
       if (!locked) return { kind: "not_found" };
-      if (locked.userId !== userId2) {
-        const [membership] = await tx.select({ role: projectMembersTable.role }).from(projectMembersTable).where(and(
-          eq(projectMembersTable.projectId, id),
-          eq(projectMembersTable.userId, userId2),
-          eq(projectMembersTable.role, "editor")
-        )).limit(1);
-        if (!membership) return { kind: "forbidden" };
-      }
       const currentStatus = deriveLegacyProjectStatus(locked);
       const transition = classifyProjectTransition(currentStatus, requestedStatus);
       if (transition === "backward" || transition === "skipped") {
@@ -83072,10 +83064,6 @@ router12.post("/projects/:id/status", requireSignedIn10, async (req, res) => {
     });
     if (result.kind === "not_found") {
       res.status(404).json({ ok: false, error: "Project not found." });
-      return;
-    }
-    if (result.kind === "forbidden") {
-      res.status(403).json({ ok: false, error: "Project is read-only." });
       return;
     }
     if (result.kind === "invalid_transition") {
@@ -83708,7 +83696,7 @@ router16.get("/projects/:projectId/tasks", async (req, res) => {
     return;
   }
   try {
-    if (!await getEmployeeProjectReadAccess(projectId, userId2)) {
+    if (!await getEmployeeProjectAccess(projectId, userId2)) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
@@ -83732,7 +83720,7 @@ router16.post("/projects/:projectId/tasks", async (req, res) => {
     return;
   }
   try {
-    const accessRole = await getProjectAccess(projectId, userId2);
+    const accessRole = await getEmployeeProjectAccess(projectId, userId2);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -83761,7 +83749,7 @@ router16.patch("/projects/tasks/:id", async (req, res) => {
     return;
   }
   const [taskForAccess] = await db.select({ projectId: projectTasksTable.projectId }).from(projectTasksTable).where(eq(projectTasksTable.id, id)).limit(1);
-  const accessRole = taskForAccess ? await getProjectAccess(taskForAccess.projectId, userId2) : null;
+  const accessRole = taskForAccess ? await getEmployeeProjectAccess(taskForAccess.projectId, userId2) : null;
   if (!accessRole) {
     res.status(404).json({ ok: false, error: "Task not found." });
     return;
@@ -83860,7 +83848,7 @@ router16.delete("/projects/tasks/:id", async (req, res) => {
       res.status(404).json({ ok: false, error: "Task not found." });
       return;
     }
-    const accessRole = await getProjectAccess(ownedTask.projectId, userId2);
+    const accessRole = await getEmployeeProjectAccess(ownedTask.projectId, userId2);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Task not found." });
       return;
@@ -83916,7 +83904,7 @@ router17.get("/projects/:projectId/members", async (req, res) => {
     return;
   }
   try {
-    const currentRole = await getEmployeeProjectReadAccess(projectId, userId2);
+    const currentRole = await getEmployeeProjectAccess(projectId, userId2);
     if (!currentRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -84042,7 +84030,7 @@ router18.get("/projects/:projectId/messages", async (req, res) => {
     return;
   }
   try {
-    if (!await getEmployeeProjectReadAccess(projectId, userId2)) {
+    if (!await getEmployeeProjectAccess(projectId, userId2)) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
@@ -84104,7 +84092,7 @@ router18.post("/projects/:projectId/messages", async (req, res) => {
     return;
   }
   try {
-    const role = await getProjectAccess(projectId, userId2);
+    const role = await getEmployeeProjectAccess(projectId, userId2);
     if (!role) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -84160,25 +84148,13 @@ function instant(raw, required2 = false) {
 }
 async function canWriteProject(projectId, userId2) {
   if (!UUID_PATTERN.test(projectId)) return "missing";
-  const access = await getProjectAccess(projectId, userId2);
+  const access = await getEmployeeProjectAccess(projectId, userId2);
   if (!access) return "missing";
   return isProjectWriter(access) ? "ok" : "readonly";
 }
 router19.get("/transport", async (req, res) => {
-  const userId2 = req._userId;
   try {
-    const accessibleProjects = await db.select({ id: projectsTable.id }).from(projectsTable).leftJoin(
-      projectMembersTable,
-      and(
-        eq(projectMembersTable.projectId, projectsTable.id),
-        eq(projectMembersTable.userId, userId2)
-      )
-    ).where(
-      or(
-        eq(projectsTable.userId, userId2),
-        eq(projectMembersTable.userId, userId2)
-      )
-    );
+    const accessibleProjects = await db.select({ id: projectsTable.id }).from(projectsTable);
     const projectIds = accessibleProjects.map((row) => row.id);
     const vehicles = await db.select({
       id: transportVehiclesTable.id,
@@ -84460,7 +84436,7 @@ router20.get("/tasks", async (req, res) => {
       description: projectTasksTable.description,
       createdAt: projectTasksTable.createdAt,
       updatedAt: projectTasksTable.updatedAt,
-      accessRole: sql`case when ${projectsTable.userId} = ${userId2} then 'owner' when ${projectMembersTable.role} in ('editor', 'viewer') then ${projectMembersTable.role} else 'viewer' end`
+      accessRole: sql`case when ${projectsTable.userId} = ${userId2} then 'owner' when ${projectMembersTable.role} in ('editor', 'viewer') then ${projectMembersTable.role} else 'editor' end`
     }).from(projectTasksTable).innerJoin(projectsTable, eq(projectTasksTable.projectId, projectsTable.id)).leftJoin(
       projectMembersTable,
       and(
@@ -84492,7 +84468,7 @@ router20.post("/tasks", async (req, res) => {
     return;
   }
   try {
-    const accessRole = await getProjectAccess(projectId, userId2);
+    const accessRole = await getEmployeeProjectAccess(projectId, userId2);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -84584,7 +84560,7 @@ async function loadEconomy(callerUserId) {
     client: projectsTable.client,
     easyjobNumber: projectsTable.easyjobNumber,
     activeBriefId: sql`${projectsTable.data}->>'activeBriefId'`,
-    accessRole: sql`case when ${projectsTable.userId} = ${callerUserId} then 'owner' else ${projectMembersTable.role} end`,
+    accessRole: sql`case when ${projectsTable.userId} = ${callerUserId} then 'owner' when ${projectMembersTable.role} in ('editor', 'viewer') then ${projectMembersTable.role} else 'editor' end`,
     contractRevenueMinor: projectFinanceSettingsTable.contractRevenueMinor,
     easyjobRevenueMinor: projectFinanceSettingsTable.easyjobRevenueMinor,
     laborBudgetMinor: projectFinanceSettingsTable.laborBudgetMinor,
@@ -84601,15 +84577,7 @@ async function loadEconomy(callerUserId) {
   ).leftJoin(
     projectFinanceSettingsTable,
     eq(projectFinanceSettingsTable.projectId, projectsTable.id)
-  ).where(
-    and(
-      isNotNull(sql`nullif(${projectsTable.data}->>'activeBriefId', '')`),
-      or(
-        eq(projectsTable.userId, callerUserId),
-        eq(projectMembersTable.userId, callerUserId)
-      )
-    )
-  );
+  ).where(isNotNull(sql`nullif(${projectsTable.data}->>'activeBriefId', '')`));
   const projectIds = projects.map((project) => project.id);
   const activeBriefIds = projects.map((project) => project.activeBriefId);
   const [expenses, laborRows] = await Promise.all([
@@ -84874,8 +84842,8 @@ router21.patch(
         res.status(404).json({ ok: false, error: "Project not found." });
         return;
       }
-      if (!isProjectWriter(access)) {
-        res.status(403).json({ ok: false, error: "Project is read-only." });
+      if (access !== "owner") {
+        res.status(403).json({ ok: false, error: "Only the project owner can update financial settings." });
         return;
       }
       const existing = await db.select().from(projectFinanceSettingsTable).where(eq(projectFinanceSettingsTable.projectId, projectId)).limit(1);
@@ -84949,12 +84917,12 @@ router21.post(
     }
     try {
       const callerUserId = userId(req);
-      const access = await getProjectAccess(projectId, callerUserId);
+      const access = await getEmployeeProjectAccess(projectId, callerUserId);
       if (!access) {
         res.status(404).json({ ok: false, error: "Project not found." });
         return;
       }
-      if (!isProjectWriter(access)) {
+      if (access === "viewer") {
         res.status(403).json({ ok: false, error: "Project is read-only." });
         return;
       }
@@ -85297,7 +85265,6 @@ router22.get("/clients/:id", async (req, res) => {
     res.status(404).json({ ok: false, error: "Client not found." });
     return;
   }
-  const userId2 = req._userId;
   try {
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id)).limit(1);
     if (!client) {
@@ -85313,12 +85280,8 @@ router22.get("/clients/:id", async (req, res) => {
       start_date: sql`${projectsTable.data}->>'reportDate'`,
       end_date: sql`${projectsTable.data}->>'reportEndDate'`,
       updatedAt: projectsTable.updatedAt
-    }).from(projectsTable).leftJoin(projectMembersTable, and(
-      eq(projectMembersTable.projectId, projectsTable.id),
-      eq(projectMembersTable.userId, userId2)
-    )).where(and(
+    }).from(projectsTable).where(and(
       eq(projectsTable.clientId, id),
-      or(eq(projectsTable.userId, userId2), eq(projectMembersTable.userId, userId2)),
       or(
         sql`lower(coalesce(${projectsTable.data}->>'status', '')) in ('completed', 'complete', 'archived')`,
         sql`case when (${projectsTable.data}->>'reportEndDate') ~ '^\\d{4}-\\d{2}-\\d{2}$' then (${projectsTable.data}->>'reportEndDate') < to_char(current_date, 'YYYY-MM-DD') else false end`
@@ -85397,7 +85360,7 @@ router22.post("/clients/:clientId/projects/:projectId/clone", async (req, res) =
   }
   const userId2 = req._userId;
   try {
-    const access = await getProjectAccess(projectId, userId2);
+    const access = await getEmployeeProjectAccess(projectId, userId2);
     if (!access) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;

@@ -422,6 +422,7 @@ export type BriefScheduleSegment = {
   to: string;
   fromTime?: string;
   toTime?: string;
+  timeTbd?: boolean;
 };
 /** Backwards-compatible alias for the pre-multi-day type name. New
  *  callers should reference `BriefScheduleSegment` directly. */
@@ -813,10 +814,14 @@ function cleanSegment(
   const to = asString(raw.to);
   const fromTime = asString(raw.fromTime ?? "");
   const toTime = asString(raw.toTime ?? "");
-  if (!from && !to && !fromTime && !toTime) return null;
+  const timeTbd = raw.timeTbd === true;
+  if (!from && !to) return null;
   const cleaned: BriefScheduleSegment = { from, to };
-  if (fromTime) cleaned.fromTime = fromTime;
-  if (toTime) cleaned.toTime = toTime;
+  if (timeTbd) cleaned.timeTbd = true;
+  else {
+    if (fromTime) cleaned.fromTime = fromTime;
+    if (toTime) cleaned.toTime = toTime;
+  }
   return cleaned;
 }
 
@@ -845,10 +850,14 @@ function normalizeSegment(raw: unknown): BriefScheduleSegment | null {
   const to = asString(phObj.to);
   const fromTime = asString(phObj.fromTime ?? "");
   const toTime = asString(phObj.toTime ?? "");
-  if (!from && !to && !fromTime && !toTime) return null;
+  const timeTbd = phObj.timeTbd === true;
+  if (!from && !to) return null;
   const norm: BriefScheduleSegment = { from, to };
-  if (fromTime) norm.fromTime = fromTime;
-  if (toTime) norm.toTime = toTime;
+  if (timeTbd) norm.timeTbd = true;
+  else {
+    if (fromTime) norm.fromTime = fromTime;
+    if (toTime) norm.toTime = toTime;
+  }
   return norm;
 }
 

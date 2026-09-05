@@ -38,6 +38,7 @@ export type ItineraryScheduleSegment = {
   to: string;
   fromTime?: string;
   toTime?: string;
+  timeTbd?: boolean;
 };
 
 export type ItinerarySchedule = Partial<
@@ -64,6 +65,7 @@ export type ItineraryDay = {
     phaseLabel: string;
     fromTime?: string;
     toTime?: string;
+    timeTbd?: boolean;
   }>;
   /** Hotel info for this date. Omitted entirely (not just empty)
    *  when the caller is not staying at a hotel for this trip. */
@@ -213,6 +215,7 @@ export function rollupItinerary(input: RollupInput): ItineraryDay[] {
             phaseLabel: PHASE_LABELS[key],
             fromTime: seg.fromTime,
             toTime: seg.toTime,
+            ...(seg.timeTbd === true ? { timeTbd: true } : {}),
           });
           // Don't break — the same phase can in theory have two
           // overlapping segments (rare but legal in the schema), and

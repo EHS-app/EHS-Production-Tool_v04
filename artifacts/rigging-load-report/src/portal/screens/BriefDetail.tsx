@@ -2384,7 +2384,9 @@ function ScheduleList({
             </span>
             <div style={{ display: "grid", gap: 4 }}>
               {block.segments.map((seg, idx) => {
-                const timeRange = formatTimeRange(seg.fromTime, seg.toTime);
+                const timeRange = seg.timeTbd
+                  ? "TBD"
+                  : formatTimeRange(seg.fromTime, seg.toTime);
                 const dateRange =
                   seg.from || seg.to ? formatRange(seg.from, seg.to) : "";
                 return (

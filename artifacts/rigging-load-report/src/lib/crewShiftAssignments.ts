@@ -10,6 +10,7 @@ export type CrewShiftPhaseKey = (typeof CREW_SHIFT_PHASE_KEYS)[number];
 export type CrewShiftTime = {
   startTime: string;
   endTime: string;
+  timeTbd?: boolean;
 };
 
 export type CrewShiftTimeMap = Record<string, CrewShiftTime>;

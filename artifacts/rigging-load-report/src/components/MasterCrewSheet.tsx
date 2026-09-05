@@ -1823,7 +1823,9 @@ function ShiftAssignmentMatrix({
                                   <span>{phase.label}</span>
                                   {timing ? (
                                     <small>
-                                      {timing.startTime}–{timing.endTime}
+                                      {timing.timeTbd
+                                        ? "TBD"
+                                        : `${timing.startTime}–${timing.endTime}`}
                                     </small>
                                   ) : null}
                                 </label>

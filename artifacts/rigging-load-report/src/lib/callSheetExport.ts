@@ -78,7 +78,9 @@ function scheduleHtml(schedule: BriefSchedule | undefined): string {
                 .map((seg, i) => {
                   const dateRange =
                     seg.from || seg.to ? fmtRange(seg.from, seg.to) : "—";
-                  const timeRange = fmtTimeRange(seg.fromTime, seg.toTime);
+                  const timeRange = seg.timeTbd
+                    ? "TBD"
+                    : fmtTimeRange(seg.fromTime, seg.toTime);
                   const dayPrefix =
                     block.segs.length > 1
                       ? `<span class="cs-day-tag">Day ${i + 1}</span>`

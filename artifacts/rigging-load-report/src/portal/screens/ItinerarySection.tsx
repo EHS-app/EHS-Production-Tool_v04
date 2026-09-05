@@ -20,6 +20,7 @@ type ItineraryDay = {
     phaseLabel: string;
     fromTime?: string;
     toTime?: string;
+    timeTbd?: boolean;
   }>;
   hotel?: {
     stayingTonight: boolean;
@@ -278,7 +279,9 @@ function ItineraryDayCard({
             Production:
           </strong>{" "}
           {day.phases.map((p, i) => {
-            const time = formatPhaseTime(p.fromTime, p.toTime);
+            const time = p.timeTbd
+              ? "TBD"
+              : formatPhaseTime(p.fromTime, p.toTime);
             return (
               <span key={`${p.phaseKey}-${i}`}>
                 {i > 0 ? <span style={{ color: c.muted }}> · </span> : null}

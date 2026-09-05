@@ -57,7 +57,9 @@ function fmtRange(from: string | undefined, to: string | undefined): string {
 function fmtTimeRange(
   fromTime: string | undefined,
   toTime: string | undefined,
+  timeTbd = false,
 ): string {
+  if (timeTbd) return "TBD";
   if (!fromTime && !toTime) return "—";
   if (fromTime && toTime) return `${fromTime}–${toTime}`;
   return fromTime || toTime || "—";
@@ -107,7 +109,7 @@ function diffSchedule(
         out.push({
           key: `schedule.${key}[${i}]`,
           label: `${phaseLabel}${dayLabel}`,
-          before: `${fmtRange(bs.from, bs.to)} · ${fmtTimeRange(bs.fromTime, bs.toTime)}`,
+          before: `${fmtRange(bs.from, bs.to)} · ${fmtTimeRange(bs.fromTime, bs.toTime, bs.timeTbd)}`,
           after: "Removed",
         });
         continue;
@@ -117,7 +119,7 @@ function diffSchedule(
           key: `schedule.${key}[${i}]`,
           label: `${phaseLabel}${dayLabel}`,
           before: "—",
-          after: `${fmtRange(as.from, as.to)} · ${fmtTimeRange(as.fromTime, as.toTime)}`,
+          after: `${fmtRange(as.from, as.to)} · ${fmtTimeRange(as.fromTime, as.toTime, as.timeTbd)}`,
         });
         continue;
       }
@@ -133,8 +135,8 @@ function diffSchedule(
         out,
         `schedule.${key}[${i}].times`,
         `${phaseLabel}${dayLabel} times`,
-        fmtTimeRange(bs.fromTime, bs.toTime),
-        fmtTimeRange(as.fromTime, as.toTime),
+        fmtTimeRange(bs.fromTime, bs.toTime, bs.timeTbd),
+        fmtTimeRange(as.fromTime, as.toTime, as.timeTbd),
       );
     }
   }

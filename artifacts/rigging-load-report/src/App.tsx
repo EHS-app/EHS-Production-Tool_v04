@@ -874,12 +874,14 @@ export type SchedulePhaseKey = "setup" | "rehearsal" | "show" | "downrig";
  *  producer can record multiple non-contiguous days for the same
  *  phase (e.g. Setup Mon + Wed, or Show Fri/Sat/Sun). Empty strings
  *  mean "not set". `fromTime` / `toTime` are HH:MM 24h strings
- *  (matching the value of <input type="time">). */
+ *  (matching the value of <input type="time">). `timeTbd` explicitly
+ *  marks a row whose time has not been decided yet. */
 export type ScheduleSegment = {
   from: string;
   to: string;
   fromTime?: string;
   toTime?: string;
+  timeTbd?: boolean;
 };
 
 /** Legacy single-segment shape kept as a type alias so existing
@@ -930,9 +932,7 @@ export function buildProjectSchedule(
   (["setup", "rehearsal", "downrig"] as const).forEach((k) => {
     const arr = extra[k];
     if (arr && arr.length > 0) {
-      const cleaned = arr.filter(
-        (s) => s.from || s.to || s.fromTime || s.toTime,
-      );
+      const cleaned = arr.filter((s) => s.from || s.to);
       if (cleaned.length > 0) out[k] = cleaned;
     }
   });
@@ -944,15 +944,12 @@ export function buildProjectSchedule(
     to: reportEndDate || reportDate,
     fromTime: showExtra[0]?.fromTime,
     toTime: showExtra[0]?.toTime,
+    timeTbd: showExtra[0]?.timeTbd,
   };
   const extraShowSegments = showExtra
     .slice(1)
-    .filter((s) => s.from || s.to || s.fromTime || s.toTime);
-  const hasPrimary =
-    !!reportDate ||
-    !!reportEndDate ||
-    !!primary.fromTime ||
-    !!primary.toTime;
+    .filter((s) => s.from || s.to);
+  const hasPrimary = !!reportDate || !!reportEndDate;
   const showSegs: ScheduleSegment[] = [];
   if (hasPrimary) showSegs.push(primary);
   showSegs.push(...extraShowSegments);
@@ -1052,8 +1049,9 @@ function sanitizeSegment(raw: unknown): ScheduleSegment | null {
     typeof phObj.fromTime === "string" ? phObj.fromTime : undefined;
   const toTime =
     typeof phObj.toTime === "string" ? phObj.toTime : undefined;
-  if (!from && !to && !fromTime && !toTime) return null;
-  return { from, to, fromTime, toTime };
+  const timeTbd = phObj.timeTbd === true;
+  if (!from && !to && !fromTime && !toTime && !timeTbd) return null;
+  return { from, to, fromTime, toTime, timeTbd };
 }
 
 function sanitizeExtraSchedule(raw: unknown): ExtraSchedule {
@@ -3817,14 +3815,20 @@ function App() {
     const times: CrewShiftTimeMap = {};
     for (const phaseName of Object.keys(schedule) as CrewShiftPhaseKey[]) {
       for (const segment of schedule[phaseName] ?? []) {
-        if (!segment.fromTime || !segment.toTime) continue;
+        if (
+          !segment.timeTbd &&
+          (!segment.fromTime || !segment.toTime)
+        ) {
+          continue;
+        }
         for (const dateKey of expandProjectDays(
           segment.from,
           segment.to || segment.from,
         )) {
           times[crewShiftAssignmentKey(dateKey, phaseName)] = {
-            startTime: segment.fromTime,
-            endTime: segment.toTime,
+            startTime: segment.timeTbd ? "" : segment.fromTime ?? "",
+            endTime: segment.timeTbd ? "" : segment.toTime ?? "",
+            timeTbd: segment.timeTbd === true,
           };
         }
       }
@@ -8619,14 +8623,16 @@ function summariseSchedule(
   reportDate: string,
   reportEndDate: string,
   extra: ExtraSchedule,
-): { label: string; phaseCount: number } {
+): { label: string; phaseCount: number; hasTbdTime: boolean } {
   // Flatten every phase's segments into a single (from, to) list and
   // pick the global min / max so the trigger pill always shows the
   // full active span — even when the producer entered separate days
   // across multiple phases (e.g. Setup Apr 29, Show May 5).
   const segs: Array<{ from: string; to: string }> = [];
+  let hasTbdTime = false;
   if (reportDate || reportEndDate) {
     segs.push({ from: reportDate, to: reportEndDate || reportDate });
+    hasTbdTime = extra.show?.[0]?.timeTbd === true;
   }
   const phasesUsed = new Set<SchedulePhaseKey>();
   if (reportDate || reportEndDate) phasesUsed.add("show");
@@ -8637,6 +8643,7 @@ function summariseSchedule(
     for (const ph of arr) {
       if (ph.from || ph.to) {
         segs.push({ from: ph.from, to: ph.to });
+        if (ph.timeTbd) hasTbdTime = true;
         used = true;
       }
     }
@@ -8646,9 +8653,14 @@ function summariseSchedule(
   const showExtra = extra.show ?? [];
   for (let i = 1; i < showExtra.length; i++) {
     const s = showExtra[i];
-    if (s.from || s.to) segs.push({ from: s.from, to: s.to });
+    if (s.from || s.to) {
+      segs.push({ from: s.from, to: s.to });
+      if (s.timeTbd) hasTbdTime = true;
+    }
   }
-  if (segs.length === 0) return { label: "Add dates", phaseCount: 0 };
+  if (segs.length === 0) {
+    return { label: "Add dates", phaseCount: 0, hasTbdTime: false };
+  }
   const fromIso = segs
     .map((p) => p.from || p.to)
     .filter(Boolean)
@@ -8662,7 +8674,7 @@ function summariseSchedule(
     fromIso && toIso && fromIso !== toIso
       ? `${fmtShortDate(fromIso)} → ${fmtShortDate(toIso)}`
       : fmtShortDate(fromIso || toIso || "");
-  return { label: span, phaseCount: phasesUsed.size };
+  return { label: span, phaseCount: phasesUsed.size, hasTbdTime };
 }
 
 function ScheduleField({
@@ -8705,6 +8717,7 @@ function ScheduleField({
     to: "",
     fromTime: "",
     toTime: "",
+    timeTbd: false,
   });
 
   /** Display-side segments for one phase. Always returns at least one
@@ -8720,6 +8733,7 @@ function ScheduleField({
         to: reportEndDate,
         fromTime: arr[0]?.fromTime ?? "",
         toTime: arr[0]?.toTime ?? "",
+        timeTbd: arr[0]?.timeTbd === true,
       };
       const rest = arr.slice(1);
       return [primary, ...rest];
@@ -8739,6 +8753,7 @@ function ScheduleField({
         to: reportEndDate,
         fromTime: schedule.show?.[0]?.fromTime ?? "",
         toTime: schedule.show?.[0]?.toTime ?? "",
+        timeTbd: schedule.show?.[0]?.timeTbd === true,
       },
       ...(schedule.show ?? []).slice(1),
     ];
@@ -8786,14 +8801,21 @@ function ScheduleField({
     // `extraSchedule.show[0]`.
     if (key === "show" && idx === 0) {
       if (side === "from") {
+        const previousFrom = reportDate;
         onChangeReportDate(value);
-        if (reportEndDate && value && reportEndDate < value) {
+        if (
+          !reportEndDate ||
+          reportEndDate === previousFrom ||
+          (value && reportEndDate < value)
+        ) {
           onChangeReportEndDate(value);
         }
         return;
       }
       if (side === "to") {
-        onChangeReportEndDate(value);
+        onChangeReportEndDate(
+          value && reportDate && value < reportDate ? reportDate : value,
+        );
         return;
       }
       onChangeExtraSchedule((prev) => {
@@ -8811,8 +8833,16 @@ function ScheduleField({
       while (arr.length <= idx) arr.push(emptySeg());
       const cur = arr[idx];
       const next: ScheduleSegment = { ...cur, [side]: value };
-      if (side === "from" && next.to && value && next.to < value) {
-        next.to = value;
+      if (side === "from") {
+        if (
+          !next.to ||
+          next.to === cur.from ||
+          (value && next.to < value)
+        ) {
+          next.to = value;
+        }
+      } else if (side === "to" && value && next.from && value < next.from) {
+        next.to = next.from;
       }
       arr[idx] = next;
       const out: ExtraSchedule = { ...prev };
@@ -8822,7 +8852,8 @@ function ScheduleField({
         !arr[arr.length - 1].from &&
         !arr[arr.length - 1].to &&
         !arr[arr.length - 1].fromTime &&
-        !arr[arr.length - 1].toTime
+        !arr[arr.length - 1].toTime &&
+        !arr[arr.length - 1].timeTbd
       ) {
         // For show, never drop slot 0 — it carries the primary times
         // even when the row appears empty in storage.
@@ -8834,6 +8865,38 @@ function ScheduleField({
       } else {
         out[key] = arr;
       }
+      return out;
+    });
+  };
+
+  const setTimeTbd = (
+    key: SchedulePhaseKey,
+    idx: number,
+    enabled: boolean,
+  ) => {
+    onChangeExtraSchedule((prev) => {
+      const arr = [...(prev[key] ?? [])];
+      while (arr.length <= idx) arr.push(emptySeg());
+      const cur = arr[idx];
+      arr[idx] = {
+        ...cur,
+        timeTbd: enabled,
+        ...(enabled ? { fromTime: "", toTime: "" } : {}),
+      };
+      const out: ExtraSchedule = { ...prev };
+      while (
+        arr.length > 0 &&
+        !arr[arr.length - 1].from &&
+        !arr[arr.length - 1].to &&
+        !arr[arr.length - 1].fromTime &&
+        !arr[arr.length - 1].toTime &&
+        !arr[arr.length - 1].timeTbd
+      ) {
+        if (key === "show" && arr.length === 1) break;
+        arr.pop();
+      }
+      if (arr.length === 0) delete out[key];
+      else out[key] = arr;
       return out;
     });
   };
@@ -8878,7 +8941,8 @@ function ScheduleField({
         key === "show" &&
         arr.length === 1 &&
         !arr[0].fromTime &&
-        !arr[0].toTime
+        !arr[0].toTime &&
+        !arr[0].timeTbd
       ) {
         delete out.show;
       } else {
@@ -8952,6 +9016,18 @@ function ScheduleField({
               · {summary.phaseCount} phases
             </span>
           ) : null}
+          {summary.hasTbdTime ? (
+            <span
+              style={{
+                marginLeft: 6,
+                fontSize: 11,
+                fontWeight: 800,
+                color: "var(--text-muted)",
+              }}
+            >
+              · Time TBD
+            </span>
+          ) : null}
         </span>
         <span
           aria-hidden
@@ -9006,7 +9082,8 @@ function ScheduleField({
                 segment.from ||
                 segment.to ||
                 segment.fromTime ||
-                segment.toTime,
+                segment.toTime ||
+                segment.timeTbd,
             );
             const inputStyle = {
               padding: "6px 8px",
@@ -9172,43 +9249,85 @@ function ScheduleField({
                         <div
                           style={{
                             display: "grid",
-                            gridTemplateColumns: "32px 1fr 14px 1fr",
+                            gridTemplateColumns: "32px 1fr 14px 1fr auto",
                             alignItems: "center",
                             gap: 6,
                           }}
                         >
                           <span style={subLabelStyle}>Time</span>
-                          <input
-                            type="time"
-                            value={ph.fromTime ?? ""}
-                            aria-label={`${SCHEDULE_PHASE_LABELS[key]} day ${idx + 1} start time`}
-                            onChange={(e) =>
-                              setSegment(
-                                key,
-                                idx,
-                                "fromTime",
-                                e.target.value,
-                              )
-                            }
-                            style={inputStyle}
-                          />
-                          <span aria-hidden style={arrowStyle}>
-                            →
-                          </span>
-                          <input
-                            type="time"
-                            value={ph.toTime ?? ""}
-                            aria-label={`${SCHEDULE_PHASE_LABELS[key]} day ${idx + 1} end time`}
-                            onChange={(e) =>
-                              setSegment(
-                                key,
-                                idx,
-                                "toTime",
-                                e.target.value,
-                              )
-                            }
-                            style={inputStyle}
-                          />
+                          {ph.timeTbd ? (
+                            <span
+                              style={{
+                                gridColumn: "2 / 5",
+                                padding: "6px 8px",
+                                border: "1px dashed var(--border-color)",
+                                borderRadius: 6,
+                                color: "var(--text-muted)",
+                                fontSize: 12,
+                                fontWeight: 800,
+                                textAlign: "center",
+                                letterSpacing: 0.4,
+                              }}
+                            >
+                              TBD
+                            </span>
+                          ) : (
+                            <>
+                              <input
+                                type="time"
+                                value={ph.fromTime ?? ""}
+                                aria-label={`${SCHEDULE_PHASE_LABELS[key]} day ${idx + 1} start time`}
+                                onChange={(e) =>
+                                  setSegment(
+                                    key,
+                                    idx,
+                                    "fromTime",
+                                    e.target.value,
+                                  )
+                                }
+                                style={inputStyle}
+                              />
+                              <span aria-hidden style={arrowStyle}>
+                                →
+                              </span>
+                              <input
+                                type="time"
+                                value={ph.toTime ?? ""}
+                                aria-label={`${SCHEDULE_PHASE_LABELS[key]} day ${idx + 1} end time`}
+                                onChange={(e) =>
+                                  setSegment(
+                                    key,
+                                    idx,
+                                    "toTime",
+                                    e.target.value,
+                                  )
+                                }
+                                style={inputStyle}
+                              />
+                            </>
+                          )}
+                          <label
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              color: "var(--text-muted)",
+                              fontSize: 10,
+                              fontWeight: 800,
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={ph.timeTbd === true}
+                              onChange={(event) =>
+                                setTimeTbd(key, idx, event.target.checked)
+                              }
+                              aria-label={`${SCHEDULE_PHASE_LABELS[key]} day ${idx + 1} time TBD`}
+                            />
+                            TBD
+                          </label>
                         </div>
                       </div>
                     );

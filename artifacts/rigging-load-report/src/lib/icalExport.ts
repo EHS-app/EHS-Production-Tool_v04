@@ -152,7 +152,7 @@ function scheduleEvents(
     (a) => a.crewId === brief.recipientCrewId,
   );
   const role = myAssignment?.role ?? "";
-  const description = [
+  const baseDescription = [
     role ? `Role: ${role}` : "",
     brief.project.preparedBy
       ? `Project manager: ${brief.project.preparedBy}`
@@ -173,7 +173,12 @@ function scheduleEvents(
         ...eventLines({
           uid: `${baseUid}-${phase}-${idx}@ehs.portal`,
           summary: `${venue} — ${PHASE_LABELS[phase]}${dayLabel}`,
-          description,
+          description: [
+            baseDescription,
+            seg.timeTbd ? "Time: TBD" : "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
           location: venue,
           segment: seg,
           stamp,

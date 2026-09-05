@@ -78392,7 +78392,8 @@ function rollupItinerary(input) {
             phaseKey: key2,
             phaseLabel: PHASE_LABELS[key2],
             fromTime: seg.fromTime,
-            toTime: seg.toTime
+            toTime: seg.toTime,
+            ...seg.timeTbd === true ? { timeTbd: true } : {}
           });
         }
       }

@@ -57,6 +57,7 @@ export type ClientPackSchedulePhase = {
     to: string;
     fromTime?: string;
     toTime?: string;
+    timeTbd?: boolean;
   }>;
 };
 
@@ -332,7 +333,9 @@ function renderSchedule(phases: ClientPackSchedulePhase[]): string {
               seg.from && seg.to && seg.from !== seg.to
                 ? `${fmtDate(seg.from)} → ${fmtDate(seg.to)}`
                 : fmtDate(seg.from || seg.to);
-            const time = fmtTimeRange(seg.fromTime, seg.toTime);
+            const time = seg.timeTbd
+              ? "TBD"
+              : fmtTimeRange(seg.fromTime, seg.toTime);
             return `<tr>
               <td><strong>${escapeHtml(phase.label)}</strong></td>
               <td>${dateRange}</td>

@@ -95,6 +95,11 @@ export type RosterRow = {
   offTime: string;
   assignedShiftPhases: string[];
   assignedShiftTimes: Record<string, { startTime: string; endTime: string }>;
+  assignedShiftWindows: Record<
+    string,
+    Array<{ startTime: string; endTime: string }>
+  >;
+  assignedShiftTasks: Record<string, string[]>;
   /** True when the producer has flagged this person as needing a
    *  hotel for the run. Derived from `hotelDates.length > 0` for
    *  both gig and local rows. */
@@ -152,6 +157,11 @@ export type RosterGig = {
   offTime: string;
   assignedShiftPhases: string[];
   assignedShiftTimes: Record<string, { startTime: string; endTime: string }>;
+  assignedShiftWindows: Record<
+    string,
+    Array<{ startTime: string; endTime: string }>
+  >;
+  assignedShiftTasks: Record<string, string[]>;
   hotelRequired: boolean;
   hotelDates: string[];
   dietaryTags: DietaryTag[];
@@ -276,6 +286,28 @@ export function mergeRoster(
       ) {
         existing.assignedShiftTimes = { ...g.assignedShiftTimes };
       }
+      if (
+        Object.keys(existing.assignedShiftWindows).length === 0 &&
+        Object.keys(g.assignedShiftWindows).length > 0
+      ) {
+        existing.assignedShiftWindows = Object.fromEntries(
+          Object.entries(g.assignedShiftWindows).map(([key, windows]) => [
+            key,
+            windows.map((window) => ({ ...window })),
+          ]),
+        );
+      }
+      if (
+        Object.keys(existing.assignedShiftTasks).length === 0 &&
+        Object.keys(g.assignedShiftTasks).length > 0
+      ) {
+        existing.assignedShiftTasks = Object.fromEntries(
+          Object.entries(g.assignedShiftTasks).map(([key, tasks]) => [
+            key,
+            [...tasks],
+          ]),
+        );
+      }
       // dietaryTags / allergens / phone / room come from the
       // freelancer profile + pairing engine (same person → same
       // data) so we don't bother merging; the first gig's copy is
@@ -311,6 +343,35 @@ export function mergeRoster(
         Object.keys(g.assignedShiftTimes).length > 0
           ? { ...g.assignedShiftTimes }
           : { ...(matchedLocal?.assignedShiftTimes ?? {}) },
+      assignedShiftWindows:
+        Object.keys(g.assignedShiftWindows).length > 0
+          ? Object.fromEntries(
+              Object.entries(g.assignedShiftWindows).map(([key, windows]) => [
+                key,
+                windows.map((window) => ({ ...window })),
+              ]),
+            )
+          : Object.fromEntries(
+              Object.entries(matchedLocal?.assignedShiftWindows ?? {}).map(
+                ([key, windows]) => [
+                  key,
+                  windows.map((window) => ({ ...window })),
+                ],
+              ),
+            ),
+      assignedShiftTasks:
+        Object.keys(g.assignedShiftTasks).length > 0
+          ? Object.fromEntries(
+              Object.entries(g.assignedShiftTasks).map(([key, tasks]) => [
+                key,
+                [...tasks],
+              ]),
+            )
+          : Object.fromEntries(
+              Object.entries(matchedLocal?.assignedShiftTasks ?? {}).map(
+                ([key, tasks]) => [key, [...tasks]],
+              ),
+            ),
       hotelRequired: g.hotelRequired,
       hotelDates: g.hotelDates,
       dietaryTags: g.dietaryTags,
@@ -349,6 +410,18 @@ export function mergeRoster(
       offTime: m.offTime,
       assignedShiftPhases: [...(m.assignedShiftPhases ?? [])],
       assignedShiftTimes: { ...(m.assignedShiftTimes ?? {}) },
+      assignedShiftWindows: Object.fromEntries(
+        Object.entries(m.assignedShiftWindows ?? {}).map(([key, windows]) => [
+          key,
+          windows.map((window) => ({ ...window })),
+        ]),
+      ),
+      assignedShiftTasks: Object.fromEntries(
+        Object.entries(m.assignedShiftTasks ?? {}).map(([key, tasks]) => [
+          key,
+          [...tasks],
+        ]),
+      ),
       // Local rows now carry a producer-set `needsHotel` flag so
       // in-house / manual people can be ticked for hotel without
       // having to go through the portal accept flow first. Now

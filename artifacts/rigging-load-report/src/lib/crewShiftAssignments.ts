@@ -14,6 +14,7 @@ export type CrewShiftTime = {
 };
 
 export type CrewShiftTimeMap = Record<string, CrewShiftTime>;
+export type CrewShiftWindowMap = Record<string, CrewShiftTime[]>;
 
 export function crewShiftAssignmentKey(
   dateKey: string,
@@ -104,6 +105,57 @@ export function shiftTimesForSelections(
   return result;
 }
 
+export function shiftWindowsForSelections(
+  selections: Iterable<string>,
+  scheduledTimes: Readonly<CrewShiftTimeMap>,
+  existingWindows: Readonly<CrewShiftWindowMap> = {},
+  existingTimes: Readonly<CrewShiftTimeMap> = {},
+): CrewShiftWindowMap {
+  const result: CrewShiftWindowMap = {};
+  for (const key of selections) {
+    const windows = existingWindows[key];
+    if (windows?.length) {
+      result[key] = windows.map((window) => ({ ...window }));
+      continue;
+    }
+    const time = existingTimes[key] ?? scheduledTimes[key];
+    if (time) result[key] = [{ ...time }];
+  }
+  return result;
+}
+
+export function firstShiftTimesFromWindows(
+  selections: Iterable<string>,
+  windows: Readonly<CrewShiftWindowMap>,
+): CrewShiftTimeMap {
+  const result: CrewShiftTimeMap = {};
+  for (const key of selections) {
+    const first = windows[key]?.[0];
+    if (first) result[key] = { ...first };
+  }
+  return result;
+}
+
+export function shiftWindowsWithLegacyFallback(
+  shiftWindows: Readonly<CrewShiftWindowMap>,
+  shiftTimes: Readonly<CrewShiftTimeMap>,
+): CrewShiftWindowMap {
+  const result: CrewShiftWindowMap = {};
+  const keys = new Set([
+    ...Object.keys(shiftTimes),
+    ...Object.keys(shiftWindows),
+  ]);
+  for (const key of keys) {
+    const windows = shiftWindows[key];
+    if (windows?.length) {
+      result[key] = windows.map((window) => ({ ...window }));
+    } else if (shiftTimes[key]) {
+      result[key] = [{ ...shiftTimes[key] }];
+    }
+  }
+  return result;
+}
+
 export function summarizeShiftTimes(
   selections: Iterable<string>,
   shiftTimes: Readonly<CrewShiftTimeMap>,
@@ -137,6 +189,49 @@ export function summarizeShiftTimes(
         absoluteMinutes: endAbsolute,
         displayTime: time.endTime,
       };
+    }
+  }
+
+  return {
+    startTime: earliest?.displayTime || defaults.startTime,
+    endTime: latest?.displayTime || defaults.endTime,
+  };
+}
+
+export function summarizeShiftWindows(
+  selections: Iterable<string>,
+  shiftWindows: Readonly<CrewShiftWindowMap>,
+  defaults: CrewShiftTime,
+): CrewShiftTime {
+  let earliest:
+    | { absoluteMinutes: number; displayTime: string }
+    | undefined;
+  let latest:
+    | { absoluteMinutes: number; displayTime: string }
+    | undefined;
+
+  for (const key of selections) {
+    const [dateKey] = key.split("::");
+    const date = dayIndex(dateKey);
+    if (date == null) continue;
+    for (const time of shiftWindows[key] ?? []) {
+      const start = minutesFromTime(time.startTime);
+      const end = minutesFromTime(time.endTime);
+      if (start == null || end == null) continue;
+      const startAbsolute = date * 1440 + start;
+      const endAbsolute = date * 1440 + end + (end <= start ? 1440 : 0);
+      if (!earliest || startAbsolute < earliest.absoluteMinutes) {
+        earliest = {
+          absoluteMinutes: startAbsolute,
+          displayTime: time.startTime,
+        };
+      }
+      if (!latest || endAbsolute > latest.absoluteMinutes) {
+        latest = {
+          absoluteMinutes: endAbsolute,
+          displayTime: time.endTime,
+        };
+      }
     }
   }
 

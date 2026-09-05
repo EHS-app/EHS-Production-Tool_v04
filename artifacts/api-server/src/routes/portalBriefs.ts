@@ -2213,6 +2213,11 @@ function rosterAssignmentTiming(value: unknown): {
   offTime: string;
   assignedShiftPhases: string[];
   assignedShiftTimes: Record<string, { startTime: string; endTime: string }>;
+  assignedShiftWindows: Record<
+    string,
+    Array<{ startTime: string; endTime: string }>
+  >;
+  assignedShiftTasks: Record<string, string[]>;
 } {
   const assignment =
     value && typeof value === "object" && !Array.isArray(value)
@@ -2230,6 +2235,11 @@ function rosterAssignmentTiming(value: unknown): {
     string,
     { startTime: string; endTime: string }
   > = {};
+  const assignedShiftWindows: Record<
+    string,
+    Array<{ startTime: string; endTime: string }>
+  > = {};
+  const assignedShiftTasks: Record<string, string[]> = {};
   if (
     assignment.assignedShiftTimes &&
     typeof assignment.assignedShiftTimes === "object" &&
@@ -2260,6 +2270,56 @@ function rosterAssignmentTiming(value: unknown): {
       }
     }
   }
+  if (
+    assignment.assignedShiftWindows &&
+    typeof assignment.assignedShiftWindows === "object" &&
+    !Array.isArray(assignment.assignedShiftWindows)
+  ) {
+    for (const [key, rawWindows] of Object.entries(
+      assignment.assignedShiftWindows as Record<string, unknown>,
+    )) {
+      if (!ROSTER_SHIFT_PHASE_KEY.test(key) || !Array.isArray(rawWindows)) {
+        continue;
+      }
+      const windows = rawWindows.flatMap((rawWindow) => {
+        if (
+          !rawWindow ||
+          typeof rawWindow !== "object" ||
+          Array.isArray(rawWindow)
+        ) {
+          return [];
+        }
+        const candidate = rawWindow as Record<string, unknown>;
+        return typeof candidate.startTime === "string" &&
+          ROSTER_HHMM.test(candidate.startTime) &&
+          typeof candidate.endTime === "string" &&
+          ROSTER_HHMM.test(candidate.endTime)
+          ? [{
+              startTime: candidate.startTime,
+              endTime: candidate.endTime,
+            }]
+          : [];
+      }).slice(0, 12);
+      if (windows.length) assignedShiftWindows[key] = windows;
+    }
+  }
+  if (
+    assignment.assignedShiftTasks &&
+    typeof assignment.assignedShiftTasks === "object" &&
+    !Array.isArray(assignment.assignedShiftTasks)
+  ) {
+    for (const [key, rawTasks] of Object.entries(
+      assignment.assignedShiftTasks as Record<string, unknown>,
+    )) {
+      if (!ROSTER_SHIFT_PHASE_KEY.test(key) || !Array.isArray(rawTasks)) continue;
+      const tasks = rawTasks
+        .filter((task): task is string => typeof task === "string")
+        .map((task) => task.trim())
+        .filter(Boolean)
+        .slice(0, 20);
+      if (tasks.length) assignedShiftTasks[key] = tasks;
+    }
+  }
   return {
     callTime:
       typeof assignment.callTime === "string" &&
@@ -2272,6 +2332,8 @@ function rosterAssignmentTiming(value: unknown): {
         : "",
     assignedShiftPhases,
     assignedShiftTimes,
+    assignedShiftWindows,
+    assignedShiftTasks,
   };
 }
 
@@ -2446,6 +2508,8 @@ router.get(
             offTime: timing.offTime,
             assignedShiftPhases: timing.assignedShiftPhases,
             assignedShiftTimes: timing.assignedShiftTimes,
+            assignedShiftWindows: timing.assignedShiftWindows,
+            assignedShiftTasks: timing.assignedShiftTasks,
             dietaryTags: classifyDietary(r.profileDietary),
             allergens: splitAllergens(r.profileAllergies),
             phone: typeof r.profilePhone === "string" ? r.profilePhone : "",

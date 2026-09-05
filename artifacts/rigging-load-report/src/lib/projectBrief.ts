@@ -53,6 +53,10 @@ export type BriefAssignment = {
     string,
     { startTime: string; endTime: string }
   >;
+  assignedShiftWindows: Record<
+    string,
+    Array<{ startTime: string; endTime: string }>
+  >;
   assignedShiftTasks: Record<string, string[]>;
   /** YYYY-MM-DD strings the producer ticked on the Crew tab's hotel
    *  picker for this person. Always a subset of `assignedDates`.
@@ -728,6 +732,15 @@ export function buildBrief(input: BuildBriefInput): ProjectBrief {
             ]),
           )
         : {},
+    assignedShiftWindows:
+      m.assignedShiftWindows && typeof m.assignedShiftWindows === "object"
+        ? Object.fromEntries(
+            Object.entries(m.assignedShiftWindows).map(([key, windows]) => [
+              key,
+              windows.map((window) => ({ ...window })),
+            ]),
+          )
+        : {},
     assignedShiftTasks:
       m.assignedShiftTasks && typeof m.assignedShiftTasks === "object"
         ? Object.fromEntries(
@@ -970,6 +983,43 @@ function normalizeAssignment(raw: unknown): BriefAssignment {
                     ],
                   ]
                 : [];
+            }),
+          )
+        : {},
+    assignedShiftWindows:
+      r.assignedShiftWindows &&
+      typeof r.assignedShiftWindows === "object" &&
+      !Array.isArray(r.assignedShiftWindows)
+        ? Object.fromEntries(
+            Object.entries(
+              r.assignedShiftWindows as Record<string, unknown>,
+            ).flatMap(([key, value]) => {
+              if (
+                !/^\d{4}-\d{2}-\d{2}::(setup|rehearsal|show|downrig)$/.test(key) ||
+                !Array.isArray(value)
+              ) {
+                return [];
+              }
+              const windows = value.flatMap((rawWindow) => {
+                if (
+                  !rawWindow ||
+                  typeof rawWindow !== "object" ||
+                  Array.isArray(rawWindow)
+                ) {
+                  return [];
+                }
+                const timing = rawWindow as Record<string, unknown>;
+                return typeof timing.startTime === "string" &&
+                  /^\d{2}:\d{2}$/.test(timing.startTime) &&
+                  typeof timing.endTime === "string" &&
+                  /^\d{2}:\d{2}$/.test(timing.endTime)
+                  ? [{
+                      startTime: timing.startTime,
+                      endTime: timing.endTime,
+                    }]
+                  : [];
+              }).slice(0, 12);
+              return windows.length ? [[key, windows]] : [];
             }),
           )
         : {},

@@ -97,6 +97,12 @@ export type CrewMember = {
     string,
     { startTime: string; endTime: string }
   >;
+  /** One or more call windows keyed by `YYYY-MM-DD::phase`.
+   *  When absent, assignedShiftTimes is treated as a single window. */
+  assignedShiftWindows?: Record<
+    string,
+    Array<{ startTime: string; endTime: string }>
+  >;
   /** Producer-assigned task/focus labels keyed by `YYYY-MM-DD::phase`. */
   assignedShiftTasks?: Record<string, string[]>;
   /** Contact phone copied from the freelancer's portal profile when
@@ -244,6 +250,45 @@ export function normalizeCrewMember(raw: unknown): CrewMember {
                     ],
                   ]
                 : [];
+            }),
+          )
+        : undefined,
+    assignedShiftWindows:
+      r.assignedShiftWindows &&
+      typeof r.assignedShiftWindows === "object" &&
+      !Array.isArray(r.assignedShiftWindows)
+        ? Object.fromEntries(
+            Object.entries(
+              r.assignedShiftWindows as Record<string, unknown>,
+            ).flatMap(([key, value]) => {
+              if (
+                !/^\d{4}-\d{2}-\d{2}::(setup|rehearsal|show|downrig)$/.test(
+                  key,
+                ) ||
+                !Array.isArray(value)
+              ) {
+                return [];
+              }
+              const windows = value.flatMap((rawWindow) => {
+                if (
+                  !rawWindow ||
+                  typeof rawWindow !== "object" ||
+                  Array.isArray(rawWindow)
+                ) {
+                  return [];
+                }
+                const window = rawWindow as Record<string, unknown>;
+                return typeof window.startTime === "string" &&
+                  isValidHHMM(window.startTime) &&
+                  typeof window.endTime === "string" &&
+                  isValidHHMM(window.endTime)
+                  ? [{
+                      startTime: window.startTime,
+                      endTime: window.endTime,
+                    }]
+                  : [];
+              }).slice(0, 12);
+              return windows.length ? [[key, windows]] : [];
             }),
           )
         : undefined,

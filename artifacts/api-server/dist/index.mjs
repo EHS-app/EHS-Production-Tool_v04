@@ -79938,6 +79938,8 @@ function rosterAssignmentTiming(value) {
     (phase) => typeof phase === "string" && ROSTER_SHIFT_PHASE_KEY.test(phase)
   ).sort() : [];
   const assignedShiftTimes = {};
+  const assignedShiftWindows = {};
+  const assignedShiftTasks = {};
   if (assignment.assignedShiftTimes && typeof assignment.assignedShiftTimes === "object" && !Array.isArray(assignment.assignedShiftTimes)) {
     for (const [key2, timing] of Object.entries(
       assignment.assignedShiftTimes
@@ -79954,11 +79956,42 @@ function rosterAssignmentTiming(value) {
       }
     }
   }
+  if (assignment.assignedShiftWindows && typeof assignment.assignedShiftWindows === "object" && !Array.isArray(assignment.assignedShiftWindows)) {
+    for (const [key2, rawWindows] of Object.entries(
+      assignment.assignedShiftWindows
+    )) {
+      if (!ROSTER_SHIFT_PHASE_KEY.test(key2) || !Array.isArray(rawWindows)) {
+        continue;
+      }
+      const windows = rawWindows.flatMap((rawWindow) => {
+        if (!rawWindow || typeof rawWindow !== "object" || Array.isArray(rawWindow)) {
+          return [];
+        }
+        const candidate = rawWindow;
+        return typeof candidate.startTime === "string" && ROSTER_HHMM.test(candidate.startTime) && typeof candidate.endTime === "string" && ROSTER_HHMM.test(candidate.endTime) ? [{
+          startTime: candidate.startTime,
+          endTime: candidate.endTime
+        }] : [];
+      }).slice(0, 12);
+      if (windows.length) assignedShiftWindows[key2] = windows;
+    }
+  }
+  if (assignment.assignedShiftTasks && typeof assignment.assignedShiftTasks === "object" && !Array.isArray(assignment.assignedShiftTasks)) {
+    for (const [key2, rawTasks] of Object.entries(
+      assignment.assignedShiftTasks
+    )) {
+      if (!ROSTER_SHIFT_PHASE_KEY.test(key2) || !Array.isArray(rawTasks)) continue;
+      const tasks = rawTasks.filter((task) => typeof task === "string").map((task) => task.trim()).filter(Boolean).slice(0, 20);
+      if (tasks.length) assignedShiftTasks[key2] = tasks;
+    }
+  }
   return {
     callTime: typeof assignment.callTime === "string" && ROSTER_HHMM.test(assignment.callTime) ? assignment.callTime : "",
     offTime: typeof assignment.offTime === "string" && ROSTER_HHMM.test(assignment.offTime) ? assignment.offTime : "",
     assignedShiftPhases,
-    assignedShiftTimes
+    assignedShiftTimes,
+    assignedShiftWindows,
+    assignedShiftTasks
   };
 }
 router7.get(
@@ -80064,6 +80097,8 @@ router7.get(
           offTime: timing.offTime,
           assignedShiftPhases: timing.assignedShiftPhases,
           assignedShiftTimes: timing.assignedShiftTimes,
+          assignedShiftWindows: timing.assignedShiftWindows,
+          assignedShiftTasks: timing.assignedShiftTasks,
           dietaryTags: classifyDietary(r.profileDietary),
           allergens: splitAllergens(r.profileAllergies),
           phone: typeof r.profilePhone === "string" ? r.profilePhone : "",

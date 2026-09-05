@@ -5,9 +5,11 @@ import {
   crewShiftAssignmentKey,
   filterShiftSelectionsToSchedule,
   scheduledShiftKeys,
+  shiftWindowsWithLegacyFallback,
   type CrewShiftPhaseKey,
   type CrewShiftTime,
   type CrewShiftTimeMap,
+  type CrewShiftWindowMap,
 } from "../lib/crewShiftAssignments";
 import type { CrewMember } from "../lib/crew";
 
@@ -22,11 +24,34 @@ type ShiftMode = "full" | "four" | "custom";
 type ShiftTaskMap = Record<string, string[]>;
 
 const ROLE_TASKS: Record<string, string[]> = {
-  "Video / LED": ["Wall Assembly", "Signal Patch", "Processor Config"],
-  Rigging: ["Motor Hang", "Truss Assembly"],
-  Lighting: ["Fixtures Hang", "Patching", "FOH Op"],
-  "Lighting FOH": ["Fixtures Hang", "Patching", "FOH Op"],
-  Sound: ["PA Deployment", "Signal Patch", "FOH Op"],
+  Rigging: [
+    "Motor Hang",
+    "Truss Assembly",
+    "Bridle Calc",
+    "Safety Check",
+    "Load-out",
+  ],
+  "Lighting FOH": [
+    "FOH Op",
+    "Patching",
+    "Fixtures Hang",
+    "Focus Spotlights",
+    "Plot Patching",
+  ],
+  "Video / LED": [
+    "Wall Assembly",
+    "Signal Patch",
+    "Processor Config",
+    "Media Server Setup",
+  ],
+  Sound: [
+    "PA Fly",
+    "Stage Patch",
+    "FOH Mix",
+    "System Alignment",
+    "Soundcheck",
+  ],
+  Lighting: ["Fixtures Hang", "Patching", "Focus Spotlights", "Plot Patching"],
   "AV FOH": ["Signal Patch", "Playback", "FOH Op"],
   "System Tech": ["System Config", "Signal Patch", "Troubleshooting"],
 };
@@ -40,11 +65,13 @@ type Props = {
     dates: ReadonlyArray<string>,
     shiftPhases: ReadonlyArray<string>,
     shiftTimes: CrewShiftTimeMap,
+    shiftWindows: CrewShiftWindowMap,
     shiftTasks: ShiftTaskMap,
   ) => void;
   onApplyToRole: (
     shiftPhases: ReadonlyArray<string>,
     shiftTimes: CrewShiftTimeMap,
+    shiftWindows: CrewShiftWindowMap,
     shiftTasks: ShiftTaskMap,
   ) => void;
 };
@@ -100,10 +127,15 @@ export function AssignShiftsModal({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Set<string>>(new Set());
-  const [times, setTimes] = useState<CrewShiftTimeMap>({});
+  const [windows, setWindows] = useState<CrewShiftWindowMap>({});
   const [tasks, setTasks] = useState<ShiftTaskMap>({});
   const [customTasks, setCustomTasks] = useState<Record<string, string>>({});
   const [modes, setModes] = useState<Record<string, ShiftMode | undefined>>({});
+  const presetTasks = ROLE_TASKS[crew.role] ?? [
+    "General Support",
+    "Site Prep",
+    "Show Call",
+  ];
   const availableKeys = useMemo(
     () => new Set(scheduledShiftKeys(phaseDays)),
     [phaseDays],
@@ -123,19 +155,25 @@ export function AssignShiftsModal({
         ),
       availableKeys,
     );
-    const initialTimes: CrewShiftTimeMap = {};
+    const initialWindows: CrewShiftWindowMap = {};
     const initialModes: Record<string, ShiftMode | undefined> = {};
     for (const key of availableKeys) {
-      const value = crew.assignedShiftTimes?.[key] ?? phaseShiftTimes[key];
-      if (value) initialTimes[key] = { ...value };
+      const savedWindows = crew.assignedShiftWindows?.[key];
+      const value = savedWindows?.[0] ?? crew.assignedShiftTimes?.[key] ?? phaseShiftTimes[key];
+      if (savedWindows?.length) {
+        initialWindows[key] = savedWindows.map((window) => ({ ...window }));
+      } else if (value) {
+        initialWindows[key] = [{ ...value }];
+      }
       initialModes[key] = inferredMode(
         selections.has(key),
         value,
         phaseShiftTimes[key],
       );
+      if ((savedWindows?.length ?? 0) > 1) initialModes[key] = "custom";
     }
     setDraft(selections);
-    setTimes(initialTimes);
+    setWindows(initialWindows);
     setTasks(
       Object.fromEntries(
         Object.entries(crew.assignedShiftTasks ?? {}).map(([key, values]) => [
@@ -178,7 +216,7 @@ export function AssignShiftsModal({
     });
     if (mode === "clear") {
       setModes((current) => ({ ...current, [key]: undefined }));
-      setTimes((current) => {
+      setWindows((current) => {
         const next = { ...current };
         delete next[key];
         return next;
@@ -196,32 +234,70 @@ export function AssignShiftsModal({
         ? { startTime: start, endTime: addHours(start, 4) }
         : mode === "full"
           ? { startTime: start, endTime: standard?.endTime || crew.offTime || addHours(start, 8) }
-          : times[key] ?? {
+          : windows[key]?.[0] ?? {
               startTime: start,
               endTime: standard?.endTime || crew.offTime || addHours(start, 8),
             };
-    setTimes((current) => ({ ...current, [key]: nextTime }));
+    setWindows((current) => ({ ...current, [key]: [{ ...nextTime }] }));
     setModes((current) => ({ ...current, [key]: mode }));
   };
 
-  const updateCustomTime = (key: string, side: "startTime" | "endTime", value: string) => {
-    setTimes((current) => ({
+  const updateCustomTime = (
+    key: string,
+    index: number,
+    side: "startTime" | "endTime",
+    value: string,
+  ) => {
+    setWindows((current) => {
+      const nextWindows = (current[key] ?? []).map((window) => ({ ...window }));
+      const existing = nextWindows[index] ?? { startTime: "", endTime: "" };
+      nextWindows[index] = { ...existing, [side]: value };
+      return { ...current, [key]: nextWindows };
+    });
+  };
+
+  const addWindow = (key: string, standard?: CrewShiftTime) => {
+    const existing = windows[key] ?? [];
+    const previous = existing.at(-1);
+    const start = previous?.endTime || standard?.startTime || crew.callTime || "08:00";
+    setDraft((current) => new Set(current).add(key));
+    setModes((current) => ({ ...current, [key]: "custom" }));
+    setWindows((current) => ({
       ...current,
-      [key]: {
-        startTime: current[key]?.startTime ?? "",
-        endTime: current[key]?.endTime ?? "",
-        [side]: value,
-      },
+      [key]: [
+        ...(current[key] ?? []),
+        { startTime: start, endTime: addHours(start, 4) },
+      ],
     }));
   };
+
+  const removeWindow = (key: string, index: number) => {
+    setWindows((current) => ({
+      ...current,
+      [key]: (current[key] ?? []).filter((_, windowIndex) => windowIndex !== index),
+    }));
+  };
+
+  const selectedWindows = useMemo(() => {
+    const result: CrewShiftWindowMap = {};
+    for (const key of draft) {
+      const values = windows[key]?.filter(
+        (window) =>
+          minutes(window.startTime) != null && minutes(window.endTime) != null,
+      );
+      if (values?.length) result[key] = values.map((window) => ({ ...window }));
+    }
+    return result;
+  }, [draft, windows]);
 
   const selectedTimes = useMemo(() => {
     const result: CrewShiftTimeMap = {};
     for (const key of draft) {
-      if (times[key]) result[key] = { ...times[key] };
+      const first = selectedWindows[key]?.[0];
+      if (first) result[key] = { ...first };
     }
     return result;
-  }, [draft, times]);
+  }, [draft, selectedWindows]);
 
   const selectedTasks = useMemo(
     () =>
@@ -258,20 +334,41 @@ export function AssignShiftsModal({
   };
 
   const totalHours = useMemo(
-    () => [...draft].reduce((total, key) => total + durationHours(times[key]), 0),
-    [draft, times],
+    () =>
+      [...draft].reduce(
+        (total, key) =>
+          total +
+          (windows[key] ?? []).reduce(
+            (windowTotal, window) => windowTotal + durationHours(window),
+            0,
+          ),
+        0,
+      ),
+    [draft, windows],
   );
 
   const save = () => {
     const keys = [...draft].sort();
-    onSave(assignedDatesFromShiftPhases(draft), keys, selectedTimes, selectedTasks);
+    onSave(
+      assignedDatesFromShiftPhases(draft),
+      keys,
+      selectedTimes,
+      selectedWindows,
+      selectedTasks,
+    );
     setOpen(false);
   };
 
   const applyToRole = () => {
     const keys = [...draft].sort();
-    onSave(assignedDatesFromShiftPhases(draft), keys, selectedTimes, selectedTasks);
-    onApplyToRole(keys, selectedTimes, selectedTasks);
+    onSave(
+      assignedDatesFromShiftPhases(draft),
+      keys,
+      selectedTimes,
+      selectedWindows,
+      selectedTasks,
+    );
+    onApplyToRole(keys, selectedTimes, selectedWindows, selectedTasks);
     setOpen(false);
   };
 
@@ -279,7 +376,7 @@ export function AssignShiftsModal({
     const current = {
       id: crew.id,
       name: crew.name || "Selected crew",
-      times: selectedTimes,
+      windows: selectedWindows,
       selected: true,
     };
     return [
@@ -289,13 +386,16 @@ export function AssignShiftsModal({
         .map((member) => ({
           id: member.id,
           name: member.name || member.role,
-          times: member.assignedShiftTimes ?? {},
+          windows: shiftWindowsWithLegacyFallback(
+            member.assignedShiftWindows ?? {},
+            member.assignedShiftTimes ?? {},
+          ),
           selected: false,
         })),
     ].flatMap((member) => {
-      const dayTimes = Object.entries(member.times)
+      const dayTimes = Object.entries(member.windows)
         .filter(([key]) => key.startsWith(`${date}::`))
-        .map(([, time]) => time)
+        .flatMap(([, values]) => values)
         .filter((time) => minutes(time.startTime) != null && minutes(time.endTime) != null);
       if (dayTimes.length === 0) return [];
       return [{ ...member, dayTimes }];
@@ -385,16 +485,70 @@ export function AssignShiftsModal({
                                 <button type="button" className="is-clear" onClick={() => setPreset(key, "clear")}>Clear</button>
                               </div>
                               {mode === "custom" ? (
-                                <div className="shift-custom-times">
-                                  <label>Start<input type="time" value={times[key]?.startTime ?? ""} onChange={(event) => updateCustomTime(key, "startTime", event.target.value)} /></label>
-                                  <span>→</span>
-                                  <label>End<input type="time" value={times[key]?.endTime ?? ""} onChange={(event) => updateCustomTime(key, "endTime", event.target.value)} /></label>
+                                <div className="shift-window-list">
+                                  {(windows[key] ?? []).map((window, index) => (
+                                    <div className="shift-custom-times" key={`${key}-${index}`}>
+                                      <span className="shift-window-label">
+                                        Call {index + 1}
+                                      </span>
+                                      <label>
+                                        Start
+                                        <input
+                                          type="time"
+                                          value={window.startTime}
+                                          onChange={(event) =>
+                                            updateCustomTime(
+                                              key,
+                                              index,
+                                              "startTime",
+                                              event.target.value,
+                                            )
+                                          }
+                                        />
+                                      </label>
+                                      <span>→</span>
+                                      <label>
+                                        End
+                                        <input
+                                          type="time"
+                                          value={window.endTime}
+                                          onChange={(event) =>
+                                            updateCustomTime(
+                                              key,
+                                              index,
+                                              "endTime",
+                                              event.target.value,
+                                            )
+                                          }
+                                        />
+                                      </label>
+                                      {(windows[key]?.length ?? 0) > 1 ? (
+                                        <button
+                                          type="button"
+                                          className="shift-remove-window"
+                                          aria-label={`Remove call ${index + 1}`}
+                                          onClick={() => removeWindow(key, index)}
+                                        >
+                                          Remove
+                                        </button>
+                                      ) : null}
+                                    </div>
+                                  ))}
                                 </div>
+                              ) : null}
+                              {draft.has(key) ? (
+                                <button
+                                  type="button"
+                                  className="shift-add-window"
+                                  onClick={() => addWindow(key, standard)}
+                                >
+                                  + Add split call
+                                </button>
                               ) : null}
                               <div className="shift-task-editor">
                                 <span>Tasks / Focus</span>
                                 <div className="shift-task-chips">
-                                  {(ROLE_TASKS[crew.role] ?? ["General Support", "Site Prep", "Show Call"]).map((task) => (
+                                  {presetTasks.map((task) => (
                                     <button
                                       key={task}
                                       type="button"
@@ -406,7 +560,7 @@ export function AssignShiftsModal({
                                     </button>
                                   ))}
                                   {(tasks[key] ?? [])
-                                    .filter((task) => !(ROLE_TASKS[crew.role] ?? []).includes(task))
+                                    .filter((task) => !presetTasks.includes(task))
                                     .map((task) => (
                                       <button
                                         key={task}
@@ -422,7 +576,7 @@ export function AssignShiftsModal({
                                 <div className="shift-custom-task">
                                   <input
                                     value={customTasks[key] ?? ""}
-                                    placeholder="Add custom task"
+                                    placeholder="+ Custom task"
                                     disabled={!draft.has(key)}
                                     onChange={(event) => setCustomTasks((current) => ({ ...current, [key]: event.target.value }))}
                                     onKeyDown={(event) => {

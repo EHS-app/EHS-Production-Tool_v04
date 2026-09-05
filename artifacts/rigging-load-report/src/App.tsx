@@ -122,9 +122,11 @@ import {
   assignedDatesFromShiftPhases,
   crewShiftAssignmentKey,
   filterShiftSelectionsToSchedule,
+  firstShiftTimesFromWindows,
   scheduledShiftKeys,
+  shiftWindowsForSelections,
   shiftTimesForSelections,
-  summarizeShiftTimes,
+  summarizeShiftWindows,
   type CrewShiftPhaseKey,
   type CrewShiftTimeMap,
 } from "./lib/crewShiftAssignments";
@@ -3854,13 +3856,25 @@ function App() {
         );
         const selectedKeys = [...selected].sort();
         const assignedDates = assignedDatesFromShiftPhases(selected);
-        const assignedShiftTimes = shiftTimesForSelections(
+        const assignedShiftWindows = shiftWindowsForSelections(
           selected,
           phaseShiftTimes,
+          member.assignedShiftWindows ?? {},
+          member.assignedShiftTimes ?? {},
         );
-        const summary = summarizeShiftTimes(
+        const assignedShiftTimes = firstShiftTimesFromWindows(
           selected,
-          assignedShiftTimes,
+          assignedShiftWindows,
+        );
+        const assignedShiftTasks = Object.fromEntries(
+          selectedKeys.flatMap((key) => {
+            const tasks = member.assignedShiftTasks?.[key];
+            return tasks?.length ? [[key, [...tasks]]] : [];
+          }),
+        );
+        const summary = summarizeShiftWindows(
+          selected,
+          assignedShiftWindows,
           {
             startTime: member.callTime,
             endTime: member.offTime,
@@ -3871,6 +3885,8 @@ function App() {
           assignedDates,
           assignedShiftPhases: selectedKeys,
           assignedShiftTimes,
+          assignedShiftWindows,
+          assignedShiftTasks,
           callTime: summary.startTime,
           offTime: summary.endTime,
         };
@@ -3881,6 +3897,10 @@ function App() {
             JSON.stringify(member.assignedShiftPhases ?? []) ||
           JSON.stringify(nextMember.assignedShiftTimes) !==
             JSON.stringify(member.assignedShiftTimes ?? {}) ||
+          JSON.stringify(nextMember.assignedShiftWindows) !==
+            JSON.stringify(member.assignedShiftWindows ?? {}) ||
+          JSON.stringify(nextMember.assignedShiftTasks) !==
+            JSON.stringify(member.assignedShiftTasks ?? {}) ||
           nextMember.callTime !== member.callTime ||
           nextMember.offTime !== member.offTime
         ) {
@@ -3928,9 +3948,13 @@ function App() {
       assignedShiftPhases,
       phaseShiftTimes,
     );
-    const summary = summarizeShiftTimes(
+    const assignedShiftWindows = shiftWindowsForSelections(
       assignedShiftPhases,
-      assignedShiftTimes,
+      phaseShiftTimes,
+    );
+    const summary = summarizeShiftWindows(
+      assignedShiftPhases,
+      assignedShiftWindows,
       { startTime: fresh.callTime, endTime: fresh.offTime },
     );
     setCrew((all) => [
@@ -3940,6 +3964,7 @@ function App() {
         assignedDates,
         assignedShiftPhases,
         assignedShiftTimes,
+        assignedShiftWindows,
         callTime: summary.startTime,
         offTime: summary.endTime,
       },
@@ -3962,13 +3987,10 @@ function App() {
           typeof crypto !== "undefined" && "randomUUID" in crypto
             ? `crew-${crypto.randomUUID()}`
             : `crew-${Date.now()}`,
-        name: src.name ? `${src.name} (copy)` : "",
+        name: src.name,
         freelancerUserId: undefined,
         requestStatus: undefined,
         briefAssignmentId: undefined,
-        phone: undefined,
-        dietaryTags: undefined,
-        allergens: undefined,
       };
       const next = [...all];
       next.splice(i + 1, 0, copy);

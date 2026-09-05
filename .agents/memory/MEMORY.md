@@ -18,3 +18,4 @@
 - [Recurring availability overrides](recurring-availability-overrides.md) — day/range replacement suppresses overlapping weekly occurrences by owner-scoped local-date exceptions in the same transaction.
 - [Clerk freelancer backfill](clerk-freelancer-backfill.md) — sync missing legacy freelancers insert-only; never overwrite local profiles, and degrade safely when Clerk is unavailable.
 - [Ephemeral team broadcasts](ephemeral-team-broadcasts.md) — use Postgres NOTIFY plus authenticated SSE across autoscale; bound listener and slow-client resources.
+- [Multi-role crew bookings](multi-role-crew-bookings.md) — secondary role rows stay local unless portal assignments gain per-role slot identity; never duplicate recipient identity blindly.

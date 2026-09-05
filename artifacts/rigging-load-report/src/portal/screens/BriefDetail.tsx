@@ -1589,19 +1589,31 @@ function AssignmentCard({
     };
     return (assignment.assignedShiftPhases ?? []).flatMap((key) => {
       const [dateKey, phaseKey] = key.split("::");
-      const timing = assignment.assignedShiftTimes?.[key];
-      if (!dateKey || !phaseKey || !timing) return [];
+      const timings =
+        assignment.assignedShiftWindows?.[key]?.length
+          ? assignment.assignedShiftWindows[key]
+          : assignment.assignedShiftTimes?.[key]
+            ? [assignment.assignedShiftTimes[key]]
+            : [];
+      if (!dateKey || !phaseKey || timings.length === 0) return [];
       return [
         {
           key,
           dateKey,
           phaseLabel: phaseLabels[phaseKey] ?? phaseKey,
-          timing: `${timing.startTime}–${timing.endTime}`,
+          timing: timings
+            .map((timing) => `${timing.startTime}–${timing.endTime}`)
+            .join(", "),
           tasks: assignment.assignedShiftTasks?.[key] ?? [],
         },
       ];
     });
-  }, [assignment.assignedShiftPhases, assignment.assignedShiftTasks, assignment.assignedShiftTimes]);
+  }, [
+    assignment.assignedShiftPhases,
+    assignment.assignedShiftTasks,
+    assignment.assignedShiftTimes,
+    assignment.assignedShiftWindows,
+  ]);
   return (
     <section
       style={{

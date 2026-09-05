@@ -18,11 +18,16 @@ import {
   assignedDatesFromShiftPhases,
   crewShiftAssignmentKey,
   filterShiftSelectionsToSchedule,
+  firstShiftTimesFromWindows,
   scheduledShiftKeys,
+  shiftWindowsForSelections,
+  shiftWindowsWithLegacyFallback,
   shiftTimesForSelections,
   summarizeShiftTimes,
+  summarizeShiftWindows,
   type CrewShiftPhaseKey,
   type CrewShiftTimeMap,
+  type CrewShiftWindowMap,
 } from "../lib/crewShiftAssignments";
 import { useT } from "../lib/i18n/I18nContext";
 import { AssignShiftsModal } from "./AssignShiftsModal";
@@ -350,15 +355,21 @@ export function MasterCrewSheet({
   const timelineRows = useMemo(
     () =>
       rows.flatMap((row) => {
-        const windows = Object.entries(row.assignedShiftTimes)
+        const shiftWindows = shiftWindowsWithLegacyFallback(
+          row.assignedShiftWindows,
+          row.assignedShiftTimes,
+        );
+        const windows = Object.entries(shiftWindows)
           .filter(([key]) => key.startsWith(`${timelineDate}::`))
-          .flatMap(([, timing]) => {
-            const start = shiftMinutes(timing.startTime);
-            const end = shiftMinutes(timing.endTime);
-            return start == null || end == null
-              ? []
-              : [{ ...timing, start, end }];
-          });
+          .flatMap(([, timings]) =>
+            timings.flatMap((timing) => {
+              const start = shiftMinutes(timing.startTime);
+              const end = shiftMinutes(timing.endTime);
+              return start == null || end == null
+                ? []
+                : [{ ...timing, start, end }];
+            }),
+          );
         if (windows.length === 0 && row.assignedDates.includes(timelineDate)) {
           const start = shiftMinutes(row.callTime);
           const end = shiftMinutes(row.offTime);
@@ -1091,14 +1102,27 @@ export function MasterCrewSheet({
                             }
                             const nextDates =
                               assignedDatesFromShiftPhases(shiftKeys);
-                            const assignedShiftTimes =
-                              shiftTimesForSelections(
+                            const assignedShiftWindows =
+                              shiftWindowsForSelections(
                                 shiftKeys,
                                 phaseShiftTimes ?? {},
+                                local.assignedShiftWindows ?? {},
+                                local.assignedShiftTimes ?? {},
                               );
-                            const summary = summarizeShiftTimes(
+                            const assignedShiftTimes =
+                              firstShiftTimesFromWindows(
+                                shiftKeys,
+                                assignedShiftWindows,
+                              );
+                            const assignedShiftTasks = Object.fromEntries(
+                              [...shiftKeys].flatMap((key) => {
+                                const tasks = local.assignedShiftTasks?.[key];
+                                return tasks?.length ? [[key, [...tasks]]] : [];
+                              }),
+                            );
+                            const summary = summarizeShiftWindows(
                               shiftKeys,
-                              assignedShiftTimes,
+                              assignedShiftWindows,
                               {
                                 startTime: local.callTime,
                                 endTime: local.offTime,
@@ -1108,6 +1132,8 @@ export function MasterCrewSheet({
                               assignedDates: nextDates,
                               assignedShiftPhases: [...shiftKeys].sort(),
                               assignedShiftTimes,
+                              assignedShiftWindows,
+                              assignedShiftTasks,
                               callTime: summary.startTime,
                               offTime: summary.endTime,
                             };
@@ -1126,7 +1152,7 @@ export function MasterCrewSheet({
                         : undefined
                     }
                     onLocalDuplicate={
-                      local && row.source === "local"
+                      local
                         ? () => onDuplicate(local.id)
                         : undefined
                     }
@@ -1139,6 +1165,7 @@ export function MasterCrewSheet({
                             _nextDates,
                             nextShiftPhases,
                             customShiftTimes,
+                             customShiftWindows,
                             shiftTasks,
                           ) => {
                             const available = new Set(
@@ -1154,9 +1181,17 @@ export function MasterCrewSheet({
                             const assignedShiftTimes =
                               customShiftTimes ??
                               shiftTimesForSelections(shiftKeys, phaseShiftTimes ?? {});
-                            const summary = summarizeShiftTimes(
+                             const assignedShiftWindows =
+                               customShiftWindows ??
+                               shiftWindowsForSelections(
+                                 shiftKeys,
+                                 phaseShiftTimes ?? {},
+                                 {},
+                                 assignedShiftTimes,
+                               );
+                             const summary = summarizeShiftWindows(
                               shiftKeys,
-                              assignedShiftTimes,
+                               assignedShiftWindows,
                               {
                                 startTime: local.callTime,
                                 endTime: local.offTime,
@@ -1166,6 +1201,7 @@ export function MasterCrewSheet({
                               assignedDates: sorted,
                               assignedShiftPhases: [...shiftKeys].sort(),
                               assignedShiftTimes,
+                               assignedShiftWindows,
                               assignedShiftTasks: shiftTasks,
                               callTime: summary.startTime,
                               offTime: summary.endTime,
@@ -1177,15 +1213,15 @@ export function MasterCrewSheet({
                     rolePeers={localCrew.filter((member) => member.role === local?.role)}
                     onApplyScheduleToRole={
                       local
-                        ? (shiftPhases, shiftTimes, shiftTasks) => {
+                        ? (shiftPhases, shiftTimes, shiftWindows, shiftTasks) => {
                             const shiftKeys = filterShiftSelectionsToSchedule(
                               shiftPhases,
                               new Set(scheduledShiftKeys(phaseDays ?? {})),
                             );
                             const assignedDates = assignedDatesFromShiftPhases(shiftKeys);
-                            const summary = summarizeShiftTimes(
+                            const summary = summarizeShiftWindows(
                               shiftKeys,
-                              shiftTimes,
+                              shiftWindows,
                               { startTime: local.callTime, endTime: local.offTime },
                             );
                             for (const peer of localCrew) {
@@ -1194,6 +1230,11 @@ export function MasterCrewSheet({
                                 assignedDates,
                                 assignedShiftPhases: [...shiftKeys].sort(),
                                 assignedShiftTimes: shiftTimesForSelections(shiftKeys, shiftTimes),
+                                assignedShiftWindows: shiftWindowsForSelections(
+                                  shiftKeys,
+                                  shiftTimes,
+                                  shiftWindows,
+                                ),
                                 assignedShiftTasks: shiftTasks,
                                 callTime: summary.startTime,
                                 offTime: summary.endTime,
@@ -1437,12 +1478,14 @@ function MasterRow({
     dates: ReadonlyArray<string>,
     shiftPhases?: ReadonlyArray<string>,
     shiftTimes?: CrewShiftTimeMap,
+    shiftWindows?: CrewShiftWindowMap,
     shiftTasks?: Record<string, string[]>,
   ) => void;
   rolePeers?: ReadonlyArray<CrewMember>;
   onApplyScheduleToRole?: (
     shiftPhases: ReadonlyArray<string>,
     shiftTimes: CrewShiftTimeMap,
+    shiftWindows: CrewShiftWindowMap,
     shiftTasks: Record<string, string[]>,
   ) => void;
   onOpenProfile?: (userId: string) => void;
@@ -1525,15 +1568,24 @@ function MasterRow({
           ) : (
             row.role || "—"
           )}
-          {local?.assignedShiftTasks &&
-          Object.values(local.assignedShiftTasks).flat().length > 0 ? (
+          {Object.values(row.assignedShiftTasks).flat().length > 0 ? (
             <div className="crew-row-tasks">
               {[
-                ...new Set(Object.values(local.assignedShiftTasks).flat()),
+                ...new Set(Object.values(row.assignedShiftTasks).flat()),
               ].map((task) => (
                 <span key={task}>{task}</span>
               ))}
             </div>
+          ) : null}
+          {onLocalDuplicate ? (
+            <button
+              type="button"
+              className="roster-day-quickpick-btn crew-add-role-inline"
+              onClick={onLocalDuplicate}
+              title="Add a separate role booking for this person"
+            >
+              + Role
+            </button>
           ) : null}
         </div>
       </td>
@@ -1632,11 +1684,11 @@ function MasterRow({
                 phaseDays={phaseDays}
                 phaseShiftTimes={phaseShiftTimes}
                 rolePeers={rolePeers ?? [local!]}
-                onSave={(dates, phases, times, tasks) =>
-                  onLocalSetDays(dates, phases, times, tasks)
+                onSave={(dates, phases, times, windows, tasks) =>
+                  onLocalSetDays(dates, phases, times, windows, tasks)
                 }
-                onApplyToRole={(phases, times, tasks) =>
-                  onApplyScheduleToRole?.(phases, times, tasks)
+                onApplyToRole={(phases, times, windows, tasks) =>
+                  onApplyScheduleToRole?.(phases, times, windows, tasks)
                 }
               />
             )
@@ -1760,16 +1812,6 @@ function MasterRow({
         </>
       ) : null}
       <td className="led-actions">
-        {onLocalDuplicate ? (
-          <button
-            type="button"
-            className="btn btn-soft btn-sm"
-            onClick={onLocalDuplicate}
-            title="Duplicate this row"
-          >
-            Copy
-          </button>
-        ) : null}
         {onLocalRemove ? (
           <button
             type="button"

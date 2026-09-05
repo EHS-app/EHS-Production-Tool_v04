@@ -10804,6 +10804,26 @@ html[data-shell="linear"] .container {
   border-bottom: 1px solid var(--border);
 }
 
+.shift-role-actions,
+.crew-shift-matrix-footer > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shift-role-actions > button:not(.crew-shift-matrix-close) {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--primary, #f88000);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary, #f88000) 10%, var(--card-bg, #fff));
+  color: var(--primary, #f88000);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .crew-shift-matrix-header h3 {
   margin: 0;
   font-size: 18px;
@@ -10859,6 +10879,177 @@ html[data-shell="linear"] .container {
   padding: 0 6px;
   font-size: 13px;
   font-weight: 800;
+}
+
+.shift-preset-list {
+  display: grid;
+  gap: 10px;
+}
+
+.shift-preset-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.7fr) minmax(320px, 2fr);
+  gap: 8px 14px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--light);
+}
+
+.shift-preset-title {
+  display: grid;
+  gap: 2px;
+}
+
+.shift-preset-title small,
+.shift-overlap-heading small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.shift-preset-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.shift-preset-buttons button {
+  min-height: 36px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.shift-preset-buttons button.is-active {
+  border-color: var(--primary, #f88000);
+  background: color-mix(in srgb, var(--primary, #f88000) 14%, var(--card-bg, #fff));
+  color: var(--primary, #f88000);
+}
+
+.shift-preset-buttons button.is-clear {
+  color: var(--text-muted);
+}
+
+.shift-preset-buttons button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.shift-custom-times {
+  grid-column: 2;
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+
+.shift-custom-times label {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.shift-custom-times input,
+.shift-overlap-heading select {
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text-main);
+  padding: 5px 8px;
+  font: inherit;
+}
+
+.shift-overlap {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card-bg);
+}
+
+.shift-overlap-heading,
+.shift-hour-scale,
+.shift-overlap-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.shift-overlap-heading {
+  display: flex;
+  justify-content: space-between;
+}
+
+.shift-overlap-heading > div {
+  display: grid;
+}
+
+.shift-hour-scale {
+  margin: 10px 0 4px;
+}
+
+.shift-hour-scale > span {
+  display: none;
+}
+
+.shift-hour-scale {
+  padding-left: 130px;
+  grid-template-columns: repeat(5, 1fr);
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.shift-hour-scale span {
+  display: block;
+}
+
+.shift-hour-scale span:last-child {
+  text-align: right;
+}
+
+.shift-overlap-rows {
+  display: grid;
+  gap: 6px;
+}
+
+.shift-overlap-row > span {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shift-overlap-track {
+  position: relative;
+  height: 18px;
+  overflow: hidden;
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(to right, transparent 0, transparent calc(25% - 1px), var(--border) calc(25% - 1px), var(--border) 25%),
+    var(--light);
+}
+
+.shift-overlap-track i {
+  position: absolute;
+  top: 3px;
+  height: 12px;
+  border-radius: 4px;
+  background: #64748b;
+}
+
+.shift-overlap-track i.is-selected {
+  background: var(--primary, #f88000);
 }
 
 .crew-shift-day-actions {
@@ -10934,7 +11125,7 @@ html[data-shell="linear"] .container {
 }
 
 .crew-shift-matrix-footer {
-  justify-content: flex-end;
+  justify-content: space-between;
   border-top: 1px solid var(--border);
 }
 
@@ -10964,5 +11155,21 @@ html[data-shell="linear"] .container {
   .crew-shift-day-actions {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .shift-role-actions > button:not(.crew-shift-matrix-close) {
+    display: none;
+  }
+
+  .shift-preset-row {
+    grid-template-columns: 1fr;
+  }
+
+  .shift-preset-buttons {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .shift-custom-times {
+    grid-column: 1;
   }
 }

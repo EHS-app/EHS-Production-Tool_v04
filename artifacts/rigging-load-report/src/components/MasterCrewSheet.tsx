@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   buildDayChips,
   mergeRoster,
@@ -20,13 +19,13 @@ import {
   crewShiftAssignmentKey,
   filterShiftSelectionsToSchedule,
   scheduledShiftKeys,
-  setCrewShiftPhaseSelection,
   shiftTimesForSelections,
   summarizeShiftTimes,
   type CrewShiftPhaseKey,
   type CrewShiftTimeMap,
 } from "../lib/crewShiftAssignments";
 import { useT } from "../lib/i18n/I18nContext";
+import { AssignShiftsModal } from "./AssignShiftsModal";
 
 type FreelancerCandidate = {
   userId: string;
@@ -37,6 +36,13 @@ type FreelancerCandidate = {
   dietaryTags?: string[];
   allergens?: string[];
 };
+
+const SHIFT_PHASES = [
+  { key: "setup", label: "Setup" },
+  { key: "rehearsal", label: "Rehearsal" },
+  { key: "show", label: "Show" },
+  { key: "downrig", label: "Load Out" },
+] as const;
 
 /** Crew & Logistics master sheet — Phase C consolidation.
  *
@@ -982,7 +988,7 @@ export function MasterCrewSheet({
                     onOpenProfile={onOpenProfile}
                     onLocalSetDays={
                       local
-                        ? (_nextDates, nextShiftPhases) => {
+                        ? (_nextDates, nextShiftPhases, customShiftTimes) => {
                             const available = new Set(
                               scheduledShiftKeys(phaseDays ?? {}),
                             );
@@ -994,10 +1000,8 @@ export function MasterCrewSheet({
                             const sorted =
                               assignedDatesFromShiftPhases(shiftKeys);
                             const assignedShiftTimes =
-                              shiftTimesForSelections(
-                                shiftKeys,
-                                phaseShiftTimes ?? {},
-                              );
+                              customShiftTimes ??
+                              shiftTimesForSelections(shiftKeys, phaseShiftTimes ?? {});
                             const summary = summarizeShiftTimes(
                               shiftKeys,
                               assignedShiftTimes,
@@ -1014,6 +1018,33 @@ export function MasterCrewSheet({
                               offTime: summary.endTime,
                             };
                             onUpdate(local.id, patch);
+                          }
+                        : undefined
+                    }
+                    rolePeers={localCrew.filter((member) => member.role === local?.role)}
+                    onApplyScheduleToRole={
+                      local
+                        ? (shiftPhases, shiftTimes) => {
+                            const shiftKeys = filterShiftSelectionsToSchedule(
+                              shiftPhases,
+                              new Set(scheduledShiftKeys(phaseDays ?? {})),
+                            );
+                            const assignedDates = assignedDatesFromShiftPhases(shiftKeys);
+                            const summary = summarizeShiftTimes(
+                              shiftKeys,
+                              shiftTimes,
+                              { startTime: local.callTime, endTime: local.offTime },
+                            );
+                            for (const peer of localCrew) {
+                              if (peer.role !== local.role || peer.id === local.id) continue;
+                              onUpdate(peer.id, {
+                                assignedDates,
+                                assignedShiftPhases: [...shiftKeys].sort(),
+                                assignedShiftTimes: shiftTimesForSelections(shiftKeys, shiftTimes),
+                                callTime: summary.startTime,
+                                offTime: summary.endTime,
+                              });
+                            }
                           }
                         : undefined
                     }
@@ -1214,6 +1245,8 @@ function MasterRow({
   phaseDays,
   phaseShiftTimes,
   onLocalSetDays,
+  rolePeers,
+  onApplyScheduleToRole,
   onOpenProfile,
 }: {
   row: RosterRow;
@@ -1249,6 +1282,12 @@ function MasterRow({
   onLocalSetDays?: (
     dates: ReadonlyArray<string>,
     shiftPhases?: ReadonlyArray<string>,
+    shiftTimes?: CrewShiftTimeMap,
+  ) => void;
+  rolePeers?: ReadonlyArray<CrewMember>;
+  onApplyScheduleToRole?: (
+    shiftPhases: ReadonlyArray<string>,
+    shiftTimes: CrewShiftTimeMap,
   ) => void;
   onOpenProfile?: (userId: string) => void;
 }) {
@@ -1420,13 +1459,17 @@ function MasterRow({
             still deriving the legacy assignedDates API payload. */}
         {editableLocal && onLocalSetDays && phaseDays
           ? (
-              <ShiftAssignmentMatrix
-                crewName={row.name}
-                assignedDates={row.assignedDates}
-                assignedShiftPhases={local?.assignedShiftPhases}
+              <AssignShiftsModal
+                crew={local!}
                 phaseDays={phaseDays}
                 phaseShiftTimes={phaseShiftTimes}
-                onSave={onLocalSetDays}
+                rolePeers={rolePeers ?? [local!]}
+                onSave={(dates, phases, times) =>
+                  onLocalSetDays(dates, phases, times)
+                }
+                onApplyToRole={(phases, times) =>
+                  onApplyScheduleToRole?.(phases, times)
+                }
               />
             )
           : null}
@@ -1571,286 +1614,6 @@ function MasterRow({
         ) : null}
       </td>
     </tr>
-  );
-}
-
-const SHIFT_PHASES = [
-  { key: "setup", label: "Load-in" },
-  { key: "rehearsal", label: "Soundcheck" },
-  { key: "show", label: "Show" },
-  { key: "downrig", label: "Load-out" },
-] as const;
-
-function ShiftAssignmentMatrix({
-  crewName,
-  assignedDates,
-  assignedShiftPhases,
-  phaseDays,
-  phaseShiftTimes,
-  onSave,
-}: {
-  crewName: string;
-  assignedDates: ReadonlyArray<string>;
-  assignedShiftPhases?: ReadonlyArray<string>;
-  phaseDays: Partial<
-    Record<CrewShiftPhaseKey, ReadonlyArray<string>>
-  >;
-  phaseShiftTimes?: CrewShiftTimeMap;
-  onSave: (
-    dates: ReadonlyArray<string>,
-    shiftPhases?: ReadonlyArray<string>,
-  ) => void;
-}) {
-  const reactId = useId();
-  const idPrefix = reactId.replace(/[^a-zA-Z0-9_-]/g, "");
-  const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<Set<string>>(new Set());
-  const availableShiftKeys = useMemo(
-    () => new Set(scheduledShiftKeys(phaseDays)),
-    [phaseDays],
-  );
-  const allDays = useMemo(() => {
-    return assignedDatesFromShiftPhases(availableShiftKeys);
-  }, [availableShiftKeys]);
-
-  const initialSelections = useCallback(() => {
-    if (assignedShiftPhases) {
-      return filterShiftSelectionsToSchedule(
-        assignedShiftPhases,
-        availableShiftKeys,
-      );
-    }
-    return filterShiftSelectionsToSchedule(
-      assignedDates.flatMap((date) =>
-        SHIFT_PHASES.filter((phase) =>
-          phaseDays[phase.key]?.includes(date),
-        ).map((phase) => crewShiftAssignmentKey(date, phase.key)),
-      ),
-      availableShiftKeys,
-    );
-  }, [
-    assignedDates,
-    assignedShiftPhases,
-    availableShiftKeys,
-    phaseDays,
-  ]);
-
-  const phasesForDay = useCallback(
-    (dateKey: string) =>
-      SHIFT_PHASES.filter((phase) =>
-        phaseDays[phase.key]?.includes(dateKey),
-      ),
-    [phaseDays],
-  );
-
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open]);
-
-  const openMatrix = () => {
-    setDraft(initialSelections());
-    setOpen(true);
-  };
-
-  const updatePhase = (
-    dateKey: string,
-    phaseName: CrewShiftPhaseKey,
-    checked: boolean,
-  ) => {
-    setDraft((current) => {
-      return setCrewShiftPhaseSelection(
-        current,
-        dateKey,
-        phaseName,
-        checked,
-      );
-    });
-  };
-
-  const toggleFullDay = (dateKey: string) => {
-    setDraft((current) => {
-      const next = new Set(current);
-      const keys = phasesForDay(dateKey).map((phase) =>
-        crewShiftAssignmentKey(dateKey, phase.key),
-      );
-      const fullDay = keys.every((key) => next.has(key));
-      for (const key of keys) {
-        if (fullDay) next.delete(key);
-        else next.add(key);
-      }
-      return next;
-    });
-  };
-
-  const applyDayToSelectedDays = (sourceDate: string) => {
-    setDraft((current) => {
-      const next = new Set(current);
-      const sourcePhases = phasesForDay(sourceDate).filter((phase) =>
-        next.has(crewShiftAssignmentKey(sourceDate, phase.key)),
-      );
-      const selectedDays = allDays.filter((date) =>
-        phasesForDay(date).some((phase) =>
-          next.has(crewShiftAssignmentKey(date, phase.key)),
-        ),
-      );
-      for (const date of selectedDays) {
-        for (const phase of phasesForDay(date)) {
-          const key = crewShiftAssignmentKey(date, phase.key);
-          if (sourcePhases.some((source) => source.key === phase.key)) {
-            next.add(key);
-          } else {
-            next.delete(key);
-          }
-        }
-      }
-      return next;
-    });
-  };
-
-  const save = () => {
-    const dates = assignedDatesFromShiftPhases(draft);
-    onSave(dates, [...draft].sort());
-    setOpen(false);
-  };
-
-  const selectedDayCount = allDays.filter((date) =>
-    phasesForDay(date).some((phase) =>
-      initialSelections().has(
-        crewShiftAssignmentKey(date, phase.key),
-      ),
-    ),
-  ).length;
-
-  return (
-    <>
-      <button
-        type="button"
-        className="roster-day-quickpick-btn"
-        onClick={openMatrix}
-        disabled={allDays.length === 0}
-      >
-        Edit shifts{selectedDayCount > 0 ? ` (${selectedDayCount}d)` : ""}
-      </button>
-      {open && typeof document !== "undefined"
-        ? createPortal(
-            <>
-              <button
-                type="button"
-                className="crew-shift-matrix-backdrop"
-                aria-label="Close shift assignment matrix"
-                onClick={() => setOpen(false)}
-              />
-              <section
-                className="crew-shift-matrix"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby={`${idPrefix}-shift-matrix-title`}
-              >
-                <header className="crew-shift-matrix-header">
-                  <div>
-                    <p className="crew-shift-matrix-eyebrow">Crew booking</p>
-                    <h3 id={`${idPrefix}-shift-matrix-title`}>
-                      Assign shifts{crewName ? ` — ${crewName}` : ""}
-                    </h3>
-                  </div>
-                  <button
-                    type="button"
-                    className="crew-shift-matrix-close"
-                    onClick={() => setOpen(false)}
-                    aria-label="Close"
-                  >
-                    ×
-                  </button>
-                </header>
-                <div className="crew-shift-matrix-scroll">
-                  {allDays.map((dateKey) => {
-                    const availablePhases = phasesForDay(dateKey);
-                    const fullDay = availablePhases.every((phase) =>
-                      draft.has(crewShiftAssignmentKey(dateKey, phase.key)),
-                    );
-                    return (
-                      <fieldset className="crew-shift-day" key={dateKey}>
-                        <legend>{dateKey}</legend>
-                        <div className="crew-shift-day-actions">
-                          <button
-                            type="button"
-                            className={fullDay ? "is-active" : ""}
-                            aria-pressed={fullDay}
-                            onClick={() => toggleFullDay(dateKey)}
-                          >
-                            {fullDay ? "Clear full day" : "Full Day"}
-                          </button>
-                          {allDays.length > 1 ? (
-                            <button
-                              type="button"
-                              onClick={() => applyDayToSelectedDays(dateKey)}
-                            >
-                              Apply to All Selected Days
-                            </button>
-                          ) : null}
-                        </div>
-                        <div className="crew-shift-phase-grid">
-                          {availablePhases.map((phase) => {
-                            const checkboxId = `${idPrefix}-shift-check-${dateKey}-${phase.key}`;
-                            const assignmentKey = crewShiftAssignmentKey(
-                              dateKey,
-                              phase.key,
-                            );
-                            const timing = phaseShiftTimes?.[assignmentKey];
-                            return (
-                              <div
-                                className="crew-shift-phase"
-                                key={`${dateKey}-${phase.key}`}
-                              >
-                                <input
-                                  id={checkboxId}
-                                  type="checkbox"
-                                  checked={draft.has(assignmentKey)}
-                                  onChange={(event) =>
-                                    updatePhase(
-                                      dateKey,
-                                      phase.key,
-                                      event.target.checked,
-                                    )
-                                  }
-                                />
-                                <label htmlFor={checkboxId}>
-                                  <span>{phase.label}</span>
-                                  {timing ? (
-                                    <small>
-                                      {timing.timeTbd
-                                        ? "TBD"
-                                        : `${timing.startTime}–${timing.endTime}`}
-                                    </small>
-                                  ) : null}
-                                </label>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </fieldset>
-                    );
-                  })}
-                </div>
-                <footer className="crew-shift-matrix-footer">
-                  <button type="button" onClick={() => setOpen(false)}>
-                    Cancel
-                  </button>
-                  <button type="button" className="is-primary" onClick={save}>
-                    Save shifts
-                  </button>
-                </footer>
-              </section>
-            </>,
-            document.body,
-          )
-        : null}
-    </>
   );
 }
 

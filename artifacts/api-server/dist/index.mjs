@@ -39055,7 +39055,7 @@ var init_calendarCrypto = __esm({
 });
 
 // src/app.ts
-var import_express31 = __toESM(require_express2(), 1);
+var import_express32 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 
@@ -46517,8 +46517,8 @@ var InMemoryThrottlerCache = class {
     this.#cache.delete(key2);
   }
 };
-function isWindowClerkWithMetadata(clerk7) {
-  return typeof clerk7 === "object" && clerk7 !== null && "constructor" in clerk7 && typeof clerk7.constructor === "function";
+function isWindowClerkWithMetadata(clerk8) {
+  return typeof clerk8 === "object" && clerk8 !== null && "constructor" in clerk8 && typeof clerk8.constructor === "function";
 }
 var VALID_LOG_LEVELS = /* @__PURE__ */ new Set([
   "error",
@@ -47229,7 +47229,7 @@ function clerkProxyMiddleware() {
 }
 
 // src/routes/index.ts
-var import_express30 = __toESM(require_express2(), 1);
+var import_express31 = __toESM(require_express2(), 1);
 
 // src/routes/health.ts
 var import_express = __toESM(require_express2(), 1);
@@ -78428,6 +78428,18 @@ async function getProjectAccess(projectId, userId2) {
   ).limit(1);
   return membership?.role === "editor" || membership?.role === "viewer" ? membership.role : null;
 }
+async function getEmployeeProjectReadAccess(projectId, userId2) {
+  const [project] = await db.select({ ownerId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
+  if (!project) return null;
+  if (project.ownerId === userId2) return "owner";
+  const [membership] = await db.select({ role: projectMembersTable.role }).from(projectMembersTable).where(
+    and(
+      eq(projectMembersTable.projectId, projectId),
+      eq(projectMembersTable.userId, userId2)
+    )
+  ).limit(1);
+  return membership?.role === "editor" || membership?.role === "viewer" ? membership.role : "viewer";
+}
 
 // src/lib/projectLifecycle.ts
 import { randomUUID as randomUUID2 } from "node:crypto";
@@ -78868,6 +78880,7 @@ router7.get("/portal/briefs/:id", requireSignedIn5, async (req, res) => {
       res.status(404).json({ ok: false, error: "Brief not found." });
       return;
     }
+    let freelancerView = false;
     if (brief.ownerUserId !== userId2) {
       const assigned = await db.select({ id: briefAssignmentsTable.id }).from(briefAssignmentsTable).where(
         and(
@@ -78875,12 +78888,37 @@ router7.get("/portal/briefs/:id", requireSignedIn5, async (req, res) => {
           eq(briefAssignmentsTable.freelancerUserId, userId2)
         )
       ).limit(1);
-      if (assigned.length === 0) {
-        res.status(403).json({ ok: false, error: "Not your brief." });
-        return;
+      if (assigned.length > 0) {
+        freelancerView = true;
+      } else {
+        if (!brief.projectId) {
+          res.status(403).json({ ok: false, error: "Not your brief." });
+          return;
+        }
+        let userType;
+        try {
+          userType = await getUserType(userId2);
+        } catch (err) {
+          logger.warn(
+            {
+              userId: userId2,
+              briefId: brief.id,
+              err: err instanceof Error ? err.message : String(err)
+            },
+            "could not verify employee access to linked brief"
+          );
+          res.status(503).json({
+            ok: false,
+            error: "Employee authorization is temporarily unavailable."
+          });
+          return;
+        }
+        if (userType !== "employee" || !await getEmployeeProjectReadAccess(brief.projectId, userId2)) {
+          res.status(403).json({ ok: false, error: "Not your brief." });
+          return;
+        }
       }
     }
-    const freelancerView = brief.ownerUserId !== userId2;
     res.json({
       ok: true,
       brief: freelancerView ? (() => {
@@ -82478,8 +82516,57 @@ router11.get("/portal/my-tasks", requireSignedIn9, async (req, res) => {
 var portalWork_default = router11;
 
 // src/routes/projects.ts
-var import_express14 = __toESM(require_express2(), 1);
+var import_express15 = __toESM(require_express2(), 1);
 import { randomUUID as randomUUID7 } from "node:crypto";
+
+// src/lib/projectManagers.ts
+var clerk3 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+var CLERK_BATCH_SIZE = 100;
+function fallbackManager(userId2) {
+  return { userId: userId2, name: "Unknown manager", email: null, avatarUrl: null };
+}
+function managerFromUser(user) {
+  const emails = user.emailAddresses ?? [];
+  const primary = emails.find((email4) => email4.id === user.primaryEmailAddressId);
+  const verifiedPrimary = primary?.verification?.status === "verified" ? primary : void 0;
+  const verifiedEmail = verifiedPrimary ?? emails.find((email4) => email4.verification?.status === "verified");
+  const email3 = verifiedEmail?.emailAddress?.trim().toLowerCase() || null;
+  const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || user.username?.trim() || email3 || "Unknown manager";
+  return {
+    userId: user.id,
+    name: name.slice(0, 200),
+    email: email3,
+    avatarUrl: user.imageUrl?.trim() || null
+  };
+}
+async function getProjectManagers(ownerIds) {
+  const ids = [...new Set(ownerIds)].filter(Boolean);
+  const managers = new Map(ids.map((id) => [id, fallbackManager(id)]));
+  if (!clerk3 || ids.length === 0) return managers;
+  for (let start = 0; start < ids.length; start += CLERK_BATCH_SIZE) {
+    const batch = ids.slice(start, start + CLERK_BATCH_SIZE);
+    try {
+      const result = await clerk3.users.getUserList({
+        userId: batch,
+        limit: batch.length
+      });
+      const users = Array.isArray(result) ? result : result.data;
+      for (const user of users) {
+        if (managers.has(user.id)) managers.set(user.id, managerFromUser(user));
+      }
+    } catch (err) {
+      logger.warn(
+        {
+          scope: "projectManagers",
+          ownerCount: batch.length,
+          err: err instanceof Error ? err.message : String(err)
+        },
+        "failed to resolve project managers from Clerk"
+      );
+    }
+  }
+  return managers;
+}
 
 // src/lib/projectDefaults.ts
 function projectDataWithOrganizationDefaults(raw, snapshot) {
@@ -82502,7 +82589,7 @@ function projectFinanceSeed(rawData) {
 }
 
 // src/routes/projects.ts
-var router12 = (0, import_express14.Router)();
+var router12 = (0, import_express15.Router)();
 var requireSignedIn10 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
@@ -82578,6 +82665,7 @@ router12.get("/projects", requireSignedIn10, async (req, res) => {
   try {
     const rows = await db.select({
       id: projectsTable.id,
+      created_by: projectsTable.userId,
       name: projectsTable.name,
       venue: projectsTable.venue,
       client: projectsTable.client,
@@ -82591,19 +82679,15 @@ router12.get("/projects", requireSignedIn10, async (req, res) => {
       status: sql`coalesce(${projectsTable.status}, case when nullif(${projectsTable.data}->>'activeBriefId', '') is not null then 'active' when nullif(${projectsTable.venue}, '') is not null or nullif(${projectsTable.client}, '') is not null then 'planning' else 'draft' end)`,
       createdAt: projectsTable.createdAt,
       updatedAt: projectsTable.updatedAt,
-      accessRole: sql`case when ${projectsTable.userId} = ${userId2} then 'owner' else ${projectMembersTable.role} end`
+      accessRole: sql`case when ${projectsTable.userId} = ${userId2} then 'owner' when ${projectMembersTable.role} in ('editor', 'viewer') then ${projectMembersTable.role} else 'viewer' end`
     }).from(projectsTable).leftJoin(
       projectMembersTable,
       and(
         eq(projectMembersTable.projectId, projectsTable.id),
         eq(projectMembersTable.userId, userId2)
       )
-    ).where(
-      or(
-        eq(projectsTable.userId, userId2),
-        eq(projectMembersTable.userId, userId2)
-      )
     ).orderBy(desc(projectsTable.updatedAt));
+    const managers = await getProjectManagers(rows.map((row) => row.created_by));
     const normaliseDate = (raw) => {
       if (typeof raw !== "string") return null;
       const value = raw.trim();
@@ -82621,8 +82705,10 @@ router12.get("/projects", requireSignedIn10, async (req, res) => {
     };
     res.json({
       ok: true,
-      projects: rows.map(({ reportDate, reportEndDate, ...row }) => ({
+      projects: rows.map(({ reportDate, reportEndDate, created_by, ...row }) => ({
         ...row,
+        created_by,
+        manager: managers.get(created_by),
         startDate: normaliseDate(reportDate),
         endDate: normaliseDate(reportEndDate)
       }))
@@ -82640,7 +82726,7 @@ router12.get("/projects/:id", requireSignedIn10, async (req, res) => {
     return;
   }
   try {
-    const accessRole = await getProjectAccess(String(id), userId2);
+    const accessRole = await getEmployeeProjectReadAccess(String(id), userId2);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -82650,10 +82736,13 @@ router12.get("/projects/:id", requireSignedIn10, async (req, res) => {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
+    const managers = await getProjectManagers([row.userId]);
     res.json({
       ok: true,
       project: {
         ...projectResponse(row),
+        created_by: row.userId,
+        manager: managers.get(row.userId),
         accessRole,
         status: deriveLegacyProjectStatus(row)
       }
@@ -83045,8 +83134,8 @@ router12.delete("/projects/:id", requireSignedIn10, async (req, res) => {
 var projects_default = router12;
 
 // src/routes/inspectionExtract.ts
-var import_express15 = __toESM(require_express2(), 1);
-var router13 = (0, import_express15.Router)();
+var import_express16 = __toESM(require_express2(), 1);
+var router13 = (0, import_express16.Router)();
 var requireSignedIn11 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
@@ -83166,7 +83255,7 @@ function normalizeResult(raw) {
 }
 router13.post(
   "/inspection/extract",
-  (0, import_express15.json)({ limit: "100kb" }),
+  (0, import_express16.json)({ limit: "100kb" }),
   requireSignedIn11,
   rateLimit2,
   async (req, res) => {
@@ -83218,8 +83307,8 @@ router13.post(
 var inspectionExtract_default = router13;
 
 // src/routes/admin.ts
-var import_express16 = __toESM(require_express2(), 1);
-var clerk3 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+var import_express17 = __toESM(require_express2(), 1);
+var clerk4 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
 var ADMIN_EMAIL_DOMAIN = "@ehs.no";
 var ADMIN_EMAILS = new Set(
   (process.env.ADMIN_EMAILS ?? "olti@ehs.no").split(",").map((email3) => email3.trim().toLowerCase()).filter(Boolean)
@@ -83252,12 +83341,12 @@ var requireAdmin = async (req, res, next) => {
     res.status(401).json({ ok: false, error: "Sign in required." });
     return;
   }
-  if (!clerk3) {
+  if (!clerk4) {
     res.status(503).json({ ok: false, error: "Admin API unavailable (Clerk not configured)." });
     return;
   }
   try {
-    const caller = await clerk3.users.getUser(userId2);
+    const caller = await clerk4.users.getUser(userId2);
     const email3 = getVerifiedPrimaryEhsEmail(caller);
     if (!email3 || !ADMIN_EMAILS.has(email3)) {
       res.status(403).json({
@@ -83280,9 +83369,9 @@ var requireAdmin = async (req, res, next) => {
     res.status(500).json({ ok: false, error: "Admin auth check failed." });
   }
 };
-var router14 = (0, import_express16.Router)();
+var router14 = (0, import_express17.Router)();
 router14.post("/admin/claim-employee", requireAdmin, async (req, res) => {
-  if (!clerk3) {
+  if (!clerk4) {
     res.status(503).json({ ok: false, error: "Clerk not configured." });
     return;
   }
@@ -83293,8 +83382,8 @@ router14.post("/admin/claim-employee", requireAdmin, async (req, res) => {
     return;
   }
   try {
-    const user = await clerk3.users.getUser(userId2);
-    await clerk3.users.updateUserMetadata(userId2, {
+    const user = await clerk4.users.getUser(userId2);
+    await clerk4.users.updateUserMetadata(userId2, {
       publicMetadata: {
         ...user.publicMetadata ?? {},
         userType: "employee"
@@ -83315,7 +83404,7 @@ router14.post("/admin/claim-employee", requireAdmin, async (req, res) => {
   }
 });
 router14.post("/admin/set-user-type", requireAdmin, async (req, res) => {
-  if (!clerk3) {
+  if (!clerk4) {
     res.status(503).json({ ok: false, error: "Clerk not configured." });
     return;
   }
@@ -83327,7 +83416,7 @@ router14.post("/admin/set-user-type", requireAdmin, async (req, res) => {
     return;
   }
   try {
-    const list2 = await clerk3.users.getUserList({ emailAddress: [email3] });
+    const list2 = await clerk4.users.getUserList({ emailAddress: [email3] });
     const users = Array.isArray(list2) ? list2 : list2.data || [];
     if (users.length === 0) {
       res.status(404).json({ ok: false, error: "No user found with that email." });
@@ -83336,7 +83425,7 @@ router14.post("/admin/set-user-type", requireAdmin, async (req, res) => {
     const results = [];
     for (const u of users) {
       const previousType = (u.publicMetadata ?? {})?.userType;
-      await clerk3.users.updateUserMetadata(u.id, {
+      await clerk4.users.updateUserMetadata(u.id, {
         publicMetadata: { ...u.publicMetadata ?? {}, userType }
       });
       let freelancerProfileDeleted = false;
@@ -83382,7 +83471,7 @@ router14.post("/admin/set-user-type", requireAdmin, async (req, res) => {
   }
 });
 router14.post("/admin/delete-user", requireAdmin, async (req, res) => {
-  if (!clerk3) {
+  if (!clerk4) {
     res.status(503).json({ ok: false, error: "Clerk not configured." });
     return;
   }
@@ -83398,7 +83487,7 @@ router14.post("/admin/delete-user", requireAdmin, async (req, res) => {
     return;
   }
   try {
-    const list2 = await clerk3.users.getUserList({ emailAddress: [email3] });
+    const list2 = await clerk4.users.getUserList({ emailAddress: [email3] });
     const users = Array.isArray(list2) ? list2 : list2.data || [];
     if (users.length === 0) {
       res.status(404).json({ ok: false, error: "No user found with that email." });
@@ -83418,7 +83507,7 @@ router14.post("/admin/delete-user", requireAdmin, async (req, res) => {
           "admin: failed to delete freelancer_profiles row during user delete"
         );
       }
-      await clerk3.users.deleteUser(u.id);
+      await clerk4.users.deleteUser(u.id);
       deleted.push({ userId: u.id, email: getEmailFromUser(u) });
     }
     logger.info(
@@ -83441,9 +83530,9 @@ router14.post("/admin/delete-user", requireAdmin, async (req, res) => {
 var admin_default = router14;
 
 // src/routes/feedback.ts
-var import_express19 = __toESM(require_express2(), 1);
-var router15 = (0, import_express19.Router)();
-var clerk4 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+var import_express20 = __toESM(require_express2(), 1);
+var router15 = (0, import_express20.Router)();
+var clerk5 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
 var feedbackTypes = /* @__PURE__ */ new Set(["bug", "feature_request"]);
 var feedbackStatuses = /* @__PURE__ */ new Set(["open", "in_progress", "resolved"]);
 var requireSignedIn12 = (req, res, next) => {
@@ -83517,13 +83606,13 @@ router15.post(
       });
       return;
     }
-    if (!clerk4) {
+    if (!clerk5) {
       res.status(503).json({ ok: false, error: "Identity service unavailable." });
       return;
     }
     try {
       const [user, userRole] = await Promise.all([
-        clerk4.users.getUser(userId2),
+        clerk5.users.getUser(userId2),
         getUserType(userId2)
       ]);
       const userEmail = getVerifiedPrimaryEmail(user);
@@ -83586,8 +83675,8 @@ router15.patch(
 var feedback_default = router15;
 
 // src/routes/projectTasks.ts
-var import_express20 = __toESM(require_express2(), 1);
-var router16 = (0, import_express20.Router)();
+var import_express21 = __toESM(require_express2(), 1);
+var router16 = (0, import_express21.Router)();
 var TASK_STATUSES = [
   "Not Started",
   "Working on it",
@@ -83619,7 +83708,7 @@ router16.get("/projects/:projectId/tasks", async (req, res) => {
     return;
   }
   try {
-    if (!await getProjectAccess(projectId, userId2)) {
+    if (!await getEmployeeProjectReadAccess(projectId, userId2)) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
@@ -83790,9 +83879,9 @@ router16.delete("/projects/tasks/:id", async (req, res) => {
 var projectTasks_default = router16;
 
 // src/routes/projectMembers.ts
-var import_express21 = __toESM(require_express2(), 1);
-var router17 = (0, import_express21.Router)();
-var clerk5 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+var import_express22 = __toESM(require_express2(), 1);
+var router17 = (0, import_express22.Router)();
+var clerk6 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
 function param2(value) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
@@ -83822,19 +83911,19 @@ router17.get("/projects/:projectId/members", async (req, res) => {
     res.status(404).json({ ok: false, error: "Project not found." });
     return;
   }
-  if (!clerk5) {
+  if (!clerk6) {
     res.status(503).json({ ok: false, error: "Members are unavailable (Clerk not configured)." });
     return;
   }
   try {
-    const currentRole = await getProjectAccess(projectId, userId2);
+    const currentRole = await getEmployeeProjectReadAccess(projectId, userId2);
     if (!currentRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
     const [project] = await db.select({ ownerId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
     const memberships = await db.select().from(projectMembersTable).where(eq(projectMembersTable.projectId, projectId));
-    const users = await Promise.all([project.ownerId, ...memberships.map((member) => member.userId)].map((id) => clerk5.users.getUser(id)));
+    const users = await Promise.all([project.ownerId, ...memberships.map((member) => member.userId)].map((id) => clerk6.users.getUser(id)));
     const members = [
       { ...identity(users[0]), role: "owner", isOwner: true },
       ...memberships.map((member, index2) => ({
@@ -83863,7 +83952,7 @@ router17.post("/projects/:projectId/members", async (req, res) => {
     res.status(400).json({ ok: false, error: "Valid employee email and editor or viewer role required." });
     return;
   }
-  if (!clerk5) {
+  if (!clerk6) {
     res.status(503).json({ ok: false, error: "Members are unavailable (Clerk not configured)." });
     return;
   }
@@ -83873,7 +83962,7 @@ router17.post("/projects/:projectId/members", async (req, res) => {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
-    const listed = await clerk5.users.getUserList({ emailAddress: [email3] });
+    const listed = await clerk6.users.getUserList({ emailAddress: [email3] });
     const matches2 = Array.isArray(listed) ? listed : listed.data;
     const user = matches2.find((candidate) => identity(candidate).email === email3);
     const member = user && verifiedEhsIdentity(user);
@@ -83931,9 +84020,9 @@ router17.delete("/projects/:projectId/members/:userId", async (req, res) => {
 var projectMembers_default = router17;
 
 // src/routes/projectMessages.ts
-var import_express23 = __toESM(require_express2(), 1);
-var router18 = (0, import_express23.Router)();
-var clerk6 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+var import_express24 = __toESM(require_express2(), 1);
+var router18 = (0, import_express24.Router)();
+var clerk7 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
 function param3(value) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
@@ -83953,7 +84042,7 @@ router18.get("/projects/:projectId/messages", async (req, res) => {
     return;
   }
   try {
-    if (!await getProjectAccess(projectId, userId2)) {
+    if (!await getEmployeeProjectReadAccess(projectId, userId2)) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
@@ -84010,7 +84099,7 @@ router18.post("/projects/:projectId/messages", async (req, res) => {
     res.status(400).json({ ok: false, error: "Message body must be 1\u20134000 characters." });
     return;
   }
-  if (!clerk6) {
+  if (!clerk7) {
     res.status(503).json({ ok: false, error: "Chat is unavailable (Clerk not configured)." });
     return;
   }
@@ -84024,7 +84113,7 @@ router18.post("/projects/:projectId/messages", async (req, res) => {
       res.status(403).json({ ok: false, error: "Project is read-only." });
       return;
     }
-    const user = await clerk6.users.getUser(userId2);
+    const user = await clerk7.users.getUser(userId2);
     const primary = user.emailAddresses.find((email4) => email4.id === user.primaryEmailAddressId);
     const email3 = primary?.emailAddress?.trim().toLowerCase();
     if (!email3 || primary?.verification?.status !== "verified") {
@@ -84042,8 +84131,8 @@ router18.post("/projects/:projectId/messages", async (req, res) => {
 var projectMessages_default = router18;
 
 // src/routes/transport.ts
-var import_express25 = __toESM(require_express2(), 1);
-var router19 = (0, import_express25.Router)();
+var import_express26 = __toESM(require_express2(), 1);
+var router19 = (0, import_express26.Router)();
 var VEHICLE_TYPES = /* @__PURE__ */ new Set(["truck", "van", "trailer", "rental"]);
 var AVAILABILITY = /* @__PURE__ */ new Set(["available", "assigned", "maintenance", "unavailable"]);
 var RUN_STATUSES = /* @__PURE__ */ new Set(["scheduled", "in_transit", "delivered", "returned"]);
@@ -84335,8 +84424,8 @@ router19.patch("/transport/runs/:id", async (req, res) => {
 var transport_default = router19;
 
 // src/routes/globalTasks.ts
-var import_express26 = __toESM(require_express2(), 1);
-var router20 = (0, import_express26.Router)();
+var import_express27 = __toESM(require_express2(), 1);
+var router20 = (0, import_express27.Router)();
 var STATUSES = ["Not Started", "Working on it", "Stuck", "Done"];
 var PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 var DEPARTMENTS = [
@@ -84371,7 +84460,7 @@ router20.get("/tasks", async (req, res) => {
       description: projectTasksTable.description,
       createdAt: projectTasksTable.createdAt,
       updatedAt: projectTasksTable.updatedAt,
-      accessRole: sql`case when ${projectsTable.userId} = ${userId2} then 'owner' else ${projectMembersTable.role} end`
+      accessRole: sql`case when ${projectsTable.userId} = ${userId2} then 'owner' when ${projectMembersTable.role} in ('editor', 'viewer') then ${projectMembersTable.role} else 'viewer' end`
     }).from(projectTasksTable).innerJoin(projectsTable, eq(projectTasksTable.projectId, projectsTable.id)).leftJoin(
       projectMembersTable,
       and(
@@ -84381,15 +84470,7 @@ router20.get("/tasks", async (req, res) => {
     ).leftJoin(
       freelancerProfilesTable,
       eq(projectTasksTable.assignedUserId, freelancerProfilesTable.userId)
-    ).where(
-      and(
-        isNotNull(sql`nullif(${projectsTable.data}->>'activeBriefId', '')`),
-        or(
-          eq(projectsTable.userId, userId2),
-          eq(projectMembersTable.userId, userId2)
-        )
-      )
-    ).orderBy(asc(projectTasksTable.createdAt));
+    ).where(isNotNull(sql`nullif(${projectsTable.data}->>'activeBriefId', '')`)).orderBy(asc(projectTasksTable.createdAt));
     res.json({ ok: true, tasks });
   } catch (error40) {
     req.log.error({ error: error40 }, "Failed to list global tasks");
@@ -84454,8 +84535,8 @@ router20.post("/tasks", async (req, res) => {
 var globalTasks_default = router20;
 
 // src/routes/economy.ts
-var import_express27 = __toESM(require_express2(), 1);
-var router21 = (0, import_express27.Router)();
+var import_express28 = __toESM(require_express2(), 1);
+var router21 = (0, import_express28.Router)();
 var MAX_MINOR_UNITS = 2147483647;
 var DATE_PATTERN3 = /^\d{4}-\d{2}-\d{2}$/;
 var SETTING_KEYS = [
@@ -84963,8 +85044,8 @@ router21.get(
 var economy_default = router21;
 
 // src/routes/masterData.ts
-var import_express28 = __toESM(require_express2(), 1);
-var router22 = (0, import_express28.Router)();
+var import_express29 = __toESM(require_express2(), 1);
+var router22 = (0, import_express29.Router)();
 var MAX_JSON_BYTES = 128 * 1024;
 function idParam(raw) {
   return String(Array.isArray(raw) ? raw[0] ?? "" : raw ?? "");
@@ -85379,8 +85460,8 @@ router22.post("/clients/:clientId/projects/:projectId/clone", async (req, res) =
 var masterData_default = router22;
 
 // src/routes/settings.ts
-var import_express29 = __toESM(require_express2(), 1);
-var router23 = (0, import_express29.Router)();
+var import_express30 = __toESM(require_express2(), 1);
+var router23 = (0, import_express30.Router)();
 var TEXT_LIMITS = {
   companyName: 300,
   contactEmail: 320,
@@ -85473,7 +85554,7 @@ router23.put("/settings", requireAdmin, async (req, res) => {
 var settings_default = router23;
 
 // src/routes/index.ts
-var router24 = (0, import_express30.Router)();
+var router24 = (0, import_express31.Router)();
 router24.use(health_default);
 router24.use(devAutoSignIn_default);
 router24.use("/rigplan", requireEmployee);
@@ -85509,7 +85590,7 @@ router24.use(portalWork_default);
 var routes_default = router24;
 
 // src/app.ts
-var app = (0, import_express31.default)();
+var app = (0, import_express32.default)();
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -85534,12 +85615,12 @@ app.use((0, import_cors.default)());
 var PATHS_WITHOUT_GLOBAL_JSON = /* @__PURE__ */ new Set([
   "/api/rigplan/analyze"
 ]);
-var globalJsonParser = import_express31.default.json({ limit: "256kb" });
+var globalJsonParser = import_express32.default.json({ limit: "256kb" });
 app.use((req, res, next) => {
   if (PATHS_WITHOUT_GLOBAL_JSON.has(req.path)) return next();
   return globalJsonParser(req, res, next);
 });
-app.use(import_express31.default.urlencoded({ extended: true }));
+app.use(import_express32.default.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 app.use("/api", routes_default);
 var app_default = app;

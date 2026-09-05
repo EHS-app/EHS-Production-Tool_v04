@@ -9,8 +9,8 @@ Treat every calendar interval as half-open: `[start, end)`. An interval that end
 
 **How to apply:** Require offset-bearing instants at API boundaries, compare overlaps with `start < rangeEnd && end > rangeStart`, and convert instants through the viewer's timezone before assigning them to calendar dates or editing local times.
 
-Bulk availability changes must replace every overlapping manual availability state inside the selected interval while preserving any portions before or after that interval. A calendar date must expose one effective manual status; synced external busy time takes visual precedence over manual availability.
+Bulk availability changes must replace every overlapping manual availability state inside the selected interval while preserving any portions before or after that interval. A calendar date may expose multiple non-overlapping manual blocks with different statuses; render them all chronologically instead of collapsing the day to one status. Synced busy time, holds, and gigs remain separate visible signals rather than hiding manual blocks.
 
-**Why:** Appending month-wide availability created simultaneous green and red layers. Deleting whole spanning intervals would fix the month while silently erasing availability outside it.
+**Why:** Appending month-wide availability created conflicting layers, while collapsing a split shift hid valid partial-day information. Deleting whole spanning intervals would fix the month while silently erasing availability outside it.
 
-**How to apply:** Split overlapping stored intervals at the bulk range boundaries, remove the covered portions, insert the replacement state atomically, and render only the effective status for each local day.
+**How to apply:** Split overlapping stored intervals at the bulk range boundaries, remove the covered portions, and insert the replacement state atomically. Deduplicate a concrete override from its virtual recurrence, then render every remaining daily block in chronological order.

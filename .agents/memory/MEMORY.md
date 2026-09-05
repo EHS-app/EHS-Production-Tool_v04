@@ -1,10 +1,10 @@
 - [LED PDF vs tab parity](led-pdf-vs-tab-parity.md) — PDF must use computeScreenMetrics(…, beamCatalog)/m.weightKg for weight; power split (raw nameplate vs estimateScreenPower) is intentional.
 - [LED finishing row](led-finishing-row.md) — bottom row uses a different real (smaller) panel; finishing panel width MUST match main panel; the key→panel resolver is the single guard.
 - [Profile photo ownership and route gates](profile-photo-security.md) — bind private uploads to their issuer; scope role middleware to URL namespaces so shared portal routes remain reachable.
-- [Calendar interval semantics](calendar-interval-semantics.md) — use half-open local-day intervals; bulk availability replaces only its range, and each day exposes one effective manual state.
+- [Calendar interval semantics](calendar-interval-semantics.md) — use half-open local-day intervals; bulk replacement preserves outside fragments, while non-overlapping daily blocks remain distinct.
 - [Feedback panel rendering](feedback-panel-rendering.md) — feedback must be a direct fixed in-layout panel; do not reintroduce Radix Dialog or portal rendering.
 - [Disabled controls can re-blur](disabled-control-blur.md) — disabling a focused autosave field may trigger another blur; guard synchronously before awaiting the first save.
-- [Project collaboration roles](project-collaboration-roles.md) — ownership stays authoritative; membership adds owner/editor/viewer access with server-enforced write limits.
+- [Project collaboration roles](project-collaboration-roles.md) — EHS employees get viewer reads; writes stay owner/editor, and freelancers remain brief-assignment scoped.
 - [Crew account linking](crew-account-linking.md) — link only by explicit directory selection and stable user ID; never infer portal identity from typed names.
 - [Booking history integrity](booking-history-integrity.md) — trust only server-built acceptance snapshots with DB provenance and the exact recorded accepted gig.
 - [Payroll approval integrity](payroll-approval-integrity.md) — approved labor uses immutable compensation snapshots; freelancers cannot rewrite producer-owned assignment terms.

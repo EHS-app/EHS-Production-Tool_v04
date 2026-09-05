@@ -1597,10 +1597,11 @@ function AssignmentCard({
           dateKey,
           phaseLabel: phaseLabels[phaseKey] ?? phaseKey,
           timing: `${timing.startTime}–${timing.endTime}`,
+          tasks: assignment.assignedShiftTasks?.[key] ?? [],
         },
       ];
     });
-  }, [assignment.assignedShiftPhases, assignment.assignedShiftTimes]);
+  }, [assignment.assignedShiftPhases, assignment.assignedShiftTasks, assignment.assignedShiftTimes]);
   return (
     <section
       style={{
@@ -1705,6 +1706,26 @@ function AssignmentCard({
                 <div style={{ marginTop: 2, color: c.muted }}>
                   {shift.phaseLabel} · {shift.timing}
                 </div>
+                {shift.tasks.length > 0 ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 7 }}>
+                    {shift.tasks.map((task) => (
+                      <span
+                        key={task}
+                        style={{
+                          borderRadius: 999,
+                          padding: "3px 7px",
+                          background: c.cardBg,
+                          border: `1px solid ${c.border}`,
+                          color: c.text,
+                          fontSize: 10,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {task}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>

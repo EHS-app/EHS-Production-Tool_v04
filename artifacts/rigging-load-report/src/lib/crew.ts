@@ -97,6 +97,8 @@ export type CrewMember = {
     string,
     { startTime: string; endTime: string }
   >;
+  /** Producer-assigned task/focus labels keyed by `YYYY-MM-DD::phase`. */
+  assignedShiftTasks?: Record<string, string[]>;
   /** Contact phone copied from the freelancer's portal profile when
    *  the row was added via the Available Crew sidebar. Empty string
    *  for manual in-house rows. */
@@ -243,6 +245,28 @@ export function normalizeCrewMember(raw: unknown): CrewMember {
                   ]
                 : [];
             }),
+          )
+        : undefined,
+    assignedShiftTasks:
+      r.assignedShiftTasks &&
+      typeof r.assignedShiftTasks === "object" &&
+      !Array.isArray(r.assignedShiftTasks)
+        ? Object.fromEntries(
+            Object.entries(
+              r.assignedShiftTasks as Record<string, unknown>,
+            ).flatMap(([key, value]) =>
+              /^\d{4}-\d{2}-\d{2}::(setup|rehearsal|show|downrig)$/.test(key) &&
+              Array.isArray(value)
+                ? [[
+                    key,
+                    value
+                      .filter((task): task is string => typeof task === "string")
+                      .map((task) => task.trim())
+                      .filter(Boolean)
+                      .slice(0, 20),
+                  ]]
+                : [],
+            ),
           )
         : undefined,
     phone: typeof r.phone === "string" ? r.phone : undefined,

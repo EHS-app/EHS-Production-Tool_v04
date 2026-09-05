@@ -53,6 +53,7 @@ export type BriefAssignment = {
     string,
     { startTime: string; endTime: string }
   >;
+  assignedShiftTasks: Record<string, string[]>;
   /** YYYY-MM-DD strings the producer ticked on the Crew tab's hotel
    *  picker for this person. Always a subset of `assignedDates`.
    *  Empty array means no hotel. Older briefs saved before this field
@@ -727,6 +728,15 @@ export function buildBrief(input: BuildBriefInput): ProjectBrief {
             ]),
           )
         : {},
+    assignedShiftTasks:
+      m.assignedShiftTasks && typeof m.assignedShiftTasks === "object"
+        ? Object.fromEntries(
+            Object.entries(m.assignedShiftTasks).map(([key, values]) => [
+              key,
+              [...values],
+            ]),
+          )
+        : {},
     hotelDates: Array.isArray(m.hotelDates) ? [...m.hotelDates] : [],
     // Pass the freelancer's Clerk user id through when the crew row
     // originated from "Send requests" on the Available Crew sidebar.
@@ -961,6 +971,20 @@ function normalizeAssignment(raw: unknown): BriefAssignment {
                   ]
                 : [];
             }),
+          )
+        : {},
+    assignedShiftTasks:
+      r.assignedShiftTasks &&
+      typeof r.assignedShiftTasks === "object" &&
+      !Array.isArray(r.assignedShiftTasks)
+        ? Object.fromEntries(
+            Object.entries(r.assignedShiftTasks as Record<string, unknown>).flatMap(
+              ([key, value]) =>
+                /^\d{4}-\d{2}-\d{2}::(setup|rehearsal|show|downrig)$/.test(key) &&
+                Array.isArray(value)
+                  ? [[key, value.filter((task): task is string => typeof task === "string")]]
+                  : [],
+            ),
           )
         : {},
     hotelDates: Array.isArray(r.hotelDates)

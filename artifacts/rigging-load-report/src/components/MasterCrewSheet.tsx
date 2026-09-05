@@ -44,6 +44,31 @@ const SHIFT_PHASES = [
   { key: "downrig", label: "Load Out" },
 ] as const;
 
+function shiftMinutes(value: string): number | null {
+  if (!/^\d{2}:\d{2}$/.test(value)) return null;
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60
+    ? hours * 60 + minutes
+    : null;
+}
+
+const TIMELINE_COLORS = [
+  "#f97316",
+  "#2563eb",
+  "#16a34a",
+  "#9333ea",
+  "#dc2626",
+  "#0891b2",
+];
+
+function roleColor(role: string): string {
+  const index = [...role].reduce(
+    (total, character) => total + character.charCodeAt(0),
+    0,
+  );
+  return TIMELINE_COLORS[index % TIMELINE_COLORS.length]!;
+}
+
 /** Crew & Logistics master sheet — Phase C consolidation.
  *
  *  This component is the SINGLE source of truth for the producer's
@@ -304,6 +329,51 @@ export function MasterCrewSheet({
   const rows = useMemo(
     () => mergeRoster(localCrew, data),
     [localCrew, data],
+  );
+  const timelineDates = useMemo(
+    () =>
+      [
+        ...new Set(
+          Object.values(phaseDays ?? {}).flatMap((dates) => dates ?? []),
+        ),
+      ].sort(),
+    [phaseDays],
+  );
+  const [timelineDate, setTimelineDate] = useState("");
+  useEffect(() => {
+    if (timelineDates.length === 0) {
+      setTimelineDate("");
+    } else if (!timelineDates.includes(timelineDate)) {
+      setTimelineDate(timelineDates[0]!);
+    }
+  }, [timelineDate, timelineDates]);
+  const timelineRows = useMemo(
+    () =>
+      rows.flatMap((row) => {
+        const windows = Object.entries(row.assignedShiftTimes)
+          .filter(([key]) => key.startsWith(`${timelineDate}::`))
+          .flatMap(([, timing]) => {
+            const start = shiftMinutes(timing.startTime);
+            const end = shiftMinutes(timing.endTime);
+            return start == null || end == null
+              ? []
+              : [{ ...timing, start, end }];
+          });
+        if (windows.length === 0 && row.assignedDates.includes(timelineDate)) {
+          const start = shiftMinutes(row.callTime);
+          const end = shiftMinutes(row.offTime);
+          if (start != null && end != null) {
+            windows.push({
+              startTime: row.callTime,
+              endTime: row.offTime,
+              start,
+              end,
+            });
+          }
+        }
+        return windows.length > 0 ? [{ row, windows }] : [];
+      }),
+    [rows, timelineDate],
   );
 
   // Bubble the merged roles up to CrewReportView so the AdequacyPanel
@@ -831,6 +901,83 @@ export function MasterCrewSheet({
 
       {error ? <div className="led-error">{error}</div> : null}
 
+      {timelineDates.length > 0 ? (
+        <section className="crew-daily-timeline">
+          <div className="crew-daily-timeline-head">
+            <div>
+              <strong>Daily shift timeline</strong>
+              <small>All assigned crew · overlaps and site coverage</small>
+            </div>
+            <select
+              value={timelineDate}
+              onChange={(event) => setTimelineDate(event.target.value)}
+            >
+              {timelineDates.map((date) => (
+                <option key={date} value={date}>
+                  {date}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="crew-daily-scale">
+            <div className="crew-daily-scale-spacer" />
+            <div className="crew-daily-scale-labels">
+              <span>00</span>
+              <span>06</span>
+              <span>12</span>
+              <span>18</span>
+              <span>24</span>
+            </div>
+          </div>
+          <div className="crew-daily-rows">
+            {timelineRows.length > 0 ? (
+              timelineRows.map(({ row, windows }) => (
+                <div
+                  className="crew-daily-row"
+                  key={`${row.source}:${row.id}`}
+                >
+                  <span>
+                    <strong>{row.name}</strong>
+                    <small>{row.role}</small>
+                  </span>
+                  <div className="crew-daily-track">
+                    {windows.flatMap((window, index) => {
+                      const length =
+                        (window.end - window.start + 1440) % 1440 || 1440;
+                      const blocks = [
+                        {
+                          left: window.start,
+                          width: Math.min(length, 1440 - window.start),
+                        },
+                      ];
+                      if (length > 1440 - window.start) {
+                        blocks.push({
+                          left: 0,
+                          width: length - (1440 - window.start),
+                        });
+                      }
+                      return blocks.map((block, blockIndex) => (
+                        <i
+                          key={`${index}-${blockIndex}`}
+                          title={`${row.name}: ${window.startTime}–${window.endTime}`}
+                          style={{
+                            left: `${block.left / 14.4}%`,
+                            width: `${block.width / 14.4}%`,
+                            background: roleColor(row.role),
+                          }}
+                        />
+                      ));
+                    })}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p>No assigned shifts on this date.</p>
+            )}
+          </div>
+        </section>
+      ) : null}
+
       {loading && !data && briefId ? (
         <div className="led-empty">Loading roster…</div>
       ) : rows.length === 0 ? (
@@ -988,7 +1135,12 @@ export function MasterCrewSheet({
                     onOpenProfile={onOpenProfile}
                     onLocalSetDays={
                       local
-                        ? (_nextDates, nextShiftPhases, customShiftTimes) => {
+                        ? (
+                            _nextDates,
+                            nextShiftPhases,
+                            customShiftTimes,
+                            shiftTasks,
+                          ) => {
                             const available = new Set(
                               scheduledShiftKeys(phaseDays ?? {}),
                             );
@@ -1014,6 +1166,7 @@ export function MasterCrewSheet({
                               assignedDates: sorted,
                               assignedShiftPhases: [...shiftKeys].sort(),
                               assignedShiftTimes,
+                              assignedShiftTasks: shiftTasks,
                               callTime: summary.startTime,
                               offTime: summary.endTime,
                             };
@@ -1024,7 +1177,7 @@ export function MasterCrewSheet({
                     rolePeers={localCrew.filter((member) => member.role === local?.role)}
                     onApplyScheduleToRole={
                       local
-                        ? (shiftPhases, shiftTimes) => {
+                        ? (shiftPhases, shiftTimes, shiftTasks) => {
                             const shiftKeys = filterShiftSelectionsToSchedule(
                               shiftPhases,
                               new Set(scheduledShiftKeys(phaseDays ?? {})),
@@ -1041,6 +1194,7 @@ export function MasterCrewSheet({
                                 assignedDates,
                                 assignedShiftPhases: [...shiftKeys].sort(),
                                 assignedShiftTimes: shiftTimesForSelections(shiftKeys, shiftTimes),
+                                assignedShiftTasks: shiftTasks,
                                 callTime: summary.startTime,
                                 offTime: summary.endTime,
                               });
@@ -1283,11 +1437,13 @@ function MasterRow({
     dates: ReadonlyArray<string>,
     shiftPhases?: ReadonlyArray<string>,
     shiftTimes?: CrewShiftTimeMap,
+    shiftTasks?: Record<string, string[]>,
   ) => void;
   rolePeers?: ReadonlyArray<CrewMember>;
   onApplyScheduleToRole?: (
     shiftPhases: ReadonlyArray<string>,
     shiftTimes: CrewShiftTimeMap,
+    shiftTasks: Record<string, string[]>,
   ) => void;
   onOpenProfile?: (userId: string) => void;
 }) {
@@ -1351,23 +1507,35 @@ function MasterRow({
         )}
       </td>
       <td>
-        {editableLocal ? (
-          <select
-            className="led-input"
-            value={local?.role ?? CREW_ROLES[0]!}
-            onChange={(e) =>
-              onLocalUpdate?.({ role: e.target.value as CrewRole })
-            }
-          >
-            {CREW_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        ) : (
-          row.role || "—"
-        )}
+        <div className="crew-role-cell">
+          {editableLocal ? (
+            <select
+              className="led-input"
+              value={local?.role ?? CREW_ROLES[0]!}
+              onChange={(e) =>
+                onLocalUpdate?.({ role: e.target.value as CrewRole })
+              }
+            >
+              {CREW_ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          ) : (
+            row.role || "—"
+          )}
+          {local?.assignedShiftTasks &&
+          Object.values(local.assignedShiftTasks).flat().length > 0 ? (
+            <div className="crew-row-tasks">
+              {[
+                ...new Set(Object.values(local.assignedShiftTasks).flat()),
+              ].map((task) => (
+                <span key={task}>{task}</span>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </td>
       <td>
         {editableLocal ? (
@@ -1464,11 +1632,11 @@ function MasterRow({
                 phaseDays={phaseDays}
                 phaseShiftTimes={phaseShiftTimes}
                 rolePeers={rolePeers ?? [local!]}
-                onSave={(dates, phases, times) =>
-                  onLocalSetDays(dates, phases, times)
+                onSave={(dates, phases, times, tasks) =>
+                  onLocalSetDays(dates, phases, times, tasks)
                 }
-                onApplyToRole={(phases, times) =>
-                  onApplyScheduleToRole?.(phases, times)
+                onApplyToRole={(phases, times, tasks) =>
+                  onApplyScheduleToRole?.(phases, times, tasks)
                 }
               />
             )

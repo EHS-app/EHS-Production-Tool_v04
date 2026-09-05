@@ -10793,6 +10793,7 @@ html[data-shell="linear"] .container {
 .crew-shift-matrix-footer {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
   padding: 16px 18px;
@@ -10805,23 +10806,21 @@ html[data-shell="linear"] .container {
 }
 
 .shift-role-actions,
-.crew-shift-matrix-footer > div {
+.crew-shift-matrix-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.shift-role-actions > button:not(.crew-shift-matrix-close) {
-  min-height: 36px;
-  padding: 0 12px;
-  border: 1px solid var(--primary, #f88000);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--primary, #f88000) 10%, var(--card-bg, #fff));
+.crew-shift-matrix-actions > button:not(.is-primary):not(:first-child) {
+  border-color: color-mix(in srgb, var(--primary, #f88000) 40%, var(--border));
+  background: color-mix(in srgb, var(--primary, #f88000) 8%, var(--card-bg, #fff));
   color: var(--primary, #f88000);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
+}
+
+.crew-shift-matrix-actions > button:not(.is-primary):not(:first-child):hover {
+  background: color-mix(in srgb, var(--primary, #f88000) 16%, var(--card-bg, #fff));
 }
 
 .crew-shift-matrix-header h3 {
@@ -10995,24 +10994,25 @@ html[data-shell="linear"] .container {
 
 .shift-hour-scale {
   margin: 10px 0 4px;
-}
-
-.shift-hour-scale > span {
-  display: none;
-}
-
-.shift-hour-scale {
-  padding-left: 130px;
-  grid-template-columns: repeat(5, 1fr);
   color: var(--text-muted);
   font-size: 9px;
 }
-
-.shift-hour-scale span {
-  display: block;
+.shift-hour-scale-labels {
+  display: flex;
+  justify-content: space-between;
+  position: relative;
+  left: -3px;
+  width: calc(100% + 6px);
 }
-
-.shift-hour-scale span:last-child {
+.shift-hour-scale-labels span {
+  display: inline-block;
+  width: 20px;
+  text-align: center;
+}
+.shift-hour-scale-labels span:first-child {
+  text-align: left;
+}
+.shift-hour-scale-labels span:last-child {
   text-align: right;
 }
 
@@ -11051,6 +11051,154 @@ html[data-shell="linear"] .container {
 .shift-overlap-track i.is-selected {
   background: var(--primary, #f88000);
 }
+
+.shift-task-editor {
+  grid-column: 2;
+  display: grid;
+  gap: 7px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.shift-task-editor > span {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.shift-task-chips,
+.crew-row-tasks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.shift-task-chips button,
+.crew-row-tasks span {
+  min-height: 26px;
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--light);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  transition: all 150ms ease;
+}
+
+.shift-task-chips button {
+  cursor: pointer;
+}
+
+.crew-row-tasks span {
+  cursor: default;
+}
+
+.shift-task-chips button:hover:not(:disabled) {
+  border-color: var(--text-muted);
+  color: var(--text-main);
+}
+
+.shift-task-chips button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.shift-task-chips button.is-active,
+.crew-row-tasks span {
+  border-color: color-mix(in srgb, var(--primary, #f88000) 42%, var(--border));
+  background: color-mix(in srgb, var(--primary, #f88000) 12%, var(--card-bg));
+  color: color-mix(in srgb, var(--primary, #f88000) 80%, var(--text-main));
+}
+
+.shift-task-chips button.is-active:hover:not(:disabled) {
+  border-color: var(--primary, #f88000);
+  background: color-mix(in srgb, var(--primary, #f88000) 18%, var(--card-bg));
+}
+
+.shift-custom-task {
+  display: flex;
+  gap: 7px;
+  max-width: 420px;
+}
+
+.shift-custom-task input {
+  flex: 1;
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  font-size: 11px;
+}
+
+.shift-custom-task button {
+  padding: 0 12px;
+  min-height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--light);
+  color: var(--text-main);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.shift-custom-task button:hover:not(:disabled) {
+  border-color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 10%, var(--light));
+}
+
+.shift-custom-task input:disabled,
+.shift-custom-task button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.crew-role-cell { display: grid; gap: 7px; }
+.crew-row-tasks span { min-height: auto; padding: 3px 7px; }
+
+.crew-daily-timeline {
+  margin: 0 0 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card-bg);
+}
+
+.crew-daily-timeline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.crew-daily-timeline-head > div,
+.crew-daily-row > span { display: grid; }
+.crew-daily-timeline-head small,
+.crew-daily-row small { color: var(--text-muted); font-size: 10px; }
+.crew-daily-scale,
+.crew-daily-row { display: grid; grid-template-columns: 150px 1fr; gap: 10px; }
+.crew-daily-scale { margin: 10px 0 4px; color: var(--text-muted); font-size: 9px; }
+.crew-daily-scale-labels { display: flex; justify-content: space-between; position: relative; left: -3px; width: calc(100% + 6px); }
+.crew-daily-scale-labels span { display: inline-block; width: 20px; text-align: center; }
+.crew-daily-scale-labels span:first-child { text-align: left; left: 0; }
+.crew-daily-scale-labels span:last-child { text-align: right; }
+.crew-daily-rows { display: grid; gap: 6px; }
+.crew-daily-row { align-items: center; }
+.crew-daily-track {
+  position: relative;
+  height: 20px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: repeating-linear-gradient(to right, transparent 0, transparent calc(25% - 1px), var(--border) calc(25% - 1px), var(--border) 25%), var(--light);
+}
+.crew-daily-track i { position: absolute; top: 3px; height: 14px; border-radius: 4px; }
+.crew-daily-rows > p { margin: 8px 0 0; color: var(--text-muted); font-size: 12px; }
 
 .crew-shift-day-actions {
   display: flex;
@@ -11157,10 +11305,6 @@ html[data-shell="linear"] .container {
     grid-template-columns: 1fr;
   }
 
-  .shift-role-actions > button:not(.crew-shift-matrix-close) {
-    display: none;
-  }
-
   .shift-preset-row {
     grid-template-columns: 1fr;
   }
@@ -11172,4 +11316,7 @@ html[data-shell="linear"] .container {
   .shift-custom-times {
     grid-column: 1;
   }
+  .shift-task-editor { grid-column: 1; }
+  .crew-daily-scale,
+  .crew-daily-row { grid-template-columns: 95px 1fr; }
 }

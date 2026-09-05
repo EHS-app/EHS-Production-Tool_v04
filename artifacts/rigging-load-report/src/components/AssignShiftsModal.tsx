@@ -19,6 +19,17 @@ const PHASES = [
 ] as const;
 
 type ShiftMode = "full" | "four" | "custom";
+type ShiftTaskMap = Record<string, string[]>;
+
+const ROLE_TASKS: Record<string, string[]> = {
+  "Video / LED": ["Wall Assembly", "Signal Patch", "Processor Config"],
+  Rigging: ["Motor Hang", "Truss Assembly"],
+  Lighting: ["Fixtures Hang", "Patching", "FOH Op"],
+  "Lighting FOH": ["Fixtures Hang", "Patching", "FOH Op"],
+  Sound: ["PA Deployment", "Signal Patch", "FOH Op"],
+  "AV FOH": ["Signal Patch", "Playback", "FOH Op"],
+  "System Tech": ["System Config", "Signal Patch", "Troubleshooting"],
+};
 
 type Props = {
   crew: CrewMember;
@@ -29,10 +40,12 @@ type Props = {
     dates: ReadonlyArray<string>,
     shiftPhases: ReadonlyArray<string>,
     shiftTimes: CrewShiftTimeMap,
+    shiftTasks: ShiftTaskMap,
   ) => void;
   onApplyToRole: (
     shiftPhases: ReadonlyArray<string>,
     shiftTimes: CrewShiftTimeMap,
+    shiftTasks: ShiftTaskMap,
   ) => void;
 };
 
@@ -88,6 +101,8 @@ export function AssignShiftsModal({
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Set<string>>(new Set());
   const [times, setTimes] = useState<CrewShiftTimeMap>({});
+  const [tasks, setTasks] = useState<ShiftTaskMap>({});
+  const [customTasks, setCustomTasks] = useState<Record<string, string>>({});
   const [modes, setModes] = useState<Record<string, ShiftMode | undefined>>({});
   const availableKeys = useMemo(
     () => new Set(scheduledShiftKeys(phaseDays)),
@@ -121,6 +136,15 @@ export function AssignShiftsModal({
     }
     setDraft(selections);
     setTimes(initialTimes);
+    setTasks(
+      Object.fromEntries(
+        Object.entries(crew.assignedShiftTasks ?? {}).map(([key, values]) => [
+          key,
+          [...values],
+        ]),
+      ),
+    );
+    setCustomTasks({});
     setModes(initialModes);
     setFocusDate(days[0] ?? "");
     setOpen(true);
@@ -155,6 +179,11 @@ export function AssignShiftsModal({
     if (mode === "clear") {
       setModes((current) => ({ ...current, [key]: undefined }));
       setTimes((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+      setTasks((current) => {
         const next = { ...current };
         delete next[key];
         return next;
@@ -194,6 +223,40 @@ export function AssignShiftsModal({
     return result;
   }, [draft, times]);
 
+  const selectedTasks = useMemo(
+    () =>
+      Object.fromEntries(
+        [...draft].flatMap((key) =>
+          tasks[key]?.length ? [[key, [...tasks[key]]]] : [],
+        ),
+      ),
+    [draft, tasks],
+  );
+
+  const toggleTask = (key: string, task: string) => {
+    setTasks((current) => {
+      const values = current[key] ?? [];
+      return {
+        ...current,
+        [key]: values.includes(task)
+          ? values.filter((value) => value !== task)
+          : [...values, task],
+      };
+    });
+  };
+
+  const addCustomTask = (key: string) => {
+    const task = customTasks[key]?.trim();
+    if (!task) return;
+    setTasks((current) => ({
+      ...current,
+      [key]: current[key]?.includes(task)
+        ? current[key]
+        : [...(current[key] ?? []), task],
+    }));
+    setCustomTasks((current) => ({ ...current, [key]: "" }));
+  };
+
   const totalHours = useMemo(
     () => [...draft].reduce((total, key) => total + durationHours(times[key]), 0),
     [draft, times],
@@ -201,14 +264,14 @@ export function AssignShiftsModal({
 
   const save = () => {
     const keys = [...draft].sort();
-    onSave(assignedDatesFromShiftPhases(draft), keys, selectedTimes);
+    onSave(assignedDatesFromShiftPhases(draft), keys, selectedTimes, selectedTasks);
     setOpen(false);
   };
 
   const applyToRole = () => {
     const keys = [...draft].sort();
-    onSave(assignedDatesFromShiftPhases(draft), keys, selectedTimes);
-    onApplyToRole(keys, selectedTimes);
+    onSave(assignedDatesFromShiftPhases(draft), keys, selectedTimes, selectedTasks);
+    onApplyToRole(keys, selectedTimes, selectedTasks);
     setOpen(false);
   };
 
@@ -276,14 +339,6 @@ export function AssignShiftsModal({
                     <h3>Assign shifts — {crew.name || "Crew member"}</h3>
                   </div>
                   <div className="shift-role-actions">
-                    {rolePeers.length > 1 ? (
-                      <button
-                        type="button"
-                        onClick={applyToRole}
-                      >
-                        Apply schedule to all {crew.role}
-                      </button>
-                    ) : null}
                     <button type="button" className="crew-shift-matrix-close" onClick={() => setOpen(false)}>×</button>
                   </div>
                 </header>
@@ -336,6 +391,50 @@ export function AssignShiftsModal({
                                   <label>End<input type="time" value={times[key]?.endTime ?? ""} onChange={(event) => updateCustomTime(key, "endTime", event.target.value)} /></label>
                                 </div>
                               ) : null}
+                              <div className="shift-task-editor">
+                                <span>Tasks / Focus</span>
+                                <div className="shift-task-chips">
+                                  {(ROLE_TASKS[crew.role] ?? ["General Support", "Site Prep", "Show Call"]).map((task) => (
+                                    <button
+                                      key={task}
+                                      type="button"
+                                      className={tasks[key]?.includes(task) ? "is-active" : ""}
+                                      disabled={!draft.has(key)}
+                                      onClick={() => toggleTask(key, task)}
+                                    >
+                                      {task}
+                                    </button>
+                                  ))}
+                                  {(tasks[key] ?? [])
+                                    .filter((task) => !(ROLE_TASKS[crew.role] ?? []).includes(task))
+                                    .map((task) => (
+                                      <button
+                                        key={task}
+                                        type="button"
+                                        className="is-active"
+                                        title="Remove custom task"
+                                        onClick={() => toggleTask(key, task)}
+                                      >
+                                        {task} ×
+                                      </button>
+                                    ))}
+                                </div>
+                                <div className="shift-custom-task">
+                                  <input
+                                    value={customTasks[key] ?? ""}
+                                    placeholder="Add custom task"
+                                    disabled={!draft.has(key)}
+                                    onChange={(event) => setCustomTasks((current) => ({ ...current, [key]: event.target.value }))}
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter") {
+                                        event.preventDefault();
+                                        addCustomTask(key);
+                                      }
+                                    }}
+                                  />
+                                  <button type="button" disabled={!draft.has(key)} onClick={() => addCustomTask(key)}>Add</button>
+                                </div>
+                              </div>
                             </div>
                           );
                         })}
@@ -353,24 +452,39 @@ export function AssignShiftsModal({
                           </select>
                         ) : <span>{focusDate}</span>}
                       </div>
-                      <div className="shift-hour-scale"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+                      <div className="shift-hour-scale">
+                        <div className="shift-hour-scale-spacer" />
+                        <div className="shift-hour-scale-labels">
+                          <span>00</span>
+                          <span>06</span>
+                          <span>12</span>
+                          <span>18</span>
+                          <span>24</span>
+                        </div>
+                      </div>
                       <div className="shift-overlap-rows">
                         {barsForDate(focusDate).map((member) => (
                           <div className="shift-overlap-row" key={member.id}>
                             <span title={member.name}>{member.name}</span>
                             <div className="shift-overlap-track">
-                              {member.dayTimes.map((time, index) => {
+                              {member.dayTimes.flatMap((time, index) => {
                                 const start = minutes(time.startTime)!;
                                 const end = minutes(time.endTime)!;
                                 const length = (end - start + 1440) % 1440 || 1440;
-                                return (
+                                const blocks = [
+                                  { left: start, width: Math.min(length, 1440 - start) }
+                                ];
+                                if (length > 1440 - start) {
+                                  blocks.push({ left: 0, width: length - (1440 - start) });
+                                }
+                                return blocks.map((block, blockIndex) => (
                                   <i
-                                    key={`${time.startTime}-${time.endTime}-${index}`}
+                                    key={`${time.startTime}-${time.endTime}-${index}-${blockIndex}`}
                                     className={member.selected ? "is-selected" : ""}
                                     title={`${member.name}: ${time.startTime}–${time.endTime}`}
-                                    style={{ left: `${(start / 1440) * 100}%`, width: `${Math.min(length, 1440 - start) / 14.4}%` }}
+                                    style={{ left: `${block.left / 14.4}%`, width: `${block.width / 14.4}%` }}
                                   />
-                                );
+                                ));
                               })}
                             </div>
                           </div>
@@ -382,8 +496,16 @@ export function AssignShiftsModal({
 
                 <footer className="crew-shift-matrix-footer">
                   <strong>Total Booked: {Number.isInteger(totalHours) ? totalHours : totalHours.toFixed(1)} hrs</strong>
-                  <div>
+                  <div className="crew-shift-matrix-actions">
                     <button type="button" onClick={() => setOpen(false)}>Cancel</button>
+                    {rolePeers.length > 1 ? (
+                      <button
+                        type="button"
+                        onClick={applyToRole}
+                      >
+                        Apply to all {crew.role}
+                      </button>
+                    ) : null}
                     <button type="button" className="is-primary" onClick={save}>Save shifts</button>
                   </div>
                 </footer>

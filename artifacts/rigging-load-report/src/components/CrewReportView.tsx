@@ -1,6 +1,5 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { MasterCrewSheet } from "./MasterCrewSheet";
-import { AdequacyPanel } from "./AdequacyPanel";
 import { ProducerHoursPanel } from "./ProducerHoursPanel";
 import { FreelancerProfileModal } from "./global/FreelancerProfileModal";
 import {
@@ -83,7 +82,6 @@ export function CrewReportView({
   directorySidebar,
   activeBriefId,
   getToken,
-  adequacyMetrics,
   getTimesForDates,
   phaseDays,
   phaseShiftTimes,
@@ -95,16 +93,6 @@ export function CrewReportView({
   // local crew[] until the first roster fetch lands so the meter
   // still works on day-1 planning before any portal brief is
   // pushed.
-  const localRoles = useMemo(() => crew.map((m) => m.role), [crew]);
-  const [mergedRoles, setMergedRoles] = useState<ReadonlyArray<string> | null>(
-    null,
-  );
-  const handleMergedRolesChange = useCallback(
-    (roles: ReadonlyArray<string>) => setMergedRoles(roles),
-    [],
-  );
-  const rosterRoles = mergedRoles ?? localRoles;
-
   // Stat-card counts bubbled up from MasterCrewSheet so the redesigned
   // header row (CREW / ACCEPTED / PENDING / HOTEL ROOMS) reflects the
   // merged gig+local roster. Initialised from the local crew so the
@@ -202,7 +190,6 @@ export function CrewReportView({
             onDuplicate={onDuplicate}
             onSendLinkedRequests={onSendLinkedRequests}
             sendingLinkedRequests={sendingLinkedRequests}
-            onMergedRolesChange={handleMergedRolesChange}
             onCountsChange={handleCountsChange}
             getTimesForDates={getTimesForDates}
             phaseDays={phaseDays}
@@ -211,18 +198,6 @@ export function CrewReportView({
             onOpenProfile={(id) => setProfileUserId(id)}
             readOnly={readOnly}
           />
-          {/* Adequacy panel — kept as a sidekick BELOW the master
-              sheet so it doesn't compete for attention. Still surfaces
-              "you have 5 riggers, suggested 6–8" warnings, just no
-              longer the first thing the producer sees. Hidden when
-              the parent didn't pass derived metrics (e.g. on a fresh
-              brief with no rigging/LED/stage data yet). */}
-          {adequacyMetrics ? (
-            <AdequacyPanel
-              derived={adequacyMetrics}
-              rosterRoles={rosterRoles}
-            />
-          ) : null}
           {/* Producer-side hours review: submitted/approved/locked
               entries across every gig tied to this brief. Hidden when
               no brief has been pushed yet (no time entries can exist

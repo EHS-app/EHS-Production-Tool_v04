@@ -39055,7 +39055,7 @@ var init_calendarCrypto = __esm({
 });
 
 // src/app.ts
-var import_express32 = __toESM(require_express2(), 1);
+var import_express33 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 
@@ -46517,8 +46517,8 @@ var InMemoryThrottlerCache = class {
     this.#cache.delete(key2);
   }
 };
-function isWindowClerkWithMetadata(clerk8) {
-  return typeof clerk8 === "object" && clerk8 !== null && "constructor" in clerk8 && typeof clerk8.constructor === "function";
+function isWindowClerkWithMetadata(clerk9) {
+  return typeof clerk9 === "object" && clerk9 !== null && "constructor" in clerk9 && typeof clerk9.constructor === "function";
 }
 var VALID_LOG_LEVELS = /* @__PURE__ */ new Set([
   "error",
@@ -47229,7 +47229,7 @@ function clerkProxyMiddleware() {
 }
 
 // src/routes/index.ts
-var import_express31 = __toESM(require_express2(), 1);
+var import_express32 = __toESM(require_express2(), 1);
 
 // src/routes/health.ts
 var import_express = __toESM(require_express2(), 1);
@@ -76599,7 +76599,7 @@ router5.get("/storage/objects/*path", async (req, res) => {
 var storage_default = router5;
 
 // src/routes/portalProfile.ts
-var import_express7 = __toESM(require_express2(), 1);
+var import_express8 = __toESM(require_express2(), 1);
 import { Readable as Readable5 } from "stream";
 
 // ../../lib/skills/src/index.ts
@@ -76981,6 +76981,55 @@ var requireEmployee = async (req, res, next) => {
   next();
 };
 
+// src/lib/clerkFreelancerSync.ts
+var clerk2 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+function clean(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+function legacyFreelancerIdentity(user) {
+  const primaryEmail = user.emailAddresses?.find(
+    (entry) => entry.id === user.primaryEmailAddressId
+  )?.emailAddress ?? user.emailAddresses?.[0]?.emailAddress;
+  const email3 = clean(primaryEmail);
+  const explicitName = [clean(user.firstName), clean(user.lastName)].filter(Boolean).join(" ");
+  const emailPrefix = clean(email3.split("@")[0]);
+  const fullName = explicitName || clean(user.username) || emailPrefix || `Freelancer ${user.id.slice(-6)}`;
+  return { fullName, email: email3 };
+}
+async function syncMissingClerkFreelancerProfiles() {
+  if (!clerk2) return 0;
+  const limit = 100;
+  let offset = 0;
+  let insertedCount = 0;
+  while (true) {
+    const page = await clerk2.users.getUserList({ limit, offset });
+    const freelancers = page.data.filter(
+      (user) => !hasVerifiedPrimaryEhsEmail(user)
+    );
+    if (freelancers.length > 0) {
+      const userIds = freelancers.map((user) => user.id);
+      const existing = await db.select({ userId: freelancerProfilesTable.userId }).from(freelancerProfilesTable).where(inArray(freelancerProfilesTable.userId, userIds));
+      const existingIds = new Set(existing.map((row) => row.userId));
+      const missing = freelancers.filter((user) => !existingIds.has(user.id));
+      if (missing.length > 0) {
+        const inserted = await db.insert(freelancerProfilesTable).values(
+          missing.map((user) => ({
+            userId: user.id,
+            ...legacyFreelancerIdentity(user)
+          }))
+        ).onConflictDoNothing({ target: freelancerProfilesTable.userId }).returning({ userId: freelancerProfilesTable.userId });
+        insertedCount += inserted.length;
+      }
+    }
+    const received = page.data.length;
+    offset += received;
+    if (received === 0 || received < limit || typeof page.totalCount === "number" && offset >= page.totalCount) {
+      break;
+    }
+  }
+  return insertedCount;
+}
+
 // src/lib/calendarTime.ts
 var RFC3339_WITH_OFFSET = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 function parseCalendarInstant(value) {
@@ -77127,7 +77176,7 @@ function pickSkills(raw) {
   }
   return out;
 }
-var router6 = (0, import_express7.Router)();
+var router6 = (0, import_express8.Router)();
 var objectStorageService2 = new ObjectStorageService();
 var PROFILE_PHOTO_TYPES = /* @__PURE__ */ new Set(["image/jpeg", "image/png", "image/webp"]);
 var PROFILE_PHOTO_MAX_BYTES = 5e6;
@@ -77680,6 +77729,20 @@ router6.get("/portal/freelancers", requireEmployee, async (req, res) => {
     }
   }
   try {
+    try {
+      const inserted = await syncMissingClerkFreelancerProfiles();
+      if (inserted > 0) {
+        req.log.info(
+          { inserted },
+          "backfilled missing Clerk freelancer profiles"
+        );
+      }
+    } catch (err) {
+      req.log.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        "Clerk freelancer sync failed; serving existing directory profiles"
+      );
+    }
     const conditions = [];
     if (q) {
       const like2 = `%${q}%`;
@@ -77754,7 +77817,7 @@ router6.get("/portal/freelancers", requireEmployee, async (req, res) => {
       conflicts: startDate ? sql`(SELECT count(*)::int FROM calendar_busy_intervals cbi JOIN calendar_connections cc ON cc.id=cbi.connection_id WHERE cc.user_id=${freelancerProfilesTable.userId} AND cbi.starts_at < ${requestedBounds.to} AND cbi.ends_at > ${requestedBounds.from})`.as("conflicts") : sql`0`.as("conflicts"),
       holdId: startDate && briefId ? sql`(SELECT ch.id FROM calendar_holds ch WHERE ch.freelancer_user_id=${freelancerProfilesTable.userId} AND ch.owner_user_id=${callerUserId} AND ch.brief_id=${briefId} AND ch.expires_at>now() AND ch.starts_at < ${requestedBounds.to} AND ch.ends_at > ${requestedBounds.from} ORDER BY ch.expires_at LIMIT 1)`.as("hold_id") : sql`NULL`.as("hold_id"),
       holdExpiresAt: startDate && briefId ? sql`(SELECT ch.expires_at FROM calendar_holds ch WHERE ch.freelancer_user_id=${freelancerProfilesTable.userId} AND ch.owner_user_id=${callerUserId} AND ch.brief_id=${briefId} AND ch.expires_at>now() AND ch.starts_at < ${requestedBounds.to} AND ch.ends_at > ${requestedBounds.from} ORDER BY ch.expires_at LIMIT 1)`.as("hold_expires_at") : sql`NULL`.as("hold_expires_at")
-    }).from(freelancerProfilesTable).where(where).orderBy(freelancerProfilesTable.fullName).limit(100);
+    }).from(freelancerProfilesTable).where(where).orderBy(freelancerProfilesTable.fullName);
     const recurringRules = startDate ? await db.select({
       userId: calendarAvailabilityRulesTable.userId,
       status: calendarAvailabilityRulesTable.status,
@@ -77818,7 +77881,7 @@ router6.get("/portal/freelancers", requireEmployee, async (req, res) => {
 var portalProfile_default = router6;
 
 // src/routes/portalBriefs.ts
-var import_express9 = __toESM(require_express2(), 1);
+var import_express10 = __toESM(require_express2(), 1);
 import { randomUUID as randomUUID3 } from "node:crypto";
 
 // src/lib/roomPairing.ts
@@ -78011,7 +78074,7 @@ async function sendGmail(args) {
 }
 
 // src/lib/briefEmail.ts
-var clerk2 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+var clerk3 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
 function pickPortalBaseUrl() {
   const domains = process.env.REPLIT_DOMAINS;
   if (domains && domains.trim()) {
@@ -78023,9 +78086,9 @@ function pickPortalBaseUrl() {
   return "";
 }
 async function lookupProducerName(userId2) {
-  if (!clerk2) return "produsent";
+  if (!clerk3) return "produsent";
   try {
-    const user = await clerk2.users.getUser(userId2);
+    const user = await clerk3.users.getUser(userId2);
     const name = [user.firstName ?? "", user.lastName ?? ""].join(" ").trim();
     if (name) return name;
     const primary = user.emailAddresses?.find(
@@ -78597,7 +78660,7 @@ function emptyDispatchSummary() {
 }
 
 // src/routes/portalBriefs.ts
-var router7 = (0, import_express9.Router)();
+var router7 = (0, import_express10.Router)();
 var requireUnarchivedBriefProject = async (req, res, next) => {
   const briefId = String(req.params.id ?? "");
   try {
@@ -78665,18 +78728,18 @@ function withoutUntrustedProfiles(raw) {
     return result;
   };
   const cleansed = cleanse(raw);
-  const clean = cleansed && typeof cleansed === "object" && !Array.isArray(cleansed) ? cleansed : {};
-  if ("client" in clean && typeof clean.client !== "string") delete clean.client;
-  if ("venue" in clean && typeof clean.venue !== "string") delete clean.venue;
-  if (clean.project && typeof clean.project === "object" && !Array.isArray(clean.project)) {
-    const project = { ...clean.project };
+  const clean2 = cleansed && typeof cleansed === "object" && !Array.isArray(cleansed) ? cleansed : {};
+  if ("client" in clean2 && typeof clean2.client !== "string") delete clean2.client;
+  if ("venue" in clean2 && typeof clean2.venue !== "string") delete clean2.venue;
+  if (clean2.project && typeof clean2.project === "object" && !Array.isArray(clean2.project)) {
+    const project = { ...clean2.project };
     for (const key2 of RESTRICTED_BRIEF_KEYS) delete project[key2];
     if ("client" in project && typeof project.client !== "string") delete project.client;
     if ("projectName" in project && typeof project.projectName !== "string") delete project.projectName;
     if ("venue" in project && typeof project.venue !== "string") delete project.venue;
-    clean.project = project;
+    clean2.project = project;
   }
-  return clean;
+  return clean2;
 }
 function trustedVenueSnapshot(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -78696,13 +78759,13 @@ function trustedVenueSnapshot(raw) {
   return snapshot;
 }
 function freelancerBriefData(raw, storedSnapshot) {
-  const clean = raw && typeof raw === "object" && !Array.isArray(raw) ? withoutUntrustedProfiles(raw) : {};
-  const project = clean.project && typeof clean.project === "object" && !Array.isArray(clean.project) ? { ...clean.project } : {};
+  const clean2 = raw && typeof raw === "object" && !Array.isArray(raw) ? withoutUntrustedProfiles(raw) : {};
+  const project = clean2.project && typeof clean2.project === "object" && !Array.isArray(clean2.project) ? { ...clean2.project } : {};
   delete project.venueTechnicalSnapshot;
   const snapshot = trustedVenueSnapshot(storedSnapshot);
   if (snapshot) project.venueTechnicalSnapshot = snapshot;
-  clean.project = project;
-  return clean;
+  clean2.project = project;
+  return clean2;
 }
 async function safeVenueSnapshot(userId2, projectId, directVenueId) {
   let venueId = directVenueId;
@@ -80588,9 +80651,9 @@ router7.get(
 var portalBriefs_default = router7;
 
 // src/routes/portalGigs.ts
-var import_express10 = __toESM(require_express2(), 1);
+var import_express11 = __toESM(require_express2(), 1);
 import { randomUUID as randomUUID4 } from "node:crypto";
-var router8 = (0, import_express10.Router)();
+var router8 = (0, import_express11.Router)();
 var requireSignedIn6 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
@@ -80818,7 +80881,7 @@ router8.delete("/portal/gigs/:id", requireSignedIn6, async (req, res) => {
 var portalGigs_default = router8;
 
 // src/routes/portalTimeEntries.ts
-var import_express11 = __toESM(require_express2(), 1);
+var import_express12 = __toESM(require_express2(), 1);
 import { randomUUID as randomUUID5 } from "node:crypto";
 
 // src/lib/organizationSettings.ts
@@ -80876,7 +80939,7 @@ function organizationDefaultsSnapshot(settings) {
 }
 
 // src/routes/portalTimeEntries.ts
-var router9 = (0, import_express11.Router)();
+var router9 = (0, import_express12.Router)();
 var requireSignedIn7 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
@@ -81483,7 +81546,7 @@ logger.info({ scope: "portalTimeEntries" }, "time-entries router mounted");
 var portalTimeEntries_default = router9;
 
 // src/routes/portalCalendar.ts
-var import_express12 = __toESM(require_express2(), 1);
+var import_express13 = __toESM(require_express2(), 1);
 import { createHash as createHash2, randomBytes as randomBytes2, randomUUID as randomUUID6 } from "node:crypto";
 
 // src/lib/calendarIcs.ts
@@ -81683,7 +81746,7 @@ function isSerializationFailure(error40) {
 }
 
 // src/routes/portalCalendar.ts
-var router10 = (0, import_express12.Router)();
+var router10 = (0, import_express13.Router)();
 var requireSignedIn8 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth?.userId)
@@ -82471,8 +82534,8 @@ router10.delete(
 var portalCalendar_default = router10;
 
 // src/routes/portalWork.ts
-var import_express13 = __toESM(require_express2(), 1);
-var router11 = (0, import_express13.Router)();
+var import_express14 = __toESM(require_express2(), 1);
+var router11 = (0, import_express14.Router)();
 var requireSignedIn9 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth.userId) {
@@ -82531,12 +82594,12 @@ router11.get("/portal/my-tasks", requireSignedIn9, async (req, res) => {
 var portalWork_default = router11;
 
 // src/routes/projects.ts
-var import_express17 = __toESM(require_express2(), 1);
+var import_express18 = __toESM(require_express2(), 1);
 import { randomUUID as randomUUID7 } from "node:crypto";
 
 // src/routes/admin.ts
-var import_express14 = __toESM(require_express2(), 1);
-var clerk3 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+var import_express15 = __toESM(require_express2(), 1);
+var clerk4 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
 var ADMIN_EMAIL_DOMAIN = "@ehs.no";
 var ADMIN_EMAILS = new Set(
   (process.env.ADMIN_EMAILS ?? "olti@ehs.no").split(",").map((email3) => email3.trim().toLowerCase()).filter(Boolean)
@@ -82569,12 +82632,12 @@ var requireAdmin = async (req, res, next) => {
     res.status(401).json({ ok: false, error: "Sign in required." });
     return;
   }
-  if (!clerk3) {
+  if (!clerk4) {
     res.status(503).json({ ok: false, error: "Admin API unavailable (Clerk not configured)." });
     return;
   }
   try {
-    const caller = await clerk3.users.getUser(userId2);
+    const caller = await clerk4.users.getUser(userId2);
     const email3 = getVerifiedPrimaryEhsEmail(caller);
     if (!email3 || !ADMIN_EMAILS.has(email3)) {
       res.status(403).json({
@@ -82597,12 +82660,12 @@ var requireAdmin = async (req, res, next) => {
     res.status(500).json({ ok: false, error: "Admin auth check failed." });
   }
 };
-var router12 = (0, import_express14.Router)();
+var router12 = (0, import_express15.Router)();
 router12.get("/admin/me", requireAdmin, (_req, res) => {
   res.json({ ok: true, isAdmin: true });
 });
 router12.post("/admin/claim-employee", requireAdmin, async (req, res) => {
-  if (!clerk3) {
+  if (!clerk4) {
     res.status(503).json({ ok: false, error: "Clerk not configured." });
     return;
   }
@@ -82613,8 +82676,8 @@ router12.post("/admin/claim-employee", requireAdmin, async (req, res) => {
     return;
   }
   try {
-    const user = await clerk3.users.getUser(userId2);
-    await clerk3.users.updateUserMetadata(userId2, {
+    const user = await clerk4.users.getUser(userId2);
+    await clerk4.users.updateUserMetadata(userId2, {
       publicMetadata: {
         ...user.publicMetadata ?? {},
         userType: "employee"
@@ -82635,7 +82698,7 @@ router12.post("/admin/claim-employee", requireAdmin, async (req, res) => {
   }
 });
 router12.post("/admin/set-user-type", requireAdmin, async (req, res) => {
-  if (!clerk3) {
+  if (!clerk4) {
     res.status(503).json({ ok: false, error: "Clerk not configured." });
     return;
   }
@@ -82647,7 +82710,7 @@ router12.post("/admin/set-user-type", requireAdmin, async (req, res) => {
     return;
   }
   try {
-    const list2 = await clerk3.users.getUserList({ emailAddress: [email3] });
+    const list2 = await clerk4.users.getUserList({ emailAddress: [email3] });
     const users = Array.isArray(list2) ? list2 : list2.data || [];
     if (users.length === 0) {
       res.status(404).json({ ok: false, error: "No user found with that email." });
@@ -82656,7 +82719,7 @@ router12.post("/admin/set-user-type", requireAdmin, async (req, res) => {
     const results = [];
     for (const u of users) {
       const previousType = (u.publicMetadata ?? {})?.userType;
-      await clerk3.users.updateUserMetadata(u.id, {
+      await clerk4.users.updateUserMetadata(u.id, {
         publicMetadata: { ...u.publicMetadata ?? {}, userType }
       });
       let freelancerProfileDeleted = false;
@@ -82702,7 +82765,7 @@ router12.post("/admin/set-user-type", requireAdmin, async (req, res) => {
   }
 });
 router12.post("/admin/delete-user", requireAdmin, async (req, res) => {
-  if (!clerk3) {
+  if (!clerk4) {
     res.status(503).json({ ok: false, error: "Clerk not configured." });
     return;
   }
@@ -82718,7 +82781,7 @@ router12.post("/admin/delete-user", requireAdmin, async (req, res) => {
     return;
   }
   try {
-    const list2 = await clerk3.users.getUserList({ emailAddress: [email3] });
+    const list2 = await clerk4.users.getUserList({ emailAddress: [email3] });
     const users = Array.isArray(list2) ? list2 : list2.data || [];
     if (users.length === 0) {
       res.status(404).json({ ok: false, error: "No user found with that email." });
@@ -82738,7 +82801,7 @@ router12.post("/admin/delete-user", requireAdmin, async (req, res) => {
           "admin: failed to delete freelancer_profiles row during user delete"
         );
       }
-      await clerk3.users.deleteUser(u.id);
+      await clerk4.users.deleteUser(u.id);
       deleted.push({ userId: u.id, email: getEmailFromUser(u) });
     }
     logger.info(
@@ -82761,7 +82824,7 @@ router12.post("/admin/delete-user", requireAdmin, async (req, res) => {
 var admin_default = router12;
 
 // src/lib/projectManagers.ts
-var clerk4 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+var clerk5 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
 var CLERK_BATCH_SIZE = 100;
 function fallbackManager(userId2) {
   return { userId: userId2, name: "Unknown manager", email: null, avatarUrl: null };
@@ -82783,11 +82846,11 @@ function managerFromUser(user) {
 async function getProjectManagers(ownerIds) {
   const ids = [...new Set(ownerIds)].filter(Boolean);
   const managers = new Map(ids.map((id) => [id, fallbackManager(id)]));
-  if (!clerk4 || ids.length === 0) return managers;
+  if (!clerk5 || ids.length === 0) return managers;
   for (let start = 0; start < ids.length; start += CLERK_BATCH_SIZE) {
     const batch = ids.slice(start, start + CLERK_BATCH_SIZE);
     try {
-      const result = await clerk4.users.getUserList({
+      const result = await clerk5.users.getUserList({
         userId: batch,
         limit: batch.length
       });
@@ -82830,7 +82893,7 @@ function projectFinanceSeed(rawData) {
 }
 
 // src/routes/projects.ts
-var router13 = (0, import_express17.Router)();
+var router13 = (0, import_express18.Router)();
 var requireSignedIn10 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
@@ -83448,8 +83511,8 @@ router13.delete(
 var projects_default = router13;
 
 // src/routes/inspectionExtract.ts
-var import_express18 = __toESM(require_express2(), 1);
-var router14 = (0, import_express18.Router)();
+var import_express19 = __toESM(require_express2(), 1);
+var router14 = (0, import_express19.Router)();
 var requireSignedIn11 = (req, res, next) => {
   const auth = typeof req.auth === "function" ? req.auth() : req.auth ?? {};
   if (!auth || !auth.userId) {
@@ -83569,7 +83632,7 @@ function normalizeResult(raw) {
 }
 router14.post(
   "/inspection/extract",
-  (0, import_express18.json)({ limit: "100kb" }),
+  (0, import_express19.json)({ limit: "100kb" }),
   requireSignedIn11,
   rateLimit2,
   async (req, res) => {
@@ -83621,9 +83684,9 @@ router14.post(
 var inspectionExtract_default = router14;
 
 // src/routes/feedback.ts
-var import_express20 = __toESM(require_express2(), 1);
-var router15 = (0, import_express20.Router)();
-var clerk5 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+var import_express21 = __toESM(require_express2(), 1);
+var router15 = (0, import_express21.Router)();
+var clerk6 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
 var feedbackTypes = /* @__PURE__ */ new Set(["bug", "feature_request"]);
 var feedbackStatuses = /* @__PURE__ */ new Set(["open", "in_progress", "resolved"]);
 var requireSignedIn12 = (req, res, next) => {
@@ -83697,13 +83760,13 @@ router15.post(
       });
       return;
     }
-    if (!clerk5) {
+    if (!clerk6) {
       res.status(503).json({ ok: false, error: "Identity service unavailable." });
       return;
     }
     try {
       const [user, userRole] = await Promise.all([
-        clerk5.users.getUser(userId2),
+        clerk6.users.getUser(userId2),
         getUserType(userId2)
       ]);
       const userEmail = getVerifiedPrimaryEmail(user);
@@ -83766,8 +83829,8 @@ router15.patch(
 var feedback_default = router15;
 
 // src/routes/projectTasks.ts
-var import_express21 = __toESM(require_express2(), 1);
-var router16 = (0, import_express21.Router)();
+var import_express22 = __toESM(require_express2(), 1);
+var router16 = (0, import_express22.Router)();
 var TASK_STATUSES = [
   "Not Started",
   "Working on it",
@@ -83970,9 +84033,9 @@ router16.delete("/projects/tasks/:id", async (req, res) => {
 var projectTasks_default = router16;
 
 // src/routes/projectMembers.ts
-var import_express22 = __toESM(require_express2(), 1);
-var router17 = (0, import_express22.Router)();
-var clerk6 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+var import_express23 = __toESM(require_express2(), 1);
+var router17 = (0, import_express23.Router)();
+var clerk7 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
 function param2(value) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
@@ -84006,7 +84069,7 @@ router17.get("/projects/:projectId/members", async (req, res) => {
     res.status(404).json({ ok: false, error: "Project not found." });
     return;
   }
-  if (!clerk6) {
+  if (!clerk7) {
     res.status(503).json({ ok: false, error: "Members are unavailable (Clerk not configured)." });
     return;
   }
@@ -84018,7 +84081,7 @@ router17.get("/projects/:projectId/members", async (req, res) => {
     }
     const [project] = await db.select({ ownerId: projectsTable.userId }).from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
     const memberships = await db.select().from(projectMembersTable).where(eq(projectMembersTable.projectId, projectId));
-    const users = await Promise.all([project.ownerId, ...memberships.map((member) => member.userId)].map((id) => clerk6.users.getUser(id)));
+    const users = await Promise.all([project.ownerId, ...memberships.map((member) => member.userId)].map((id) => clerk7.users.getUser(id)));
     const members = [
       { ...identity(users[0]), role: "owner", isOwner: true },
       ...memberships.map((member, index2) => ({
@@ -84047,7 +84110,7 @@ router17.post("/projects/:projectId/members", async (req, res) => {
     res.status(400).json({ ok: false, error: "Valid employee email and editor or viewer role required." });
     return;
   }
-  if (!clerk6) {
+  if (!clerk7) {
     res.status(503).json({ ok: false, error: "Members are unavailable (Clerk not configured)." });
     return;
   }
@@ -84057,7 +84120,7 @@ router17.post("/projects/:projectId/members", async (req, res) => {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
-    const listed = await clerk6.users.getUserList({ emailAddress: [email3] });
+    const listed = await clerk7.users.getUserList({ emailAddress: [email3] });
     const matches2 = Array.isArray(listed) ? listed : listed.data;
     const user = matches2.find((candidate) => identity(candidate).email === email3);
     const member = user && verifiedEhsIdentity(user);
@@ -84115,9 +84178,9 @@ router17.delete("/projects/:projectId/members/:userId", async (req, res) => {
 var projectMembers_default = router17;
 
 // src/routes/projectMessages.ts
-var import_express24 = __toESM(require_express2(), 1);
-var router18 = (0, import_express24.Router)();
-var clerk7 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+var import_express25 = __toESM(require_express2(), 1);
+var router18 = (0, import_express25.Router)();
+var clerk8 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
 function param3(value) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
@@ -84194,7 +84257,7 @@ router18.post("/projects/:projectId/messages", async (req, res) => {
     res.status(400).json({ ok: false, error: "Message body must be 1\u20134000 characters." });
     return;
   }
-  if (!clerk7) {
+  if (!clerk8) {
     res.status(503).json({ ok: false, error: "Chat is unavailable (Clerk not configured)." });
     return;
   }
@@ -84208,7 +84271,7 @@ router18.post("/projects/:projectId/messages", async (req, res) => {
       res.status(403).json({ ok: false, error: "Project is read-only." });
       return;
     }
-    const user = await clerk7.users.getUser(userId2);
+    const user = await clerk8.users.getUser(userId2);
     const primary = user.emailAddresses.find((email4) => email4.id === user.primaryEmailAddressId);
     const email3 = primary?.emailAddress?.trim().toLowerCase();
     if (!email3 || primary?.verification?.status !== "verified") {
@@ -84226,8 +84289,8 @@ router18.post("/projects/:projectId/messages", async (req, res) => {
 var projectMessages_default = router18;
 
 // src/routes/transport.ts
-var import_express26 = __toESM(require_express2(), 1);
-var router19 = (0, import_express26.Router)();
+var import_express27 = __toESM(require_express2(), 1);
+var router19 = (0, import_express27.Router)();
 var VEHICLE_TYPES = /* @__PURE__ */ new Set(["truck", "van", "trailer", "rental"]);
 var AVAILABILITY = /* @__PURE__ */ new Set(["available", "assigned", "maintenance", "unavailable"]);
 var RUN_STATUSES = /* @__PURE__ */ new Set(["scheduled", "in_transit", "delivered", "returned"]);
@@ -84507,8 +84570,8 @@ router19.patch("/transport/runs/:id", async (req, res) => {
 var transport_default = router19;
 
 // src/routes/globalTasks.ts
-var import_express27 = __toESM(require_express2(), 1);
-var router20 = (0, import_express27.Router)();
+var import_express28 = __toESM(require_express2(), 1);
+var router20 = (0, import_express28.Router)();
 var STATUSES = ["Not Started", "Working on it", "Stuck", "Done"];
 var PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 var DEPARTMENTS = [
@@ -84618,8 +84681,8 @@ router20.post("/tasks", async (req, res) => {
 var globalTasks_default = router20;
 
 // src/routes/economy.ts
-var import_express28 = __toESM(require_express2(), 1);
-var router21 = (0, import_express28.Router)();
+var import_express29 = __toESM(require_express2(), 1);
+var router21 = (0, import_express29.Router)();
 var MAX_MINOR_UNITS = 2147483647;
 var DATE_PATTERN3 = /^\d{4}-\d{2}-\d{2}$/;
 var SETTING_KEYS = [
@@ -85125,8 +85188,8 @@ router21.get(
 var economy_default = router21;
 
 // src/routes/masterData.ts
-var import_express29 = __toESM(require_express2(), 1);
-var router22 = (0, import_express29.Router)();
+var import_express30 = __toESM(require_express2(), 1);
+var router22 = (0, import_express30.Router)();
 var MAX_JSON_BYTES = 128 * 1024;
 function idParam(raw) {
   return String(Array.isArray(raw) ? raw[0] ?? "" : raw ?? "");
@@ -85536,8 +85599,8 @@ router22.post("/clients/:clientId/projects/:projectId/clone", async (req, res) =
 var masterData_default = router22;
 
 // src/routes/settings.ts
-var import_express30 = __toESM(require_express2(), 1);
-var router23 = (0, import_express30.Router)();
+var import_express31 = __toESM(require_express2(), 1);
+var router23 = (0, import_express31.Router)();
 var TEXT_LIMITS = {
   companyName: 300,
   contactEmail: 320,
@@ -85630,7 +85693,7 @@ router23.put("/settings", requireAdmin, async (req, res) => {
 var settings_default = router23;
 
 // src/routes/index.ts
-var router24 = (0, import_express31.Router)();
+var router24 = (0, import_express32.Router)();
 router24.use(health_default);
 router24.use(devAutoSignIn_default);
 router24.use("/rigplan", requireEmployee);
@@ -85666,7 +85729,7 @@ router24.use(portalWork_default);
 var routes_default = router24;
 
 // src/app.ts
-var app = (0, import_express32.default)();
+var app = (0, import_express33.default)();
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -85691,12 +85754,12 @@ app.use((0, import_cors.default)());
 var PATHS_WITHOUT_GLOBAL_JSON = /* @__PURE__ */ new Set([
   "/api/rigplan/analyze"
 ]);
-var globalJsonParser = import_express32.default.json({ limit: "256kb" });
+var globalJsonParser = import_express33.default.json({ limit: "256kb" });
 app.use((req, res, next) => {
   if (PATHS_WITHOUT_GLOBAL_JSON.has(req.path)) return next();
   return globalJsonParser(req, res, next);
 });
-app.use(import_express32.default.urlencoded({ extended: true }));
+app.use(import_express33.default.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 app.use("/api", routes_default);
 var app_default = app;

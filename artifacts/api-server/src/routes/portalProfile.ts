@@ -16,6 +16,7 @@ import { sanitizeSkills, isValidSkill, groupSkills } from "@workspace/skills";
 import { logger } from "../lib/logger";
 import { classifyDietary, splitAllergens } from "../lib/dietaryTags";
 import { requireEmployee, tagAsFreelancer } from "../middleware/userType";
+import { syncMissingClerkFreelancerProfiles } from "../lib/clerkFreelancerSync";
 import { ObjectNotFoundError, ObjectStorageService } from "../lib/objectStorage";
 import {
   localDateRangeToInstants,
@@ -917,6 +918,21 @@ router.get("/portal/freelancers", requireEmployee, async (req, res) => {
     }
   }
   try {
+    try {
+      const inserted = await syncMissingClerkFreelancerProfiles();
+      if (inserted > 0) {
+        req.log.info(
+          { inserted },
+          "backfilled missing Clerk freelancer profiles",
+        );
+      }
+    } catch (err) {
+      req.log.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        "Clerk freelancer sync failed; serving existing directory profiles",
+      );
+    }
+
     const conditions = [];
     if (q) {
       const like = `%${q}%`;
@@ -1010,8 +1026,7 @@ router.get("/portal/freelancers", requireEmployee, async (req, res) => {
       })
       .from(freelancerProfilesTable)
       .where(where)
-      .orderBy(freelancerProfilesTable.fullName)
-      .limit(100);
+      .orderBy(freelancerProfilesTable.fullName);
     // Resolve recurring availability in one bounded query for the complete
     // directory page; never query once per freelancer or return rule notes.
     const recurringRules = startDate

@@ -50,7 +50,7 @@ type ClerkEmailLike = {
   verification?: { status?: string | null } | null;
 };
 
-function hasVerifiedPrimaryEhsEmail(user: {
+export function hasVerifiedPrimaryEhsEmail(user: {
   primaryEmailAddressId?: string | null;
   emailAddresses?: ClerkEmailLike[] | null;
 }): boolean {

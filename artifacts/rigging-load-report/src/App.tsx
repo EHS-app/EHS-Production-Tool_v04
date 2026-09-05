@@ -8821,7 +8821,29 @@ function ScheduleField({
       onChangeExtraSchedule((prev) => {
         const arr = [...(prev.show ?? [])];
         const cur = arr[0] ?? emptySeg();
-        arr[0] = { ...cur, [side]: value };
+        const next = { ...cur, [side]: value };
+        const sameDay =
+          !reportDate ||
+          !reportEndDate ||
+          reportDate === reportEndDate;
+        if (
+          sameDay &&
+          side === "fromTime" &&
+          next.toTime &&
+          value &&
+          next.toTime < value
+        ) {
+          next.toTime = value;
+        } else if (
+          sameDay &&
+          side === "toTime" &&
+          next.fromTime &&
+          value &&
+          value < next.fromTime
+        ) {
+          next.toTime = next.fromTime;
+        }
+        arr[0] = next;
         return { ...prev, show: arr };
       });
       return;
@@ -8843,6 +8865,25 @@ function ScheduleField({
         }
       } else if (side === "to" && value && next.from && value < next.from) {
         next.to = next.from;
+      } else {
+        const sameDay = !next.from || !next.to || next.from === next.to;
+        if (
+          sameDay &&
+          side === "fromTime" &&
+          next.toTime &&
+          value &&
+          next.toTime < value
+        ) {
+          next.toTime = value;
+        } else if (
+          sameDay &&
+          side === "toTime" &&
+          next.fromTime &&
+          value &&
+          value < next.fromTime
+        ) {
+          next.toTime = next.fromTime;
+        }
       }
       arr[idx] = next;
       const out: ExtraSchedule = { ...prev };
@@ -8956,6 +8997,7 @@ function ScheduleField({
     onChangeReportDate("");
     onChangeReportEndDate("");
     onChangeExtraSchedule(() => ({}));
+    setOpen(false);
   };
 
   const clearPhase = (key: SchedulePhaseKey) => {
@@ -9064,17 +9106,17 @@ function ScheduleField({
               top: "calc(100% + 6px)",
               left: 0,
               zIndex: 50,
-            minWidth: 360,
-            maxWidth: 460,
-            padding: 12,
-            background: "var(--card-bg)",
-            border: "1px solid var(--border-color)",
-            borderRadius: 10,
-            boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
-            display: "grid",
-            gap: 8,
-          }}
-        >
+              width: "min(560px, calc(100vw - 24px))",
+              maxWidth: 560,
+              padding: 12,
+              background: "var(--card-bg)",
+              border: "1px solid var(--border-color)",
+              borderRadius: 10,
+              boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
+              display: "grid",
+              gap: 8,
+            }}
+          >
           {SCHEDULE_PHASES_ORDER.map((key) => {
             const segments = getSegments(key);
             const phaseActive = segments.some(
@@ -9094,6 +9136,8 @@ function ScheduleField({
               font: "inherit",
               fontSize: 13,
               width: "100%",
+              minWidth: 0,
+              boxSizing: "border-box",
             } as const;
             const arrowStyle = {
               color: "var(--text-muted)",
@@ -9113,7 +9157,7 @@ function ScheduleField({
                 key={key}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "84px 1fr",
+                    gridTemplateColumns: "76px minmax(0, 1fr)",
                   alignItems: "start",
                   gap: 8,
                   paddingBottom: 4,
@@ -9216,7 +9260,8 @@ function ScheduleField({
                         <div
                           style={{
                             display: "grid",
-                            gridTemplateColumns: "32px 1fr 14px 1fr",
+                            gridTemplateColumns:
+                              "36px minmax(136px, 1fr) 14px minmax(136px, 1fr)",
                             alignItems: "center",
                             gap: 6,
                           }}
@@ -9249,7 +9294,8 @@ function ScheduleField({
                         <div
                           style={{
                             display: "grid",
-                            gridTemplateColumns: "32px 1fr 14px 1fr auto",
+                            gridTemplateColumns:
+                              "36px minmax(0, 1fr) 14px minmax(0, 1fr) auto",
                             alignItems: "center",
                             gap: 6,
                           }}
@@ -9259,10 +9305,13 @@ function ScheduleField({
                             <span
                               style={{
                                 gridColumn: "2 / 5",
-                                padding: "6px 8px",
-                                border: "1px dashed var(--border-color)",
-                                borderRadius: 6,
-                                color: "var(--text-muted)",
+                                justifySelf: "start",
+                                padding: "5px 12px",
+                                border: "1px solid color-mix(in srgb, var(--primary) 45%, var(--border-color))",
+                                borderRadius: 999,
+                                background:
+                                  "color-mix(in srgb, var(--primary) 12%, var(--input-bg))",
+                                color: "var(--text-main)",
                                 fontSize: 12,
                                 fontWeight: 800,
                                 textAlign: "center",
@@ -9316,6 +9365,12 @@ function ScheduleField({
                               fontWeight: 800,
                               cursor: "pointer",
                               whiteSpace: "nowrap",
+                              padding: "5px 8px",
+                              border: "1px solid var(--border-color)",
+                              borderRadius: 999,
+                              background: ph.timeTbd
+                                ? "color-mix(in srgb, var(--primary) 12%, var(--input-bg))"
+                                : "var(--input-bg)",
                             }}
                           >
                             <input
@@ -9325,6 +9380,13 @@ function ScheduleField({
                                 setTimeTbd(key, idx, event.target.checked)
                               }
                               aria-label={`${SCHEDULE_PHASE_LABELS[key]} day ${idx + 1} time TBD`}
+                              style={{
+                                width: 15,
+                                height: 15,
+                                margin: 0,
+                                accentColor: "var(--primary)",
+                                cursor: "pointer",
+                              }}
                             />
                             TBD
                           </label>

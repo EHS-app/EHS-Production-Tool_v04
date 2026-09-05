@@ -102,6 +102,10 @@ export const requireAdmin: RequestHandler = async (req, res, next) => {
 
 const router: IRouter = Router();
 
+router.get("/admin/me", requireAdmin, (_req, res) => {
+  res.json({ ok: true, isAdmin: true });
+});
+
 /** Allow an authenticated EHS staff member to repair their own account
  * classification when legacy signup state incorrectly tagged it as a
  * freelancer. The caller cannot name or modify another account here;

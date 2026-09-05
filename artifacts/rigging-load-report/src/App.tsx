@@ -79,6 +79,7 @@ import {
   normalizeProjectStatus,
   type ProjectStatus,
 } from "./lib/projectStatus";
+import { useAdminAccess } from "./hooks/use-admin-access";
 import {
   exportScreenAsPng,
   getLogoDataUrl,
@@ -1324,6 +1325,7 @@ function ThemeSegmentedControl({
 
 function App() {
   const { getToken } = useAuth();
+  const canPermanentlyDeleteProjects = useAdminAccess(getToken);
   const [location, navigate] = useLocation();
   const persisted = useRef<Partial<PersistedV2> | null>(loadPersisted()).current;
   const initialSystem = makeSystem("LX1");
@@ -1596,6 +1598,7 @@ function App() {
   >(null);
   const [currentProjectServerStatus, setCurrentProjectServerStatus] =
     useState<ProjectStatus>("draft");
+  const [currentProjectIsArchived, setCurrentProjectIsArchived] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [statusChanging, setStatusChanging] = useState(false);
   const [statusChangeError, setStatusChangeError] = useState("");
@@ -1621,6 +1624,7 @@ function App() {
 
   const cloudSave = useCallback(async (data: PersistedV2) => {
     const isTerminal =
+      currentProjectIsArchived ||
       currentProjectServerStatus === "completed" ||
       currentProjectServerStatus === "archived";
     if (
@@ -1699,6 +1703,7 @@ function App() {
   }, [
     currentProjectAccessRole,
     currentProjectId,
+    currentProjectIsArchived,
     currentProjectServerStatus,
     getToken,
   ]);
@@ -1709,6 +1714,7 @@ function App() {
   useEffect(() => {
     if (!currentProjectId) {
       setCurrentProjectAccessRole(null);
+      setCurrentProjectIsArchived(false);
       return;
     }
     let cancelled = false;
@@ -1723,6 +1729,7 @@ function App() {
         const json = await res.json();
         if (!cancelled) {
           setCurrentProjectAccessRole(json.project?.accessRole ?? null);
+          setCurrentProjectIsArchived(json.project?.isArchived === true);
           setCurrentProjectServerStatus(
             normalizeProjectStatus(json.project?.status),
           );
@@ -3441,6 +3448,7 @@ function App() {
       allergens?: string[];
     }[]) => {
       if (
+        currentProjectIsArchived ||
         currentProjectServerStatus === "completed" ||
         currentProjectServerStatus === "archived"
       ) {
@@ -3647,6 +3655,7 @@ function App() {
       reportDate,
       reportEndDate,
       extraSchedule,
+      currentProjectIsArchived,
       currentProjectServerStatus,
       tr,
     ],
@@ -5151,6 +5160,7 @@ function App() {
     setCurrentProjectId(null);
     setCurrentProjectAccessRole(null);
     setCurrentProjectServerStatus("draft");
+    setCurrentProjectIsArchived(false);
     setCloudSavedAt("");
     try {
       localStorage.removeItem(STORAGE_KEY_V2);
@@ -5260,6 +5270,7 @@ function App() {
       setCurrentProjectId(id);
       hydratedProjectRouteRef.current = id;
       setCurrentProjectAccessRole(p.accessRole ?? null);
+      setCurrentProjectIsArchived(p.isArchived === true);
       setCurrentProjectServerStatus(normalizeProjectStatus(p.status));
       setCloudSavedAt(
         new Date(p.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
@@ -5367,6 +5378,7 @@ function App() {
 
   const nextProjectStatus = getNextProjectStatus(currentProjectServerStatus);
   const projectIsTerminal =
+    currentProjectIsArchived ||
     currentProjectServerStatus === "completed" ||
     currentProjectServerStatus === "archived";
 
@@ -6328,6 +6340,7 @@ function App() {
           ) : globalView === "projects" ? (
             <ProjectsDatabasePage
               getToken={getToken}
+              canPermanentlyDelete={canPermanentlyDeleteProjects}
               onOpenProject={(id) => {
                 void loadProject(id).then(() => {
                   setGlobalView(null);
@@ -6466,7 +6479,7 @@ function App() {
             : resetAll
         }
         deleteProjectTrigger={
-          currentProjectAccessRole === "owner" && currentProjectId ? (
+          canPermanentlyDeleteProjects && currentProjectId ? (
             <DeleteProjectDialog
               projectId={currentProjectId}
               projectName={projectName || tr("shell.breadcrumb.untitled")}
@@ -7808,6 +7821,7 @@ function App() {
         onDelete={handleProjectDelete}
         currentProjectId={currentProjectId}
         getToken={getToken}
+        canPermanentlyDelete={canPermanentlyDeleteProjects}
       />
 
       <EquipmentPicker

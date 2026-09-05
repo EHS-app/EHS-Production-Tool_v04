@@ -13,6 +13,7 @@ import {
   isTerminalProjectStatus,
   recipientsFromBriefData,
 } from "../lib/projectLifecycle";
+import { isProjectArchived as isArchivedProjectRecord } from "../lib/projectAccess";
 
 describe("project lifecycle", () => {
   it("defines exactly the canonical ordered transition matrix", () => {
@@ -46,6 +47,12 @@ describe("project lifecycle", () => {
     assert.equal(canTransitionProject("editor"), true);
     assert.equal(canTransitionProject("viewer"), false);
     assert.equal(canTransitionProject(null), false);
+  });
+
+  it("treats both soft-archived and legacy archived-status projects as archived", () => {
+    assert.equal(isArchivedProjectRecord({ archivedAt: new Date() }), true);
+    assert.equal(isArchivedProjectRecord({ status: "archived" }), true);
+    assert.equal(isArchivedProjectRecord({ archivedAt: null, status: "active" }), false);
   });
 
   it("derives legacy rows while preferring a persisted canonical status", () => {

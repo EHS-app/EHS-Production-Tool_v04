@@ -1,10 +1,10 @@
 import { Router, type IRouter, type RequestHandler } from "express";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, ne, or, sql } from "drizzle-orm";
 import {
   clientsTable,
   db,
-  deleteOwnedProject,
+  hardDeleteProject,
   PROJECT_BRIEF_PROVENANCE_LOCK,
   projectStatusHistoryTable,
   projectBriefsTable,
@@ -16,8 +16,10 @@ import {
 import {
   getEmployeeProjectAccess,
   isProjectWriter,
+  isProjectArchived,
   UUID_PATTERN,
 } from "../lib/projectAccess";
+import { requireAdmin } from "./admin";
 import { getProjectManagers } from "../lib/projectManagers";
 import {
   getOrganizationSettings,
@@ -163,6 +165,7 @@ function projectResponse<T extends {
 
 router.get("/projects", requireSignedIn, async (req, res) => {
   const userId = (req as unknown as { _userId: string })._userId;
+  const includeArchived = req.query.includeArchived === "true";
   try {
     const rows = await db
       .select({
@@ -179,6 +182,8 @@ router.get("/projects", requireSignedIn, async (req, res) => {
         reportEndDate: sql<unknown>`${projectsTable.data}->>'reportEndDate'`,
         crewCount: sql<number>`case when jsonb_typeof(${projectsTable.data}->'crew') = 'array' then jsonb_array_length(${projectsTable.data}->'crew') else 0 end`,
         status: sql<string>`coalesce(${projectsTable.status}, case when nullif(${projectsTable.data}->>'activeBriefId', '') is not null then 'active' when nullif(${projectsTable.venue}, '') is not null or nullif(${projectsTable.client}, '') is not null then 'planning' else 'draft' end)`,
+        archivedAt: projectsTable.archivedAt,
+        isArchived: sql<boolean>`coalesce(${projectsTable.archivedAt} is not null or ${projectsTable.status} = 'archived', false)`,
         createdAt: projectsTable.createdAt,
         updatedAt: projectsTable.updatedAt,
         accessRole: sql<"owner" | "editor" | "viewer">`case when ${projectsTable.userId} = ${userId} then 'owner' when ${projectMembersTable.role} in ('editor', 'viewer') then ${projectMembersTable.role} else 'editor' end`,
@@ -190,6 +195,14 @@ router.get("/projects", requireSignedIn, async (req, res) => {
           eq(projectMembersTable.projectId, projectsTable.id),
           eq(projectMembersTable.userId, userId),
         ),
+      )
+      .where(
+        includeArchived
+          ? undefined
+          : and(
+              isNull(projectsTable.archivedAt),
+              or(isNull(projectsTable.status), ne(projectsTable.status, "archived")),
+            ),
       )
       .orderBy(desc(projectsTable.updatedAt));
     const managers = await getProjectManagers(rows.map((row) => row.created_by));
@@ -237,7 +250,9 @@ router.get("/projects/:id", requireSignedIn, async (req, res) => {
     return;
   }
   try {
-    const accessRole = await getEmployeeProjectAccess(String(id), userId);
+    const accessRole = await getEmployeeProjectAccess(String(id), userId, {
+      includeArchived: true,
+    });
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -260,6 +275,7 @@ router.get("/projects/:id", requireSignedIn, async (req, res) => {
         manager: managers.get(row.userId),
         accessRole,
         status: deriveLegacyProjectStatus(row),
+        isArchived: isProjectArchived(row),
       },
     });
   } catch (err) {
@@ -426,7 +442,10 @@ router.patch("/projects/:id", requireSignedIn, async (req, res) => {
         .limit(1)
         .for("update");
       if (!project) return { kind: "not_found" as const };
-      if (["completed", "archived"].includes(deriveLegacyProjectStatus(project))) {
+       if (
+         isProjectArchived(project) ||
+         ["completed", "archived"].includes(deriveLegacyProjectStatus(project))
+       ) {
         return { kind: "terminal" as const };
       }
       if (
@@ -601,6 +620,8 @@ router.post("/projects/:id/status", requireSignedIn, async (req, res) => {
         .set({
           status: requestedStatus,
           statusUpdatedAt: sql`now()`,
+          archivedAt:
+            requestedStatus === "archived" ? sql`now()` : locked.archivedAt,
           updatedAt: sql`now()`,
         })
         .where(eq(projectsTable.id, id))
@@ -665,24 +686,116 @@ router.post("/projects/:id/status", requireSignedIn, async (req, res) => {
   }
 });
 
-router.delete("/projects/:id", requireSignedIn, async (req, res) => {
-  const userId = (req as unknown as { _userId: string })._userId;
+async function setProjectArchived(
+  req: Parameters<RequestHandler>[0],
+  res: Parameters<RequestHandler>[1],
+  archived: boolean,
+) {
   const { id } = req.params;
   if (!UUID_PATTERN.test(String(id))) {
     res.status(404).json({ ok: false, error: "Project not found." });
     return;
   }
   try {
-    const result = await deleteOwnedProject(String(id), userId);
+    const userId = (req as unknown as { _userId: string })._userId;
+    const accessRole = await getEmployeeProjectAccess(String(id), userId, {
+      includeArchived: true,
+    });
+    if (!accessRole) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    if (!isProjectWriter(accessRole)) {
+      res.status(403).json({ ok: false, error: "Project is read-only." });
+      return;
+    }
+    const result = await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select()
+        .from(projectsTable)
+        .where(eq(projectsTable.id, String(id)))
+        .limit(1)
+        .for("update");
+      if (!locked) return { kind: "not_found" as const };
+
+      const currentStatus = deriveLegacyProjectStatus(locked);
+      const restoredStatus =
+        !archived && currentStatus === "archived" ? "completed" : currentStatus;
+      const [project] = await tx
+        .update(projectsTable)
+        .set({
+          archivedAt: archived ? sql`now()` : null,
+          status: restoredStatus,
+          statusUpdatedAt:
+            restoredStatus !== currentStatus ? sql`now()` : locked.statusUpdatedAt,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(projectsTable.id, String(id)))
+        .returning();
+      if (!project) return { kind: "not_found" as const };
+      if (restoredStatus !== currentStatus) {
+        await tx.insert(projectStatusHistoryTable).values({
+          projectId: String(id),
+          fromStatus: currentStatus,
+          toStatus: restoredStatus,
+          actorUserId: userId,
+          reason: "Restored from archive",
+        });
+      }
+      return { kind: "updated" as const, project };
+    });
     if (result.kind === "not_found") {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
-    res.status(200).json({ success: true, id: String(id) });
+    res.json({
+      ok: true,
+      project: {
+        ...projectResponse(result.project),
+        accessRole,
+        status: deriveLegacyProjectStatus(result.project),
+        isArchived: isProjectArchived(result.project),
+      },
+    });
   } catch (err) {
-    req.log.error(err, "Failed to delete project");
-    res.status(500).json({ error: "Failed to delete project." });
+    req.log.error(err, archived ? "Failed to archive project" : "Failed to restore project");
+    res.status(500).json({
+      ok: false,
+      error: archived ? "Failed to archive project." : "Failed to restore project.",
+    });
   }
+}
+
+router.post("/projects/:id/archive", requireSignedIn, async (req, res) => {
+  await setProjectArchived(req, res, true);
 });
+
+router.post("/projects/:id/unarchive", requireSignedIn, async (req, res) => {
+  await setProjectArchived(req, res, false);
+});
+
+router.delete(
+  "/projects/:id",
+  requireSignedIn,
+  requireAdmin,
+  async (req, res) => {
+    const { id } = req.params;
+    if (!UUID_PATTERN.test(String(id))) {
+      res.status(404).json({ ok: false, error: "Project not found." });
+      return;
+    }
+    try {
+      const result = await hardDeleteProject(String(id));
+      if (result.kind === "not_found") {
+        res.status(404).json({ ok: false, error: "Project not found." });
+        return;
+      }
+      res.status(200).json({ success: true, id: String(id) });
+    } catch (err) {
+      req.log.error(err, "Failed to permanently delete project");
+      res.status(500).json({ error: "Failed to permanently delete project." });
+    }
+  }
+);
 
 export default router;

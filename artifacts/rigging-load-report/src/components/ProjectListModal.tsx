@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Plus, Search, Trash2 } from "lucide-react";
 import { useI18n } from "../lib/i18n/I18nContext";
+import { toast } from "sonner";
+import { DeleteProjectDialog } from "./DeleteProjectDialog";
+import {
+  normalizeProjectStatus,
+  type ProjectStatus,
+} from "../lib/projectStatus";
 
 export type ProjectSummary = {
   id: string;
@@ -10,6 +16,9 @@ export type ProjectSummary = {
   createdAt: string;
   updatedAt: string;
   accessRole: "owner" | "editor" | "viewer";
+  archivedAt?: string | null;
+  isArchived?: boolean;
+  status: ProjectStatus;
   created_by?: string;
   manager?: {
     userId: string;
@@ -27,6 +36,7 @@ type Props = {
   onDelete: (id: string) => void;
   currentProjectId: string | null;
   getToken: () => Promise<string | null>;
+  canPermanentlyDelete: boolean;
 };
 
 export function ProjectListModal({
@@ -37,20 +47,26 @@ export function ProjectListModal({
   onDelete,
   currentProjectId,
   getToken,
+  canPermanentlyDelete,
 }: Props) {
   const { t, locale } = useI18n();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
+  const [archiveBusyId, setArchiveBusyId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const fetchProjects = useCallback(async () => {
     setLoading(true);
     try {
       const token = await getToken();
-      const res = await fetch("/api/projects", {
+      const res = await fetch(
+        `/api/projects${showArchived ? "?includeArchived=true" : ""}`,
+        {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+        },
+      );
       if (res.ok) {
         const json = await res.json();
         setProjects(json.projects ?? []);
@@ -59,7 +75,7 @@ export function ProjectListModal({
     } finally {
       setLoading(false);
     }
-  }, [getToken]);
+  }, [getToken, showArchived]);
 
   useEffect(() => {
     if (open) {
@@ -69,18 +85,40 @@ export function ProjectListModal({
     }
   }, [open, fetchProjects]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t("projects.deleteConfirm"))) return;
+  const handleArchive = async (project: ProjectSummary) => {
+    if (archiveBusyId) return;
+    setArchiveBusyId(project.id);
     try {
       const token = await getToken();
-      const res = await fetch(`/api/projects/${id}`, {
-        method: "DELETE",
+      const action = project.isArchived ? "unarchive" : "archive";
+      const res = await fetch(`/api/projects/${project.id}/${action}`, {
+        method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (!res.ok) return;
-      setProjects((prev) => prev.filter((p) => p.id !== id));
-      onDelete(id);
-    } catch {
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.project) {
+        throw new Error(json?.error || t("projects.archiveError"));
+      }
+      if (!showArchived && !project.isArchived) {
+        setProjects((current) => current.filter((item) => item.id !== project.id));
+      } else {
+        setProjects((current) =>
+          current.map((item) =>
+            item.id === project.id ? { ...item, ...json.project } : item,
+          ),
+        );
+      }
+      toast.success(
+        project.isArchived
+          ? t("projects.unarchiveSuccess")
+          : t("projects.archiveSuccess"),
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : t("projects.archiveError"),
+      );
+    } finally {
+      setArchiveBusyId(null);
     }
   };
 
@@ -148,6 +186,24 @@ export function ProjectListModal({
           />
           <kbd className="cmd-esc">Esc</kbd>
         </div>
+        <label
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            margin: "0 0 12px",
+            fontSize: 12,
+            color: "var(--text-muted)",
+            cursor: "pointer",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={showArchived}
+            onChange={(event) => setShowArchived(event.target.checked)}
+          />
+          {t("projects.showArchived")}
+        </label>
 
         <div className="proj-list">
           {loading ? (
@@ -205,22 +261,56 @@ export function ProjectListModal({
                       ) : null}
                     </span>
                     <span className="proj-row-date">
+                      {p.isArchived ? `${t("projects.archived")} · ` : ""}
                       {p.accessRole !== "owner" ? `${p.accessRole} · ` : ""}
                       {dateFmt.format(new Date(p.updatedAt))}
                     </span>
                   </button>
-                  {!isCurrent && p.accessRole === "owner" ? (
+                  {!isCurrent && p.accessRole !== "viewer" ? (
                     <button
                       type="button"
                       className="proj-row-delete"
-                      title={t("projects.delete")}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(p.id);
+                      disabled={archiveBusyId === p.id}
+                      title={
+                        p.isArchived
+                          ? t("projects.unarchive")
+                          : t("projects.archive")
+                      }
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void handleArchive(p);
                       }}
                     >
-                      <Trash2 size={13} />
+                      {p.isArchived ? (
+                        <ArchiveRestore size={13} />
+                      ) : (
+                        <Archive size={13} />
+                      )}
                     </button>
+                  ) : null}
+                  {!isCurrent && canPermanentlyDelete ? (
+                    <DeleteProjectDialog
+                      projectId={p.id}
+                      projectName={p.name}
+                      projectStatus={normalizeProjectStatus(p.status)}
+                      getToken={getToken}
+                      onSuccess={() => {
+                        setProjects((current) =>
+                          current.filter((project) => project.id !== p.id),
+                        );
+                        onDelete(p.id);
+                      }}
+                      trigger={
+                        <button
+                          type="button"
+                          className="proj-row-delete"
+                          title={t("projects.permanentDelete")}
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      }
+                    />
                   ) : null}
                 </div>
               );

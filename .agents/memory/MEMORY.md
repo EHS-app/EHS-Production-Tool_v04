@@ -4,7 +4,7 @@
 - [Calendar interval semantics](calendar-interval-semantics.md) — use half-open local-day intervals; bulk replacement preserves outside fragments, while non-overlapping daily blocks remain distinct.
 - [Feedback panel rendering](feedback-panel-rendering.md) — feedback must be a direct fixed in-layout panel; do not reintroduce Radix Dialog or portal rendering.
 - [Disabled controls can re-blur](disabled-control-blur.md) — disabling a focused autosave field may trigger another blur; guard synchronously before awaiting the first save.
-- [Project collaboration roles](project-collaboration-roles.md) — EHS employees default to editor; deletion/settings/members stay owner-only, and freelancers remain assignment-scoped.
+- [Project collaboration roles](project-collaboration-roles.md) — employees default to editor and may archive; hard deletion is admin-only, governance owner-only, freelancers assignment-scoped.
 - [Crew account linking](crew-account-linking.md) — link only by explicit directory selection and stable user ID; never infer portal identity from typed names.
 - [Booking history integrity](booking-history-integrity.md) — trust only server-built acceptance snapshots with DB provenance and the exact recorded accepted gig.
 - [Payroll approval integrity](payroll-approval-integrity.md) — approved labor uses immutable compensation snapshots; freelancers cannot rewrite producer-owned assignment terms.

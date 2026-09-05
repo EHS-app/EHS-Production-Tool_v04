@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import {
   db,
   freelancerProfilesTable,
@@ -16,7 +16,6 @@ import { requireEmployee } from "../middleware/userType";
 import { getOrganizationSettings } from "../lib/organizationSettings";
 import {
   getEmployeeProjectAccess,
-  getProjectAccess,
   UUID_PATTERN,
 } from "../lib/projectAccess";
 
@@ -116,7 +115,13 @@ async function loadEconomy(callerUserId: string) {
       projectFinanceSettingsTable,
       eq(projectFinanceSettingsTable.projectId, projectsTable.id),
     )
-    .where(isNotNull(sql`nullif(${projectsTable.data}->>'activeBriefId', '')`));
+    .where(
+      and(
+        isNotNull(sql`nullif(${projectsTable.data}->>'activeBriefId', '')`),
+        isNull(projectsTable.archivedAt),
+        or(isNull(projectsTable.status), ne(projectsTable.status, "archived")),
+      ),
+    );
 
   const projectIds = projects.map((project) => project.id);
   const activeBriefIds = projects.map((project) => project.activeBriefId);
@@ -473,7 +478,7 @@ router.patch(
     }
     try {
       const callerUserId = userId(req);
-      const access = await getProjectAccess(projectId, callerUserId);
+      const access = await getEmployeeProjectAccess(projectId, callerUserId);
       if (!access) {
         res.status(404).json({ ok: false, error: "Project not found." });
         return;

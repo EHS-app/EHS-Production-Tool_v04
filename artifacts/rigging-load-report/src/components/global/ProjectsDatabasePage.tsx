@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState, useMemo } from "react";
-import { Search, Plus, FileText, ChevronRight, Trash2, ArrowRight } from "lucide-react";
+import { Archive, ArchiveRestore, Search, Plus, FileText, ChevronRight, Trash2, ArrowRight } from "lucide-react";
 import { DeleteProjectDialog } from "../DeleteProjectDialog";
 import { ProjectStatusDialog } from "../ProjectStatusDialog";
 import { useT } from "../../lib/i18n/I18nContext";
@@ -10,6 +10,7 @@ import {
   normalizeProjectStatus,
   type ProjectStatus,
 } from "../../lib/projectStatus";
+import { toast } from "sonner";
 
 export type ProjectRow = {
   id: string;
@@ -23,6 +24,8 @@ export type ProjectRow = {
   createdAt: string;
   updatedAt: string;
   accessRole: string;
+  archivedAt?: string | null;
+  isArchived?: boolean;
   created_by?: string;
   manager?: {
     userId: string;
@@ -37,15 +40,24 @@ interface Props {
   onOpenProject: (id: string) => void;
   onNewProject: () => void;
   onProjectDeleted?: (id: string) => void;
+  canPermanentlyDelete: boolean;
 }
 
-export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, onProjectDeleted }: Props) {
+export function ProjectsDatabasePage({
+  getToken,
+  onOpenProject,
+  onNewProject,
+  onProjectDeleted,
+  canPermanentlyDelete,
+}: Props) {
   const t = useT();
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [showArchived, setShowArchived] = useState(false);
+  const [archiveBusyId, setArchiveBusyId] = useState<string | null>(null);
   const [transitionProject, setTransitionProject] = useState<ProjectRow | null>(null);
   const [transitionLoading, setTransitionLoading] = useState(false);
   const [transitionError, setTransitionError] = useState("");
@@ -55,9 +67,12 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, on
     setError("");
     try {
       const token = await getToken();
-      const res = await fetch("/api/projects", {
+      const res = await fetch(
+        `/api/projects${showArchived ? "?includeArchived=true" : ""}`,
+        {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+        },
+      );
       if (!res.ok) throw new Error("Failed to load projects");
       const json = await res.json();
       setProjects(
@@ -71,7 +86,51 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, on
     } finally {
       setLoading(false);
     }
-  }, [getToken]);
+  }, [getToken, showArchived]);
+
+  const changeArchivedState = useCallback(async (project: ProjectRow) => {
+    if (archiveBusyId) return;
+    setArchiveBusyId(project.id);
+    try {
+      const token = await getToken();
+      const action = project.isArchived ? "unarchive" : "archive";
+      const res = await fetch(`/api/projects/${project.id}/${action}`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.project) {
+        throw new Error(json?.error || t("projects.archiveError"));
+      }
+      if (!showArchived && !project.isArchived) {
+        setProjects((all) => all.filter((item) => item.id !== project.id));
+      } else {
+        setProjects((all) =>
+          all.map((item) =>
+            item.id === project.id
+              ? {
+                  ...item,
+                  ...json.project,
+                  status: normalizeProjectStatus(json.project.status, item.status),
+                }
+              : item,
+          ),
+        );
+      }
+      toast.success(
+        project.isArchived
+          ? t("projects.unarchiveSuccess")
+          : t("projects.archiveSuccess"),
+      );
+      if (!project.isArchived) onProjectDeleted?.(project.id);
+    } catch (cause) {
+      toast.error(
+        cause instanceof Error ? cause.message : t("projects.archiveError"),
+      );
+    } finally {
+      setArchiveBusyId(null);
+    }
+  }, [archiveBusyId, getToken, onProjectDeleted, showArchived, t]);
 
   const nextStatus = transitionProject
     ? getNextProjectStatus(transitionProject.status)
@@ -176,6 +235,25 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, on
             />
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <label
+              className="ehs-ghost-btn"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                padding: "6px 12px",
+                fontSize: 12,
+                borderRadius: 999,
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(event) => setShowArchived(event.target.checked)}
+              />
+              {t("projects.showArchived")}
+            </label>
             {(["all", ...PROJECT_STATUS_ORDER] as const).map(f => (
               <button
                 key={f}
@@ -264,6 +342,18 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, on
                       >
                         {t(`project.status.${p.status}` as Parameters<typeof t>[0])}
                       </span>
+                      {p.isArchived && p.status !== "archived" ? (
+                        <span
+                          className="ehs-badge archived"
+                          style={{
+                            marginLeft: 6,
+                            color: PROJECT_STATUS_META.archived.color,
+                            background: PROJECT_STATUS_META.archived.background,
+                          }}
+                        >
+                          {t("projects.archived")}
+                        </span>
+                      ) : null}
                     </td>
                     <td style={{ color: "var(--text-muted)", fontSize: 12 }}>{formatDate(p.updatedAt)}</td>
                     <td>
@@ -290,7 +380,35 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, on
                             <ArrowRight size={14} />
                           </button>
                         ) : null}
-                        {p.accessRole === "owner" && (
+                        {p.accessRole !== "viewer" ? (
+                          <button
+                            type="button"
+                            className="ehs-ghost-btn"
+                            disabled={archiveBusyId === p.id}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void changeArchivedState(p);
+                            }}
+                            title={
+                              p.isArchived
+                                ? t("projects.unarchive")
+                                : t("projects.archive")
+                            }
+                            aria-label={
+                              p.isArchived
+                                ? t("projects.unarchive")
+                                : t("projects.archive")
+                            }
+                            style={{ padding: "5px 8px" }}
+                          >
+                            {p.isArchived ? (
+                              <ArchiveRestore size={14} />
+                            ) : (
+                              <Archive size={14} />
+                            )}
+                          </button>
+                        ) : null}
+                        {canPermanentlyDelete && (
                           <DeleteProjectDialog
                             projectId={p.id}
                             projectName={p.name}
@@ -306,8 +424,8 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, on
                                 className="ehs-ghost-btn"
                                 style={{ color: "var(--danger)", background: "transparent", border: "1px solid var(--danger)", cursor: "pointer", padding: "5px 8px", borderRadius: 6, whiteSpace: "nowrap" }}
                                 onClick={(e) => e.stopPropagation()}
-                                title={t("project.delete.title")}
-                                aria-label={t("project.delete.title")}
+                                title={t("projects.permanentDelete")}
+                                aria-label={t("projects.permanentDelete")}
                               >
                                 <Trash2 size={14} />
                                 <span>{t("project.delete.title")}</span>

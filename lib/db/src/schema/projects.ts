@@ -34,6 +34,7 @@ export const projectsTable = pgTable(
      * derived from their legacy project data until they are backfilled. */
     status: text("status"),
     statusUpdatedAt: timestamp("status_updated_at", { withTimezone: true }),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     data: jsonb("data").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -48,6 +49,7 @@ export const projectsTable = pgTable(
     index("projects_venue_id_idx").on(t.venueId),
     index("projects_client_id_idx").on(t.clientId),
     index("projects_cloned_from_idx").on(t.clonedFromProjectId),
+    index("projects_archived_at_idx").on(t.archivedAt),
     foreignKey({
       columns: [t.clonedFromProjectId],
       foreignColumns: [t.id],

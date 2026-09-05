@@ -2,7 +2,11 @@ import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
 import { createClerkClient } from "@clerk/express";
 import { db, projectMembersTable, projectsTable } from "@workspace/db";
-import { getEmployeeProjectAccess, UUID_PATTERN } from "../lib/projectAccess";
+import {
+  getEmployeeProjectAccess,
+  isProjectArchived,
+  UUID_PATTERN,
+} from "../lib/projectAccess";
 
 const router: IRouter = Router();
 const clerk = process.env.CLERK_SECRET_KEY
@@ -52,11 +56,17 @@ function verifiedEhsIdentity(user: ClerkUser) {
 
 async function ownerProject(projectId: string, userId: string) {
   const [project] = await db
-    .select({ ownerId: projectsTable.userId })
+    .select({
+      ownerId: projectsTable.userId,
+      archivedAt: projectsTable.archivedAt,
+      status: projectsTable.status,
+    })
     .from(projectsTable)
     .where(eq(projectsTable.id, projectId))
     .limit(1);
-  return project?.ownerId === userId ? project : null;
+  return project?.ownerId === userId && !isProjectArchived(project)
+    ? project
+    : null;
 }
 
 router.get("/projects/:projectId/members", async (req, res): Promise<void> => {

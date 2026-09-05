@@ -27,6 +27,7 @@ import { rollupItinerary } from "../lib/itineraryRollup";
 import {
   getEmployeeProjectAccess,
   getProjectAccess,
+  isProjectArchived,
   UUID_PATTERN,
 } from "../lib/projectAccess";
 import {
@@ -44,6 +45,33 @@ import {
 } from "../lib/dietaryTags";
 
 const router: IRouter = Router();
+
+const requireUnarchivedBriefProject: RequestHandler = async (req, res, next) => {
+  const briefId = String(req.params.id ?? "");
+  try {
+    const [row] = await db
+      .select({
+        projectId: projectBriefsTable.projectId,
+        archivedAt: projectsTable.archivedAt,
+        status: projectsTable.status,
+      })
+      .from(projectBriefsTable)
+      .leftJoin(projectsTable, eq(projectsTable.id, projectBriefsTable.projectId))
+      .where(eq(projectBriefsTable.id, briefId))
+      .limit(1);
+    if (row?.projectId && isProjectArchived(row)) {
+      res.status(409).json({
+        ok: false,
+        error: "Archived projects must be restored before producer changes.",
+      });
+      return;
+    }
+    next();
+  } catch (error) {
+    req.log.error(error, "Failed to verify brief project archive state");
+    res.status(500).json({ ok: false, error: "Could not verify project state." });
+  }
+};
 
 const requireSignedIn: RequestHandler = (req, res, next) => {
   const auth =
@@ -168,7 +196,7 @@ async function safeVenueSnapshot(
 ): Promise<{ snapshot: Record<string, unknown> | null; error?: string }> {
   let venueId = directVenueId;
   if (projectId) {
-    const access = await getProjectAccess(projectId, userId);
+    const access = await getEmployeeProjectAccess(projectId, userId);
     if (!access) return { snapshot: null, error: "Project not found." };
     const [project] = await db.select({ venueId: projectsTable.venueId })
       .from(projectsTable).where(eq(projectsTable.id, projectId)).limit(1);
@@ -685,6 +713,7 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
         if (
           !effectiveProject ||
           effectiveProject.userId !== userId ||
+          isProjectArchived(effectiveProject) ||
           ["completed", "archived"].includes(deriveLegacyProjectStatus(effectiveProject))
         ) return { terminalProject: true as const };
         effectiveProjectStatus = deriveLegacyProjectStatus(effectiveProject);
@@ -1662,6 +1691,7 @@ router.get(
 router.patch(
   "/portal/briefs/:id/hotel/:gigId",
   requireEmployee,
+  requireUnarchivedBriefProject,
   async (req, res) => {
     const userId = (req as unknown as { _userId: string })._userId;
     const briefId = String(req.params.id ?? "");
@@ -1927,6 +1957,7 @@ router.patch(
 router.patch(
   "/portal/briefs/:id/roster/:gigId/dates",
   requireEmployee,
+  requireUnarchivedBriefProject,
   async (req, res) => {
     const userId = (req as unknown as { _userId: string })._userId;
     const briefId = String(req.params.id ?? "");
@@ -2583,6 +2614,7 @@ router.get(
 router.post(
   "/portal/briefs/:id/hotel/lock",
   requireEmployee,
+  requireUnarchivedBriefProject,
   async (req, res) => {
     const userId = (req as unknown as { _userId: string })._userId;
     const briefId = String(req.params.id ?? "");
@@ -2724,6 +2756,7 @@ router.post(
 router.post(
   "/portal/briefs/:id/hotel/unlock",
   requireEmployee,
+  requireUnarchivedBriefProject,
   async (req, res) => {
     const userId = (req as unknown as { _userId: string })._userId;
     const briefId = String(req.params.id ?? "");
@@ -2787,6 +2820,7 @@ router.post(
 router.post(
   "/portal/briefs/:id/hotel/swap",
   requireEmployee,
+  requireUnarchivedBriefProject,
   async (req, res) => {
     const userId = (req as unknown as { _userId: string })._userId;
     const briefId = String(req.params.id ?? "");

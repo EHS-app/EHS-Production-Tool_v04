@@ -26,33 +26,29 @@ export const PROJECT_BRIEF_PROVENANCE_LOCK = sql`
   select pg_advisory_xact_lock(1886545254, 134756896)
 `;
 
-export type DeleteOwnedProjectResult =
+export type HardDeleteProjectResult =
   | { kind: "deleted" }
   | { kind: "not_found" };
 
 /**
- * Hard-deletes an owned project and every project-owned dependent record in
+ * Hard-deletes a project and every project-owned dependent record in
  * one transaction. Explicit child removal makes the operation deterministic;
  * database cascades remain a final guard against concurrent child inserts.
+ * Authorization must be enforced by the caller before invoking this helper.
  */
-export async function deleteOwnedProject(
+export async function hardDeleteProject(
   projectId: string,
-  ownerUserId: string,
-): Promise<DeleteOwnedProjectResult> {
+): Promise<HardDeleteProjectResult> {
   return db.transaction(async (tx) => {
     await tx.execute(PROJECT_BRIEF_PROVENANCE_LOCK);
     const [project] = await tx
       .select({
         id: projectsTable.id,
+        ownerUserId: projectsTable.userId,
         activeBriefId: sql<string | null>`nullif(${projectsTable.data}->>'activeBriefId', '')`,
       })
       .from(projectsTable)
-      .where(
-        and(
-          eq(projectsTable.id, projectId),
-          eq(projectsTable.userId, ownerUserId),
-        ),
-      )
+      .where(eq(projectsTable.id, projectId))
       .limit(1)
       .for("update");
 
@@ -67,7 +63,7 @@ export async function deleteOwnedProject(
       .where(
         and(
           eq(projectBriefsTable.projectId, projectId),
-          ne(projectBriefsTable.ownerUserId, ownerUserId),
+          ne(projectBriefsTable.ownerUserId, project.ownerUserId),
         ),
       );
 
@@ -75,16 +71,16 @@ export async function deleteOwnedProject(
       ? or(
           and(
             eq(projectBriefsTable.projectId, projectId),
-            eq(projectBriefsTable.ownerUserId, ownerUserId),
+            eq(projectBriefsTable.ownerUserId, project.ownerUserId),
           ),
           and(
             eq(projectBriefsTable.id, project.activeBriefId),
-            eq(projectBriefsTable.ownerUserId, ownerUserId),
+            eq(projectBriefsTable.ownerUserId, project.ownerUserId),
           ),
         )
       : and(
           eq(projectBriefsTable.projectId, projectId),
-          eq(projectBriefsTable.ownerUserId, ownerUserId),
+          eq(projectBriefsTable.ownerUserId, project.ownerUserId),
         );
 
     const linkedBriefs = await tx
@@ -170,12 +166,7 @@ export async function deleteOwnedProject(
 
     const removed = await tx
       .delete(projectsTable)
-      .where(
-        and(
-          eq(projectsTable.id, projectId),
-          eq(projectsTable.userId, ownerUserId),
-        ),
-      )
+      .where(eq(projectsTable.id, projectId))
       .returning({ id: projectsTable.id });
     return removed.length === 1 ? { kind: "deleted" } : { kind: "not_found" };
   });

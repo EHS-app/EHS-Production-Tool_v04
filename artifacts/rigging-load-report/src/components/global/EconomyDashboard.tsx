@@ -358,7 +358,7 @@ export function EconomyDashboard({ getToken, onOpenProject }: Props) {
   };
 
   const openSettingsModal = (p: EconomyProject) => {
-    if (p.accessRole === "viewer") return;
+    if (p.accessRole !== "owner") return;
     
     // Extract budgets from categories array
     const catMap: Record<EconomyCategory, number> = { labor: 0, hotel: 0, catering: 0, transport: 0, subRentals: 0 };
@@ -521,7 +521,7 @@ export function EconomyDashboard({ getToken, onOpenProject }: Props) {
                       <h3 className="eco-link" style={{ margin: "0 0 4px 0" }} onClick={() => onOpenProject(p.projectId)}>{p.projectName}</h3>
                       <div className="eco-muted" style={{ fontSize: 12 }}>Client: {p.client || "None"}</div>
                     </div>
-                    {p.accessRole !== "viewer" && (
+                    {p.accessRole === "owner" && (
                       <button className="ehs-ghost-btn" onClick={() => openSettingsModal(p)}>
                         <Settings size={14} style={{ marginRight: 6 }} /> Settings
                       </button>

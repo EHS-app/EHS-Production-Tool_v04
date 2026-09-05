@@ -25,7 +25,7 @@ import { dispatchBriefRequestEmails } from "../lib/briefEmail";
 import { autoAssignedDatesFor } from "../lib/roleSchedule";
 import { rollupItinerary } from "../lib/itineraryRollup";
 import {
-  getEmployeeProjectReadAccess,
+  getEmployeeProjectAccess,
   getProjectAccess,
   UUID_PATTERN,
 } from "../lib/projectAccess";
@@ -557,7 +557,7 @@ router.get("/portal/briefs/:id", requireSignedIn, async (req, res) => {
         }
         if (
           userType !== "employee" ||
-          !(await getEmployeeProjectReadAccess(brief.projectId, userId))
+          !(await getEmployeeProjectAccess(brief.projectId, userId))
         ) {
           res.status(403).json({ ok: false, error: "Not your brief." });
           return;

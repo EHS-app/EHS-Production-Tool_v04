@@ -7,7 +7,7 @@ import {
   projectsTable,
   projectTasksTable,
 } from "@workspace/db";
-import { getProjectAccess, isProjectWriter, UUID_PATTERN } from "../lib/projectAccess";
+import { getEmployeeProjectAccess, isProjectWriter, UUID_PATTERN } from "../lib/projectAccess";
 
 const router: IRouter = Router();
 const STATUSES = ["Not Started", "Working on it", "Stuck", "Done"] as const;
@@ -53,7 +53,7 @@ router.get("/tasks", async (req, res): Promise<void> => {
         description: projectTasksTable.description,
         createdAt: projectTasksTable.createdAt,
         updatedAt: projectTasksTable.updatedAt,
-        accessRole: sql<"owner" | "editor" | "viewer">`case when ${projectsTable.userId} = ${userId} then 'owner' when ${projectMembersTable.role} in ('editor', 'viewer') then ${projectMembersTable.role} else 'viewer' end`,
+        accessRole: sql<"owner" | "editor" | "viewer">`case when ${projectsTable.userId} = ${userId} then 'owner' when ${projectMembersTable.role} in ('editor', 'viewer') then ${projectMembersTable.role} else 'editor' end`,
       })
       .from(projectTasksTable)
       .innerJoin(projectsTable, eq(projectTasksTable.projectId, projectsTable.id))
@@ -110,7 +110,7 @@ router.post("/tasks", async (req, res): Promise<void> => {
     return;
   }
   try {
-    const accessRole = await getProjectAccess(projectId, userId);
+    const accessRole = await getEmployeeProjectAccess(projectId, userId);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;

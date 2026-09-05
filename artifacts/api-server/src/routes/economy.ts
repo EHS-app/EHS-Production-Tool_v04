@@ -15,8 +15,8 @@ import {
 import { requireEmployee } from "../middleware/userType";
 import { getOrganizationSettings } from "../lib/organizationSettings";
 import {
+  getEmployeeProjectAccess,
   getProjectAccess,
-  isProjectWriter,
   UUID_PATTERN,
 } from "../lib/projectAccess";
 
@@ -95,7 +95,7 @@ async function loadEconomy(callerUserId: string) {
       client: projectsTable.client,
       easyjobNumber: projectsTable.easyjobNumber,
       activeBriefId: sql<string>`${projectsTable.data}->>'activeBriefId'`,
-      accessRole: sql<"owner" | "editor" | "viewer">`case when ${projectsTable.userId} = ${callerUserId} then 'owner' else ${projectMembersTable.role} end`,
+      accessRole: sql<"owner" | "editor" | "viewer">`case when ${projectsTable.userId} = ${callerUserId} then 'owner' when ${projectMembersTable.role} in ('editor', 'viewer') then ${projectMembersTable.role} else 'editor' end`,
       contractRevenueMinor: projectFinanceSettingsTable.contractRevenueMinor,
       easyjobRevenueMinor: projectFinanceSettingsTable.easyjobRevenueMinor,
       laborBudgetMinor: projectFinanceSettingsTable.laborBudgetMinor,
@@ -116,15 +116,7 @@ async function loadEconomy(callerUserId: string) {
       projectFinanceSettingsTable,
       eq(projectFinanceSettingsTable.projectId, projectsTable.id),
     )
-    .where(
-      and(
-        isNotNull(sql`nullif(${projectsTable.data}->>'activeBriefId', '')`),
-        or(
-          eq(projectsTable.userId, callerUserId),
-          eq(projectMembersTable.userId, callerUserId),
-        ),
-      ),
-    );
+    .where(isNotNull(sql`nullif(${projectsTable.data}->>'activeBriefId', '')`));
 
   const projectIds = projects.map((project) => project.id);
   const activeBriefIds = projects.map((project) => project.activeBriefId);
@@ -486,8 +478,8 @@ router.patch(
         res.status(404).json({ ok: false, error: "Project not found." });
         return;
       }
-      if (!isProjectWriter(access)) {
-        res.status(403).json({ ok: false, error: "Project is read-only." });
+      if (access !== "owner") {
+        res.status(403).json({ ok: false, error: "Only the project owner can update financial settings." });
         return;
       }
       const existing = await db
@@ -588,12 +580,12 @@ router.post(
     }
     try {
       const callerUserId = userId(req);
-      const access = await getProjectAccess(projectId, callerUserId);
+      const access = await getEmployeeProjectAccess(projectId, callerUserId);
       if (!access) {
         res.status(404).json({ ok: false, error: "Project not found." });
         return;
       }
-      if (!isProjectWriter(access)) {
+      if (access === "viewer") {
         res.status(403).json({ ok: false, error: "Project is read-only." });
         return;
       }

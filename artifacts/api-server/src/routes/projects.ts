@@ -14,8 +14,7 @@ import {
   venuesTable,
 } from "@workspace/db";
 import {
-  getProjectAccess,
-  getEmployeeProjectReadAccess,
+  getEmployeeProjectAccess,
   isProjectWriter,
   UUID_PATTERN,
 } from "../lib/projectAccess";
@@ -137,7 +136,7 @@ async function resolveLinks(
     clientName = client.name;
   }
   if (clonedFromProjectId) {
-    if (!(await getProjectAccess(clonedFromProjectId, userId))) return null;
+    if (!(await getEmployeeProjectAccess(clonedFromProjectId, userId))) return null;
   }
   return { venueId, venueName, clientId, clientName, clonedFromProjectId };
 }
@@ -182,7 +181,7 @@ router.get("/projects", requireSignedIn, async (req, res) => {
         status: sql<string>`coalesce(${projectsTable.status}, case when nullif(${projectsTable.data}->>'activeBriefId', '') is not null then 'active' when nullif(${projectsTable.venue}, '') is not null or nullif(${projectsTable.client}, '') is not null then 'planning' else 'draft' end)`,
         createdAt: projectsTable.createdAt,
         updatedAt: projectsTable.updatedAt,
-        accessRole: sql<"owner" | "editor" | "viewer">`case when ${projectsTable.userId} = ${userId} then 'owner' when ${projectMembersTable.role} in ('editor', 'viewer') then ${projectMembersTable.role} else 'viewer' end`,
+        accessRole: sql<"owner" | "editor" | "viewer">`case when ${projectsTable.userId} = ${userId} then 'owner' when ${projectMembersTable.role} in ('editor', 'viewer') then ${projectMembersTable.role} else 'editor' end`,
       })
       .from(projectsTable)
       .leftJoin(
@@ -238,7 +237,7 @@ router.get("/projects/:id", requireSignedIn, async (req, res) => {
     return;
   }
   try {
-    const accessRole = await getEmployeeProjectReadAccess(String(id), userId);
+    const accessRole = await getEmployeeProjectAccess(String(id), userId);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -395,7 +394,7 @@ router.patch("/projects/:id", requireSignedIn, async (req, res) => {
   if (data !== undefined) updates.data = data;
 
   try {
-    const accessRole = await getProjectAccess(String(id), userId);
+    const accessRole = await getEmployeeProjectAccess(String(id), userId);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -506,7 +505,7 @@ router.post("/projects/:id/status", requireSignedIn, async (req, res) => {
     return;
   }
   try {
-    const accessRole = await getProjectAccess(id, userId);
+    const accessRole = await getEmployeeProjectAccess(id, userId);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -523,18 +522,6 @@ router.post("/projects/:id/status", requireSignedIn, async (req, res) => {
         .limit(1)
         .for("update");
       if (!locked) return { kind: "not_found" as const };
-      if (locked.userId !== userId) {
-        const [membership] = await tx
-          .select({ role: projectMembersTable.role })
-          .from(projectMembersTable)
-          .where(and(
-            eq(projectMembersTable.projectId, id),
-            eq(projectMembersTable.userId, userId),
-            eq(projectMembersTable.role, "editor"),
-          ))
-          .limit(1);
-        if (!membership) return { kind: "forbidden" as const };
-      }
       const currentStatus = deriveLegacyProjectStatus(locked);
       const transition = classifyProjectTransition(currentStatus, requestedStatus);
       if (transition === "backward" || transition === "skipped") {
@@ -639,10 +626,6 @@ router.post("/projects/:id/status", requireSignedIn, async (req, res) => {
     });
     if (result.kind === "not_found") {
       res.status(404).json({ ok: false, error: "Project not found." });
-      return;
-    }
-    if (result.kind === "forbidden") {
-      res.status(403).json({ ok: false, error: "Project is read-only." });
       return;
     }
     if (result.kind === "invalid_transition") {

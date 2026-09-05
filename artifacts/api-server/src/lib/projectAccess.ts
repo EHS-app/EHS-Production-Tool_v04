@@ -38,11 +38,11 @@ export async function getProjectAccess(
 }
 
 /**
- * Returns read access for an existing project, granting employees who are not
- * explicit members the default viewer role. This is only safe on routers
- * already protected by requireEmployee; it must never be used for writes.
+ * Returns collaborative access for an existing project, granting employees
+ * who are not explicit members the default editor role. This is only safe
+ * after requireEmployee (or an equivalent positive employee classification).
  */
-export async function getEmployeeProjectReadAccess(
+export async function getEmployeeProjectAccess(
   projectId: string,
   userId: string,
 ): Promise<ProjectAccessRole | null> {
@@ -65,5 +65,5 @@ export async function getEmployeeProjectReadAccess(
     .limit(1);
   return membership?.role === "editor" || membership?.role === "viewer"
     ? membership.role
-    : "viewer";
+    : "editor";
 }

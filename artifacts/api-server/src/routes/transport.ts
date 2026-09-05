@@ -3,12 +3,11 @@ import { and, asc, eq, gt, inArray, or } from "drizzle-orm";
 import {
   db,
   freelancerProfilesTable,
-  projectMembersTable,
   projectsTable,
   transportRunsTable,
   transportVehiclesTable,
 } from "@workspace/db";
-import { getProjectAccess, isProjectWriter, UUID_PATTERN } from "../lib/projectAccess";
+import { getEmployeeProjectAccess, isProjectWriter, UUID_PATTERN } from "../lib/projectAccess";
 
 const router: IRouter = Router();
 
@@ -44,30 +43,16 @@ function instant(raw: unknown, required = false): Date | null | undefined {
 
 async function canWriteProject(projectId: string, userId: string): Promise<"ok" | "missing" | "readonly"> {
   if (!UUID_PATTERN.test(projectId)) return "missing";
-  const access = await getProjectAccess(projectId, userId);
+  const access = await getEmployeeProjectAccess(projectId, userId);
   if (!access) return "missing";
   return isProjectWriter(access) ? "ok" : "readonly";
 }
 
 router.get("/transport", async (req, res): Promise<void> => {
-  const userId = (req as unknown as { _userId: string })._userId;
   try {
     const accessibleProjects = await db
       .select({ id: projectsTable.id })
-      .from(projectsTable)
-      .leftJoin(
-        projectMembersTable,
-        and(
-          eq(projectMembersTable.projectId, projectsTable.id),
-          eq(projectMembersTable.userId, userId),
-        ),
-      )
-      .where(
-        or(
-          eq(projectsTable.userId, userId),
-          eq(projectMembersTable.userId, userId),
-        ),
-      );
+      .from(projectsTable);
     const projectIds = accessibleProjects.map((row) => row.id);
     const vehicles = await db
       .select({

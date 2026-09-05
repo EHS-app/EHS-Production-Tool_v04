@@ -3,8 +3,7 @@ import { and, asc, desc, eq, gt, lt, or } from "drizzle-orm";
 import { createClerkClient } from "@clerk/express";
 import { db, projectMessagesTable } from "@workspace/db";
 import {
-  getProjectAccess,
-  getEmployeeProjectReadAccess,
+  getEmployeeProjectAccess,
   isProjectWriter,
   UUID_PATTERN,
 } from "../lib/projectAccess";
@@ -34,7 +33,7 @@ router.get("/projects/:projectId/messages", async (req, res): Promise<void> => {
     return;
   }
   try {
-    if (!(await getEmployeeProjectReadAccess(projectId, userId))) {
+    if (!(await getEmployeeProjectAccess(projectId, userId))) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
@@ -114,7 +113,7 @@ router.post("/projects/:projectId/messages", async (req, res): Promise<void> => 
     return;
   }
   try {
-    const role = await getProjectAccess(projectId, userId);
+    const role = await getEmployeeProjectAccess(projectId, userId);
     if (!role) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;

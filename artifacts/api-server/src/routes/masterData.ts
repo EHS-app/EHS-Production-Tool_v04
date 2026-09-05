@@ -4,11 +4,10 @@ import {
   clientsTable,
   db,
   projectFinanceSettingsTable,
-  projectMembersTable,
   projectsTable,
   venuesTable,
 } from "@workspace/db";
-import { getProjectAccess, isProjectWriter, UUID_PATTERN } from "../lib/projectAccess";
+import { getEmployeeProjectAccess, isProjectWriter, UUID_PATTERN } from "../lib/projectAccess";
 import {
   getOrganizationSettings,
   organizationDefaultsSnapshot,
@@ -309,7 +308,6 @@ router.get("/clients/:id", async (req, res): Promise<void> => {
     res.status(404).json({ ok: false, error: "Client not found." });
     return;
   }
-  const userId = (req as unknown as { _userId: string })._userId;
   try {
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, id)).limit(1);
     if (!client) {
@@ -325,12 +323,8 @@ router.get("/clients/:id", async (req, res): Promise<void> => {
       start_date: sql<string | null>`${projectsTable.data}->>'reportDate'`,
       end_date: sql<string | null>`${projectsTable.data}->>'reportEndDate'`,
       updatedAt: projectsTable.updatedAt,
-    }).from(projectsTable).leftJoin(projectMembersTable, and(
-      eq(projectMembersTable.projectId, projectsTable.id),
-      eq(projectMembersTable.userId, userId),
-    )).where(and(
+    }).from(projectsTable).where(and(
       eq(projectsTable.clientId, id),
-      or(eq(projectsTable.userId, userId), eq(projectMembersTable.userId, userId)),
       or(
         sql`lower(coalesce(${projectsTable.data}->>'status', '')) in ('completed', 'complete', 'archived')`,
         sql`case when (${projectsTable.data}->>'reportEndDate') ~ '^\\d{4}-\\d{2}-\\d{2}$' then (${projectsTable.data}->>'reportEndDate') < to_char(current_date, 'YYYY-MM-DD') else false end`,
@@ -404,7 +398,7 @@ router.post("/clients/:clientId/projects/:projectId/clone", async (req, res): Pr
   }
   const userId = (req as unknown as { _userId: string })._userId;
   try {
-    const access = await getProjectAccess(projectId, userId);
+    const access = await getEmployeeProjectAccess(projectId, userId);
     if (!access) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;

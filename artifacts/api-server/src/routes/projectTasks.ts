@@ -2,8 +2,7 @@ import { Router, type IRouter } from "express";
 import { asc, eq, sql } from "drizzle-orm";
 import { db, freelancerProfilesTable, projectTasksTable } from "@workspace/db";
 import {
-  getProjectAccess,
-  getEmployeeProjectReadAccess,
+  getEmployeeProjectAccess,
   isProjectWriter,
   UUID_PATTERN,
 } from "../lib/projectAccess";
@@ -44,7 +43,7 @@ router.get("/projects/:projectId/tasks", async (req, res): Promise<void> => {
     return;
   }
   try {
-    if (!(await getEmployeeProjectReadAccess(projectId, userId))) {
+    if (!(await getEmployeeProjectAccess(projectId, userId))) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
@@ -73,7 +72,7 @@ router.post("/projects/:projectId/tasks", async (req, res): Promise<void> => {
     return;
   }
   try {
-    const accessRole = await getProjectAccess(projectId, userId);
+    const accessRole = await getEmployeeProjectAccess(projectId, userId);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -115,7 +114,7 @@ router.patch("/projects/tasks/:id", async (req, res): Promise<void> => {
     .where(eq(projectTasksTable.id, id))
     .limit(1);
   const accessRole = taskForAccess
-    ? await getProjectAccess(taskForAccess.projectId, userId)
+    ? await getEmployeeProjectAccess(taskForAccess.projectId, userId)
     : null;
   if (!accessRole) {
     res.status(404).json({ ok: false, error: "Task not found." });
@@ -239,7 +238,7 @@ router.delete("/projects/tasks/:id", async (req, res): Promise<void> => {
       res.status(404).json({ ok: false, error: "Task not found." });
       return;
     }
-    const accessRole = await getProjectAccess(ownedTask.projectId, userId);
+    const accessRole = await getEmployeeProjectAccess(ownedTask.projectId, userId);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Task not found." });
       return;

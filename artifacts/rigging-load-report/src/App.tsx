@@ -7646,7 +7646,7 @@ function App() {
       )}
 
       {mainView === "tasks" && (
-        <ProjectTaskBoard projectId={currentProjectId} />
+        <ProjectTaskBoard projectId={currentProjectId} accessRole={currentProjectAccessRole || "viewer"} />
       )}
 
       {mainView === "chat" && (

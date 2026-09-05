@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, eq, isNotNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
 import {
   db,
   freelancerProfilesTable,
@@ -53,7 +53,7 @@ router.get("/tasks", async (req, res): Promise<void> => {
         description: projectTasksTable.description,
         createdAt: projectTasksTable.createdAt,
         updatedAt: projectTasksTable.updatedAt,
-        accessRole: sql<"owner" | "editor" | "viewer">`case when ${projectsTable.userId} = ${userId} then 'owner' else ${projectMembersTable.role} end`,
+        accessRole: sql<"owner" | "editor" | "viewer">`case when ${projectsTable.userId} = ${userId} then 'owner' when ${projectMembersTable.role} in ('editor', 'viewer') then ${projectMembersTable.role} else 'viewer' end`,
       })
       .from(projectTasksTable)
       .innerJoin(projectsTable, eq(projectTasksTable.projectId, projectsTable.id))
@@ -68,15 +68,7 @@ router.get("/tasks", async (req, res): Promise<void> => {
         freelancerProfilesTable,
         eq(projectTasksTable.assignedUserId, freelancerProfilesTable.userId),
       )
-      .where(
-        and(
-          isNotNull(sql`nullif(${projectsTable.data}->>'activeBriefId', '')`),
-          or(
-            eq(projectsTable.userId, userId),
-            eq(projectMembersTable.userId, userId),
-          ),
-        ),
-      )
+      .where(isNotNull(sql`nullif(${projectsTable.data}->>'activeBriefId', '')`))
       .orderBy(asc(projectTasksTable.createdAt));
     res.json({ ok: true, tasks });
   } catch (error) {

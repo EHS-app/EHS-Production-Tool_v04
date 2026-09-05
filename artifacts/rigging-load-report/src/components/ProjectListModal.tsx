@@ -10,6 +10,13 @@ export type ProjectSummary = {
   createdAt: string;
   updatedAt: string;
   accessRole: "owner" | "editor" | "viewer";
+  created_by?: string;
+  manager?: {
+    userId: string;
+    name: string;
+    email: string | null;
+    avatarUrl: string | null;
+  };
 };
 
 type Props = {
@@ -183,6 +190,18 @@ export function ProjectListModal({
                       ) : null}
                       {p.client ? (
                         <span className="proj-row-client">{p.client}</span>
+                      ) : null}
+                      {p.manager ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} title={p.manager.email || undefined}>
+                          {p.manager.avatarUrl ? (
+                            <img src={p.manager.avatarUrl} alt={p.manager.name} style={{ width: 14, height: 14, borderRadius: '50%', objectFit: 'cover' }} />
+                          ) : (
+                            <span style={{ width: 14, height: 14, borderRadius: '50%', background: 'var(--border-color)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, color: 'var(--text-main)', fontWeight: 600 }}>
+                              {p.manager.name.charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                          <span>Created by: {p.manager.name}</span>
+                        </span>
                       ) : null}
                     </span>
                     <span className="proj-row-date">

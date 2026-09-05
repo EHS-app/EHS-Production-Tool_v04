@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
 import { createClerkClient } from "@clerk/express";
 import { db, projectMembersTable, projectsTable } from "@workspace/db";
-import { getProjectAccess, UUID_PATTERN } from "../lib/projectAccess";
+import { getEmployeeProjectReadAccess, UUID_PATTERN } from "../lib/projectAccess";
 
 const router: IRouter = Router();
 const clerk = process.env.CLERK_SECRET_KEY
@@ -71,7 +71,7 @@ router.get("/projects/:projectId/members", async (req, res): Promise<void> => {
     return;
   }
   try {
-    const currentRole = await getProjectAccess(projectId, userId);
+    const currentRole = await getEmployeeProjectReadAccess(projectId, userId);
     if (!currentRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;

@@ -3,6 +3,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import { db, freelancerProfilesTable, projectTasksTable } from "@workspace/db";
 import {
   getProjectAccess,
+  getEmployeeProjectReadAccess,
   isProjectWriter,
   UUID_PATTERN,
 } from "../lib/projectAccess";
@@ -43,7 +44,7 @@ router.get("/projects/:projectId/tasks", async (req, res): Promise<void> => {
     return;
   }
   try {
-    if (!(await getProjectAccess(projectId, userId))) {
+    if (!(await getEmployeeProjectReadAccess(projectId, userId))) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }

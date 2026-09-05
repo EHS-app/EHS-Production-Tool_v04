@@ -1,6 +1,6 @@
 import { Router, type IRouter, type RequestHandler } from "express";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import {
   clientsTable,
   db,
@@ -15,9 +15,11 @@ import {
 } from "@workspace/db";
 import {
   getProjectAccess,
+  getEmployeeProjectReadAccess,
   isProjectWriter,
   UUID_PATTERN,
 } from "../lib/projectAccess";
+import { getProjectManagers } from "../lib/projectManagers";
 import {
   getOrganizationSettings,
   organizationDefaultsSnapshot,
@@ -166,6 +168,7 @@ router.get("/projects", requireSignedIn, async (req, res) => {
     const rows = await db
       .select({
         id: projectsTable.id,
+        created_by: projectsTable.userId,
         name: projectsTable.name,
         venue: projectsTable.venue,
         client: projectsTable.client,
@@ -179,7 +182,7 @@ router.get("/projects", requireSignedIn, async (req, res) => {
         status: sql<string>`coalesce(${projectsTable.status}, case when nullif(${projectsTable.data}->>'activeBriefId', '') is not null then 'active' when nullif(${projectsTable.venue}, '') is not null or nullif(${projectsTable.client}, '') is not null then 'planning' else 'draft' end)`,
         createdAt: projectsTable.createdAt,
         updatedAt: projectsTable.updatedAt,
-        accessRole: sql<"owner" | "editor" | "viewer">`case when ${projectsTable.userId} = ${userId} then 'owner' else ${projectMembersTable.role} end`,
+        accessRole: sql<"owner" | "editor" | "viewer">`case when ${projectsTable.userId} = ${userId} then 'owner' when ${projectMembersTable.role} in ('editor', 'viewer') then ${projectMembersTable.role} else 'viewer' end`,
       })
       .from(projectsTable)
       .leftJoin(
@@ -189,13 +192,8 @@ router.get("/projects", requireSignedIn, async (req, res) => {
           eq(projectMembersTable.userId, userId),
         ),
       )
-      .where(
-        or(
-          eq(projectsTable.userId, userId),
-          eq(projectMembersTable.userId, userId),
-        ),
-      )
       .orderBy(desc(projectsTable.updatedAt));
+    const managers = await getProjectManagers(rows.map((row) => row.created_by));
     const normaliseDate = (raw: unknown): string | null => {
       if (typeof raw !== "string") return null;
       const value = raw.trim();
@@ -218,8 +216,10 @@ router.get("/projects", requireSignedIn, async (req, res) => {
     };
     res.json({
       ok: true,
-      projects: rows.map(({ reportDate, reportEndDate, ...row }) => ({
+      projects: rows.map(({ reportDate, reportEndDate, created_by, ...row }) => ({
         ...row,
+        created_by,
+        manager: managers.get(created_by),
         startDate: normaliseDate(reportDate),
         endDate: normaliseDate(reportEndDate),
       })),
@@ -238,7 +238,7 @@ router.get("/projects/:id", requireSignedIn, async (req, res) => {
     return;
   }
   try {
-    const accessRole = await getProjectAccess(String(id), userId);
+    const accessRole = await getEmployeeProjectReadAccess(String(id), userId);
     if (!accessRole) {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
@@ -252,10 +252,13 @@ router.get("/projects/:id", requireSignedIn, async (req, res) => {
       res.status(404).json({ ok: false, error: "Project not found." });
       return;
     }
+    const managers = await getProjectManagers([row.userId]);
     res.json({
       ok: true,
       project: {
         ...projectResponse(row),
+        created_by: row.userId,
+        manager: managers.get(row.userId),
         accessRole,
         status: deriveLegacyProjectStatus(row),
       },

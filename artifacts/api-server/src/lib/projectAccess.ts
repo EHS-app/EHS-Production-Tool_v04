@@ -36,3 +36,34 @@ export async function getProjectAccess(
     ? membership.role
     : null;
 }
+
+/**
+ * Returns read access for an existing project, granting employees who are not
+ * explicit members the default viewer role. This is only safe on routers
+ * already protected by requireEmployee; it must never be used for writes.
+ */
+export async function getEmployeeProjectReadAccess(
+  projectId: string,
+  userId: string,
+): Promise<ProjectAccessRole | null> {
+  const [project] = await db
+    .select({ ownerId: projectsTable.userId })
+    .from(projectsTable)
+    .where(eq(projectsTable.id, projectId))
+    .limit(1);
+  if (!project) return null;
+  if (project.ownerId === userId) return "owner";
+  const [membership] = await db
+    .select({ role: projectMembersTable.role })
+    .from(projectMembersTable)
+    .where(
+      and(
+        eq(projectMembersTable.projectId, projectId),
+        eq(projectMembersTable.userId, userId),
+      ),
+    )
+    .limit(1);
+  return membership?.role === "editor" || membership?.role === "viewer"
+    ? membership.role
+    : "viewer";
+}

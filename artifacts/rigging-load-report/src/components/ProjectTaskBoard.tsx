@@ -24,9 +24,11 @@ const priorityColor = (priority: ProjectTaskPriority) => {
 
 interface Props {
   projectId: string | null;
+  accessRole?: string;
 }
 
-export function ProjectTaskBoard({ projectId }: Props) {
+export function ProjectTaskBoard({ projectId, accessRole = "viewer" }: Props) {
+  const isViewer = accessRole === "viewer";
   const { tasks, crew, isLoading, error, pendingIds, createTask, updateTask, deleteTask, refetch } = useProjectTasks(projectId);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [selectedTask, setSelectedTask] = useState<ProjectTask | null>(null);
@@ -177,7 +179,7 @@ export function ProjectTaskBoard({ projectId }: Props) {
                           value={task.status}
                           onChange={(e) => safeUpdateTask(task.id, { status: e.target.value as ProjectTaskStatus })}
                           style={{ color: statusColor(task.status), borderColor: statusColor(task.status) }}
-                          disabled={isPending}
+                          disabled={isPending || isViewer}
                         >
                           {TASK_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
@@ -188,7 +190,7 @@ export function ProjectTaskBoard({ projectId }: Props) {
                           value={task.priority}
                           onChange={(e) => safeUpdateTask(task.id, { priority: e.target.value as ProjectTaskPriority })}
                           style={{ color: priorityColor(task.priority) }}
-                          disabled={isPending}
+                          disabled={isPending || isViewer}
                         >
                           {TASK_PRIORITIES.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
@@ -198,7 +200,7 @@ export function ProjectTaskBoard({ projectId }: Props) {
                           className="task-select"
                           value={task.assignedUserId || ""}
                           onChange={(e) => safeUpdateTask(task.id, { assignedUserId: e.target.value || null })}
-                          disabled={isPending}
+                          disabled={isPending || isViewer}
                         >
                           <option value="">Unassigned</option>
                           {crew.map((member) => (
@@ -214,44 +216,48 @@ export function ProjectTaskBoard({ projectId }: Props) {
                           className="task-input-inline date-input" 
                           value={task.dueDate || ""} 
                           onChange={(e) => safeUpdateTask(task.id, { dueDate: e.target.value || null })}
-                          disabled={isPending}
+                          disabled={isPending || isViewer}
                         />
                       </td>
                       <td onClick={(e) => e.stopPropagation()} style={{ textAlign: "right", paddingRight: "16px" }}>
-                        <button 
-                          className="btn-icon task-delete-btn" 
-                          onClick={() => safeDeleteTask(task.id)}
-                          disabled={isPending}
-                          title="Delete task"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {!isViewer && (
+                          <button
+                            className="btn-icon task-delete-btn"
+                            onClick={() => safeDeleteTask(task.id)}
+                            disabled={isPending}
+                            title="Delete task"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
                 })}
                 
                 {/* Quick Add Row */}
-                <tr className="task-add-row">
-                  <td colSpan={6}>
-                    <form onSubmit={handleAddSubmit} className="task-add-form">
-                      <Plus size={16} className="task-add-icon" />
-                      <input 
-                        ref={addInputRef}
-                        type="text" 
-                        className="task-add-input" 
-                        placeholder="Add a new task..." 
-                        value={newTaskTitle}
-                        onChange={e => setNewTaskTitle(e.target.value)}
-                        onKeyDown={handleKeyDownAdd}
-                        disabled={isAdding || isLoading}
-                      />
-                      <button type="submit" className="btn btn-primary btn-sm task-add-btn" disabled={!newTaskTitle.trim() || isAdding || isLoading}>
-                        {isAdding ? "Adding..." : "Add"}
-                      </button>
-                    </form>
-                  </td>
-                </tr>
+                {!isViewer && (
+                  <tr className="task-add-row">
+                    <td colSpan={6}>
+                      <form onSubmit={handleAddSubmit} className="task-add-form">
+                        <Plus size={16} className="task-add-icon" />
+                        <input
+                          ref={addInputRef}
+                          type="text"
+                          className="task-add-input"
+                          placeholder="Add a new task..."
+                          value={newTaskTitle}
+                          onChange={e => setNewTaskTitle(e.target.value)}
+                          onKeyDown={handleKeyDownAdd}
+                          disabled={isAdding || isLoading}
+                        />
+                        <button type="submit" className="btn btn-primary btn-sm task-add-btn" disabled={!newTaskTitle.trim() || isAdding || isLoading}>
+                          {isAdding ? "Adding..." : "Add"}
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -278,7 +284,7 @@ export function ProjectTaskBoard({ projectId }: Props) {
                   value={selectedTask.title} 
                   className="task-sidebar-input task-sidebar-textarea title-textarea"
                   rows={2}
-                   disabled={selectedTaskPending}
+                  disabled={selectedTaskPending || isViewer}
                   onChange={(e) => {
                     const val = e.target.value;
                     setSelectedTask({...selectedTask, title: val});
@@ -301,7 +307,7 @@ export function ProjectTaskBoard({ projectId }: Props) {
                   <select 
                     className="task-sidebar-select" 
                     value={selectedTask.status}
-                     disabled={selectedTaskPending}
+                    disabled={selectedTaskPending || isViewer}
                     onChange={(e) => {
                       const val = e.target.value as ProjectTaskStatus;
                       setSelectedTask({...selectedTask, status: val});
@@ -316,7 +322,7 @@ export function ProjectTaskBoard({ projectId }: Props) {
                   <select 
                     className="task-sidebar-select" 
                     value={selectedTask.priority}
-                     disabled={selectedTaskPending}
+                    disabled={selectedTaskPending || isViewer}
                     onChange={(e) => {
                       const val = e.target.value as ProjectTaskPriority;
                       setSelectedTask({...selectedTask, priority: val});
@@ -331,7 +337,7 @@ export function ProjectTaskBoard({ projectId }: Props) {
                   <select
                     className="task-sidebar-select"
                     value={selectedTask.department}
-                    disabled={selectedTaskPending}
+                    disabled={selectedTaskPending || isViewer}
                     onChange={(e) => {
                       const department = e.target.value as ProjectTaskDepartment;
                       setSelectedTask({ ...selectedTask, department });
@@ -354,7 +360,7 @@ export function ProjectTaskBoard({ projectId }: Props) {
                    <select
                      value={selectedTask.assignedUserId || ""}
                      className="task-sidebar-input"
-                     disabled={selectedTaskPending}
+                     disabled={selectedTaskPending || isViewer}
                      onChange={(e) => {
                        const assignedUserId = e.target.value || null;
                        const assignedTo =
@@ -381,7 +387,7 @@ export function ProjectTaskBoard({ projectId }: Props) {
                     type="date" 
                     value={selectedTask.dueDate || ""} 
                     className="task-sidebar-input"
-                     disabled={selectedTaskPending}
+                    disabled={selectedTaskPending || isViewer}
                     onChange={(e) => {
                       const val = e.target.value || null;
                       setSelectedTask({...selectedTask, dueDate: val});
@@ -397,7 +403,7 @@ export function ProjectTaskBoard({ projectId }: Props) {
                   className="task-sidebar-input task-sidebar-textarea" 
                   value={selectedTask.description || ""}
                   placeholder="Add details, links, or notes here..."
-                   disabled={selectedTaskPending}
+                  disabled={selectedTaskPending || isViewer}
                   onChange={(e) => setSelectedTask({...selectedTask, description: e.target.value})}
                    onBlur={(e) => {
                      const confirmed = tasks.find(t => t.id === selectedTask.id);

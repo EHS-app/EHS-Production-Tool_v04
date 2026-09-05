@@ -13,7 +13,7 @@ import {
   venuesTable,
   type ProjectBriefRow,
 } from "@workspace/db";
-import { requireEmployee } from "../middleware/userType";
+import { getUserType, requireEmployee } from "../middleware/userType";
 import { logger } from "../lib/logger";
 import {
   assignRooms,
@@ -24,7 +24,11 @@ import {
 import { dispatchBriefRequestEmails } from "../lib/briefEmail";
 import { autoAssignedDatesFor } from "../lib/roleSchedule";
 import { rollupItinerary } from "../lib/itineraryRollup";
-import { getProjectAccess, UUID_PATTERN } from "../lib/projectAccess";
+import {
+  getEmployeeProjectReadAccess,
+  getProjectAccess,
+  UUID_PATTERN,
+} from "../lib/projectAccess";
 import {
   claimBriefDispatches,
   completeBriefDispatches,
@@ -496,9 +500,10 @@ router.get("/portal/briefs", requireEmployee, async (req, res) => {
 });
 
 /** GET /api/portal/briefs/:id
- *  Fetch a specific brief. Allowed if the signed-in user is either the
- *  owner OR has an assignment row for the brief — that way both the
- *  producer and the assigned freelancers can read the same record. */
+ *  Fetch a specific brief. The owner and explicitly assigned freelancers can
+ *  read it. Employees may additionally read a brief linked to a project they
+ *  can view; this router is not employee-gated, so that path verifies the
+ *  caller's employee type before using employee project read access. */
 router.get("/portal/briefs/:id", requireSignedIn, async (req, res) => {
   const userId = (req as unknown as { _userId: string })._userId;
   const id = String(req.params.id ?? "");
@@ -513,6 +518,7 @@ router.get("/portal/briefs/:id", requireSignedIn, async (req, res) => {
       res.status(404).json({ ok: false, error: "Brief not found." });
       return;
     }
+    let freelancerView = false;
     if (brief.ownerUserId !== userId) {
       const assigned = await db
         .select({ id: briefAssignmentsTable.id })
@@ -524,12 +530,40 @@ router.get("/portal/briefs/:id", requireSignedIn, async (req, res) => {
           ),
         )
         .limit(1);
-      if (assigned.length === 0) {
-        res.status(403).json({ ok: false, error: "Not your brief." });
-        return;
+      if (assigned.length > 0) {
+        freelancerView = true;
+      } else {
+        if (!brief.projectId) {
+          res.status(403).json({ ok: false, error: "Not your brief." });
+          return;
+        }
+        let userType;
+        try {
+          userType = await getUserType(userId);
+        } catch (err) {
+          logger.warn(
+            {
+              userId,
+              briefId: brief.id,
+              err: err instanceof Error ? err.message : String(err),
+            },
+            "could not verify employee access to linked brief",
+          );
+          res.status(503).json({
+            ok: false,
+            error: "Employee authorization is temporarily unavailable.",
+          });
+          return;
+        }
+        if (
+          userType !== "employee" ||
+          !(await getEmployeeProjectReadAccess(brief.projectId, userId))
+        ) {
+          res.status(403).json({ ok: false, error: "Not your brief." });
+          return;
+        }
       }
     }
-    const freelancerView = brief.ownerUserId !== userId;
     res.json({
       ok: true,
       brief: freelancerView

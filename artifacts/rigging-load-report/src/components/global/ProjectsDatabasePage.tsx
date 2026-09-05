@@ -23,6 +23,13 @@ export type ProjectRow = {
   createdAt: string;
   updatedAt: string;
   accessRole: string;
+  created_by?: string;
+  manager?: {
+    userId: string;
+    name: string;
+    email: string | null;
+    avatarUrl: string | null;
+  };
 };
 
 interface Props {
@@ -228,7 +235,21 @@ export function ProjectsDatabasePage({ getToken, onOpenProject, onNewProject, on
               <tbody>
                 {filtered.map(p => (
                   <tr key={p.id} className="is-clickable" onClick={() => onOpenProject(p.id)}>
-                    <td style={{ fontWeight: 600 }}>{p.name || "Untitled"}</td>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{p.name || "Untitled"}</div>
+                      {p.manager ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, fontWeight: 'normal', fontSize: 12, color: 'var(--text-muted)' }}>
+                          {p.manager.avatarUrl ? (
+                            <img src={p.manager.avatarUrl} alt={p.manager.name} style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }} />
+                          ) : (
+                            <div style={{ width: 16, height: 16, borderRadius: '50%', background: 'var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: 'var(--text-main)', fontWeight: 600 }}>
+                              {p.manager.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <span title={p.manager.email || undefined}>Created by: {p.manager.name}</span>
+                        </div>
+                      ) : null}
+                    </td>
                     <td>{p.client || "—"}</td>
                     <td>{p.venue || "—"}</td>
                     <td>{p.easyjob_number ? <span style={{ fontFamily: "monospace", color: "var(--text-muted)" }}>{p.easyjob_number}</span> : "—"}</td>

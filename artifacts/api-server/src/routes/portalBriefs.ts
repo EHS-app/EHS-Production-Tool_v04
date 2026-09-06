@@ -911,8 +911,16 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
     }
     res.json({ ok: true, brief: result.brief });
   } catch (err) {
+    const cause =
+      err instanceof Error && "cause" in err
+        ? (err as Error & { cause?: unknown }).cause
+        : undefined;
     logger.error(
-      { err: err instanceof Error ? err.message : String(err) },
+      {
+        err,
+        cause,
+        errorMessage: err instanceof Error ? err.message : String(err),
+      },
       "portal briefs POST failed",
     );
     res.status(500).json({ ok: false, error: "Could not save brief." });

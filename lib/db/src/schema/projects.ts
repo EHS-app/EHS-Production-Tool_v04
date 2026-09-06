@@ -5,6 +5,7 @@ import {
   timestamp,
   uuid,
   index,
+  uniqueIndex,
   foreignKey,
   check,
 } from "drizzle-orm/pg-core";
@@ -110,7 +111,7 @@ export const briefDispatchesTable = pgTable(
   (t) => [
     index("brief_dispatches_brief_idx").on(t.briefId),
     index("brief_dispatches_state_idx").on(t.state),
-    index("brief_dispatches_brief_freelancer_unique").on(
+    uniqueIndex("brief_dispatches_brief_freelancer_unique").on(
       t.briefId,
       t.freelancerUserId,
     ),

@@ -74490,7 +74490,7 @@ var briefDispatchesTable = pgTable(
   (t) => [
     index("brief_dispatches_brief_idx").on(t.briefId),
     index("brief_dispatches_state_idx").on(t.state),
-    index("brief_dispatches_brief_freelancer_unique").on(
+    uniqueIndex("brief_dispatches_brief_freelancer_unique").on(
       t.briefId,
       t.freelancerUserId
     ),
@@ -79219,8 +79219,13 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
     }
     res.json({ ok: true, brief: result.brief });
   } catch (err) {
+    const cause = err instanceof Error && "cause" in err ? err.cause : void 0;
     logger.error(
-      { err: err instanceof Error ? err.message : String(err) },
+      {
+        err,
+        cause,
+        errorMessage: err instanceof Error ? err.message : String(err)
+      },
       "portal briefs POST failed"
     );
     res.status(500).json({ ok: false, error: "Could not save brief." });

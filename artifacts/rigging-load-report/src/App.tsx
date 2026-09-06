@@ -3721,6 +3721,7 @@ function App() {
               | "accepted"
               | "declined"
               | "too_late";
+            shiftResponses?: Record<string, "accepted" | "declined"> | null;
             createdAt: string;
           }>;
         };
@@ -3728,12 +3729,22 @@ function App() {
         const now = Date.now();
         const byUser = new Map<
           string,
-          { id: string; status: CrewRequestStatus }
+          {
+            id: string;
+            status: CrewRequestStatus;
+            shiftResponses?: Record<string, "accepted" | "declined">;
+          }
         >();
         for (const a of json.assignments) {
           const created = Date.parse(a.createdAt);
           let status: CrewRequestStatus;
-          if (a.decision === "accepted") status = "accepted";
+          if (
+            a.decision === "accepted" &&
+            a.shiftResponses &&
+            Object.values(a.shiftResponses).includes("declined")
+          ) {
+            status = "partially_accepted";
+          } else if (a.decision === "accepted") status = "accepted";
           else if (a.decision === "declined") status = "declined";
           else if (a.decision === "too_late") status = "too_late";
           else if (
@@ -3742,7 +3753,15 @@ function App() {
           )
             status = "no-reply";
           else status = "requested";
-          byUser.set(a.freelancerUserId, { id: a.id, status });
+          byUser.set(a.freelancerUserId, {
+            id: a.id,
+            status,
+            shiftResponses:
+              a.shiftResponses &&
+              typeof a.shiftResponses === "object"
+                ? { ...a.shiftResponses }
+                : undefined,
+          });
         }
         // Patch in-place. Only crew rows whose freelancerUserId
         // matches a server assignment are touched; manual in-house
@@ -3755,7 +3774,9 @@ function App() {
             if (!sa) return m;
             if (
               m.requestStatus === sa.status &&
-              m.briefAssignmentId === sa.id
+              m.briefAssignmentId === sa.id &&
+              JSON.stringify(m.shiftResponses ?? {}) ===
+                JSON.stringify(sa.shiftResponses ?? {})
             )
               return m;
             changed = true;
@@ -3763,6 +3784,7 @@ function App() {
               ...m,
               requestStatus: sa.status,
               briefAssignmentId: sa.id,
+              shiftResponses: sa.shiftResponses,
             };
           });
           return changed ? next : all;

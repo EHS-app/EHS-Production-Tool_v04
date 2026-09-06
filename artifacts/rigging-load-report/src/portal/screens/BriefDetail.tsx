@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { Link, useLocation } from "wouter";
 import { PALETTE, type ThemeMode } from "../lib/portalTheme";
@@ -11,6 +11,7 @@ import {
   updateBrief,
   type BriefDecision,
   type PortalData,
+  type ShiftResponseMap,
 } from "../lib/portalStorage";
 import type {
   BriefAssignment,
@@ -233,7 +234,11 @@ export function BriefDetail({
     | { ok: false; status?: number; error: string };
   const syncDecisionToServer = async (
     decision: "accepted" | "declined" | "pending",
-    extras?: { acceptedSnapshot?: unknown; acceptedGigId?: string | null },
+    extras?: {
+      acceptedSnapshot?: unknown;
+      acceptedGigId?: string | null;
+      shiftResponses?: ShiftResponseMap;
+    },
   ): Promise<SyncResult> => {
     try {
       const token = await getToken();
@@ -253,6 +258,9 @@ export function BriefDetail({
             decision,
             acceptedSnapshot: extras?.acceptedSnapshot ?? null,
             acceptedGigId: extras?.acceptedGigId ?? null,
+            ...(extras?.shiftResponses
+              ? { shiftResponses: extras.shiftResponses }
+              : {}),
           }),
         },
       );
@@ -367,12 +375,13 @@ export function BriefDetail({
   // outer `if (!entry) return …` narrowing into nested function
   // declarations, so without these the new `entry.foo` reads would be
   // typed as possibly-undefined.
-  async function accept() {
+  async function accept(shiftResponses?: ShiftResponseMap) {
     if (!entry) return;
     const snapshot = buildAcceptedSnapshot(brief);
     const prevDecision = entry.decision;
     const prevAcceptedSnapshot = entry.acceptedSnapshot;
     const prevAcceptedGigId = entry.acceptedGigId;
+    const prevShiftResponses = entry.shiftResponses;
     // Decide what gig id to send to the server *outside* the setData
     // updater. setData callbacks must be pure (React strict mode
     // double-invokes them in dev), so any side effect that mutates
@@ -392,6 +401,7 @@ export function BriefDetail({
         decision: "accepted",
         acceptedGigId: gigIdForServer ?? undefined,
         acceptedSnapshot: snapshot,
+        shiftResponses,
         decidedLocallyAt: Date.now(),
       });
       return createdGig
@@ -402,6 +412,7 @@ export function BriefDetail({
     const result = await syncDecisionToServer("accepted", {
       acceptedSnapshot: snapshot,
       acceptedGigId: gigIdForServer,
+      shiftResponses,
     });
     if (result.ok && result.tooLate) {
       // Race lost — strip the local accept and the gig we just made.
@@ -410,6 +421,7 @@ export function BriefDetail({
           decision: "too_late",
           acceptedGigId: undefined,
           acceptedSnapshot: undefined,
+          shiftResponses: undefined,
           decidedLocallyAt: Date.now(),
         });
         return createdGigId
@@ -425,6 +437,7 @@ export function BriefDetail({
           decision: prevDecision,
           acceptedGigId: prevAcceptedGigId,
           acceptedSnapshot: prevAcceptedSnapshot,
+          shiftResponses: prevShiftResponses,
           decidedLocallyAt: undefined,
         });
         return createdGigId
@@ -502,11 +515,12 @@ export function BriefDetail({
     }
   }
 
-  async function decline() {
+  async function decline(shiftResponses?: ShiftResponseMap) {
     if (!entry) return;
     const prevDecision = entry.decision;
     const prevAcceptedGigId = entry.acceptedGigId;
     const prevAcceptedSnapshot = entry.acceptedSnapshot;
+    const prevShiftResponses = entry.shiftResponses;
     // If the freelancer is reversing a prior accept, capture the gig
     // they made then so we can restore it on a sync failure.
     const wasAccepted = prevDecision === "accepted";
@@ -524,6 +538,7 @@ export function BriefDetail({
         // multi-device poll will agree.
         acceptedGigId: undefined,
         acceptedSnapshot: undefined,
+        shiftResponses,
         decidedLocallyAt: Date.now(),
       });
       return prevAcceptedGigId
@@ -531,13 +546,14 @@ export function BriefDetail({
         : next;
     });
     setSyncError(null);
-    const result = await syncDecisionToServer("declined");
+    const result = await syncDecisionToServer("declined", { shiftResponses });
     if (!result.ok) {
       setData((prev) => {
         const next = updateBrief(prev, briefId, {
           decision: prevDecision,
           acceptedGigId: prevAcceptedGigId,
           acceptedSnapshot: prevAcceptedSnapshot,
+          shiftResponses: prevShiftResponses,
           decidedLocallyAt: undefined,
         });
         return removedGig
@@ -555,6 +571,7 @@ export function BriefDetail({
     const prevDecision = entry.decision;
     const prevAcceptedGigId = entry.acceptedGigId;
     const prevAcceptedSnapshot = entry.acceptedSnapshot;
+    const prevShiftResponses = entry.shiftResponses;
     // Same gig-teardown logic as decline(): undoing an accept must
     // pull the materialised gig back out of the freelancer's local
     // calendar so they don't see a stale "confirmed" booking for a
@@ -568,6 +585,7 @@ export function BriefDetail({
         decision: "pending",
         acceptedGigId: undefined,
         acceptedSnapshot: undefined,
+        shiftResponses: undefined,
         decidedLocallyAt: Date.now(),
       });
       return prevAcceptedGigId
@@ -582,6 +600,7 @@ export function BriefDetail({
           decision: prevDecision,
           acceptedGigId: prevAcceptedGigId,
           acceptedSnapshot: prevAcceptedSnapshot,
+          shiftResponses: prevShiftResponses,
           decidedLocallyAt: undefined,
         });
         return removedGig
@@ -883,11 +902,19 @@ export function BriefDetail({
           assignment={myAssignment}
           schedule={brief.project.schedule}
           decision={entry.decision}
+          shiftResponses={entry.shiftResponses}
           acceptedGigId={entry.acceptedGigId}
           conflicts={conflicts}
-          onAccept={accept}
-          onDecline={decline}
-          onReset={resetDecision}
+          onSubmitShiftResponses={(responses) => {
+            if (Object.values(responses).includes("accepted")) {
+              void accept(responses);
+            } else {
+              void decline(responses);
+            }
+          }}
+          onLegacyAccept={() => void accept()}
+          onLegacyDecline={() => void decline()}
+          onLegacyReset={() => void resetDecision()}
           onOpenGig={() => setLocation("/portal/gigs")}
         />
       ) : (
@@ -1555,22 +1582,26 @@ function AssignmentCard({
   assignment,
   schedule,
   decision,
+  shiftResponses,
   acceptedGigId,
   conflicts,
-  onAccept,
-  onDecline,
-  onReset,
+  onSubmitShiftResponses,
+  onLegacyAccept,
+  onLegacyDecline,
+  onLegacyReset,
   onOpenGig,
 }: {
   theme: ThemeMode;
   assignment: BriefAssignment;
   schedule: BriefSchedule | undefined;
   decision: BriefDecision;
+  shiftResponses?: ShiftResponseMap;
   acceptedGigId?: string;
   conflicts: ScheduleConflict[];
-  onAccept: () => void;
-  onDecline: () => void;
-  onReset: () => void;
+  onSubmitShiftResponses: (responses: ShiftResponseMap) => void;
+  onLegacyAccept: () => void;
+  onLegacyDecline: () => void;
+  onLegacyReset: () => void;
   onOpenGig: () => void;
 }) {
   const c = PALETTE[theme];
@@ -1580,14 +1611,25 @@ function AssignmentCard({
     () => groupAssignedDaysByPhase(assignment.assignedDates, schedule),
     [assignment.assignedDates, schedule],
   );
-  const exactShiftRows = useMemo(() => {
+  const shiftSlots = useMemo(() => {
     const phaseLabels: Record<string, string> = {
       setup: "Load-in",
       rehearsal: "Soundcheck",
       show: "Show",
       downrig: "Load-out",
     };
-    return (assignment.assignedShiftPhases ?? []).flatMap((key) => {
+    const phaseKeys = Array.from(
+      new Set([
+        ...(assignment.assignedShiftPhases ?? []),
+        ...Object.keys(assignment.assignedShiftWindows ?? {}),
+        ...Object.keys(assignment.assignedShiftTimes ?? {}),
+      ]),
+    )
+      .filter((key) =>
+        /^\d{4}-\d{2}-\d{2}::(?:setup|rehearsal|show|downrig)$/.test(key),
+      )
+      .sort();
+    const exact = phaseKeys.flatMap((key) => {
       const [dateKey, phaseKey] = key.split("::");
       const timings =
         assignment.assignedShiftWindows?.[key]?.length
@@ -1595,25 +1637,65 @@ function AssignmentCard({
           : assignment.assignedShiftTimes?.[key]
             ? [assignment.assignedShiftTimes[key]]
             : [];
-      if (!dateKey || !phaseKey || timings.length === 0) return [];
-      return [
-        {
-          key,
+      if (!dateKey || !phaseKey) return [];
+      const effectiveTimings =
+        timings.length > 0
+          ? timings
+          : [{ startTime: "", endTime: "" }];
+      return effectiveTimings.map((timing, windowIndex) => ({
+          key: `${key}::${windowIndex}`,
           dateKey,
           phaseLabel: phaseLabels[phaseKey] ?? phaseKey,
-          timing: timings
-            .map((timing) => `${timing.startTime}–${timing.endTime}`)
-            .join(", "),
+          callLabel:
+            timings.length > 1 ? `Call ${windowIndex + 1}` : "Shift",
+          timing:
+            timing.startTime && timing.endTime
+              ? `${timing.startTime}–${timing.endTime}`
+              : "Times to be confirmed",
           tasks: assignment.assignedShiftTasks?.[key] ?? [],
-        },
-      ];
+        }));
     });
+    if (exact.length > 0) return exact;
+    return (assignment.assignedDates ?? []).map((dateKey) => ({
+      key: `${dateKey}::day::0`,
+      dateKey,
+      phaseLabel: "Working day",
+      callLabel: "Shift",
+      timing:
+        assignment.callTime && assignment.offTime
+          ? `${assignment.callTime}–${assignment.offTime}`
+          : "Times to be confirmed",
+      tasks: [] as string[],
+    }));
   }, [
+    assignment.assignedDates,
     assignment.assignedShiftPhases,
     assignment.assignedShiftTasks,
     assignment.assignedShiftTimes,
     assignment.assignedShiftWindows,
+    assignment.callTime,
+    assignment.offTime,
   ]);
+  const [draftResponses, setDraftResponses] = useState<ShiftResponseMap>({});
+  useEffect(() => {
+    const next: ShiftResponseMap = {};
+    for (const slot of shiftSlots) {
+      const saved = shiftResponses?.[slot.key];
+      if (saved) next[slot.key] = saved;
+      else if (decision === "accepted") next[slot.key] = "accepted";
+      else if (decision === "declined") next[slot.key] = "declined";
+    }
+    setDraftResponses(next);
+  }, [decision, shiftResponses, shiftSlots]);
+  const responseCount = Object.keys(draftResponses).length;
+  const acceptedCount = Object.values(draftResponses).filter(
+    (value) => value === "accepted",
+  ).length;
+  const declinedCount = Object.values(draftResponses).filter(
+    (value) => value === "declined",
+  ).length;
+  const responseComplete =
+    shiftSlots.length > 0 && responseCount === shiftSlots.length;
   return (
     <section
       style={{
@@ -1674,7 +1756,7 @@ function AssignmentCard({
           />
         ) : null}
       </div>
-      {exactShiftRows.length > 0 ? (
+      {shiftSlots.length > 0 ? (
         <div
           style={{
             marginTop: 16,
@@ -1691,7 +1773,7 @@ function AssignmentCard({
               textTransform: "uppercase",
             }}
           >
-            Scheduled shifts
+            Confirm each shift
           </div>
           <div
             style={{
@@ -1702,11 +1784,19 @@ function AssignmentCard({
               marginTop: 8,
             }}
           >
-            {exactShiftRows.map((shift) => (
+            {shiftSlots.map((shift) => {
+              const slotDecision = draftResponses[shift.key];
+              const statusColor =
+                slotDecision === "accepted"
+                  ? c.success
+                  : slotDecision === "declined"
+                    ? "#dc2626"
+                    : c.border;
+              return (
               <div
                 key={shift.key}
                 style={{
-                  border: `1px solid ${c.border}`,
+                  border: `1px solid ${statusColor}`,
                   borderRadius: 9,
                   padding: "9px 10px",
                   background: c.cardBgSubtle,
@@ -1716,7 +1806,7 @@ function AssignmentCard({
               >
                 <strong>{shift.dateKey}</strong>
                 <div style={{ marginTop: 2, color: c.muted }}>
-                  {shift.phaseLabel} · {shift.timing}
+                  {shift.phaseLabel} · {shift.callLabel} · {shift.timing}
                 </div>
                 {shift.tasks.length > 0 ? (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 7 }}>
@@ -1738,8 +1828,77 @@ function AssignmentCard({
                     ))}
                   </div>
                 ) : null}
+                {decision !== "too_late" ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 6,
+                      marginTop: 9,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      aria-pressed={slotDecision === "accepted"}
+                      onClick={() =>
+                        setDraftResponses((current) => ({
+                          ...current,
+                          [shift.key]: "accepted",
+                        }))
+                      }
+                      style={{
+                        flex: 1,
+                        padding: "7px 9px",
+                        borderRadius: 7,
+                        border: `1px solid ${
+                          slotDecision === "accepted" ? c.success : c.border
+                        }`,
+                        background:
+                          slotDecision === "accepted"
+                            ? c.success
+                            : "transparent",
+                        color:
+                          slotDecision === "accepted" ? "#ffffff" : c.text,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Accept
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={slotDecision === "declined"}
+                      onClick={() =>
+                        setDraftResponses((current) => ({
+                          ...current,
+                          [shift.key]: "declined",
+                        }))
+                      }
+                      style={{
+                        flex: 1,
+                        padding: "7px 9px",
+                        borderRadius: 7,
+                        border: `1px solid ${
+                          slotDecision === "declined" ? "#dc2626" : c.border
+                        }`,
+                        background:
+                          slotDecision === "declined"
+                            ? "#dc2626"
+                            : "transparent",
+                        color:
+                          slotDecision === "declined" ? "#ffffff" : c.text,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Decline
+                    </button>
+                  </div>
+                ) : null}
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : null}
@@ -1845,60 +2004,16 @@ function AssignmentCard({
           alignItems: "center",
         }}
       >
-        {decision === "pending" ? (
-          <>
-            <button
-              type="button"
-              onClick={onAccept}
-              style={{
-                padding: "10px 18px",
-                fontSize: 14,
-                fontWeight: 800,
-                background: c.accent,
-                color: "#0b0b0b",
-                border: "none",
-                borderRadius: 8,
-                cursor: "pointer",
-              }}
-            >
-              {conflicts.length > 0 ? t("portal.brief.actions.acceptAnyway") : t("portal.brief.actions.acceptGig")}
-            </button>
-            <button
-              type="button"
-              onClick={onDecline}
-              style={{
-                padding: "10px 16px",
-                fontSize: 14,
-                fontWeight: 600,
-                background: "transparent",
-                color: c.text,
-                border: `1px solid ${c.border}`,
-                borderRadius: 8,
-                cursor: "pointer",
-              }}
-            >
-              Decline
-            </button>
-          </>
-        ) : decision === "accepted" ? (
-          <>
-            <span
-              style={{
-                fontSize: 13,
-                fontWeight: 700,
-                color: c.success,
-              }}
-            >
-              ✓ Accepted — added to your logbook as a confirmed gig
-            </span>
-            {acceptedGigId ? (
+        {shiftSlots.length === 0 ? (
+          decision === "pending" ? (
+            <>
               <button
                 type="button"
-                onClick={onOpenGig}
+                onClick={onLegacyAccept}
                 style={{
-                  padding: "8px 14px",
-                  fontSize: 13,
-                  fontWeight: 700,
+                  padding: "10px 18px",
+                  fontSize: 14,
+                  fontWeight: 800,
                   background: c.accent,
                   color: "#0b0b0b",
                   border: "none",
@@ -1906,53 +2021,119 @@ function AssignmentCard({
                   cursor: "pointer",
                 }}
               >
-                Open in logbook
+                {conflicts.length > 0
+                  ? t("portal.brief.actions.acceptAnyway")
+                  : t("portal.brief.actions.acceptGig")}
               </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={onReset}
-              style={{
-                padding: "8px 12px",
-                fontSize: 12,
-                fontWeight: 600,
-                background: "transparent",
-                color: c.muted,
-                border: `1px solid ${c.border}`,
-                borderRadius: 8,
-                cursor: "pointer",
-              }}
-            >
-              Undo
-            </button>
-          </>
-        ) : decision === "declined" ? (
+              <button
+                type="button"
+                onClick={onLegacyDecline}
+                style={{
+                  padding: "10px 16px",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  background: "transparent",
+                  color: c.text,
+                  border: `1px solid ${c.border}`,
+                  borderRadius: 8,
+                  cursor: "pointer",
+                }}
+              >
+                Decline
+              </button>
+            </>
+          ) : decision === "too_late" ? (
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>
+              {t("portal.brief.actions.tooLate")}
+            </span>
+          ) : (
+            <>
+              <span style={{ fontSize: 13, fontWeight: 700, color: c.muted }}>
+                {decision === "accepted" ? "Accepted" : "Declined"}
+              </span>
+              {decision === "accepted" && acceptedGigId ? (
+                <button
+                  type="button"
+                  onClick={onOpenGig}
+                  style={{
+                    padding: "8px 14px",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    background: c.accent,
+                    color: "#0b0b0b",
+                    border: "none",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                  }}
+                >
+                  Open in logbook
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={onLegacyReset}
+                style={{
+                  padding: "8px 12px",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  background: "transparent",
+                  color: c.muted,
+                  border: `1px solid ${c.border}`,
+                  borderRadius: 8,
+                  cursor: "pointer",
+                }}
+              >
+                Undo
+              </button>
+            </>
+          )
+        ) : decision === "too_late" ? (
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>
+            {t("portal.brief.actions.tooLate")}
+          </span>
+        ) : (
           <>
             <span style={{ fontSize: 13, fontWeight: 700, color: c.muted }}>
-              Declined — let your producer know.
+              {responseComplete
+                ? `${acceptedCount} accepted · ${declinedCount} declined`
+                : `Choose Accept or Decline for all ${shiftSlots.length} shifts`}
             </span>
             <button
               type="button"
-              onClick={onReset}
+              disabled={!responseComplete}
+              onClick={() => onSubmitShiftResponses(draftResponses)}
               style={{
-                padding: "8px 12px",
-                fontSize: 12,
-                fontWeight: 600,
-                background: "transparent",
-                color: c.muted,
-                border: `1px solid ${c.border}`,
+                padding: "10px 18px",
+                fontSize: 14,
+                fontWeight: 800,
+                background: responseComplete ? c.accent : c.border,
+                color: responseComplete ? "#0b0b0b" : c.muted,
+                border: "none",
                 borderRadius: 8,
-                cursor: "pointer",
+                cursor: responseComplete ? "pointer" : "not-allowed",
               }}
             >
-              Undo
+              Submit response
             </button>
+            {decision === "accepted" && acceptedGigId ? (
+              <button
+                type="button"
+                onClick={onOpenGig}
+                style={{
+                  padding: "8px 14px",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  background: "transparent",
+                  color: c.text,
+                  border: `1px solid ${c.border}`,
+                  borderRadius: 8,
+                  cursor: "pointer",
+                }}
+              >
+                Open in logbook
+              </button>
+            ) : null}
           </>
-        ) : (
-          // too_late — first-to-accept-wins terminal state. We hide the
-          // accept/decline buttons entirely; the dedicated TooLateBanner
-          // higher up the page already explains what happened.
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>{t("portal.brief.actions.tooLate")}</span>
         )}
       </div>
     </section>

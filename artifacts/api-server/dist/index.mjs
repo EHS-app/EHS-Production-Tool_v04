@@ -74570,6 +74570,9 @@ var briefAssignmentsTable = pgTable(
     crewId: text("crew_id").notNull().default(""),
     /** "pending" until the freelancer accepts or declines. */
     decision: text("decision").notNull().default("pending"),
+    /** Per-shift freelancer response map. Keys are server-validated slot ids
+     * (`YYYY-MM-DD::phase::index`), values are `accepted` or `declined`. */
+    shiftResponses: jsonb("shift_responses").$type(),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     /** Snapshot of the brief at accept time — used by the Portal's
      *  "what changed since you accepted" diff banner. */
@@ -78850,6 +78853,48 @@ function gigFieldsFromBrief(brief, crewId) {
     assignedDates
   };
 }
+var SHIFT_SLOT_KEY = /^(\d{4}-\d{2}-\d{2})::(setup|rehearsal|show|downrig)$/;
+var SHIFT_SLOT_DATE = /^\d{4}-\d{2}-\d{2}$/;
+function responseSlotsForAssignment(brief, crewId) {
+  const data = brief.data && typeof brief.data === "object" && !Array.isArray(brief.data) ? brief.data : {};
+  const assignment = Array.isArray(data.assignments) ? data.assignments.find(
+    (value) => value && typeof value === "object" && !Array.isArray(value) && value.crewId === crewId
+  ) : void 0;
+  const slots = [];
+  const explicitKeys = /* @__PURE__ */ new Set();
+  const rawWindows = assignment?.assignedShiftWindows;
+  if (rawWindows && typeof rawWindows === "object" && !Array.isArray(rawWindows)) {
+    for (const [key2, raw] of Object.entries(rawWindows)) {
+      if (!SHIFT_SLOT_KEY.test(key2) || !Array.isArray(raw)) continue;
+      const validCount = raw.filter(
+        (window2) => window2 && typeof window2 === "object" && !Array.isArray(window2)
+      ).length;
+      if (!validCount) continue;
+      explicitKeys.add(key2);
+      for (let index2 = 0; index2 < validCount; index2++) slots.push(`${key2}::${index2}`);
+    }
+  }
+  const rawTimes = assignment?.assignedShiftTimes;
+  if (rawTimes && typeof rawTimes === "object" && !Array.isArray(rawTimes)) {
+    for (const [key2, raw] of Object.entries(rawTimes)) {
+      if (!explicitKeys.has(key2) && SHIFT_SLOT_KEY.test(key2) && raw && typeof raw === "object" && !Array.isArray(raw)) {
+        explicitKeys.add(key2);
+        slots.push(`${key2}::0`);
+      }
+    }
+  }
+  const rawPhases = assignment?.assignedShiftPhases;
+  if (Array.isArray(rawPhases)) {
+    for (const key2 of rawPhases) {
+      if (typeof key2 === "string" && SHIFT_SLOT_KEY.test(key2) && !explicitKeys.has(key2)) {
+        explicitKeys.add(key2);
+        slots.push(`${key2}::0`);
+      }
+    }
+  }
+  if (slots.length) return slots.sort();
+  return gigFieldsFromBrief(brief, crewId).assignedDates.filter((date7) => SHIFT_SLOT_DATE.test(date7)).map((date7) => `${date7}::day::0`).sort();
+}
 function readRecipients(data, topLevelRecipients) {
   const seen = /* @__PURE__ */ new Map();
   const push = (rawCrew, rawUid) => {
@@ -78886,6 +78931,7 @@ router7.get("/portal/briefs/mine", requireSignedIn5, async (req, res) => {
       briefId: briefAssignmentsTable.briefId,
       crewId: briefAssignmentsTable.crewId,
       decision: briefAssignmentsTable.decision,
+      shiftResponses: briefAssignmentsTable.shiftResponses,
       decidedAt: briefAssignmentsTable.decidedAt,
       acceptedSnapshot: briefAssignmentsTable.acceptedSnapshot,
       acceptedGigId: briefAssignmentsTable.acceptedGigId,
@@ -79140,6 +79186,7 @@ router7.get(
         freelancerUserId: briefAssignmentsTable.freelancerUserId,
         crewId: briefAssignmentsTable.crewId,
         decision: briefAssignmentsTable.decision,
+        shiftResponses: briefAssignmentsTable.shiftResponses,
         decidedAt: briefAssignmentsTable.decidedAt,
         acceptedGigId: briefAssignmentsTable.acceptedGigId,
         createdAt: briefAssignmentsTable.createdAt,
@@ -79162,8 +79209,16 @@ router7.post(
     const userId2 = req._userId;
     const briefId = String(req.params.id ?? "");
     const body = req.body ?? {};
-    const decision = typeof body.decision === "string" ? body.decision : "";
-    if (!VALID_DECISIONS.has(decision)) {
+    const requestedDecision = typeof body.decision === "string" ? body.decision : "";
+    const hasShiftResponses = body.shiftResponses !== void 0;
+    const submittedShiftResponses = body.shiftResponses;
+    if (hasShiftResponses && (!submittedShiftResponses || typeof submittedShiftResponses !== "object" || Array.isArray(submittedShiftResponses) || Object.values(submittedShiftResponses).some(
+      (value) => value !== "accepted" && value !== "declined"
+    ))) {
+      res.status(400).json({ ok: false, error: "Invalid shift responses." });
+      return;
+    }
+    if (!hasShiftResponses && !VALID_DECISIONS.has(requestedDecision)) {
       res.status(400).json({ ok: false, error: "Invalid decision." });
       return;
     }
@@ -79190,10 +79245,21 @@ router7.post(
         }).from(briefAssignmentsTable).where(eq(briefAssignmentsTable.briefId, briefId));
         const myRow = siblings.find((s2) => s2.freelancerUserId === userId2);
         if (!myRow) return { kind: "no_assignment" };
+        const shiftResponses = hasShiftResponses ? submittedShiftResponses : null;
+        const responseSlots = responseSlotsForAssignment(briefRow, myRow.crewId);
+        if (shiftResponses) {
+          const expected = new Set(responseSlots);
+          const actual = Object.keys(shiftResponses);
+          if (actual.length !== expected.size || actual.some((slot) => !expected.has(slot))) {
+            return { kind: "invalid_shift_responses" };
+          }
+        }
+        const decision = shiftResponses ? Object.values(shiftResponses).some((value) => value === "accepted") ? "accepted" : "declined" : requestedDecision;
         if (myRow.decision === "too_late") {
+          const updated2 = await tx.update(briefAssignmentsTable).set({ shiftResponses: null, updatedAt: sql`now()` }).where(eq(briefAssignmentsTable.id, myRow.id)).returning();
           return {
             kind: "ok",
-            assignment: myRow,
+            assignment: updated2[0] ?? myRow,
             tooLate: true
           };
         }
@@ -79203,6 +79269,7 @@ router7.post(
             await tx.update(briefAssignmentsTable).set({
               decision: "pending",
               decidedAt: sql`now()`,
+              shiftResponses: null,
               updatedAt: sql`now()`
             }).where(
               and(
@@ -79217,6 +79284,7 @@ router7.post(
             acceptedSnapshot: null,
             acceptedSnapshotTrusted: false,
             acceptedGigId: null,
+            ...shiftResponses ? { shiftResponses } : decision === "pending" ? { shiftResponses: null } : {},
             updatedAt: sql`now()`
           }).where(eq(briefAssignmentsTable.id, myRow.id)).returning();
           if (updated2.length === 0) return { kind: "no_assignment" };
@@ -79245,6 +79313,7 @@ router7.post(
             acceptedSnapshot: null,
             acceptedSnapshotTrusted: false,
             acceptedGigId: null,
+            shiftResponses: null,
             updatedAt: sql`now()`
           }).where(eq(briefAssignmentsTable.id, myRow.id)).returning();
           return {
@@ -79256,6 +79325,7 @@ router7.post(
         await tx.update(briefAssignmentsTable).set({
           decision: "too_late",
           decidedAt: sql`now()`,
+          shiftResponses: null,
           updatedAt: sql`now()`
         }).where(
           and(
@@ -79265,7 +79335,16 @@ router7.post(
             // in the `pending` state at this point.
           )
         );
-        const gigFields = gigFieldsFromBrief(briefRow, myRow.crewId);
+        const baseGigFields = gigFieldsFromBrief(briefRow, myRow.crewId);
+        const acceptedDates = Array.from(
+          new Set(
+            Object.entries(shiftResponses ?? {}).filter(([, value]) => value === "accepted").map(([slot]) => slot.slice(0, 10))
+          )
+        ).sort();
+        const gigFields = {
+          ...baseGigFields,
+          ...shiftResponses ? { assignedDates: acceptedDates } : {}
+        };
         const existingGig = await tx.select({ id: gigsTable.id, status: gigsTable.status }).from(gigsTable).where(
           and(
             eq(gigsTable.briefId, briefId),
@@ -79309,6 +79388,7 @@ router7.post(
           ),
           acceptedSnapshotTrusted: true,
           acceptedGigId: gigRow.id,
+          ...shiftResponses ? { shiftResponses } : {},
           updatedAt: sql`now()`
         }).where(eq(briefAssignmentsTable.id, myRow.id)).returning();
         return {
@@ -79324,6 +79404,13 @@ router7.post(
       }
       if (result.kind === "no_assignment") {
         res.status(404).json({ ok: false, error: "No assignment for this user." });
+        return;
+      }
+      if (result.kind === "invalid_shift_responses") {
+        res.status(400).json({
+          ok: false,
+          error: "Shift responses must cover every current assignment slot."
+        });
         return;
       }
       res.json({
@@ -80045,6 +80132,7 @@ router7.get(
         checkInDate: gigsTable.checkInDate,
         checkOutDate: gigsTable.checkOutDate,
         freelancerUserId: gigsTable.freelancerUserId,
+        shiftResponses: briefAssignmentsTable.shiftResponses,
         profileFullName: freelancerProfilesTable.fullName,
         profileDietary: freelancerProfilesTable.dietary,
         profileAllergies: freelancerProfilesTable.allergies,
@@ -80054,6 +80142,12 @@ router7.get(
       }).from(gigsTable).leftJoin(
         freelancerProfilesTable,
         eq(gigsTable.freelancerUserId, freelancerProfilesTable.userId)
+      ).leftJoin(
+        briefAssignmentsTable,
+        and(
+          eq(briefAssignmentsTable.briefId, gigsTable.briefId),
+          eq(briefAssignmentsTable.freelancerUserId, gigsTable.freelancerUserId)
+        )
       ).where(eq(gigsTable.briefId, id));
       const lockRows = await db.select({
         freelancerUserId: briefRoomAssignmentsTable.freelancerUserId,
@@ -80091,6 +80185,7 @@ router7.get(
           role: r.gigRole ?? "",
           status: r.status,
           assignedDates: dates,
+          shiftResponses: r.shiftResponses,
           hotelRequired: !!r.hotelRequired,
           hotelDates,
           callTime: timing.callTime,

@@ -222,11 +222,11 @@ export declare const projectBriefsTable: import("drizzle-orm/pg-core").PgTableWi
 }>;
 export declare const insertProjectBriefSchema: z.ZodObject<{
     id: z.ZodString;
+    ownerUserId: z.ZodString;
     data: z.ZodType<import("drizzle-zod").Json, unknown, z.core.$ZodTypeInternals<import("drizzle-zod").Json, unknown>>;
     venue: z.ZodOptional<z.ZodString>;
     client: z.ZodOptional<z.ZodString>;
     projectId: z.ZodOptional<z.ZodNullable<z.ZodUUID>>;
-    ownerUserId: z.ZodString;
     projectName: z.ZodOptional<z.ZodString>;
     startDate: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     endDate: z.ZodOptional<z.ZodNullable<z.ZodString>>;
@@ -332,6 +332,25 @@ export declare const briefAssignmentsTable: import("drizzle-orm/pg-core").PgTabl
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        shiftResponses: import("drizzle-orm/pg-core").PgColumn<{
+            name: "shift_responses";
+            tableName: "brief_assignments";
+            dataType: "json";
+            columnType: "PgJsonb";
+            data: Record<string, "accepted" | "declined">;
+            driverParam: unknown;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {
+            $type: Record<string, "accepted" | "declined">;
+        }>;
         decidedAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "decided_at";
             tableName: "brief_assignments";
@@ -443,6 +462,7 @@ export declare const insertBriefAssignmentSchema: z.ZodObject<{
     freelancerUserId: z.ZodString;
     crewId: z.ZodOptional<z.ZodString>;
     decision: z.ZodOptional<z.ZodString>;
+    shiftResponses: z.ZodOptional<z.ZodNullable<z.ZodType<Record<string, "accepted" | "declined">, Record<string, "accepted" | "declined">, z.core.$ZodTypeInternals<Record<string, "accepted" | "declined">, Record<string, "accepted" | "declined">>>>>;
     decidedAt: z.ZodOptional<z.ZodNullable<z.ZodDate>>;
     acceptedSnapshot: z.ZodOptional<z.ZodNullable<z.ZodType<import("drizzle-zod").Json, unknown, z.core.$ZodTypeInternals<import("drizzle-zod").Json, unknown>>>>;
     acceptedSnapshotTrusted: z.ZodOptional<z.ZodBoolean>;

@@ -32,6 +32,7 @@ export type CrewRole = (typeof CREW_ROLES)[number];
 export const CREW_REQUEST_STATUSES = [
   "requested",
   "accepted",
+  "partially_accepted",
   "declined",
   "no-reply",
   // First-to-accept-wins: when a sibling candidate accepts the same
@@ -50,6 +51,7 @@ export const CREW_REQUEST_STATUS_META: Record<
 > = {
   requested: { label: "Requested", tone: "warn" },
   accepted: { label: "Accepted", tone: "ok" },
+  partially_accepted: { label: "Partially accepted", tone: "warn" },
   declined: { label: "Declined", tone: "muted" },
   "no-reply": { label: "No reply", tone: "bad" },
   too_late: { label: "Too late", tone: "bad" },
@@ -105,6 +107,8 @@ export type CrewMember = {
   >;
   /** Producer-assigned task/focus labels keyed by `YYYY-MM-DD::phase`. */
   assignedShiftTasks?: Record<string, string[]>;
+  /** Freelancer responses for each date/phase/window slot. */
+  shiftResponses?: Record<string, "accepted" | "declined">;
   /** Contact phone copied from the freelancer's portal profile when
    *  the row was added via the Available Crew sidebar. Empty string
    *  for manual in-house rows. */
@@ -189,6 +193,20 @@ export function normalizeCrewMember(raw: unknown): CrewMember {
     briefAssignmentId:
       typeof r.briefAssignmentId === "string" && r.briefAssignmentId
         ? r.briefAssignmentId
+        : undefined,
+    shiftResponses:
+      r.shiftResponses &&
+      typeof r.shiftResponses === "object" &&
+      !Array.isArray(r.shiftResponses)
+        ? (Object.fromEntries(
+            Object.entries(r.shiftResponses as Record<string, unknown>).filter(
+              ([key, value]) =>
+                /^\d{4}-\d{2}-\d{2}::(?:setup|rehearsal|show|downrig|day)::\d+$/.test(
+                  key,
+                ) &&
+                (value === "accepted" || value === "declined"),
+            ),
+          ) as Record<string, "accepted" | "declined">)
         : undefined,
     hotelDates: Array.isArray(r.hotelDates)
       ? (r.hotelDates as unknown[])

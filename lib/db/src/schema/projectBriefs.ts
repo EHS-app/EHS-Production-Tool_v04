@@ -89,6 +89,11 @@ export const briefAssignmentsTable = pgTable(
     crewId: text("crew_id").notNull().default(""),
     /** "pending" until the freelancer accepts or declines. */
     decision: text("decision").notNull().default("pending"),
+    /** Per-shift freelancer response map. Keys are server-validated slot ids
+     * (`YYYY-MM-DD::phase::index`), values are `accepted` or `declined`. */
+    shiftResponses: jsonb("shift_responses").$type<
+      Record<string, "accepted" | "declined">
+    >(),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     /** Snapshot of the brief at accept time — used by the Portal's
      *  "what changed since you accepted" diff banner. */

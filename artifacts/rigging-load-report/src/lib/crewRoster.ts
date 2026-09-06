@@ -66,6 +66,8 @@ export type RosterGigStatus =
   | "invoiced"
   | "paid";
 
+export type ShiftResponseMap = Record<string, "accepted" | "declined">;
+
 /** A canonical roster row. `source` records where the data came from
  *  so the component can render slightly different affordances:
  *  gig-backed rows can be inline-edited (Slice 2), purely-local rows
@@ -85,7 +87,11 @@ export type RosterRow = {
   /** Combined status. For gig-backed rows: the gig's status. For
    *  local rows: the requestStatus pill state, or `'manual'` when
    *  the producer typed the row in by hand. */
-  status: RosterGigStatus | CrewRequestStatus | "manual";
+  status:
+    | RosterGigStatus
+    | CrewRequestStatus
+    | "partially_accepted"
+    | "manual";
   /** YYYY-MM-DD strings, sorted. Empty when the producer has not yet
    *  picked working days (which is the default for a fresh accept). */
   assignedDates: string[];
@@ -100,6 +106,7 @@ export type RosterRow = {
     Array<{ startTime: string; endTime: string }>
   >;
   assignedShiftTasks: Record<string, string[]>;
+  shiftResponses: ShiftResponseMap;
   /** True when the producer has flagged this person as needing a
    *  hotel for the run. Derived from `hotelDates.length > 0` for
    *  both gig and local rows. */
@@ -162,6 +169,7 @@ export type RosterGig = {
     Array<{ startTime: string; endTime: string }>
   >;
   assignedShiftTasks: Record<string, string[]>;
+  shiftResponses?: ShiftResponseMap | null;
   hotelRequired: boolean;
   hotelDates: string[];
   dietaryTags: DietaryTag[];
@@ -308,6 +316,16 @@ export function mergeRoster(
           ]),
         );
       }
+      existing.shiftResponses = {
+        ...existing.shiftResponses,
+        ...(g.shiftResponses ?? {}),
+      };
+      if (
+        Object.values(existing.shiftResponses).includes("accepted") &&
+        Object.values(existing.shiftResponses).includes("declined")
+      ) {
+        existing.status = "partially_accepted";
+      }
       // dietaryTags / allergens / phone / room come from the
       // freelancer profile + pairing engine (same person → same
       // data) so we don't bother merging; the first gig's copy is
@@ -331,7 +349,11 @@ export function mergeRoster(
       // so a freelancer the producer never re-categorised still has
       // a sensible label.
       role: matchedLocal?.role ?? g.role,
-      status: g.status,
+      status:
+        Object.values(g.shiftResponses ?? {}).includes("accepted") &&
+        Object.values(g.shiftResponses ?? {}).includes("declined")
+          ? "partially_accepted"
+          : g.status,
       assignedDates: g.assignedDates,
       callTime: g.callTime || matchedLocal?.callTime || "",
       offTime: g.offTime || matchedLocal?.offTime || "",
@@ -372,6 +394,7 @@ export function mergeRoster(
                 ([key, tasks]) => [key, [...tasks]],
               ),
             ),
+      shiftResponses: { ...(g.shiftResponses ?? {}) },
       hotelRequired: g.hotelRequired,
       hotelDates: g.hotelDates,
       dietaryTags: g.dietaryTags,
@@ -422,6 +445,7 @@ export function mergeRoster(
           [...tasks],
         ]),
       ),
+      shiftResponses: { ...(m.shiftResponses ?? {}) },
       // Local rows now carry a producer-set `needsHotel` flag so
       // in-house / manual people can be ticked for hotel without
       // having to go through the portal accept flow first. Now

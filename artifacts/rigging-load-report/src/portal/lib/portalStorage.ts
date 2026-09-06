@@ -74,6 +74,9 @@ export type BriefDecision =
   | "declined"
   | "too_late";
 
+export type ShiftDecision = "accepted" | "declined";
+export type ShiftResponseMap = Record<string, ShiftDecision>;
+
 /** Frozen "I've read this version" snapshot taken when the freelancer
  *  taps Accept (or Acknowledge changes). The portal compares the live
  *  brief against this to detect silent producer-side edits and surface
@@ -89,6 +92,9 @@ export type SharedBrief = {
   briefId: string;
   receivedAt: number;
   decision: BriefDecision;
+  /** Per-window response keyed by YYYY-MM-DD::phase::windowIndex.
+   *  Missing on legacy whole-project responses. */
+  shiftResponses?: ShiftResponseMap;
   /** Set when `decision === "accepted"` — the id of the Gig that was
    *  created from this brief, so the UI can link to the logbook entry
    *  and the user can spot duplicates without re-importing. */
@@ -358,6 +364,24 @@ const VALID_DECISIONS: BriefDecision[] = [
   "too_late",
 ];
 
+function normalizeShiftResponses(raw: unknown): ShiftResponseMap | undefined {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return undefined;
+  }
+  const out: ShiftResponseMap = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (
+      /^\d{4}-\d{2}-\d{2}::(?:setup|rehearsal|show|downrig|day)::\d+$/.test(
+        key,
+      ) &&
+      (value === "accepted" || value === "declined")
+    ) {
+      out[key] = value;
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 function normalizeAcceptedSnapshot(
   raw: unknown,
 ): AcceptedSnapshot | undefined {
@@ -399,6 +423,7 @@ function normalizeSharedBrief(raw: unknown): SharedBrief | null {
         ? b.receivedAt
         : Date.now(),
     decision,
+    shiftResponses: normalizeShiftResponses(b.shiftResponses),
     acceptedGigId:
       typeof b.acceptedGigId === "string" && b.acceptedGigId
         ? b.acceptedGigId

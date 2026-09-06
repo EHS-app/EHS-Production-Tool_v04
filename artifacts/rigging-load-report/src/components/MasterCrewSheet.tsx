@@ -359,10 +359,16 @@ export function MasterCrewSheet({
           row.assignedShiftWindows,
           row.assignedShiftTimes,
         );
-        const windows = Object.entries(shiftWindows)
+        const datedWindowEntries = Object.entries(shiftWindows)
           .filter(([key]) => key.startsWith(`${timelineDate}::`))
-          .flatMap(([, timings]) =>
-            timings.flatMap((timing) => {
+        const windows = datedWindowEntries
+          .flatMap(([key, timings]) =>
+            timings.flatMap((timing, windowIndex) => {
+              if (
+                row.shiftResponses[`${key}::${windowIndex}`] === "declined"
+              ) {
+                return [];
+              }
               const start = shiftMinutes(timing.startTime);
               const end = shiftMinutes(timing.endTime);
               return start == null || end == null
@@ -370,7 +376,11 @@ export function MasterCrewSheet({
                 : [{ ...timing, start, end }];
             }),
           );
-        if (windows.length === 0 && row.assignedDates.includes(timelineDate)) {
+        if (
+          datedWindowEntries.length === 0 &&
+          row.assignedDates.includes(timelineDate) &&
+          row.shiftResponses[`${timelineDate}::day::0`] !== "declined"
+        ) {
           const start = shiftMinutes(row.callTime);
           const end = shiftMinutes(row.offTime);
           if (start != null && end != null) {
@@ -1647,22 +1657,41 @@ function MasterRow({
               //    (mutates the CrewMember.assignedDates locally).
               const handler = onDayToggle ?? onLocalDayToggle;
               const interactive = !!handler;
+              const responseStatus = dayResponseStatus(row, c.date);
               const className = `roster-chip ${
                 c.on ? "roster-chip-on" : "roster-chip-off"
-              }${interactive ? " roster-chip-interactive" : ""}`;
+              }${interactive ? " roster-chip-interactive" : ""}${
+                responseStatus
+                  ? ` roster-chip-response-${responseStatus}`
+                  : ""
+              }`;
+              const responseLabel =
+                responseStatus === "accepted"
+                  ? "confirmed"
+                  : responseStatus === "declined"
+                    ? "declined"
+                    : responseStatus === "partial"
+                      ? "partially accepted"
+                      : responseStatus === "pending"
+                        ? "pending"
+                        : "";
               return interactive ? (
                 <button
                   key={c.date}
                   type="button"
                   className={className}
-                  title={`${c.date} — click to ${c.on ? "remove" : "add"}`}
+                  title={`${c.date}${responseLabel ? ` — ${responseLabel}` : ""} — click to ${c.on ? "remove" : "add"}`}
                   disabled={datesSaving}
                   onClick={() => handler!(c.date)}
                 >
                   {c.label}
                 </button>
               ) : (
-                <span key={c.date} className={className} title={c.date}>
+                <span
+                  key={c.date}
+                  className={className}
+                  title={`${c.date}${responseLabel ? ` — ${responseLabel}` : ""}`}
+                >
                   {c.label}
                 </span>
               );
@@ -2085,6 +2114,7 @@ function statusTone(s: RosterRow["status"]): "ok" | "warn" | "bad" | "muted" {
       return "ok";
     case "invited":
     case "requested":
+    case "partially_accepted":
       return "warn";
     case "no-reply":
     case "too_late":
@@ -2117,6 +2147,8 @@ function statusLabel(s: RosterRow["status"]): string {
       return "Requested";
     case "accepted":
       return "Accepted";
+    case "partially_accepted":
+      return "Partially accepted";
     case "declined":
       return "Declined";
     case "no-reply":
@@ -2128,4 +2160,36 @@ function statusLabel(s: RosterRow["status"]): string {
     default:
       return s;
   }
+}
+
+function dayResponseStatus(
+  row: RosterRow,
+  date: string,
+): "accepted" | "declined" | "partial" | "pending" | null {
+  const decisions = Object.entries(row.shiftResponses)
+    .filter(([key]) => key.startsWith(`${date}::`))
+    .map(([, value]) => value);
+  if (decisions.length > 0) {
+    const accepted = decisions.includes("accepted");
+    const declined = decisions.includes("declined");
+    if (accepted && declined) return "partial";
+    return accepted ? "accepted" : "declined";
+  }
+  if (
+    row.status === "requested" ||
+    row.status === "invited" ||
+    row.status === "no-reply"
+  ) {
+    return "pending";
+  }
+  if (row.status === "declined") return "declined";
+  if (
+    row.assignedDates.includes(date) &&
+    (row.source === "gig" ||
+      row.status === "accepted" ||
+      row.status === "confirmed")
+  ) {
+    return "accepted";
+  }
+  return null;
 }

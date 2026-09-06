@@ -406,6 +406,76 @@ function gigFieldsFromBrief(
   };
 }
 
+type ShiftResponse = "accepted" | "declined";
+type ShiftResponses = Record<string, ShiftResponse>;
+const SHIFT_SLOT_KEY = /^(\d{4}-\d{2}-\d{2})::(setup|rehearsal|show|downrig)$/;
+const SHIFT_SLOT_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Build the current, producer-authored response slots for one assignment.
+ * Explicit split windows take precedence over a phase's single timing entry;
+ * old briefs with neither retain one day slot for each normal assigned date. */
+function responseSlotsForAssignment(
+  brief: Parameters<typeof gigFieldsFromBrief>[0],
+  crewId: string,
+): string[] {
+  const data =
+    brief.data && typeof brief.data === "object" && !Array.isArray(brief.data)
+      ? (brief.data as Record<string, unknown>)
+      : {};
+  const assignment = Array.isArray(data.assignments)
+    ? data.assignments.find(
+        (value) =>
+          value &&
+          typeof value === "object" &&
+          !Array.isArray(value) &&
+          (value as Record<string, unknown>).crewId === crewId,
+      ) as Record<string, unknown> | undefined
+    : undefined;
+  const slots: string[] = [];
+  const explicitKeys = new Set<string>();
+  const rawWindows = assignment?.assignedShiftWindows;
+  if (rawWindows && typeof rawWindows === "object" && !Array.isArray(rawWindows)) {
+    for (const [key, raw] of Object.entries(rawWindows as Record<string, unknown>)) {
+      if (!SHIFT_SLOT_KEY.test(key) || !Array.isArray(raw)) continue;
+      const validCount = raw.filter(
+        (window) => window && typeof window === "object" && !Array.isArray(window),
+      ).length;
+      if (!validCount) continue;
+      explicitKeys.add(key);
+      for (let index = 0; index < validCount; index++) slots.push(`${key}::${index}`);
+    }
+  }
+  const rawTimes = assignment?.assignedShiftTimes;
+  if (rawTimes && typeof rawTimes === "object" && !Array.isArray(rawTimes)) {
+    for (const [key, raw] of Object.entries(rawTimes as Record<string, unknown>)) {
+      if (
+        !explicitKeys.has(key) &&
+        SHIFT_SLOT_KEY.test(key) &&
+        raw &&
+        typeof raw === "object" &&
+        !Array.isArray(raw)
+      ) {
+        explicitKeys.add(key);
+        slots.push(`${key}::0`);
+      }
+    }
+  }
+  const rawPhases = assignment?.assignedShiftPhases;
+  if (Array.isArray(rawPhases)) {
+    for (const key of rawPhases) {
+      if (typeof key === "string" && SHIFT_SLOT_KEY.test(key) && !explicitKeys.has(key)) {
+        explicitKeys.add(key);
+        slots.push(`${key}::0`);
+      }
+    }
+  }
+  if (slots.length) return slots.sort();
+  return gigFieldsFromBrief(brief, crewId).assignedDates
+    .filter((date) => SHIFT_SLOT_DATE.test(date))
+    .map((date) => `${date}::day::0`)
+    .sort();
+}
+
 /** Read the recipient list for a brief. Sources, in priority order:
  *
  *  1. The top-level `recipients` array on the POST body — the
@@ -462,6 +532,7 @@ router.get("/portal/briefs/mine", requireSignedIn, async (req, res) => {
         briefId: briefAssignmentsTable.briefId,
         crewId: briefAssignmentsTable.crewId,
         decision: briefAssignmentsTable.decision,
+        shiftResponses: briefAssignmentsTable.shiftResponses,
         decidedAt: briefAssignmentsTable.decidedAt,
         acceptedSnapshot: briefAssignmentsTable.acceptedSnapshot,
         acceptedGigId: briefAssignmentsTable.acceptedGigId,
@@ -825,6 +896,7 @@ router.get(
           freelancerUserId: briefAssignmentsTable.freelancerUserId,
           crewId: briefAssignmentsTable.crewId,
           decision: briefAssignmentsTable.decision,
+          shiftResponses: briefAssignmentsTable.shiftResponses,
           decidedAt: briefAssignmentsTable.decidedAt,
           acceptedGigId: briefAssignmentsTable.acceptedGigId,
           createdAt: briefAssignmentsTable.createdAt,
@@ -846,7 +918,7 @@ router.get(
   },
 );
 
-/** POST /api/portal/briefs/:id/respond  body: { decision }
+/** POST /api/portal/briefs/:id/respond  body: { decision?, shiftResponses? }
  *  Freelancer-only. Records accept/decline. On acceptance, the server
  *  creates the frozen snapshot and canonical gig from the locked brief.
  *
@@ -876,10 +948,25 @@ router.post(
     const briefId = String(req.params.id ?? "");
     const body = (req.body ?? {}) as {
       decision?: unknown;
+      shiftResponses?: unknown;
     };
-    const decision =
+    const requestedDecision =
       typeof body.decision === "string" ? body.decision : "";
-    if (!VALID_DECISIONS.has(decision)) {
+    const hasShiftResponses = body.shiftResponses !== undefined;
+    const submittedShiftResponses = body.shiftResponses;
+    if (
+      hasShiftResponses &&
+      (!submittedShiftResponses ||
+        typeof submittedShiftResponses !== "object" ||
+        Array.isArray(submittedShiftResponses) ||
+        Object.values(submittedShiftResponses as Record<string, unknown>).some(
+          (value) => value !== "accepted" && value !== "declined",
+        ))
+    ) {
+      res.status(400).json({ ok: false, error: "Invalid shift responses." });
+      return;
+    }
+    if (!hasShiftResponses && !VALID_DECISIONS.has(requestedDecision)) {
       res.status(400).json({ ok: false, error: "Invalid decision." });
       return;
     }
@@ -925,6 +1012,22 @@ router.post(
           .where(eq(briefAssignmentsTable.briefId, briefId));
         const myRow = siblings.find((s) => s.freelancerUserId === userId);
         if (!myRow) return { kind: "no_assignment" as const };
+        const shiftResponses = hasShiftResponses
+          ? submittedShiftResponses as ShiftResponses
+          : null;
+        const responseSlots = responseSlotsForAssignment(briefRow, myRow.crewId);
+        if (shiftResponses) {
+          const expected = new Set(responseSlots);
+          const actual = Object.keys(shiftResponses);
+          if (actual.length !== expected.size || actual.some((slot) => !expected.has(slot))) {
+            return { kind: "invalid_shift_responses" as const };
+          }
+        }
+        const decision = shiftResponses
+          ? Object.values(shiftResponses).some((value) => value === "accepted")
+            ? "accepted"
+            : "declined"
+          : requestedDecision;
         // `too_late` is terminal from the freelancer's perspective —
         // the producer (or a future "reopen slot" feature) is the only
         // legitimate way out of it. Reject any client-driven attempt
@@ -933,9 +1036,14 @@ router.post(
         // existing client UI keeps showing the "Position filled"
         // banner instead of flickering.
         if (myRow.decision === "too_late") {
+          const updated = await tx
+            .update(briefAssignmentsTable)
+            .set({ shiftResponses: null, updatedAt: sql`now()` })
+            .where(eq(briefAssignmentsTable.id, myRow.id))
+            .returning();
           return {
             kind: "ok" as const,
-            assignment: myRow,
+            assignment: updated[0] ?? myRow,
             tooLate: true,
           };
         }
@@ -954,6 +1062,7 @@ router.post(
               .set({
                 decision: "pending",
                 decidedAt: sql`now()`,
+                shiftResponses: null,
                 updatedAt: sql`now()`,
               })
               .where(
@@ -971,6 +1080,9 @@ router.post(
               acceptedSnapshot: null,
               acceptedSnapshotTrusted: false,
               acceptedGigId: null,
+              ...(shiftResponses
+                ? { shiftResponses }
+                : decision === "pending" ? { shiftResponses: null } : {}),
               updatedAt: sql`now()`,
             })
             .where(eq(briefAssignmentsTable.id, myRow.id))
@@ -1017,6 +1129,7 @@ router.post(
               acceptedSnapshot: null,
               acceptedSnapshotTrusted: false,
               acceptedGigId: null,
+              shiftResponses: null,
               updatedAt: sql`now()`,
             })
             .where(eq(briefAssignmentsTable.id, myRow.id))
@@ -1038,6 +1151,7 @@ router.post(
           .set({
             decision: "too_late",
             decidedAt: sql`now()`,
+            shiftResponses: null,
             updatedAt: sql`now()`,
           })
           .where(
@@ -1059,7 +1173,18 @@ router.post(
         // brief row earlier in this transaction serialises every
         // accept attempt for the same (brief, freelancer) pair, so
         // the SELECT-then-INSERT/UPDATE pattern below cannot race.
-        const gigFields = gigFieldsFromBrief(briefRow, myRow.crewId);
+        const baseGigFields = gigFieldsFromBrief(briefRow, myRow.crewId);
+        const acceptedDates = Array.from(
+          new Set(
+            Object.entries(shiftResponses ?? {})
+              .filter(([, value]) => value === "accepted")
+              .map(([slot]) => slot.slice(0, 10)),
+          ),
+        ).sort();
+        const gigFields = {
+          ...baseGigFields,
+          ...(shiftResponses ? { assignedDates: acceptedDates } : {}),
+        };
         const existingGig = await tx
           .select({ id: gigsTable.id, status: gigsTable.status })
           .from(gigsTable)
@@ -1135,6 +1260,7 @@ router.post(
             ),
             acceptedSnapshotTrusted: true,
             acceptedGigId: gigRow.id,
+            ...(shiftResponses ? { shiftResponses } : {}),
             updatedAt: sql`now()`,
           })
           .where(eq(briefAssignmentsTable.id, myRow.id))
@@ -1154,6 +1280,13 @@ router.post(
         res
           .status(404)
           .json({ ok: false, error: "No assignment for this user." });
+        return;
+      }
+      if (result.kind === "invalid_shift_responses") {
+        res.status(400).json({
+          ok: false,
+          error: "Shift responses must cover every current assignment slot.",
+        });
         return;
       }
       res.json({
@@ -2414,6 +2547,7 @@ router.get(
           checkInDate: gigsTable.checkInDate,
           checkOutDate: gigsTable.checkOutDate,
           freelancerUserId: gigsTable.freelancerUserId,
+          shiftResponses: briefAssignmentsTable.shiftResponses,
           profileFullName: freelancerProfilesTable.fullName,
           profileDietary: freelancerProfilesTable.dietary,
           profileAllergies: freelancerProfilesTable.allergies,
@@ -2425,6 +2559,13 @@ router.get(
         .leftJoin(
           freelancerProfilesTable,
           eq(gigsTable.freelancerUserId, freelancerProfilesTable.userId),
+        )
+        .leftJoin(
+          briefAssignmentsTable,
+          and(
+            eq(briefAssignmentsTable.briefId, gigsTable.briefId),
+            eq(briefAssignmentsTable.freelancerUserId, gigsTable.freelancerUserId),
+          ),
         )
         .where(eq(gigsTable.briefId, id));
 
@@ -2502,6 +2643,7 @@ router.get(
             role: r.gigRole ?? "",
             status: r.status,
             assignedDates: dates,
+            shiftResponses: r.shiftResponses,
             hotelRequired: !!r.hotelRequired,
             hotelDates,
             callTime: timing.callTime,

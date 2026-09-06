@@ -7379,6 +7379,30 @@ textarea:focus {
   color: #64748b;
   border-color: rgba(100, 116, 139, 0.20);
 }
+.roster-chip-response-accepted {
+  background: rgba(22, 163, 74, 0.16);
+  color: #15803d;
+  border-color: rgba(22, 163, 74, 0.48);
+}
+.roster-chip-response-declined {
+  background: rgba(220, 38, 38, 0.13);
+  color: #b91c1c;
+  border-color: rgba(220, 38, 38, 0.42);
+}
+.roster-chip-response-pending {
+  background: rgba(100, 116, 139, 0.12);
+  color: #64748b;
+  border-color: rgba(100, 116, 139, 0.32);
+}
+.roster-chip-response-partial {
+  background: linear-gradient(
+    135deg,
+    rgba(22, 163, 74, 0.18) 0 50%,
+    rgba(220, 38, 38, 0.15) 50% 100%
+  );
+  color: var(--text-main, #0f172a);
+  border-color: rgba(180, 83, 9, 0.45);
+}
 .roster-chip-count {
   margin-left: 4px;
   font-size: 11px;

@@ -345,6 +345,7 @@ type ServerBriefRow = {
   briefId: string;
   crewId: string | null;
   decision: BriefDecision;
+  shiftResponses: unknown;
   decidedAt: string | null;
   acceptedSnapshot: unknown;
   acceptedGigId: string | null;
@@ -379,6 +380,20 @@ function serverRowToSharedBrief(row: ServerBriefRow): SharedBrief | null {
     briefId: row.briefId,
     receivedAt,
     decision: row.decision,
+    shiftResponses:
+      row.shiftResponses &&
+      typeof row.shiftResponses === "object" &&
+      !Array.isArray(row.shiftResponses)
+        ? (Object.fromEntries(
+            Object.entries(row.shiftResponses as Record<string, unknown>).filter(
+              ([key, value]) =>
+                /^\d{4}-\d{2}-\d{2}::(?:setup|rehearsal|show|downrig|day)::\d+$/.test(
+                  key,
+                ) &&
+                (value === "accepted" || value === "declined"),
+            ),
+          ) as SharedBrief["shiftResponses"])
+        : undefined,
     acceptedGigId: row.acceptedGigId ?? undefined,
     acceptedSnapshot:
       row.acceptedSnapshot && typeof row.acceptedSnapshot === "object"
@@ -697,6 +712,9 @@ function mergeServerBriefs(
       decidedLocallyAt: local.decidedLocallyAt,
     };
     const fresh = isFresh(local.decidedLocallyAt);
+    if (fresh) {
+      merged.shiftResponses = local.shiftResponses;
+    }
     if (fresh && local.decision !== s.decision) {
       // Within the freshness window the local decision wins. We also
       // keep the locally-staged acceptedGigId / acceptedSnapshot so

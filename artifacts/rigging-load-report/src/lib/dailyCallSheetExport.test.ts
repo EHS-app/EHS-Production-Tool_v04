@@ -53,6 +53,12 @@ test("daily call sheet excludes declined windows and their phase tasks", () => {
   assert.doesNotMatch(html, /Declined task must not print/);
   assert.match(html, /&lt;Project&gt;/);
   assert.match(html, /Alex &amp; Co/);
+  assert.match(html, /class="logo" src="\/logo\.png"/);
+  assert.match(html, /@page\{size:A4 landscape;margin:10mm\}/);
+  assert.match(html, /grid-template-columns:repeat\(7,1fr\)/);
+  assert.match(html, /<span>00<\/span><span>04<\/span><span>08<\/span><span>12<\/span><span>16<\/span><span>20<\/span><span>24<\/span>/);
+  assert.match(html, /<footer class="contacts-footer">/);
+  assert.doesNotMatch(html, />\s*\|\s*</);
 });
 
 test("daily call sheet excludes pending and declined crew rows", () => {
@@ -61,5 +67,6 @@ test("daily call sheet excludes pending and declined crew rows", () => {
     rows: [row({ status: "requested" }), row({ id: "gig-2", status: "declined" })],
   });
   assert.match(html, /No confirmed, accepted, or partially accepted crew/);
+  assert.match(html, /<td colspan="7" class="empty">/);
   assert.doesNotMatch(html, /Alex &amp; Co/);
 });

@@ -18,8 +18,13 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
 const A4_PORTRAIT_PX = 794; // ≈ 210 mm at 96 dpi
+const A4_LANDSCAPE_PX = 1123; // ≈ 297 mm at 96 dpi
 
 export type Orientation = "portrait" | "landscape";
+export type HtmlToPdfOptions = {
+  orientation?: Orientation;
+  singlePage?: boolean;
+};
 
 /** Render an HTML document string to a multi-page A4 PDF and return it
  *  as a Blob. Use this when you want to attach the PDF to something
@@ -27,7 +32,7 @@ export type Orientation = "portrait" | "landscape";
  *  See `downloadHtmlAsPdf` for the download variant. */
 export async function htmlToPdfBlob(
   html: string,
-  options: { orientation?: Orientation } = {},
+  options: HtmlToPdfOptions = {},
 ): Promise<Blob> {
   const pdf = await renderHtmlToJsPdf(html, options);
   // jsPDF's `output("blob")` returns a Blob synchronously.
@@ -37,7 +42,7 @@ export async function htmlToPdfBlob(
 export async function downloadHtmlAsPdf(
   html: string,
   filename: string,
-  options: { orientation?: Orientation } = {},
+  options: HtmlToPdfOptions = {},
 ): Promise<void> {
   const pdf = await renderHtmlToJsPdf(html, options);
   pdf.save(filename);
@@ -45,16 +50,17 @@ export async function downloadHtmlAsPdf(
 
 async function renderHtmlToJsPdf(
   html: string,
-  options: { orientation?: Orientation },
+  options: HtmlToPdfOptions,
 ): Promise<jsPDF> {
   const orientation = options.orientation ?? "portrait";
+  const renderWidth = orientation === "landscape" ? A4_LANDSCAPE_PX : A4_PORTRAIT_PX;
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.cssText = [
     "position:fixed",
     "left:-10000px",
     "top:0",
-    `width:${A4_PORTRAIT_PX}px`,
+    `width:${renderWidth}px`,
     "height:auto",
     "border:0",
     "pointer-events:none",
@@ -79,6 +85,15 @@ async function renderHtmlToJsPdf(
       }
       iframe.addEventListener("load", () => resolve(), { once: true });
     });
+    await Promise.all(
+      Array.from(doc.images).map((image) => {
+        if (image.complete) return Promise.resolve();
+        return new Promise<void>((resolve) => {
+          image.addEventListener("load", () => resolve(), { once: true });
+          image.addEventListener("error", () => resolve(), { once: true });
+        });
+      }),
+    );
     const fonts = (doc as Document & { fonts?: { ready: Promise<unknown> } })
       .fonts;
     if (fonts?.ready) {
@@ -109,7 +124,7 @@ async function renderHtmlToJsPdf(
       scale: 2,
       useCORS: true,
       logging: false,
-      windowWidth: A4_PORTRAIT_PX,
+      windowWidth: renderWidth,
       windowHeight: renderHeight,
     });
 
@@ -120,17 +135,24 @@ async function renderHtmlToJsPdf(
     });
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
-    const imgW = pageW;
-    const imgH = (canvas.height * imgW) / canvas.width;
+    let imgW = pageW;
+    let imgH = (canvas.height * imgW) / canvas.width;
+    if (options.singlePage && imgH > pageH) {
+      const scale = pageH / imgH;
+      imgW *= scale;
+      imgH = pageH;
+    }
+    const x = (pageW - imgW) / 2;
 
     const imgData = canvas.toDataURL("image/png");
     let position = 0;
-    pdf.addImage(imgData, "PNG", 0, position, imgW, imgH);
+    pdf.addImage(imgData, "PNG", x, position, imgW, imgH);
+    if (options.singlePage) return pdf;
     let remaining = imgH - pageH;
-    while (remaining > 0) {
+    while (remaining > 0.1) {
       position -= pageH;
       pdf.addPage();
-      pdf.addImage(imgData, "PNG", 0, position, imgW, imgH);
+      pdf.addImage(imgData, "PNG", x, position, imgW, imgH);
       remaining -= pageH;
     }
 

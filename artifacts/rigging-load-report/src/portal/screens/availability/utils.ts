@@ -66,7 +66,7 @@ export function overlapsLocalDay(
 
 /** Immutably replace one half-open range while preserving every portion of
  * existing availability outside it. Used for optimistic portal state so a
- * one-day override cannot discard a month-wide entry. */
+ * day or multi-day override cannot discard a month-wide entry. */
 export function replaceAvailabilityEntriesInRange(
   entries: readonly CalendarEntry[],
   rangeStart: string,

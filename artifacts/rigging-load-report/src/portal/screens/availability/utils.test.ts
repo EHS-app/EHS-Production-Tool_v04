@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { CalendarEntry } from "./types";
-import { replaceAvailabilityEntriesInRange } from "./utils";
+import {
+  overlapsLocalDay,
+  replaceAvailabilityEntriesInRange,
+} from "./utils";
 
 describe("availability state range replacement", () => {
   it("preserves the rest of an available month when one day becomes busy", () => {
@@ -72,5 +75,64 @@ describe("availability state range replacement", () => {
 
     assert.equal(result.length, 2);
     assert.ok(result.every((entry) => entry.status === "available"));
+  });
+
+  it("keeps available prefix and suffix around a mid-month busy range", () => {
+    const busyRange: CalendarEntry = {
+      id: "busy-15-through-17",
+      status: "unavailable",
+      startAt: "2026-09-15T00:00:00.000Z",
+      endAt: "2026-09-18T00:00:00.000Z",
+      allDay: true,
+    };
+    const result = replaceAvailabilityEntriesInRange(
+      [
+        {
+          id: "september-available",
+          status: "available",
+          startAt: "2026-09-01T00:00:00.000Z",
+          endAt: "2026-10-01T00:00:00.000Z",
+          allDay: true,
+        },
+      ],
+      busyRange.startAt,
+      busyRange.endAt,
+      [busyRange],
+    );
+
+    assert.deepEqual(
+      result.map(({ status, startAt, endAt }) => [
+        status,
+        startAt,
+        endAt,
+      ]),
+      [
+        [
+          "available",
+          "2026-09-01T00:00:00.000Z",
+          "2026-09-15T00:00:00.000Z",
+        ],
+        [
+          "unavailable",
+          "2026-09-15T00:00:00.000Z",
+          "2026-09-18T00:00:00.000Z",
+        ],
+        [
+          "available",
+          "2026-09-18T00:00:00.000Z",
+          "2026-10-01T00:00:00.000Z",
+        ],
+      ],
+    );
+
+    const statusForDay = (day: string) =>
+      result.find((entry) =>
+        overlapsLocalDay(entry.startAt, entry.endAt, day),
+      )?.status;
+    assert.equal(statusForDay("2026-09-14"), "available");
+    assert.equal(statusForDay("2026-09-15"), "unavailable");
+    assert.equal(statusForDay("2026-09-17"), "unavailable");
+    assert.equal(statusForDay("2026-09-18"), "available");
+    assert.equal(statusForDay("2026-09-30"), "available");
   });
 });

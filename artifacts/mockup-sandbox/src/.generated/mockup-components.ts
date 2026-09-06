@@ -18,6 +18,6 @@ export const modules: ModuleMap = {
   "./components/mockups/redesign-c-workshop/FreelancePortal.tsx": () => import("../components/mockups/redesign-c-workshop/FreelancePortal.tsx"),
   "./components/mockups/redesign-c-workshop/ProductionTool.tsx": () => import("../components/mockups/redesign-c-workshop/ProductionTool.tsx"),
   "./components/mockups/redesign-d-festival/CrewLogistics.tsx": () => import("../components/mockups/redesign-d-festival/CrewLogistics.tsx"),
-  "./components/mockups/redesign-f-wayfinding/CrewLogistics.tsx": () => import("../components/mockups/redesign-f-wayfinding/CrewLogistics.tsx"),
-  "./components/mockups/redesign-e-nativeos/CrewLogistics.tsx": () => import("../components/mockups/redesign-e-nativeos/CrewLogistics.tsx")
+  "./components/mockups/redesign-e-nativeos/CrewLogistics.tsx": () => import("../components/mockups/redesign-e-nativeos/CrewLogistics.tsx"),
+  "./components/mockups/redesign-f-wayfinding/CrewLogistics.tsx": () => import("../components/mockups/redesign-f-wayfinding/CrewLogistics.tsx")
 };

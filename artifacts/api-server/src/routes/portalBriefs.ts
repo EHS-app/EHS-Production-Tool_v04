@@ -36,6 +36,7 @@ import {
   completeBriefDispatches,
   deriveLegacyProjectStatus,
   effectiveBriefProjectId,
+  summarizeBriefDelivery,
   synchronizeBriefAssignments,
 } from "../lib/projectLifecycle";
 import {
@@ -889,11 +890,7 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
       res.json({
         ok: true,
         brief: result.brief,
-        delivery: {
-          sent: delivery.sent,
-          skipped: delivery.skipped + result.dispatch.skipped,
-          alreadySent: result.dispatch.alreadySent,
-        },
+        delivery: summarizeBriefDelivery(result.dispatch, delivery),
       });
       return;
     }

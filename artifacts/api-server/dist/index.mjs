@@ -78114,10 +78114,22 @@ async function lookupProducerName(userId2) {
     return "produsent";
   }
 }
+var defaultDependencies = {
+  lookupProducerName,
+  loadProfiles: async (userIds) => db.select({
+    userId: freelancerProfilesTable.userId,
+    email: freelancerProfilesTable.email,
+    fullName: freelancerProfilesTable.fullName
+  }).from(freelancerProfilesTable).where(inArray(freelancerProfilesTable.userId, userIds)),
+  send: sendGmail
+};
 function formatDateRange(startDate, endDate) {
   if (!startDate) return "";
   if (!endDate || endDate === startDate) return startDate;
   return `${startDate} \u2013 ${endDate}`;
+}
+function isValidBriefRecipientEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 function buildBody(args) {
   const greeting = args.recipientName ? `Hei ${args.recipientName},` : "Hei,";
@@ -78145,25 +78157,20 @@ function buildBody(args) {
   ];
   return lines.join("\n");
 }
-async function dispatchBriefRequestEmails(args) {
-  if (args.newRecipientUserIds.length === 0) return { sent: 0, skipped: 0, outcomes: [] };
+async function dispatchBriefRequestEmails(args, dependencies = defaultDependencies) {
+  const recipientUserIds = [...new Set(args.newRecipientUserIds)];
+  if (recipientUserIds.length === 0) return { sent: 0, skipped: 0, outcomes: [] };
   try {
     const link = buildPortalBriefUrl(args.briefId);
-    const producerName = await lookupProducerName(args.ownerUserId);
+    const producerName = await dependencies.lookupProducerName(args.ownerUserId);
     const subject = `Ny foresp\xF8rsel fra ${producerName}`;
     const dateRange = formatDateRange(args.startDate, args.endDate);
-    const profiles = await db.select({
-      userId: freelancerProfilesTable.userId,
-      email: freelancerProfilesTable.email,
-      fullName: freelancerProfilesTable.fullName
-    }).from(freelancerProfilesTable).where(
-      inArray(freelancerProfilesTable.userId, args.newRecipientUserIds)
-    );
+    const profiles = await dependencies.loadProfiles(recipientUserIds);
     const profileIds = new Set(profiles.map((p) => p.userId));
     let sent = 0;
-    let skipped = args.newRecipientUserIds.length - profileIds.size;
+    let skipped = recipientUserIds.length - profileIds.size;
     const outcomes = [];
-    for (const uid2 of args.newRecipientUserIds) {
+    for (const uid2 of recipientUserIds) {
       if (!profileIds.has(uid2)) {
         outcomes.push({ freelancerUserId: uid2, sent: false });
         logger.info(
@@ -78174,12 +78181,12 @@ async function dispatchBriefRequestEmails(args) {
     }
     for (const p of profiles) {
       const to = (p.email ?? "").trim();
-      if (!to) {
+      if (!isValidBriefRecipientEmail(to)) {
         skipped += 1;
         outcomes.push({ freelancerUserId: p.userId, sent: false });
         logger.info(
           { briefId: args.briefId, freelancerUserId: p.userId },
-          "brief email skipped: no email on freelancer profile"
+          "brief email skipped: missing or invalid freelancer email"
         );
         continue;
       }
@@ -78194,7 +78201,7 @@ async function dispatchBriefRequestEmails(args) {
         projectBrief: args.projectBrief ?? "",
         link
       });
-      const result = await sendGmail({
+      const result = await dependencies.send({
         to,
         toName: recipientName || void 0,
         subject,
@@ -78233,7 +78240,7 @@ async function dispatchBriefRequestEmails(args) {
       },
       "dispatchBriefRequestEmails failed"
     );
-    return { sent: 0, skipped: args.newRecipientUserIds.length, outcomes: args.newRecipientUserIds.map((freelancerUserId) => ({ freelancerUserId, sent: false })) };
+    return { sent: 0, skipped: recipientUserIds.length, outcomes: recipientUserIds.map((freelancerUserId) => ({ freelancerUserId, sent: false })) };
   }
 }
 
@@ -78554,6 +78561,13 @@ function recipientsFromBriefData(data) {
     if (!recipients.has(key2)) recipients.set(key2, { freelancerUserId: row.freelancerUserId, crewId });
   }
   return [...recipients.values()];
+}
+function summarizeBriefDelivery(dispatch, delivery) {
+  return {
+    sent: delivery.sent,
+    skipped: delivery.skipped + dispatch.skipped,
+    alreadySent: dispatch.alreadySent
+  };
 }
 async function synchronizeBriefAssignments(tx, briefId, recipients) {
   const newRecipientUserIds = [];
@@ -79180,11 +79194,7 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
       res.json({
         ok: true,
         brief: result.brief,
-        delivery: {
-          sent: delivery.sent,
-          skipped: delivery.skipped + result.dispatch.skipped,
-          alreadySent: result.dispatch.alreadySent
-        }
+        delivery: summarizeBriefDelivery(result.dispatch, delivery)
       });
       return;
     }

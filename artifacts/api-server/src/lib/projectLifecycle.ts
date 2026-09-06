@@ -123,6 +123,17 @@ export interface DispatchGateSummary {
   skipped: number;
 }
 
+export function summarizeBriefDelivery(
+  dispatch: Pick<DispatchGateSummary, "alreadySent" | "skipped">,
+  delivery: { sent: number; skipped: number },
+): { sent: number; skipped: number; alreadySent: number } {
+  return {
+    sent: delivery.sent,
+    skipped: delivery.skipped + dispatch.skipped,
+    alreadySent: dispatch.alreadySent,
+  };
+}
+
 export async function synchronizeBriefAssignments(
   tx: Transaction,
   briefId: string,

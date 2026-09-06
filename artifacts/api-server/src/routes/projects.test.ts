@@ -12,6 +12,7 @@ import {
   isProjectStatus,
   isTerminalProjectStatus,
   recipientsFromBriefData,
+  summarizeBriefDelivery,
 } from "../lib/projectLifecycle";
 import { isProjectArchived as isArchivedProjectRecord } from "../lib/projectAccess";
 
@@ -86,7 +87,10 @@ describe("project lifecycle", () => {
           { crewId: "crew-4" },
         ],
       }),
-      [{ crewId: "crew-1", freelancerUserId: "user-1" }],
+      [
+        { crewId: "crew-1", freelancerUserId: "user-1" },
+        { crewId: "crew-2", freelancerUserId: "user-1" },
+      ],
     );
   });
 
@@ -98,6 +102,23 @@ describe("project lifecycle", () => {
     assert.equal(isDispatchClaimable("failed", true), true);
     assert.equal(isDispatchClaimable("dispatching", false), false);
     assert.equal(isDispatchClaimable("dispatching", true), false);
+  });
+
+  it("blocks rapid duplicate and in-flight delivery claims", () => {
+    assert.equal(isDispatchClaimable("pending"), true);
+    assert.equal(isDispatchClaimable("dispatching"), false);
+    assert.equal(isDispatchClaimable("dispatching", true), false);
+    assert.equal(isDispatchClaimable("sent"), false);
+  });
+
+  it("reports exact delivery and skipped totals to the UI", () => {
+    assert.deepEqual(
+      summarizeBriefDelivery(
+        { skipped: 2, alreadySent: 1 },
+        { sent: 3, skipped: 4 },
+      ),
+      { sent: 3, skipped: 6, alreadySent: 1 },
+    );
   });
 
   it("defers planning saves and prevents terminal project mutation", () => {

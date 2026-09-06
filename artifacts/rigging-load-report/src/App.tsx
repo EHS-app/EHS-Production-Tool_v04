@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth, useClerk, useUser } from "@clerk/react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
+import { briefDeliveryToast } from "./lib/briefDeliveryToast";
 import "./index.css";
 import ehsLogo from "./assets/ehs-logo.png";
 import { AppShell, type ShellView, type ShellAction } from "./components/AppShell";
@@ -3758,19 +3759,8 @@ function App() {
             : member,
         ),
       );
-      const sent = result.delivery?.sent ?? 0;
-      const skipped = result.delivery?.skipped ?? 0;
-      if (sent > 0) {
-        toast.success(
-          `Briefs emailed successfully to ${sent} crew member${sent === 1 ? "" : "s"}`,
-        );
-      } else {
-        toast.error(
-          skipped > 0
-            ? "No briefs were emailed. Check freelancer email profiles."
-            : "Brief emails are already being sent.",
-        );
-      }
+      const deliveryToast = briefDeliveryToast(result.delivery);
+      toast[deliveryToast.kind](deliveryToast.message);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Could not email briefs.";

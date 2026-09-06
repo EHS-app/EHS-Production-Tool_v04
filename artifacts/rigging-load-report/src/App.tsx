@@ -4095,6 +4095,86 @@ function App() {
   const updateCrew = (id: string, patch: Partial<CrewMember>) => {
     setCrew((all) => all.map((m) => (m.id === id ? { ...m, ...patch } : m)));
   };
+  const saveCrewShifts = async (
+    id: string,
+    patch: Partial<CrewMember>,
+  ): Promise<void> => {
+    const nextCrew = crew.map((member) =>
+      member.id === id ? { ...member, ...patch } : member,
+    );
+    const data: PersistedV2 = { ...buildPersistedData(), crew: nextCrew };
+
+    if (projectSaveTimer.current) {
+      clearTimeout(projectSaveTimer.current);
+      projectSaveTimer.current = null;
+    }
+    ++projectSaveVersion.current;
+
+    const run = async () => {
+      const token = await getToken();
+      if (!token) throw new Error("Sign in to save shifts.");
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+      const body = {
+        ...projectIdentityPayload(
+          data.projectName || "",
+          data.venue || "",
+          data.venueId,
+        ),
+        client: data.client || "",
+        client_id: data.clientId || null,
+        easyjob_number: data.easyjobNumber || null,
+        data,
+      };
+      const res = await fetch(
+        currentProjectId ? `/api/projects/${currentProjectId}` : "/api/projects",
+        {
+          method: currentProjectId ? "PATCH" : "POST",
+          headers,
+          body: JSON.stringify(body),
+        },
+      );
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.project) {
+        throw new Error(
+          json?.error ||
+            `Could not save shifts${res.status ? ` (${res.status})` : ""}.`,
+        );
+      }
+
+      const serverCrew = Array.isArray(json.project.data?.crew)
+        ? json.project.data.crew.map(normalizeCrewMember)
+        : nextCrew;
+      const persisted = { ...data, crew: serverCrew };
+      try {
+        localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(persisted));
+      } catch {
+        // The authoritative server save succeeded; local cache is best effort.
+      }
+      suppressCloudSave.current = true;
+      setCrew(serverCrew);
+      const savedTime = new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      setSavedAt(savedTime);
+      setCloudSavedAt(savedTime);
+      if (!currentProjectId && json.project.id) {
+        setCurrentProjectId(json.project.id);
+        try {
+          localStorage.setItem("ehs-current-project-id", json.project.id);
+        } catch {
+          // Project remains available from the server response.
+        }
+      }
+    };
+
+    const queued = cloudSaveQueue.current.catch(() => undefined).then(run);
+    cloudSaveQueue.current = queued.catch(() => undefined);
+    await queued;
+  };
   const removeCrew = (id: string) => {
     setCrew((all) => all.filter((m) => m.id !== id));
   };
@@ -7736,6 +7816,7 @@ function App() {
           crew={crew}
           onAdd={addCrew}
           onUpdate={updateCrew}
+          onSaveShifts={saveCrewShifts}
           onRemove={removeCrew}
           onDuplicate={duplicateCrew}
           onSendLinkedRequests={sendLinkedCrewRequests}

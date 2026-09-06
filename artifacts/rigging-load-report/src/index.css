@@ -10830,6 +10830,13 @@ html[data-shell="linear"] .container {
   background: var(--card-bg, #ffffff);
 }
 
+.shift-save-error {
+  margin: 4px 0 0;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .crew-shift-matrix-header {
   border-bottom: 1px solid var(--border);
 }

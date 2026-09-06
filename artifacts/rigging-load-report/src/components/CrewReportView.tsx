@@ -14,6 +14,7 @@ type Props = {
   crew: CrewMember[];
   onAdd: () => void;
   onUpdate: (id: string, patch: Partial<CrewMember>) => void;
+  onSaveShifts?: (id: string, patch: Partial<CrewMember>) => Promise<void>;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
   onSendLinkedRequests?: (members: CrewMember[]) => void | Promise<void>;
@@ -83,6 +84,7 @@ export function CrewReportView({
   crew,
   onAdd,
   onUpdate,
+  onSaveShifts,
   onRemove,
   onDuplicate,
   onSendLinkedRequests,
@@ -196,6 +198,7 @@ export function CrewReportView({
             brief={brief}
             onAdd={onAdd}
             onUpdate={onUpdate}
+            onSaveShifts={onSaveShifts}
             onRemove={onRemove}
             onDuplicate={onDuplicate}
             onSendLinkedRequests={onSendLinkedRequests}

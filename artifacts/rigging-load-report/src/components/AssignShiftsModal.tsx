@@ -67,7 +67,7 @@ type Props = {
     shiftTimes: CrewShiftTimeMap,
     shiftWindows: CrewShiftWindowMap,
     shiftTasks: ShiftTaskMap,
-  ) => void;
+  ) => Promise<void>;
   onApplyToRole: (
     shiftPhases: ReadonlyArray<string>,
     shiftTimes: CrewShiftTimeMap,
@@ -131,6 +131,8 @@ export function AssignShiftsModal({
   const [tasks, setTasks] = useState<ShiftTaskMap>({});
   const [customTasks, setCustomTasks] = useState<Record<string, string>>({});
   const [modes, setModes] = useState<Record<string, ShiftMode | undefined>>({});
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const presetTasks = ROLE_TASKS[crew.role] ?? [
     "General Support",
     "Site Prep",
@@ -147,6 +149,7 @@ export function AssignShiftsModal({
   const [focusDate, setFocusDate] = useState(days[0] ?? "");
 
   const openModal = () => {
+    setSaveError("");
     const selections = filterShiftSelectionsToSchedule(
       crew.assignedShiftPhases ??
         (crew.assignedDates ?? []).flatMap((date) =>
@@ -202,6 +205,7 @@ export function AssignShiftsModal({
     mode: ShiftMode | "clear",
     standard?: CrewShiftTime,
   ) => {
+    setSaveError("");
     if (
       (mode === "full" || mode === "four") &&
       (!standard || standard.timeTbd || minutes(standard.startTime) == null)
@@ -347,29 +351,53 @@ export function AssignShiftsModal({
     [draft, windows],
   );
 
-  const save = () => {
+  const save = async () => {
     const keys = [...draft].sort();
-    onSave(
-      assignedDatesFromShiftPhases(draft),
-      keys,
-      selectedTimes,
-      selectedWindows,
-      selectedTasks,
-    );
-    setOpen(false);
+    setSaving(true);
+    setSaveError("");
+    try {
+      await onSave(
+        assignedDatesFromShiftPhases(draft),
+        keys,
+        selectedTimes,
+        selectedWindows,
+        selectedTasks,
+      );
+      setOpen(false);
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : "Could not save shifts. Please try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const applyToRole = () => {
+  const applyToRole = async () => {
     const keys = [...draft].sort();
-    onSave(
-      assignedDatesFromShiftPhases(draft),
-      keys,
-      selectedTimes,
-      selectedWindows,
-      selectedTasks,
-    );
-    onApplyToRole(keys, selectedTimes, selectedWindows, selectedTasks);
-    setOpen(false);
+    setSaving(true);
+    setSaveError("");
+    try {
+      await onSave(
+        assignedDatesFromShiftPhases(draft),
+        keys,
+        selectedTimes,
+        selectedWindows,
+        selectedTasks,
+      );
+      onApplyToRole(keys, selectedTimes, selectedWindows, selectedTasks);
+      setOpen(false);
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : "Could not save shifts. Please try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const barsForDate = (date: string) => {
@@ -430,22 +458,24 @@ export function AssignShiftsModal({
                 type="button"
                 className="crew-shift-matrix-backdrop"
                 aria-label="Close shift assignment"
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  if (!saving) setOpen(false);
+                }}
               />
-              <section className="crew-shift-matrix" role="dialog" aria-modal="true">
+              <section className="crew-shift-matrix" role="dialog" aria-modal="true" aria-busy={saving}>
                 <header className="crew-shift-matrix-header">
                   <div>
                     <p className="crew-shift-matrix-eyebrow">Crew booking · {crew.role}</p>
                     <h3>Assign shifts — {crew.name || "Crew member"}</h3>
                   </div>
                   <div className="shift-role-actions">
-                    <button type="button" className="crew-shift-matrix-close" onClick={() => setOpen(false)}>×</button>
+                    <button type="button" className="crew-shift-matrix-close" onClick={() => setOpen(false)} disabled={saving}>×</button>
                   </div>
                 </header>
 
                 <div className="crew-shift-matrix-scroll">
                   {days.map((date) => (
-                    <fieldset className="crew-shift-day" key={date}>
+                    <fieldset className="crew-shift-day" key={date} disabled={saving}>
                       <legend>{date}</legend>
                       <div className="shift-preset-list">
                         {PHASES.filter((phase) => phaseDays[phase.key]?.includes(date)).map((phase) => {
@@ -468,7 +498,7 @@ export function AssignShiftsModal({
                                   className={mode === "full" ? "is-active" : ""}
                                   disabled={!hasStandardStart || minutes(standard?.endTime ?? "") == null}
                                   title={!hasStandardStart ? "Add a project phase time to use this preset" : undefined}
-                                  onClick={() => setPreset(key, "full", standard)}
+                                  onClick={() => setPreset(key, mode === "full" ? "clear" : "full", standard)}
                                 >
                                   Full Phase
                                 </button>
@@ -477,11 +507,11 @@ export function AssignShiftsModal({
                                   className={mode === "four" ? "is-active" : ""}
                                   disabled={!hasStandardStart}
                                   title={!hasStandardStart ? "Add a project phase start time to use this preset" : undefined}
-                                  onClick={() => setPreset(key, "four", standard)}
+                                  onClick={() => setPreset(key, mode === "four" ? "clear" : "four", standard)}
                                 >
                                   4h Call
                                 </button>
-                                <button type="button" className={mode === "custom" ? "is-active" : ""} onClick={() => setPreset(key, "custom", standard)}>Custom Hours</button>
+                                <button type="button" className={mode === "custom" ? "is-active" : ""} onClick={() => setPreset(key, mode === "custom" ? "clear" : "custom", standard)}>Custom Hours</button>
                                 <button type="button" className="is-clear" onClick={() => setPreset(key, "clear")}>Clear</button>
                               </div>
                               {mode === "custom" ? (
@@ -649,18 +679,24 @@ export function AssignShiftsModal({
                 </div>
 
                 <footer className="crew-shift-matrix-footer">
-                  <strong>Total Booked: {Number.isInteger(totalHours) ? totalHours : totalHours.toFixed(1)} hrs</strong>
+                  <div>
+                    <strong>Total Booked: {Number.isInteger(totalHours) ? totalHours : totalHours.toFixed(1)} hrs</strong>
+                    {saveError ? <p className="shift-save-error" role="alert">{saveError}</p> : null}
+                  </div>
                   <div className="crew-shift-matrix-actions">
-                    <button type="button" onClick={() => setOpen(false)}>Cancel</button>
+                    <button type="button" onClick={() => setOpen(false)} disabled={saving}>Cancel</button>
                     {rolePeers.length > 1 ? (
                       <button
                         type="button"
-                        onClick={applyToRole}
+                         onClick={() => void applyToRole()}
+                         disabled={saving}
                       >
                         Apply to all {crew.role}
                       </button>
                     ) : null}
-                    <button type="button" className="is-primary" onClick={save}>Save shifts</button>
+                    <button type="button" className="is-primary" onClick={() => void save()} disabled={saving}>
+                      {saving ? "Saving…" : "Save shifts"}
+                    </button>
                   </div>
                 </footer>
               </section>

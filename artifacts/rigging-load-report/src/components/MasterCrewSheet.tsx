@@ -136,6 +136,7 @@ export function MasterCrewSheet({
   brief,
   onAdd,
   onUpdate,
+  onSaveShifts,
   onRemove,
   onDuplicate,
   onSendLinkedRequests,
@@ -169,6 +170,7 @@ export function MasterCrewSheet({
   };
   onAdd: () => void;
   onUpdate: (id: string, patch: Partial<CrewMember>) => void;
+  onSaveShifts?: (id: string, patch: Partial<CrewMember>) => Promise<void>;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
   onSendLinkedRequests?: (members: CrewMember[]) => void | Promise<void>;
@@ -1273,7 +1275,7 @@ export function MasterCrewSheet({
                     }
                     onLocalSetDays={
                       local
-                        ? (
+                        ? async (
                             _nextDates,
                             nextShiftPhases,
                             customShiftTimes,
@@ -1318,7 +1320,11 @@ export function MasterCrewSheet({
                               callTime: summary.startTime,
                               offTime: summary.endTime,
                             };
-                            onUpdate(local.id, patch);
+                             if (onSaveShifts) {
+                               await onSaveShifts(local.id, patch);
+                             } else {
+                               onUpdate(local.id, patch);
+                             }
                           }
                         : undefined
                     }
@@ -1593,7 +1599,7 @@ function MasterRow({
     shiftTimes?: CrewShiftTimeMap,
     shiftWindows?: CrewShiftWindowMap,
     shiftTasks?: Record<string, string[]>,
-  ) => void;
+  ) => void | Promise<void>;
   rolePeers?: ReadonlyArray<CrewMember>;
   onApplyScheduleToRole?: (
     shiftPhases: ReadonlyArray<string>,
@@ -1841,9 +1847,9 @@ function MasterRow({
                 phaseDays={phaseDays}
                 phaseShiftTimes={phaseShiftTimes}
                 rolePeers={rolePeers ?? [local!]}
-                onSave={(dates, phases, times, windows, tasks) =>
-                  onLocalSetDays(dates, phases, times, windows, tasks)
-                }
+                 onSave={(dates, phases, times, windows, tasks) =>
+                   Promise.resolve(onLocalSetDays(dates, phases, times, windows, tasks))
+                 }
                 onApplyToRole={(phases, times, windows, tasks) =>
                   onApplyScheduleToRole?.(phases, times, windows, tasks)
                 }

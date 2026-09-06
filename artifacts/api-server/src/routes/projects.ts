@@ -633,11 +633,6 @@ router.post("/projects/:id/status", requireSignedIn, async (req, res) => {
             briefId: brief.id,
             ownerUserId: brief.ownerUserId,
             newRecipientUserIds: gated.newRecipientUserIds,
-            projectName: brief.projectName,
-            venue: brief.venue,
-            client: brief.client,
-            startDate: brief.startDate,
-            endDate: brief.endDate,
           };
         }
       }

@@ -121,6 +121,14 @@ const RESTRICTED_BRIEF_KEYS = new Set([
 /** Remove fields that are never appropriate in a freelancer DTO. This is
  * recursive because old briefs may have nested client-directory payloads. */
 function withoutUntrustedProfiles(raw: Record<string, unknown>): Record<string, unknown> {
+  const submittedProject =
+    raw.project && typeof raw.project === "object" && !Array.isArray(raw.project)
+      ? (raw.project as Record<string, unknown>)
+      : null;
+  const submittedClientContact =
+    typeof submittedProject?.clientContact === "string"
+      ? submittedProject.clientContact.trim()
+      : "";
   const cleanse = (value: unknown): unknown => {
     if (Array.isArray(value)) return value.map(cleanse);
     if (!value || typeof value !== "object") return value;
@@ -146,6 +154,7 @@ function withoutUntrustedProfiles(raw: Record<string, unknown>): Record<string, 
     if ("client" in project && typeof project.client !== "string") delete project.client;
     if ("projectName" in project && typeof project.projectName !== "string") delete project.projectName;
     if ("venue" in project && typeof project.venue !== "string") delete project.venue;
+    if (submittedClientContact) project.clientContact = submittedClientContact;
     clean.project = project;
   }
   return clean;
@@ -863,10 +872,6 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
     }
     // Planning/draft saves only populate the durable outbox. An active
     // project claims newly pending deliveries post-commit.
-    const projectBrief =
-      typeof nestedProject.description === "string"
-        ? nestedProject.description
-        : "";
     if (
       explicitEmailDispatch &&
       result.dispatch
@@ -876,12 +881,6 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
             briefId: id,
             ownerUserId: userId,
             newRecipientUserIds: result.dispatch.newRecipientUserIds,
-            projectName: indexed.projectName,
-            venue: indexed.venue,
-            client: indexed.client,
-            startDate: indexed.startDate,
-            endDate: indexed.endDate,
-            projectBrief,
           })
         : { sent: 0, skipped: 0, outcomes: [] };
       if (delivery.outcomes.length > 0) {
@@ -899,9 +898,6 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
         const delivery = await dispatchBriefRequestEmails({
           briefId: id, ownerUserId: userId,
           newRecipientUserIds: result.dispatch!.newRecipientUserIds,
-          projectName: indexed.projectName, venue: indexed.venue, client: indexed.client,
-          startDate: indexed.startDate, endDate: indexed.endDate,
-          projectBrief,
         });
         await completeBriefDispatches(id, delivery.outcomes);
       })().catch((err: unknown) => logger.error(

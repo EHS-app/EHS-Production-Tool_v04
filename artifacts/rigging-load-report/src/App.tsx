@@ -135,7 +135,6 @@ import {
 import { CrewReportView } from "./components/CrewReportView";
 import { CateringView } from "./components/CateringView";
 import { HotelView } from "./components/HotelView";
-import { AvailableCrewSidebar } from "./components/AvailableCrewSidebar";
 import { skillToCrewRole } from "./lib/skillToCrewRole";
 import {
   makeSoundItem,
@@ -3429,18 +3428,70 @@ function App() {
 
   // ---- Crew Report ----
 
-  /** Set of Clerk user ids that are already on this project's crew
-   *  list — drives the "Requested" badge in the Available Crew sidebar
-   *  so the producer can't double-request the same freelancer for the
-   *  same project. Manual rows (no freelancerUserId) are ignored. */
-  const requestedUserIds = useMemo(() => {
-    const s = new Set<string>();
-    for (const m of crew) if (m.freelancerUserId) s.add(m.freelancerUserId);
-    return s;
-  }, [crew]);
+  const dispatchBriefEmails = useCallback(
+    async (
+      data: ReturnType<typeof buildBrief>,
+      recipients: { crewId: string; freelancerUserId: string }[],
+    ) => {
+      const token = await getToken();
+      if (!token) throw new Error("Sign in to send requests.");
+      const baseUrl =
+        (typeof import.meta !== "undefined" &&
+          (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
+        "/";
+      const post = async (withId: string | null) => {
+        const response = await fetch(`${baseUrl}api/portal/briefs`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            ...(withId ? { id: withId } : {}),
+            ...(currentProjectId ? { project_id: currentProjectId } : {}),
+            ...(venueId ? { venue_id: venueId } : {}),
+            data,
+            recipients,
+            send_email: true,
+          }),
+        });
+        const json = (await response.json().catch(() => null)) as {
+          ok?: boolean;
+          error?: string;
+          brief?: { id?: string } | null;
+          delivery?: {
+            sent?: number;
+            skipped?: number;
+            alreadySent?: number;
+          };
+        } | null;
+        return { response, json };
+      };
 
-  /** Send brief requests to a batch of freelancers picked in the
-   *  sidebar. The flow is:
+      let result = await post(activeBriefId);
+      if (
+        !result.response.ok &&
+        activeBriefId &&
+        (result.response.status === 403 || result.response.status === 404)
+      ) {
+        setActiveBriefId(null);
+        result = await post(null);
+      }
+      if (!result.response.ok || !result.json?.ok || !result.json.brief?.id) {
+        throw new Error(
+          result.json?.error ||
+            `Could not send requests (${result.response.status}).`,
+        );
+      }
+      setActiveBriefId(result.json.brief.id);
+      const deliveryToast = briefDeliveryToast(result.json.delivery);
+      toast[deliveryToast.kind](deliveryToast.message);
+      return result.json;
+    },
+    [activeBriefId, currentProjectId, getToken, venueId],
+  );
+
+  /** Send brief requests to a batch of linked freelancers. The flow is:
    *    1. Add a Requested crew row for each freelancer (so the
    *       producer's call sheet shows the pending headcount/cost
    *       immediately, even before the freelancer responds).
@@ -3452,10 +3503,9 @@ function App() {
    *       sends append to the same brief, and the producer's polling
    *       loop has something to address.
    *
-   *  Failures bubble back through `sendError` to the sidebar's
-   *  sticky bar; the optimistic crew rows are rolled back on the same
-   *  path so the call sheet stays in sync with what the server
-   *  actually accepted. */
+   *  Failures bubble back through `sendError`; optimistic crew rows
+   *  are rolled back on the same path so the call sheet stays in sync
+   *  with what the server actually accepted. */
   const sendCrewRequests = useCallback(
     async (rows: {
       crewId?: string;
@@ -3565,16 +3615,10 @@ function App() {
       setSendingRequests(true);
       setSendError(null);
       // Optimistic — render the Requested rows immediately. We undo
-      // this in the catch block on a network failure so the sidebar
+      // this in the catch block on a network failure so the request
       // can be retried without orphan rows hanging around.
       setCrew(nextCrew);
       try {
-        const token = await getToken();
-        if (!token) throw new Error("Sign in to send requests");
-        const baseUrl =
-          (typeof import.meta !== "undefined" &&
-            (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL) ||
-          "/";
         // Build the brief from the next crew so each new freelancer's
         // assignment is present in the payload. recipientCrewId stays
         // null on this batch send — each freelancer is addressed via
@@ -3589,64 +3633,7 @@ function App() {
           crewId: m.id,
           freelancerUserId: m.freelancerUserId!,
         }));
-        // POST helper. Encapsulates the fetch + JSON shape so we can
-        // run it twice on the stale-id recovery path. `withId` controls
-        // whether we reuse the cached `activeBriefId`; on the retry
-        // path we drop it and the server allocates a fresh UUID.
-        const postBatch = async (withId: string | null) => {
-          const body: Record<string, unknown> = { data, recipients };
-          if (withId) body.id = withId;
-          if (currentProjectId) body.project_id = currentProjectId;
-          if (venueId) body.venue_id = venueId;
-          const r = await fetch(`${baseUrl}api/portal/briefs`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(body),
-          });
-          let parsed: {
-            ok?: boolean;
-            error?: string;
-            brief?: { id?: string } | null;
-          } = {};
-          try {
-            parsed = (await r.json()) as typeof parsed;
-          } catch {
-            /* non-JSON body (e.g. proxy 502) — fall through to status check */
-          }
-          return { status: r.status, ok: r.ok, json: parsed };
-        };
-        let result = await postBatch(activeBriefId);
-        // Stale-id recovery — if the cached `activeBriefId` was deleted
-        // server-side, or another producer's id collided with ours,
-        // the server replies 403 ("Not your brief") or 404. Both are
-        // recoverable by dropping the stale id and letting the server
-        // mint a fresh one. We only retry once and only when an id was
-        // actually sent, so a genuine permission error on a fresh
-        // brief still surfaces as a hard failure.
-        if (
-          !result.ok &&
-          activeBriefId &&
-          (result.status === 403 || result.status === 404)
-        ) {
-          setActiveBriefId(null);
-          result = await postBatch(null);
-        }
-        if (!result.ok) {
-          throw new Error(`Server returned ${result.status}`);
-        }
-        if (!result.json.ok || !result.json.brief?.id) {
-          throw new Error(
-            result.json.error || "Bad response from server",
-          );
-        }
-        // Always cache the returned id — covers both the first send
-        // (no prior id) and the recovery path (we just minted a new
-        // one). Doing this unconditionally keeps a future re-send in
-        // the same session pointed at the right brief.
-        setActiveBriefId(result.json.brief.id);
+        await dispatchBriefEmails(data, recipients);
       } catch (e) {
         const msg =
           e instanceof Error ? e.message : "Could not send requests";
@@ -3668,9 +3655,8 @@ function App() {
     [
       crew,
       briefInput,
-      activeBriefId,
       sendingRequests,
-      getToken,
+      dispatchBriefEmails,
       reportDate,
       reportEndDate,
       extraSchedule,
@@ -3719,38 +3705,12 @@ function App() {
     setSendingRequests(true);
     setSendError(null);
     try {
-      const token = await getToken();
-      if (!token) throw new Error("Sign in to share the brief.");
       const data = buildBrief({
         ...briefInput,
         crew,
         recipientCrewId: null,
       });
-      const response = await fetch("/api/portal/briefs", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          ...(activeBriefId ? { id: activeBriefId } : {}),
-          ...(currentProjectId ? { project_id: currentProjectId } : {}),
-          ...(venueId ? { venue_id: venueId } : {}),
-          data,
-          recipients,
-          send_email: true,
-        }),
-      });
-      const result = (await response.json().catch(() => null)) as {
-        ok?: boolean;
-        error?: string;
-        brief?: { id?: string };
-        delivery?: { sent?: number; skipped?: number; alreadySent?: number };
-      } | null;
-      if (!response.ok || !result?.ok || !result.brief?.id) {
-        throw new Error(result?.error || `Could not email briefs (${response.status}).`);
-      }
-      setActiveBriefId(result.brief.id);
+      await dispatchBriefEmails(data, recipients);
       const linkedIds = new Set(recipients.map((recipient) => recipient.crewId));
       setCrew((members) =>
         members.map((member) =>
@@ -3759,8 +3719,6 @@ function App() {
             : member,
         ),
       );
-      const deliveryToast = briefDeliveryToast(result.delivery);
-      toast[deliveryToast.kind](deliveryToast.message);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Could not email briefs.";
@@ -3770,13 +3728,10 @@ function App() {
       setSendingRequests(false);
     }
   }, [
-    activeBriefId,
     briefInput,
     crew,
-    currentProjectId,
-    getToken,
+    dispatchBriefEmails,
     sendingRequests,
-    venueId,
   ]);
 
   /** Producer-side polling. Whenever the producer is on the Crew tab
@@ -7846,18 +7801,6 @@ function App() {
                   ?.technicalContactPhone ?? "",
             },
           }}
-          directorySidebar={
-            <AvailableCrewSidebar
-              briefId={activeBriefId || undefined}
-              projectStartDate={reportDate}
-              projectEndDate={reportEndDate}
-              requestedUserIds={requestedUserIds}
-              sending={sendingRequests}
-              sendError={sendError}
-              onSendRequests={sendCrewRequests}
-              compact
-            />
-          }
         />
       )}
 

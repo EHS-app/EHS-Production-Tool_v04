@@ -6723,15 +6723,6 @@ textarea:focus {
   align-items: start;
 }
 
-@media (min-width: 1100px) {
-  .crew-layout {
-    /* Narrower right rail (was 360px) — the compact "Available crew"
-       list only needs ~280px and the producer reference shows a
-       calmer, less crowded sidebar. */
-    grid-template-columns: minmax(0, 1fr) 280px;
-  }
-}
-
 /* --- Compact "Available crew" sidebar (used in Crew & Logistics) --- */
 .acs-compact {
   padding: 14px 14px 12px;
@@ -6838,21 +6829,6 @@ textarea:focus {
 
 .crew-layout-main {
   min-width: 0; /* keep the table from forcing horizontal scroll */
-}
-
-.crew-layout-aside {
-  min-width: 0;
-}
-
-@media (min-width: 1100px) {
-  .crew-layout-aside {
-    position: sticky;
-    top: 12px;
-    /* Pin within the viewport so the producer can scroll the
-       call sheet on the left while the roster stays visible. */
-    max-height: calc(100vh - 24px);
-    overflow: auto;
-  }
 }
 
 /* --- The sidebar shell (.acs == "Available Crew Sidebar") --- */

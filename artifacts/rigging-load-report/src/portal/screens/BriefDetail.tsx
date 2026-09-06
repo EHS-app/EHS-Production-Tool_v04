@@ -715,12 +715,15 @@ export function BriefDetail({
             {t("portal.brief.projectNotes")}
           </div>
           <div
+            data-testid="text-complete-project-brief"
             style={{
               color: c.text,
               fontSize: 14,
               lineHeight: 1.5,
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
+              overflow: "visible",
+              maxHeight: "none",
             }}
           >
             {brief.project.description}
@@ -808,6 +811,38 @@ export function BriefDetail({
             </>
           ) : null}
         </div>
+        {brief.project.venueTechnicalSnapshot ? (
+          <div
+            data-testid="text-venue-details"
+            style={{
+              display: "grid",
+              gap: 3,
+              marginTop: 10,
+              color: c.text,
+              fontSize: 13,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {brief.project.venueTechnicalSnapshot.name ? (
+              <strong>{String(brief.project.venueTechnicalSnapshot.name)}</strong>
+            ) : null}
+            {brief.project.venueTechnicalSnapshot.address ? (
+              <span>{String(brief.project.venueTechnicalSnapshot.address)}</span>
+            ) : null}
+            {brief.project.venueTechnicalSnapshot.website ? (
+              <a
+                data-testid="link-venue-website"
+                href={String(brief.project.venueTechnicalSnapshot.website)}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: c.accent, overflowWrap: "anywhere" }}
+              >
+                {String(brief.project.venueTechnicalSnapshot.website)}
+              </a>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       {entries.length > 1 ? (

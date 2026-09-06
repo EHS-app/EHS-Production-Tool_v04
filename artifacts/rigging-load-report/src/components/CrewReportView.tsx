@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useState } from "react";
 import { MasterCrewSheet } from "./MasterCrewSheet";
 import { ProducerHoursPanel } from "./ProducerHoursPanel";
 import { FreelancerProfileModal } from "./global/FreelancerProfileModal";
@@ -19,11 +19,6 @@ type Props = {
   onDuplicate: (id: string) => void;
   onSendLinkedRequests?: (members: CrewMember[]) => void | Promise<void>;
   sendingLinkedRequests?: boolean;
-  /** Optional roster sidebar (e.g. <AvailableCrewSidebar/>). Rendered
-   *  to the right of the master sheet on wide screens and stacked
-   *  below on narrow ones. Kept as a slot so this view stays unaware
-   *  of the freelancer-portal data layer. */
-  directorySidebar?: ReactNode;
   /** Producer's active brief id from App.tsx. Threaded through to
    *  MasterCrewSheet so it can pull portal roster data. When null
    *  the sheet still renders the local CrewMember[] as a pure call
@@ -89,7 +84,6 @@ export function CrewReportView({
   onDuplicate,
   onSendLinkedRequests,
   sendingLinkedRequests,
-  directorySidebar,
   activeBriefId,
   getToken,
   getTimesForDates,
@@ -141,13 +135,7 @@ export function CrewReportView({
     getToken ?? (async () => null);
 
   return (
-    <div
-      className={
-        directorySidebar
-          ? "led-report led-report-with-sidebar"
-          : "led-report"
-      }
-    >
+    <div className="led-report">
       <header className="crew-page-header">
         <p className="crew-eyebrow">Roster, hotel, catering and call sheets.</p>
         <div className="crew-page-title">
@@ -185,10 +173,6 @@ export function CrewReportView({
         </div>
       </div>
 
-      {/* Two-column layout: master sheet on the left, freelancer
-          directory on the right. The grid collapses to a single column
-          below the breakpoint defined in index.css so the sidebar
-          stacks gracefully on iPad / phone. */}
       <div className="crew-layout">
         <div className="crew-layout-main">
           <MasterCrewSheet
@@ -220,9 +204,6 @@ export function CrewReportView({
             getToken={tokenResolver}
           />
         </div>
-        {directorySidebar ? (
-          <div className="crew-layout-aside">{directorySidebar}</div>
-        ) : null}
       </div>
       {profileUserId && (
         <FreelancerProfileModal

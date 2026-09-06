@@ -56,65 +56,21 @@ const defaultDependencies: BriefEmailDependencies = {
   send: sendGmail,
 };
 
-function formatDateRange(
-  startDate: string | null,
-  endDate: string | null,
-): string {
-  if (!startDate) return "";
-  if (!endDate || endDate === startDate) return startDate;
-  return `${startDate} – ${endDate}`;
-}
-
 export function isValidBriefRecipientEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function buildBody(args: {
-  recipientName: string;
   producerName: string;
-  projectName: string;
-  venue: string;
-  client: string;
-  dateRange: string;
-  projectBrief: string;
   link: string;
 }): string {
-  const greeting = args.recipientName ? `Hei ${args.recipientName},` : "Hei,";
-  const detailLines: string[] = [];
-  if (args.projectName) detailLines.push(`Prosjekt: ${args.projectName}`);
-  if (args.venue && args.venue !== args.projectName) {
-    detailLines.push(`Venue: ${args.venue}`);
-  }
-  if (args.client) detailLines.push(`Kunde: ${args.client}`);
-  if (args.dateRange) detailLines.push(`Dato: ${args.dateRange}`);
-  if (args.projectBrief.trim()) {
-    detailLines.push("", "Prosjektbrief:", args.projectBrief);
-  }
-  const lines = [
-    greeting,
-    "",
-    `Du har fått en ny forespørsel fra ${args.producerName}.`,
-    ...(detailLines.length > 0 ? ["", ...detailLines] : []),
-    "",
-    "Åpne forespørselen i portalen for å takke ja eller nei:",
-    args.link,
-    "",
-    "Vennlig hilsen,",
-    "EHS Freelance Portal",
-  ];
-  return lines.join("\n");
+  return `Du har fått en ny forespørsel fra ${args.producerName}\n${args.link}`;
 }
 
 export async function dispatchBriefRequestEmails(args: {
   briefId: string;
   ownerUserId: string;
   newRecipientUserIds: string[];
-  projectName: string;
-  venue: string;
-  client: string;
-  startDate: string | null;
-  endDate: string | null;
-  projectBrief?: string;
 }, dependencies: BriefEmailDependencies = defaultDependencies): Promise<{ sent: number; skipped: number; outcomes: { freelancerUserId: string; sent: boolean }[] }> {
   const recipientUserIds = [...new Set(args.newRecipientUserIds)];
   if (recipientUserIds.length === 0) return { sent: 0, skipped: 0, outcomes: [] };
@@ -122,7 +78,6 @@ export async function dispatchBriefRequestEmails(args: {
     const link = buildPortalBriefUrl(args.briefId);
     const producerName = await dependencies.lookupProducerName(args.ownerUserId);
     const subject = `Ny forespørsel fra ${producerName}`;
-    const dateRange = formatDateRange(args.startDate, args.endDate);
 
     const profiles = await dependencies.loadProfiles(recipientUserIds);
 
@@ -153,13 +108,7 @@ export async function dispatchBriefRequestEmails(args: {
       }
       const recipientName = (p.fullName ?? "").trim();
       const body = buildBody({
-        recipientName,
         producerName,
-        projectName: args.projectName,
-        venue: args.venue,
-        client: args.client,
-        dateRange,
-        projectBrief: args.projectBrief ?? "",
         link,
       });
       const result = await dependencies.send({

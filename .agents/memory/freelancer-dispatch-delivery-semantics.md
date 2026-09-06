@@ -14,3 +14,9 @@ The brief-and-freelancer dispatch identity must be enforced by a database unique
 **Why:** PostgreSQL only accepts a column-list `ON CONFLICT` target when a matching unique or exclusion constraint exists; a normal index causes every brief save with recipients to fail.
 
 **How to apply:** Whenever an outbox insert uses `ON CONFLICT (columns)`, keep those exact columns backed by a tested unique index in the schema source of truth.
+
+Dispatch emails are intentionally ultra-minimal: one Norwegian sentence naming the active project leader, followed immediately by the authenticated portal link. Do not include project, venue, schedule, contact, or brief details in email.
+
+**Why:** Email is only a notification channel; the authenticated freelancer portal is the complete and authoritative brief surface.
+
+**How to apply:** All producer dispatch actions must share the explicit synchronous email path, while complete operational details remain in the portal DTO and UI.

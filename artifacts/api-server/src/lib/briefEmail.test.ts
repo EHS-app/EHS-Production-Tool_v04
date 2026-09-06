@@ -23,12 +23,6 @@ function dependencies(
 const baseArgs = {
   briefId: "project-brief-123",
   ownerUserId: "producer-1",
-  projectName: "Oslo Concert",
-  venue: "Spektrum",
-  client: "EHS",
-  startDate: "2026-09-10",
-  endDate: "2026-09-11",
-  projectBrief: "Rigging starts at 08:00.",
 };
 
 describe("brief email dispatch", () => {
@@ -91,7 +85,7 @@ describe("brief email dispatch", () => {
     );
   });
 
-  it("puts the correct authenticated project brief link and details in the email", async () => {
+  it("sends only the producer notice and authenticated project brief link", async () => {
     const deliveries: Array<{ to: string; textBody: string }> = [];
     await dispatchBriefRequestEmails(
       { ...baseArgs, newRecipientUserIds: ["freelancer-secret-id"] },
@@ -111,9 +105,10 @@ describe("brief email dispatch", () => {
     assert.equal(url.searchParams.get("brief"), "project-brief-123");
     assert.equal(url.searchParams.has("freelancer"), false);
     assert.equal(url.toString().includes("freelancer-secret-id"), false);
-    assert.match(body, /Prosjekt: Oslo Concert/);
-    assert.match(body, /Venue: Spektrum/);
-    assert.match(body, /Dato: 2026-09-10 – 2026-09-11/);
-    assert.match(body, /Prosjektbrief:\nRigging starts at 08:00\./);
+    assert.equal(
+      body,
+      `Du har fått en ny forespørsel fra Test Producer\n${link}`,
+    );
+    assert.equal(body.split("\n").length, 2);
   });
 });

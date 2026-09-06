@@ -78123,39 +78123,12 @@ var defaultDependencies = {
   }).from(freelancerProfilesTable).where(inArray(freelancerProfilesTable.userId, userIds)),
   send: sendGmail
 };
-function formatDateRange(startDate, endDate) {
-  if (!startDate) return "";
-  if (!endDate || endDate === startDate) return startDate;
-  return `${startDate} \u2013 ${endDate}`;
-}
 function isValidBriefRecipientEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 function buildBody(args) {
-  const greeting = args.recipientName ? `Hei ${args.recipientName},` : "Hei,";
-  const detailLines = [];
-  if (args.projectName) detailLines.push(`Prosjekt: ${args.projectName}`);
-  if (args.venue && args.venue !== args.projectName) {
-    detailLines.push(`Venue: ${args.venue}`);
-  }
-  if (args.client) detailLines.push(`Kunde: ${args.client}`);
-  if (args.dateRange) detailLines.push(`Dato: ${args.dateRange}`);
-  if (args.projectBrief.trim()) {
-    detailLines.push("", "Prosjektbrief:", args.projectBrief);
-  }
-  const lines = [
-    greeting,
-    "",
-    `Du har f\xE5tt en ny foresp\xF8rsel fra ${args.producerName}.`,
-    ...detailLines.length > 0 ? ["", ...detailLines] : [],
-    "",
-    "\xC5pne foresp\xF8rselen i portalen for \xE5 takke ja eller nei:",
-    args.link,
-    "",
-    "Vennlig hilsen,",
-    "EHS Freelance Portal"
-  ];
-  return lines.join("\n");
+  return `Du har f\xE5tt en ny foresp\xF8rsel fra ${args.producerName}
+${args.link}`;
 }
 async function dispatchBriefRequestEmails(args, dependencies = defaultDependencies) {
   const recipientUserIds = [...new Set(args.newRecipientUserIds)];
@@ -78164,7 +78137,6 @@ async function dispatchBriefRequestEmails(args, dependencies = defaultDependenci
     const link = buildPortalBriefUrl(args.briefId);
     const producerName = await dependencies.lookupProducerName(args.ownerUserId);
     const subject = `Ny foresp\xF8rsel fra ${producerName}`;
-    const dateRange = formatDateRange(args.startDate, args.endDate);
     const profiles = await dependencies.loadProfiles(recipientUserIds);
     const profileIds = new Set(profiles.map((p) => p.userId));
     let sent = 0;
@@ -78192,13 +78164,7 @@ async function dispatchBriefRequestEmails(args, dependencies = defaultDependenci
       }
       const recipientName = (p.fullName ?? "").trim();
       const body = buildBody({
-        recipientName,
         producerName,
-        projectName: args.projectName,
-        venue: args.venue,
-        client: args.client,
-        dateRange,
-        projectBrief: args.projectBrief ?? "",
         link
       });
       const result = await dependencies.send({
@@ -78730,6 +78696,8 @@ var RESTRICTED_BRIEF_KEYS = /* @__PURE__ */ new Set([
   "technicalContactEmail"
 ]);
 function withoutUntrustedProfiles(raw) {
+  const submittedProject = raw.project && typeof raw.project === "object" && !Array.isArray(raw.project) ? raw.project : null;
+  const submittedClientContact = typeof submittedProject?.clientContact === "string" ? submittedProject.clientContact.trim() : "";
   const cleanse = (value) => {
     if (Array.isArray(value)) return value.map(cleanse);
     if (!value || typeof value !== "object") return value;
@@ -78750,6 +78718,7 @@ function withoutUntrustedProfiles(raw) {
     if ("client" in project && typeof project.client !== "string") delete project.client;
     if ("projectName" in project && typeof project.projectName !== "string") delete project.projectName;
     if ("venue" in project && typeof project.venue !== "string") delete project.venue;
+    if (submittedClientContact) project.clientContact = submittedClientContact;
     clean2.project = project;
   }
   return clean2;
@@ -79175,18 +79144,11 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
       res.status(409).json({ ok: false, error: "Completed and archived projects are read-only." });
       return;
     }
-    const projectBrief = typeof nestedProject.description === "string" ? nestedProject.description : "";
     if (explicitEmailDispatch && result.dispatch) {
       const delivery = result.dispatch.newRecipientUserIds.length ? await dispatchBriefRequestEmails({
         briefId: id,
         ownerUserId: userId2,
-        newRecipientUserIds: result.dispatch.newRecipientUserIds,
-        projectName: indexed.projectName,
-        venue: indexed.venue,
-        client: indexed.client,
-        startDate: indexed.startDate,
-        endDate: indexed.endDate,
-        projectBrief
+        newRecipientUserIds: result.dispatch.newRecipientUserIds
       }) : { sent: 0, skipped: 0, outcomes: [] };
       if (delivery.outcomes.length > 0) {
         await completeBriefDispatches(id, delivery.outcomes);
@@ -79203,13 +79165,7 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
         const delivery = await dispatchBriefRequestEmails({
           briefId: id,
           ownerUserId: userId2,
-          newRecipientUserIds: result.dispatch.newRecipientUserIds,
-          projectName: indexed.projectName,
-          venue: indexed.venue,
-          client: indexed.client,
-          startDate: indexed.startDate,
-          endDate: indexed.endDate,
-          projectBrief
+          newRecipientUserIds: result.dispatch.newRecipientUserIds
         });
         await completeBriefDispatches(id, delivery.outcomes);
       })().catch((err) => logger.error(
@@ -83542,12 +83498,7 @@ router13.post("/projects/:id/status", requireSignedIn10, async (req, res) => {
           email3 = {
             briefId: brief.id,
             ownerUserId: brief.ownerUserId,
-            newRecipientUserIds: gated.newRecipientUserIds,
-            projectName: brief.projectName,
-            venue: brief.venue,
-            client: brief.client,
-            startDate: brief.startDate,
-            endDate: brief.endDate
+            newRecipientUserIds: gated.newRecipientUserIds
           };
         }
       }

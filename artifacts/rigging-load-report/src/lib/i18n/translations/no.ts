@@ -1441,6 +1441,7 @@ export const no: Translations = {
   "portal.brief.notFoundBody": "Denne briefingen ligger ikke i din portal. Delingslenken kan ha utløpt eller blitt importert på en annen konto.",
   "portal.brief.backToBriefs": "Tilbake til briefer",
   "portal.brief.projectBriefing": "Prosjektbriefing",
+  "portal.brief.projectNotes": "Prosjektnotater / brief",
   "portal.brief.noteFromProducer": "Melding fra produsent",
   "portal.brief.venueTechSpecs": "Tekniske spesifikasjoner (Venue)",
   "portal.brief.riggingAndStage": "Rigging & Scene",

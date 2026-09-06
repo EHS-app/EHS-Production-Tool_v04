@@ -1360,6 +1360,12 @@ function App() {
   }, []);
   const theme: "light" | "dark" =
     themePref === "system" ? systemTheme : themePref;
+  const { user } = useUser();
+  const authenticatedProjectManagerName =
+    (
+      user?.fullName ||
+      [user?.firstName, user?.lastName].filter(Boolean).join(" ")
+    ).trim();
   const [projectName, setProjectName] = useState(
     resolveProjectName(persisted?.projectName, persisted?.venue),
   );
@@ -1377,7 +1383,10 @@ function App() {
   const [extraSchedule, setExtraSchedule] = useState<ExtraSchedule>(
     persisted?.extraSchedule ?? {},
   );
-  const [engineer, setEngineer] = useState(persisted?.engineer ?? "");
+  const [engineer, setEngineer] = useState(
+    persisted?.engineer ?? authenticatedProjectManagerName,
+  );
+  const projectManagerAutofillPendingRef = useRef(persisted == null);
   const [briefDescription, setBriefDescription] = useState(
     persisted?.briefDescription ?? "",
   );
@@ -1443,7 +1452,6 @@ function App() {
     if (next) setGlobalView(next);
   }, [location]);
   const clerk = useClerk();
-  const { user } = useUser();
 
   // Crew Report request/accept loop —
   //   `activeBriefId`   server id of the project_briefs row this project
@@ -1593,6 +1601,15 @@ function App() {
       return null;
     }
   });
+  useEffect(() => {
+    if (
+      projectManagerAutofillPendingRef.current &&
+      authenticatedProjectManagerName
+    ) {
+      setEngineer((current) => current || authenticatedProjectManagerName);
+      projectManagerAutofillPendingRef.current = false;
+    }
+  }, [authenticatedProjectManagerName]);
   const [currentProjectAccessRole, setCurrentProjectAccessRole] = useState<
     "owner" | "editor" | "viewer" | null
   >(null);
@@ -5173,7 +5190,9 @@ function App() {
     setReportDate(new Date().toISOString().slice(0, 10));
     setReportEndDate("");
     setExtraSchedule({});
-    setEngineer("");
+    setEngineer(authenticatedProjectManagerName);
+    projectManagerAutofillPendingRef.current =
+      !authenticatedProjectManagerName;
     setBriefDescription("");
     setClientContact("");
     setSystems([fresh]);
@@ -5217,7 +5236,7 @@ function App() {
       localStorage.removeItem(STORAGE_KEY_V2);
       localStorage.removeItem("ehs-current-project-id");
     } catch { /* ignore */ }
-  }, []);
+  }, [authenticatedProjectManagerName]);
 
   const resetAll = () => {
     if (!confirm(tr("reset.confirm"))) return;

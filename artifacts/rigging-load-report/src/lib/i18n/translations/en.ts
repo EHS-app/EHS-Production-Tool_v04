@@ -1422,6 +1422,7 @@ export const en = {
   "portal.brief.notFoundBody": "This briefing isn't in your portal. The share link may have expired or been imported in a different account.",
   "portal.brief.backToBriefs": "Back to briefs",
   "portal.brief.projectBriefing": "Project briefing",
+  "portal.brief.projectNotes": "Project Notes / Brief",
   "portal.brief.noteFromProducer": "Note from the producer",
   "portal.brief.venueTechSpecs": "Venue Technical Specs",
   "portal.brief.riggingAndStage": "Rigging & Stage",

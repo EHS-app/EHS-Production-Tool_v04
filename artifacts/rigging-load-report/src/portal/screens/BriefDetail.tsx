@@ -690,6 +690,44 @@ export function BriefDetail({
         </Link>
       </div>
 
+      {/* Exact plain-text block from Project Overview. Keep it at the top of
+          the freelancer brief and preserve the producer's whitespace. */}
+      {brief.project.description ? (
+        <section
+          style={{
+            background: c.cardBg,
+            border: `1px solid ${c.border}`,
+            borderLeft: "4px solid #f88000",
+            borderRadius: 12,
+            padding: "12px 14px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: 0.4,
+              color: c.muted,
+              marginBottom: 6,
+            }}
+          >
+            {t("portal.brief.projectNotes")}
+          </div>
+          <div
+            style={{
+              color: c.text,
+              fontSize: 14,
+              lineHeight: 1.5,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {brief.project.description}
+          </div>
+        </section>
+      ) : null}
+
       {/* Project hero */}
       <section
         style={{
@@ -818,48 +856,6 @@ export function BriefDetail({
                 </button>
               );
             })}
-          </div>
-        </section>
-      ) : null}
-
-      {/* Producer's free-text note for the crew, written in the
-          Share-with-crew modal just before sharing. Plain text — we
-          preserve line breaks with white-space:pre-wrap so the
-          producer can format with newlines but no markdown. Hidden
-          when missing / empty. */}
-      {brief.project.description ? (
-        <section
-          style={{
-            background: c.cardBg,
-            border: `1px solid ${c.border}`,
-            borderLeft: "4px solid #f88000",
-            borderRadius: 12,
-            padding: "12px 14px",
-            marginBottom: 12,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: 0.4,
-              color: c.muted,
-              marginBottom: 6,
-            }}
-          >
-            {t("portal.brief.noteFromProducer")}
-          </div>
-          <div
-            style={{
-              color: c.text,
-              fontSize: 14,
-              lineHeight: 1.5,
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-            }}
-          >
-            {brief.project.description}
           </div>
         </section>
       ) : null}

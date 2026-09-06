@@ -777,7 +777,7 @@ export function buildBrief(input: BuildBriefInput): ProjectBrief {
       schedule: input.schedule ? cleanSchedule(input.schedule) : undefined,
       preparedBy: input.engineer,
       ...(input.description && input.description.trim()
-        ? { description: input.description.trim() }
+        ? { description: input.description }
         : {}),
     },
     assignments,
@@ -1292,7 +1292,7 @@ export function normalizeBrief(raw: unknown): ProjectBrief | null {
       schedule: normalizeSchedule(project.schedule),
       preparedBy: asString(project.preparedBy),
       ...(typeof project.description === "string" && project.description.trim()
-        ? { description: project.description.trim() }
+        ? { description: project.description }
         : {}),
       ...(project.venueTechnicalSnapshot && typeof project.venueTechnicalSnapshot === "object"
         ? { venueTechnicalSnapshot: project.venueTechnicalSnapshot as Record<string, Record<string, string>> }

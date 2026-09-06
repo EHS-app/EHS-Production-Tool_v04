@@ -73,6 +73,14 @@ function activeBriefIdIn(data: unknown): string | null | "invalid" {
   return raw;
 }
 
+function projectBriefTextIn(data: unknown): string | undefined {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return undefined;
+  }
+  const value = (data as Record<string, unknown>).briefDescription;
+  return typeof value === "string" ? value : undefined;
+}
+
 async function validActiveBriefProvenance(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   projectId: string,
@@ -464,6 +472,26 @@ router.patch("/projects/:id", requireSignedIn, async (req, res) => {
         .set(updates)
         .where(eq(projectsTable.id, String(id)))
         .returning();
+      const projectBriefText = projectBriefTextIn(data);
+      if (updated && projectBriefText !== undefined) {
+        const activeBriefId = activeBriefIdIn(data);
+        const briefCondition =
+          typeof activeBriefId === "string"
+            ? or(
+                eq(projectBriefsTable.projectId, String(id)),
+                eq(projectBriefsTable.id, activeBriefId),
+              )
+            : eq(projectBriefsTable.projectId, String(id));
+        await tx
+          .update(projectBriefsTable)
+          .set({
+            data: projectBriefText.trim()
+              ? sql`jsonb_set(${projectBriefsTable.data}, '{project,description}', to_jsonb(${projectBriefText}::text), true)`
+              : sql`${projectBriefsTable.data} #- '{project,description}'`,
+            updatedAt: sql`now()`,
+          })
+          .where(briefCondition);
+      }
       return updated
         ? { kind: "updated" as const, project: updated }
         : { kind: "not_found" as const };

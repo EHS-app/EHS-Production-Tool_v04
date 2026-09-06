@@ -1398,6 +1398,8 @@ export const en = {
   "portal.availability.editor.title": "Update Availability",
   "portal.availability.editor.date": "Date",
   "portal.availability.editor.allDay": "All day",
+  "portal.availability.editor.specificTime": "Specific time",
+  "portal.availability.editor.timeMode": "Availability time",
   "portal.availability.editor.startTime": "Start time",
   "portal.availability.editor.endTime": "End time",
   "portal.availability.editor.note": "Note",

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { CalendarEntry } from "./types";
 import {
+  buildDayAvailabilityReplacement,
   overlapsLocalDay,
   replaceAvailabilityEntriesInRange,
 } from "./utils";
@@ -134,5 +135,74 @@ describe("availability state range replacement", () => {
     assert.equal(statusForDay("2026-09-17"), "unavailable");
     assert.equal(statusForDay("2026-09-18"), "available");
     assert.equal(statusForDay("2026-09-30"), "available");
+  });
+
+  it("keeps the rest of a day available around a four-hour busy window", () => {
+    const result = buildDayAvailabilityReplacement(
+      [
+        {
+          id: "full-day-available",
+          status: "available",
+          startAt: "2026-09-15T00:00:00.000Z",
+          endAt: "2026-09-16T00:00:00.000Z",
+          allDay: true,
+        },
+      ],
+      "2026-09-15T00:00:00.000Z",
+      "2026-09-16T00:00:00.000Z",
+      {
+        id: "morning-busy",
+        status: "unavailable",
+        startAt: "2026-09-15T08:00:00.000Z",
+        endAt: "2026-09-15T12:00:00.000Z",
+        allDay: false,
+      },
+    );
+
+    assert.deepEqual(
+      result.map(({ status, startAt, endAt, allDay }) => ({
+        status,
+        startAt,
+        endAt,
+        allDay,
+      })),
+      [
+        {
+          status: "available",
+          startAt: "2026-09-15T00:00:00.000Z",
+          endAt: "2026-09-15T08:00:00.000Z",
+          allDay: false,
+        },
+        {
+          status: "unavailable",
+          startAt: "2026-09-15T08:00:00.000Z",
+          endAt: "2026-09-15T12:00:00.000Z",
+          allDay: false,
+        },
+        {
+          status: "available",
+          startAt: "2026-09-15T12:00:00.000Z",
+          endAt: "2026-09-16T00:00:00.000Z",
+          allDay: false,
+        },
+      ],
+    );
+
+    const withoutExistingAvailability = buildDayAvailabilityReplacement(
+      [],
+      "2026-09-15T00:00:00.000Z",
+      "2026-09-16T00:00:00.000Z",
+      {
+        id: "morning-busy",
+        status: "unavailable",
+        startAt: "2026-09-15T08:00:00.000Z",
+        endAt: "2026-09-15T12:00:00.000Z",
+        allDay: false,
+      },
+    );
+    assert.deepEqual(
+      withoutExistingAvailability.map((entry) => entry.status),
+      ["available", "unavailable", "available"],
+    );
   });
 });

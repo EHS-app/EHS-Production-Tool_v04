@@ -1417,6 +1417,8 @@ export const no: Translations = {
   "portal.availability.editor.title": "Oppdater Tilgjengelighet",
   "portal.availability.editor.date": "Dato",
   "portal.availability.editor.allDay": "Hele dagen",
+  "portal.availability.editor.specificTime": "Bestemt tidsrom",
+  "portal.availability.editor.timeMode": "Tilgjengelighetstid",
   "portal.availability.editor.startTime": "Starttid",
   "portal.availability.editor.endTime": "Sluttid",
   "portal.availability.editor.note": "Notat",

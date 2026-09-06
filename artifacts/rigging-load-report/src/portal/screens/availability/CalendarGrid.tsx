@@ -2,7 +2,13 @@ import React, { useCallback, useState, useRef, useMemo } from "react";
 import { PALETTE, type ThemeMode } from "../../lib/portalTheme";
 import { useT } from "../../../lib/i18n/I18nContext";
 import type { CalendarEntry, ExternalBusy, CalendarHold } from "./types";
-import { overlapsLocalDay, localTimeOnly, isoDateOnly, getIsoWeekNumber } from "./utils";
+import {
+  entryCoversLocalDay,
+  overlapsLocalDay,
+  localTimeOnly,
+  isoDateOnly,
+  getIsoWeekNumber,
+} from "./utils";
 import { Clock } from "lucide-react";
 
 export function CalendarGrid({
@@ -15,7 +21,6 @@ export function CalendarGrid({
   data,
   gigsOverlap,
   openEditor,
-  onCycleDay,
   onBulkAction,
   viewMode
 }: {
@@ -28,7 +33,6 @@ export function CalendarGrid({
   data: any;
   gigsOverlap: (iso: string) => boolean;
   openEditor: (iso: string, entry?: CalendarEntry) => void;
-  onCycleDay: (iso: string) => void;
   onBulkAction: (startIso: string, endIso: string, status: "available" | "unavailable" | "clear") => void;
   viewMode: "month" | "week";
 }) {
@@ -77,8 +81,8 @@ export function CalendarGrid({
   const handlePointerUp = (iso: string) => {
     if (dragStart) {
       if (dragStart === iso) {
-        // It's a click
-        onCycleDay(iso);
+        // A click opens the full-day / specific-time editor.
+        openEditor(iso);
         setSelection(null);
       } else {
         // It's a drag
@@ -208,21 +212,33 @@ export function CalendarGrid({
           const dayBusy = externalBusy.filter(e => overlapsLocalDay(e.startAt, e.endAt, cell.iso!));
           const dayHolds = holds.filter(e => overlapsLocalDay(e.startAt, e.endAt, cell.iso!));
 
-          const effectiveEntry = [...dayEntries].sort((a, b) => {
+          const orderedDayEntries = [...dayEntries].sort((a, b) => {
             if (a.virtual !== b.virtual) return a.virtual ? 1 : -1;
-            const aTime = new Date(a.updatedAt || a.createdAt || a.startAt).getTime();
-            const bTime = new Date(b.updatedAt || b.createdAt || b.startAt).getTime();
-            return bTime - aTime;
-          })[0];
-          
-          const visibleDayEntries = dayBusy.length > 0
-            ? dayEntries.filter((entry) => entry.status === "unavailable")
-            : effectiveEntry
-              ? dayEntries.filter((entry) => entry.status === effectiveEntry.status)
-              : [];
+            return (
+              new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+            );
+          });
+          const availableEntries = orderedDayEntries.filter(
+            (entry) => entry.status === "available",
+          );
+          const unavailableEntries = orderedDayEntries.filter(
+            (entry) => entry.status === "unavailable",
+          );
+          const fullDayBusy = unavailableEntries.some((entry) =>
+            entryCoversLocalDay(entry, cell.iso!),
+          );
+          const partialBusy =
+            dayBusy.length === 0 &&
+            unavailableEntries.length > 0 &&
+            availableEntries.length > 0 &&
+            !fullDayBusy;
+          const visibleDayEntries = orderedDayEntries;
 
-          let isAvailable = dayBusy.length === 0 && effectiveEntry?.status === "available";
-          let isUnavailable = dayBusy.length > 0 || effectiveEntry?.status === "unavailable";
+          let isAvailable =
+            dayBusy.length === 0 &&
+            !fullDayBusy &&
+            availableEntries.length > 0;
+          let isUnavailable = dayBusy.length > 0 || fullDayBusy;
 
           if (dayEntries.length === 0 && dayBusy.length === 0) {
             const localState = data.availability[cell.iso!];
@@ -239,6 +255,10 @@ export function CalendarGrid({
           }
           if (isUnavailable) {
             bg = "rgba(220, 38, 38, 0.15)";
+          }
+          if (partialBusy) {
+            bg =
+              "linear-gradient(135deg, rgba(220, 38, 38, 0.16) 0 42%, rgba(22, 163, 74, 0.15) 42% 100%)";
           }
           if (dayHolds.length > 0) {
             bg = "rgba(245, 158, 11, 0.15)";
@@ -270,7 +290,7 @@ export function CalendarGrid({
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  onCycleDay(cell.iso!);
+                  openEditor(cell.iso!);
                 }
               }}
               style={{
@@ -347,7 +367,9 @@ export function CalendarGrid({
                     >
                       <span className="availability-time-badge__dot" />
                       <span className="availability-time-badge__label">
-                        {entryTimeLabel(entry)}
+                        {entry.allDay
+                          ? statusLabel
+                          : `${statusLabel} ${entryTimeLabel(entry)}`}
                       </span>
                     </button>
                   );

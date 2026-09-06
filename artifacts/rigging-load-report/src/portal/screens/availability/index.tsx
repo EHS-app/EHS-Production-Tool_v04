@@ -479,7 +479,6 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
               data={data}
               gigsOverlap={gigsOverlap}
               openEditor={openEditor}
-              onCycleDay={handleCycleDay}
               onBulkAction={replaceRange}
               viewMode={viewMode}
             />
@@ -589,6 +588,9 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
               ? entries.find((entry) => entry.id === editorEntryId)
               : undefined
           }
+          dayEntries={entries.filter((entry) =>
+            overlapsLocalDay(entry.startAt, entry.endAt, editorDate)
+          )}
         />
       )}
       

@@ -64,6 +64,29 @@ export function overlapsLocalDay(
   return starts < dayEnd && ends > dayStart;
 }
 
+function isLocalMidnight(value: string): boolean {
+  const date = new Date(value);
+  return (
+    date.getHours() === 0 &&
+    date.getMinutes() === 0 &&
+    date.getSeconds() === 0 &&
+    date.getMilliseconds() === 0
+  );
+}
+
+export function entryCoversLocalDay(
+  entry: Pick<CalendarEntry, "startAt" | "endAt">,
+  day: string,
+): boolean {
+  const dayStart = localDateTime(day, "00:00");
+  if (!dayStart) return false;
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+  return (
+    new Date(entry.startAt) <= dayStart && new Date(entry.endAt) >= dayEnd
+  );
+}
+
 /** Immutably replace one half-open range while preserving every portion of
  * existing availability outside it. Used for optimistic portal state so a
  * day or multi-day override cannot discard a month-wide entry. */
@@ -86,6 +109,7 @@ export function replaceAvailabilityEntriesInRange(
         ...entry,
         id: `${entry.id}:before:${rangeStart}`,
         endAt: rangeStart,
+        allDay: entry.allDay && isLocalMidnight(rangeStart),
       });
     }
     if (entryEnd > end) {
@@ -93,6 +117,7 @@ export function replaceAvailabilityEntriesInRange(
         ...entry,
         id: `${entry.id}:after:${rangeEnd}`,
         startAt: rangeEnd,
+        allDay: entry.allDay && isLocalMidnight(rangeEnd),
       });
     }
     return fragments;
@@ -101,6 +126,74 @@ export function replaceAvailabilityEntriesInRange(
   return [...preserved, ...replacements.map((entry) => ({ ...entry }))].sort(
     (left, right) =>
       new Date(left.startAt).getTime() - new Date(right.startAt).getTime(),
+  );
+}
+
+/** Project all availability for one local day, then overlay a full-day or
+ * hourly replacement. The returned entries are non-overlapping and can be
+ * sent as one authoritative bulk replacement for that day. */
+export function buildDayAvailabilityReplacement(
+  entries: readonly CalendarEntry[],
+  dayStart: string,
+  dayEnd: string,
+  replacement: CalendarEntry,
+  removeEntryId?: string,
+): CalendarEntry[] {
+  const start = new Date(dayStart);
+  const end = new Date(dayEnd);
+  const dayEntries = entries.flatMap((entry) => {
+    if (entry.id === removeEntryId) return [];
+    const entryStart = new Date(entry.startAt);
+    const entryEnd = new Date(entry.endAt);
+    if (entryStart >= end || entryEnd <= start) return [];
+    const clippedStart =
+      entryStart < start ? dayStart : entry.startAt;
+    const clippedEnd = entryEnd > end ? dayEnd : entry.endAt;
+    return [
+      {
+        ...entry,
+        id: `${entry.id}:day:${dayStart}`,
+        startAt: clippedStart,
+        endAt: clippedEnd,
+        allDay:
+          entry.allDay &&
+          clippedStart === dayStart &&
+          clippedEnd === dayEnd,
+      },
+    ];
+  }).sort((left, right) => {
+    if (left.virtual !== right.virtual) return left.virtual ? -1 : 1;
+    return (
+      new Date(left.startAt).getTime() - new Date(right.startAt).getTime()
+    );
+  });
+
+  let normalized: CalendarEntry[] =
+    replacement.status === "unavailable" && !replacement.allDay
+      ? [
+          {
+            id: `available-remainder:${dayStart}`,
+            status: "available",
+            startAt: dayStart,
+            endAt: dayEnd,
+            allDay: true,
+          },
+        ]
+      : [];
+  for (const entry of dayEntries) {
+    normalized = replaceAvailabilityEntriesInRange(
+      normalized,
+      entry.startAt,
+      entry.endAt,
+      [entry],
+    );
+  }
+
+  return replaceAvailabilityEntriesInRange(
+    normalized,
+    replacement.startAt,
+    replacement.endAt,
+    [replacement],
   );
 }
 

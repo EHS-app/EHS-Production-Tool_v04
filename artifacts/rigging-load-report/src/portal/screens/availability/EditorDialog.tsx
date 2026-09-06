@@ -2,7 +2,12 @@ import React, { useState, useEffect } from "react";
 import { PALETTE, type ThemeMode } from "../../lib/portalTheme";
 import { useT } from "../../../lib/i18n/I18nContext";
 import { toast } from "sonner";
-import { responseError, localTimeOnly, localDateTime } from "./utils";
+import {
+  buildDayAvailabilityReplacement,
+  responseError,
+  localTimeOnly,
+  localDateTime,
+} from "./utils";
 import type { CalendarEntry } from "./types";
 
 function inputStyle(theme: ThemeMode): React.CSSProperties {
@@ -39,7 +44,8 @@ export function EditorDialog({
   theme,
   getToken,
   baseUrl,
-  existingEntry
+  existingEntry,
+  dayEntries,
 }: {
   date: string;
   onClose: () => void;
@@ -48,6 +54,7 @@ export function EditorDialog({
   getToken: () => Promise<string | null>;
   baseUrl: string;
   existingEntry?: CalendarEntry;
+  dayEntries: CalendarEntry[];
 }) {
   const c = PALETTE[theme];
   const t = useT();
@@ -146,29 +153,6 @@ export function EditorDialog({
       privateNote: note
     };
 
-    if (existingEntry?.virtual) {
-      const startLocalStr = `${date}T00:00:00`;
-      const endLocalObj = new Date(date);
-      endLocalObj.setDate(endLocalObj.getDate() + 1);
-      const endLocalStr = `${endLocalObj.getFullYear()}-${String(endLocalObj.getMonth() + 1).padStart(2, '0')}-${String(endLocalObj.getDate()).padStart(2, '0')}T00:00:00`;
-      const rangeStart = new Date(startLocalStr).toISOString();
-      const rangeEnd = new Date(endLocalStr).toISOString();
-      
-      const res = await fetch(`${baseUrl}api/portal/calendar/bulk`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ rangeStart, rangeEnd, entries: [body] })
-      });
-      if (!res.ok) {
-        toast.error(await responseError(res));
-        return;
-      }
-      toast.success(status === "available" ? (t("portal.availability.toast.markedAvailable") || "Marked available") : (t("portal.availability.toast.markedBusy") || "Marked busy"));
-      onSave();
-      onClose();
-      return;
-    }
-
     if (recurrence === "weekly" && until) {
       const [y, m, d] = date.split("-").map(Number);
       const localDate = new Date(y, m - 1, d);
@@ -191,16 +175,55 @@ export function EditorDialog({
       body.until = untilIso;
     }
 
-    const canUpdate = Boolean(existingEntry && !existingEntry.ruleId);
-    const endpoint = canUpdate
-      ? `${baseUrl}api/portal/calendar/availability/${existingEntry!.id}`
-      : `${baseUrl}api/portal/calendar/availability`;
-      
-    const res = await fetch(endpoint, {
-      method: canUpdate ? "PATCH" : "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body)
-    });
+    let res: Response;
+    if (recurrence === "weekly" && until) {
+      res = await fetch(`${baseUrl}api/portal/calendar/availability`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+    } else {
+      const dayStartLocal = localDateTime(date, "00:00");
+      if (!dayStartLocal) {
+        toast.error(t("portal.availability.editor.invalidTime"));
+        return;
+      }
+      const dayEndLocal = new Date(dayStartLocal);
+      dayEndLocal.setDate(dayEndLocal.getDate() + 1);
+      const dayStart = dayStartLocal.toISOString();
+      const dayEnd = dayEndLocal.toISOString();
+      const replacementEntry: CalendarEntry = {
+        id: `replacement-${startsAt}-${endsAt}`,
+        status,
+        startAt: startsAt,
+        endAt: endsAt,
+        allDay,
+        note,
+      };
+      const replacementEntries = buildDayAvailabilityReplacement(
+        dayEntries,
+        dayStart,
+        dayEnd,
+        replacementEntry,
+        existingEntry && !existingEntry.allDay ? existingEntry.id : undefined,
+      );
+      res = await fetch(`${baseUrl}api/portal/calendar/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          rangeStart: dayStart,
+          rangeEnd: dayEnd,
+          entries: replacementEntries.map((entry) => ({
+            status: entry.status,
+            startsAt: entry.startAt,
+            endsAt: entry.endAt,
+            timezone: tz,
+            allDay: entry.allDay,
+            privateNote: entry.note || "",
+          })),
+        }),
+      });
+    }
 
     if (!res.ok) {
       toast.error(await responseError(res));
@@ -235,11 +258,13 @@ export function EditorDialog({
         </div>
 
         <div style={{ display: "grid", gap: 12, margin: "8px 0 16px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
-              <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
-              <span>{t("portal.availability.editor.allDay")}</span>
-            </label>
+          <div role="group" aria-label={t("portal.availability.editor.timeMode")} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <button type="button" onClick={() => setAllDay(true)} aria-pressed={allDay} style={{ ...inputStyle(theme), cursor: "pointer", fontWeight: allDay ? 700 : 400, borderColor: allDay ? c.accent : c.border }}>
+              {t("portal.availability.editor.allDay")}
+            </button>
+            <button type="button" onClick={() => setAllDay(false)} aria-pressed={!allDay} style={{ ...inputStyle(theme), cursor: "pointer", fontWeight: !allDay ? 700 : 400, borderColor: !allDay ? c.accent : c.border }}>
+              {t("portal.availability.editor.specificTime")}
+            </button>
           </div>
 
           {!allDay && (

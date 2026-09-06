@@ -78119,22 +78119,48 @@ function buildPortalBriefUrl(briefId) {
 
 // src/lib/briefEmail.ts
 var clerk3 = process.env.CLERK_SECRET_KEY ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY }) : null;
+function resolveProducerDisplayName(args) {
+  const fullName = args.fullName?.trim();
+  if (fullName) return fullName;
+  const organizationName = args.organizationName?.trim();
+  if (organizationName) return organizationName;
+  const emailUsername = args.email?.split("@", 1)[0]?.trim();
+  return emailUsername || "EHS";
+}
 async function lookupProducerName(userId2) {
-  if (!clerk3) return "produsent";
+  if (!clerk3) return "EHS";
   try {
     const user = await clerk3.users.getUser(userId2);
-    const name = [user.firstName ?? "", user.lastName ?? ""].join(" ").trim();
-    if (name) return name;
+    const fullName = [user.firstName ?? "", user.lastName ?? ""].join(" ").trim();
     const primary = user.emailAddresses?.find(
       (e) => e.id === user.primaryEmailAddressId
     )?.emailAddress;
-    return primary ?? "produsent";
+    let organizationName = null;
+    if (!fullName) {
+      try {
+        const memberships = await clerk3.users.getOrganizationMembershipList({
+          userId: userId2,
+          limit: 1
+        });
+        organizationName = memberships.data[0]?.organization.name ?? null;
+      } catch (err) {
+        logger.warn(
+          { userId: userId2, err: err instanceof Error ? err.message : String(err) },
+          "could not resolve producer organization from Clerk"
+        );
+      }
+    }
+    return resolveProducerDisplayName({
+      fullName,
+      organizationName,
+      email: primary
+    });
   } catch (err) {
     logger.warn(
       { userId: userId2, err: err instanceof Error ? err.message : String(err) },
       "could not resolve producer name from Clerk"
     );
-    return "produsent";
+    return "EHS";
   }
 }
 var defaultDependencies = {
@@ -78230,7 +78256,8 @@ function buildBriefEmailContent(args) {
   const role = displayValue(args.role);
   const dates = formatDateRange(args.startDate ?? null, args.endDate ?? null);
   const isSharedBrief = args.notificationType === "share_brief";
-  const subject = isSharedBrief ? `Prosjektbrief: ${projectName}` : `Ny foresp\xF8rsel: ${projectName}`;
+  const hasProjectName = Boolean(args.projectName?.trim()) && args.projectName?.trim().toLocaleLowerCase("nb-NO") !== "ikke oppgitt";
+  const subject = hasProjectName ? isSharedBrief ? `Prosjektbrief: ${projectName}` : `Ny foresp\xF8rsel: ${projectName}` : isSharedBrief ? "Ny prosjektbrief" : "Ny foresp\xF8rsel om oppdrag";
   const intro = isSharedBrief ? `${producerName} har delt en prosjektbrief med deg.` : `Du har f\xE5tt en ny foresp\xF8rsel fra ${producerName}.`;
   const cta = isSharedBrief ? "Se prosjektbrief" : "\xC5pne brief i portal";
   const fallback = "Hvis knappen over ikke fungerer, lim inn denne lenken i nettleseren:";
@@ -78273,7 +78300,7 @@ function buildBriefEmailContent(args) {
           <td style="padding:22px 28px;background:#111827;">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
               <tr>
-                <td style="font-family:Arial,sans-serif;font-size:30px;line-height:34px;font-weight:900;letter-spacing:2px;color:#f97316;"><img src="https://app.ehs.no/logo.png" width="112" alt="EHS" style="display:block;width:112px;max-width:112px;height:auto;border:0;color:#f97316;font-family:Arial,sans-serif;font-size:24px;font-weight:900;"></td>
+                <td style="font-family:Arial,Helvetica,sans-serif;font-size:30px;line-height:34px;font-weight:900;letter-spacing:2px;color:#ffffff;">EHS</td>
                 <td align="right" style="font-family:Arial,sans-serif;font-size:13px;line-height:18px;font-weight:700;color:#ffffff;">Crew Management System</td>
               </tr>
             </table>
@@ -78295,7 +78322,11 @@ function buildBriefEmailContent(args) {
         </td></tr>
         <tr><td style="padding:0 28px 30px;font-family:Arial,sans-serif;font-size:12px;line-height:18px;color:#64748b;">
           <p style="margin:0 0 6px;">${fallback}</p>
-          <p style="margin:0;word-break:break-all;"><a href="${escapeHtml(args.link)}" style="color:#475569;text-decoration:underline;">${escapeHtml(args.link)}</a></p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;">
+            <tr><td style="padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;word-break:break-all;font-family:monospace;font-size:12px;line-height:18px;color:#666666;">
+              <a href="${escapeHtml(args.link)}" style="word-break:break-all;font-family:monospace;font-size:12px;line-height:18px;color:#666666;text-decoration:underline;">${escapeHtml(args.link)}</a>
+            </td></tr>
+          </table>
         </td></tr>
       </table>
     </td></tr>

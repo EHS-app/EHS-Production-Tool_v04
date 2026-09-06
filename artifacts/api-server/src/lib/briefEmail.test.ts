@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   buildBriefEmailContent,
   dispatchBriefRequestEmails,
+  resolveProducerDisplayName,
   type BriefEmailDependencies,
   type BriefEmailProfile,
 } from "./briefEmail";
@@ -155,14 +156,19 @@ describe("brief email dispatch", () => {
       role: null,
     });
 
-    assert.equal(content.subject, "Ny forespørsel: Ikke oppgitt");
+    assert.equal(content.subject, "Ny forespørsel om oppdrag");
     assert.match(content.textBody, /Hei der,/);
     assert.match(content.textBody, /Prosjekt: Ikke oppgitt/);
     assert.match(content.textBody, /Dato: Ikke oppgitt/);
     assert.match(content.textBody, /Rolle: Ikke oppgitt/);
     assert.match(content.textBody, /Sted: Ikke oppgitt/);
     assert.match(content.htmlBody, /Prosjekt/);
-    assert.match(content.htmlBody, /https:\/\/app\.ehs\.no\/logo\.png/);
+    assert.doesNotMatch(content.htmlBody, /<img\b/i);
+    assert.match(content.htmlBody, />EHS</);
+    assert.match(
+      content.htmlBody,
+      /word-break:break-all;font-family:monospace;font-size:12px;line-height:18px;color:#666666/,
+    );
   });
 
   it("changes only the requested copy for Share Brief notifications", () => {
@@ -190,5 +196,40 @@ describe("brief email dispatch", () => {
     assert.match(shared.htmlBody, /Dato/);
     assert.match(shared.htmlBody, /Rolle/);
     assert.match(shared.htmlBody, /Sted/);
+  });
+
+  it("uses a clean subject fallback for a shared brief without a project name", () => {
+    const shared = buildBriefEmailContent({
+      recipientName: "Kari",
+      producerName: "EHS",
+      link: "https://app.ehs.no/?view=portal&brief=brief-1",
+      projectName: " Ikke oppgitt ",
+      notificationType: "share_brief",
+    });
+
+    assert.equal(shared.subject, "Ny prosjektbrief");
+  });
+
+  it("resolves producer display names without exposing full email addresses", () => {
+    assert.equal(
+      resolveProducerDisplayName({
+        fullName: "Ola Nordmann",
+        organizationName: "EHS Norge",
+        email: "olti@ehs.no",
+      }),
+      "Ola Nordmann",
+    );
+    assert.equal(
+      resolveProducerDisplayName({
+        organizationName: "EHS Norge",
+        email: "olti@ehs.no",
+      }),
+      "EHS Norge",
+    );
+    assert.equal(
+      resolveProducerDisplayName({ email: "olti@ehs.no" }),
+      "olti",
+    );
+    assert.equal(resolveProducerDisplayName({}), "EHS");
   });
 });

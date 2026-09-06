@@ -37,6 +37,8 @@ import {
 } from "../lib/crewShiftAssignments";
 import { useT } from "../lib/i18n/I18nContext";
 import { AssignShiftsModal } from "./AssignShiftsModal";
+import { Copy } from "lucide-react";
+import { toast } from "sonner";
 
 type FreelancerCandidate = {
   userId: string;
@@ -740,6 +742,18 @@ export function MasterCrewSheet({
     );
     if (confirmed) void onSendLinkedRequests(linkedUnsentMembers);
   }, [linkedUnsentMembers, onSendLinkedRequests, readOnly, t]);
+  const copyPortalLink = useCallback(async (row: RosterRow) => {
+    if (!briefId || !row.freelancerUserId) return;
+    const url = new URL("https://app.ehs.no/");
+    url.searchParams.set("view", "portal");
+    url.searchParams.set("brief", briefId);
+    try {
+      await navigator.clipboard.writeText(url.toString());
+      toast.success(`Portal link copied for ${row.name || "freelancer"}`);
+    } catch {
+      toast.error("Could not copy the portal link.");
+    }
+  }, [briefId]);
 
   return (
     <section className="led-card roster-card master-sheet-card">
@@ -1252,6 +1266,11 @@ export function MasterCrewSheet({
                     phaseDays={phaseDays}
                     phaseShiftTimes={phaseShiftTimes}
                     onOpenProfile={onOpenProfile}
+                    onCopyPortalLink={
+                      briefId && row.freelancerUserId
+                        ? () => void copyPortalLink(row)
+                        : undefined
+                    }
                     onLocalSetDays={
                       local
                         ? (
@@ -1536,6 +1555,7 @@ function MasterRow({
   rolePeers,
   onApplyScheduleToRole,
   onOpenProfile,
+  onCopyPortalLink,
 }: {
   row: RosterRow;
   projectDays: ReadonlyArray<string> | null;
@@ -1582,6 +1602,7 @@ function MasterRow({
     shiftTasks: Record<string, string[]>,
   ) => void;
   onOpenProfile?: (userId: string) => void;
+  onCopyPortalLink?: () => void;
 }) {
   const chips = useMemo(
     () => buildDayChips(row.assignedDates, projectDays),
@@ -1616,6 +1637,18 @@ function MasterRow({
                 Profile
               </button>
             ) : null}
+            {onCopyPortalLink ? (
+              <button
+                type="button"
+                className="ehs-ghost-btn"
+                onClick={onCopyPortalLink}
+                title={`Copy portal link for ${row.name || "freelancer"}`}
+                aria-label={`Copy portal link for ${row.name || "freelancer"}`}
+                style={{ flexShrink: 0, padding: "4px 7px", height: "auto" }}
+              >
+                <Copy size={14} aria-hidden />
+              </button>
+            ) : null}
           </div>
         ) : (
           <div className="roster-name">
@@ -1638,6 +1671,18 @@ function MasterRow({
               >
                 no profile
               </span>
+            ) : null}
+            {onCopyPortalLink ? (
+              <button
+                type="button"
+                className="ehs-ghost-btn"
+                onClick={onCopyPortalLink}
+                title={`Copy portal link for ${row.name || "freelancer"}`}
+                aria-label={`Copy portal link for ${row.name || "freelancer"}`}
+                style={{ padding: "3px 6px", height: "auto" }}
+              >
+                <Copy size={14} aria-hidden />
+              </button>
             ) : null}
           </div>
         )}

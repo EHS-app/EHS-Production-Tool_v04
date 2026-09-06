@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import {
   db,
+  briefDispatchesTable,
   projectBriefsTable,
   briefAssignmentsTable,
   briefRoomAssignmentsTable,
@@ -705,6 +706,7 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
     recipients?: unknown;
     project_id?: unknown;
     venue_id?: unknown;
+    send_email?: unknown;
   };
   const submittedData = body.data;
   if (!submittedData || typeof submittedData !== "object" || Array.isArray(submittedData)) {
@@ -726,6 +728,7 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
     data,
     body.recipients,
   );
+    const explicitEmailDispatch = body.send_email === true;
   try {
     const nestedProject =
       data.project && typeof data.project === "object" && !Array.isArray(data.project)
@@ -819,7 +822,28 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
       // reorganisation. The client can flag "removed" using the
       // brief's current `recipients` list as the source of truth.
       const assignmentSync = await synchronizeBriefAssignments(tx, id, recipients);
-      const dispatch = effectiveProjectStatus === "active"
+      if (explicitEmailDispatch && recipients.length > 0) {
+        const recipientIds = [
+          ...new Set(recipients.map((recipient) => recipient.freelancerUserId)),
+        ];
+        await tx
+          .update(briefDispatchesTable)
+          .set({
+            state: "pending",
+            claimedAt: null,
+            leaseExpiresAt: null,
+            failedAt: null,
+            updatedAt: sql`now()`,
+          })
+          .where(
+            and(
+              eq(briefDispatchesTable.briefId, id),
+              inArray(briefDispatchesTable.freelancerUserId, recipientIds),
+              inArray(briefDispatchesTable.state, ["sent", "failed"]),
+            ),
+          );
+      }
+      const dispatch = explicitEmailDispatch || effectiveProjectStatus === "active"
         ? await claimBriefDispatches(tx, id, recipients)
         : null;
       return {
@@ -838,6 +862,41 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
     }
     // Planning/draft saves only populate the durable outbox. An active
     // project claims newly pending deliveries post-commit.
+    const projectBrief =
+      typeof nestedProject.description === "string"
+        ? nestedProject.description
+        : "";
+    if (
+      explicitEmailDispatch &&
+      result.dispatch
+    ) {
+      const delivery = result.dispatch.newRecipientUserIds.length
+        ? await dispatchBriefRequestEmails({
+            briefId: id,
+            ownerUserId: userId,
+            newRecipientUserIds: result.dispatch.newRecipientUserIds,
+            projectName: indexed.projectName,
+            venue: indexed.venue,
+            client: indexed.client,
+            startDate: indexed.startDate,
+            endDate: indexed.endDate,
+            projectBrief,
+          })
+        : { sent: 0, skipped: 0, outcomes: [] };
+      if (delivery.outcomes.length > 0) {
+        await completeBriefDispatches(id, delivery.outcomes);
+      }
+      res.json({
+        ok: true,
+        brief: result.brief,
+        delivery: {
+          sent: delivery.sent,
+          skipped: delivery.skipped + result.dispatch.skipped,
+          alreadySent: result.dispatch.alreadySent,
+        },
+      });
+      return;
+    }
     if (result.dispatch?.newRecipientUserIds.length) {
       void (async () => {
         const delivery = await dispatchBriefRequestEmails({
@@ -845,6 +904,7 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
           newRecipientUserIds: result.dispatch!.newRecipientUserIds,
           projectName: indexed.projectName, venue: indexed.venue, client: indexed.client,
           startDate: indexed.startDate, endDate: indexed.endDate,
+          projectBrief,
         });
         await completeBriefDispatches(id, delivery.outcomes);
       })().catch((err: unknown) => logger.error(

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth, useClerk, useUser } from "@clerk/react";
 import { Link, useLocation } from "wouter";
+import { toast } from "sonner";
 import "./index.css";
 import ehsLogo from "./assets/ehs-logo.png";
 import { AppShell, type ShellView, type ShellAction } from "./components/AppShell";
@@ -3699,6 +3700,95 @@ function App() {
     [sendCrewRequests],
   );
 
+  const emailAssignedCrewBriefs = useCallback(async () => {
+    if (sendingRequests) return;
+    const recipients = crew
+      .filter(
+        (member): member is CrewMember & { freelancerUserId: string } =>
+          Boolean(member.freelancerUserId),
+      )
+      .map((member) => ({
+        crewId: member.id,
+        freelancerUserId: member.freelancerUserId,
+      }));
+    if (recipients.length === 0) {
+      toast.error("No linked freelancers to email.");
+      return;
+    }
+    setSendingRequests(true);
+    setSendError(null);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Sign in to share the brief.");
+      const data = buildBrief({
+        ...briefInput,
+        crew,
+        recipientCrewId: null,
+      });
+      const response = await fetch("/api/portal/briefs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ...(activeBriefId ? { id: activeBriefId } : {}),
+          ...(currentProjectId ? { project_id: currentProjectId } : {}),
+          ...(venueId ? { venue_id: venueId } : {}),
+          data,
+          recipients,
+          send_email: true,
+        }),
+      });
+      const result = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: string;
+        brief?: { id?: string };
+        delivery?: { sent?: number; skipped?: number; alreadySent?: number };
+      } | null;
+      if (!response.ok || !result?.ok || !result.brief?.id) {
+        throw new Error(result?.error || `Could not email briefs (${response.status}).`);
+      }
+      setActiveBriefId(result.brief.id);
+      const linkedIds = new Set(recipients.map((recipient) => recipient.crewId));
+      setCrew((members) =>
+        members.map((member) =>
+          linkedIds.has(member.id)
+            ? { ...member, requestStatus: member.requestStatus ?? "requested" }
+            : member,
+        ),
+      );
+      const sent = result.delivery?.sent ?? 0;
+      const skipped = result.delivery?.skipped ?? 0;
+      if (sent > 0) {
+        toast.success(
+          `Briefs emailed successfully to ${sent} crew member${sent === 1 ? "" : "s"}`,
+        );
+      } else {
+        toast.error(
+          skipped > 0
+            ? "No briefs were emailed. Check freelancer email profiles."
+            : "Brief emails are already being sent.",
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not email briefs.";
+      setSendError(message);
+      toast.error(message);
+    } finally {
+      setSendingRequests(false);
+    }
+  }, [
+    activeBriefId,
+    briefInput,
+    crew,
+    currentProjectId,
+    getToken,
+    sendingRequests,
+    venueId,
+  ]);
+
   /** Producer-side polling. Whenever the producer is on the Crew tab
    *  and we have a server brief id, fetch the assignments every 15s
    *  and reconcile each crew row's `requestStatus` /
@@ -6110,11 +6200,11 @@ function App() {
         label: tr("shell.action.shareBrief"),
         icon: ShellShare2,
         variant: "primary",
-        onClick: () => setShareOpen(true),
+        onClick: () => void emailAssignedCrewBriefs(),
         title: tr("shell.action.shareBriefTitle"),
       },
     ],
-    [tr],
+    [emailAssignedCrewBriefs, tr],
   );
 
   const shellSecondaryActions: ShellAction[] = useMemo(
@@ -6737,8 +6827,8 @@ function App() {
             </button>
             {!projectIsTerminal ? <button
               className="btn btn-pill btn-pill-primary"
-              onClick={() => setShareOpen(true)}
-              title="Generate per-crew brief links to share with freelancers"
+              onClick={() => void emailAssignedCrewBriefs()}
+              title="Email the project brief to assigned freelancers"
             >
               <span className="btn-pill-icon" aria-hidden>↗</span>
               <span>{tr("header.shareWithCrew")}</span>

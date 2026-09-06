@@ -46,6 +46,7 @@ function buildBody(args: {
   venue: string;
   client: string;
   dateRange: string;
+  projectBrief: string;
   link: string;
 }): string {
   const greeting = args.recipientName ? `Hei ${args.recipientName},` : "Hei,";
@@ -56,6 +57,9 @@ function buildBody(args: {
   }
   if (args.client) detailLines.push(`Kunde: ${args.client}`);
   if (args.dateRange) detailLines.push(`Dato: ${args.dateRange}`);
+  if (args.projectBrief.trim()) {
+    detailLines.push("", "Prosjektbrief:", args.projectBrief);
+  }
   const lines = [
     greeting,
     "",
@@ -80,6 +84,7 @@ export async function dispatchBriefRequestEmails(args: {
   client: string;
   startDate: string | null;
   endDate: string | null;
+  projectBrief?: string;
 }): Promise<{ sent: number; skipped: number; outcomes: { freelancerUserId: string; sent: boolean }[] }> {
   if (args.newRecipientUserIds.length === 0) return { sent: 0, skipped: 0, outcomes: [] };
   try {
@@ -132,6 +137,7 @@ export async function dispatchBriefRequestEmails(args: {
         venue: args.venue,
         client: args.client,
         dateRange,
+        projectBrief: args.projectBrief ?? "",
         link,
       });
       const result = await sendGmail({

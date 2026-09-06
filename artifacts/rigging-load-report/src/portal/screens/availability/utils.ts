@@ -1,3 +1,5 @@
+import type { CalendarEntry } from "./types";
+
 export function isoDateOnly(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -60,6 +62,46 @@ export function overlapsLocalDay(
   const starts = new Date(startsAt);
   const ends = new Date(endsAt);
   return starts < dayEnd && ends > dayStart;
+}
+
+/** Immutably replace one half-open range while preserving every portion of
+ * existing availability outside it. Used for optimistic portal state so a
+ * one-day override cannot discard a month-wide entry. */
+export function replaceAvailabilityEntriesInRange(
+  entries: readonly CalendarEntry[],
+  rangeStart: string,
+  rangeEnd: string,
+  replacements: readonly CalendarEntry[],
+): CalendarEntry[] {
+  const start = new Date(rangeStart);
+  const end = new Date(rangeEnd);
+  const preserved = entries.flatMap((entry) => {
+    const entryStart = new Date(entry.startAt);
+    const entryEnd = new Date(entry.endAt);
+    if (entryStart >= end || entryEnd <= start) return [{ ...entry }];
+
+    const fragments: CalendarEntry[] = [];
+    if (entryStart < start) {
+      fragments.push({
+        ...entry,
+        id: `${entry.id}:before:${rangeStart}`,
+        endAt: rangeStart,
+      });
+    }
+    if (entryEnd > end) {
+      fragments.push({
+        ...entry,
+        id: `${entry.id}:after:${rangeEnd}`,
+        startAt: rangeEnd,
+      });
+    }
+    return fragments;
+  });
+
+  return [...preserved, ...replacements.map((entry) => ({ ...entry }))].sort(
+    (left, right) =>
+      new Date(left.startAt).getTime() - new Date(right.startAt).getTime(),
+  );
 }
 
 export function localTimeOnly(value: string): string {

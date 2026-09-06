@@ -6,7 +6,13 @@ import { toast } from "sonner";
 import { useT } from "../../../lib/i18n/I18nContext";
 
 import type { CalendarEntry, ExternalBusy, CalendarConnection, CalendarFeed, CalendarHold } from "./types";
-import { isoDateOnly, responseError, buildMonthCells, overlapsLocalDay } from "./utils";
+import {
+  isoDateOnly,
+  responseError,
+  buildMonthCells,
+  overlapsLocalDay,
+  replaceAvailabilityEntriesInRange,
+} from "./utils";
 
 import { CalendarGrid } from "./CalendarGrid";
 import { EditorDialog } from "./EditorDialog";
@@ -317,7 +323,12 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
     setActiveBulkStatus(null);
   }, [viewMode, viewYear, viewMonth, viewWeekStart]);
 
-  const replaceRange = async (startIso: string, endIso: string, status: "available" | "unavailable" | "clear") => {
+  const replaceRange = async (
+    startIso: string,
+    endIso: string,
+    status: "available" | "unavailable" | "clear",
+    wholeView = false,
+  ) => {
     setLoading(true);
     try {
       const token = await getToken();
@@ -353,8 +364,29 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
         toast.error(await responseError(res));
         return;
       }
+      const optimisticEntries: CalendarEntry[] =
+        status === "clear"
+          ? []
+          : [
+              {
+                id: `optimistic-${status}-${rangeStart}`,
+                status,
+                startAt: rangeStart,
+                endAt: rangeEnd,
+                allDay: true,
+                updatedAt: new Date().toISOString(),
+              },
+            ];
+      setEntries((current) =>
+        replaceAvailabilityEntriesInRange(
+          current,
+          rangeStart,
+          rangeEnd,
+          optimisticEntries,
+        ),
+      );
       if (status !== "clear") {
-        setActiveBulkStatus(status);
+        setActiveBulkStatus(wholeView ? status : null);
         toast.success(status === "available" ? t("portal.availability.toast.markedAvailable") : t("portal.availability.toast.markedBusy"));
       } else {
         setActiveBulkStatus(null);
@@ -379,7 +411,7 @@ export function Availability({ theme, data, setData }: { theme: ThemeMode; data:
       startIso = isoDateOnly(viewWeekStart);
       endIso = isoDateOnly(weekEnd);
     }
-    await replaceRange(startIso, endIso, status);
+    await replaceRange(startIso, endIso, status, true);
   };
 
   const handleCycleDay = async (iso: string) => {

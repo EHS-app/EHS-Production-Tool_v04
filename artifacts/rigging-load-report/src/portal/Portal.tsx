@@ -697,8 +697,17 @@ function mergeServerBriefs(
   server: SharedBrief[],
 ): PortalData {
   const keyOf = (b: SharedBrief) => b.assignmentId ?? `legacy:${b.briefId}`;
+  const liveServerAssignmentIds = new Set(
+    server.flatMap((brief) =>
+      brief.assignmentId ? [brief.assignmentId] : [],
+    ),
+  );
   const byId = new Map<string, SharedBrief>();
-  for (const b of prev.briefs) byId.set(keyOf(b), b);
+  for (const b of prev.briefs) {
+    if (!b.assignmentId || liveServerAssignmentIds.has(b.assignmentId)) {
+      byId.set(keyOf(b), b);
+    }
+  }
   for (const s of server) {
     const local = byId.get(keyOf(s));
     if (!local) {

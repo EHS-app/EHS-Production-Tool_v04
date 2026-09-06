@@ -1440,7 +1440,7 @@ export const no: Translations = {
   "portal.availability.editor.close": "Lukk",
   "portal.brief.logistics.title": "Brief & Logistikk",
   "portal.brief.notFound": "Finner ikke brief",
-  "portal.brief.notFoundBody": "Denne briefingen ligger ikke i din portal. Delingslenken kan ha utløpt eller blitt importert på en annen konto.",
+  "portal.brief.notFoundBody": "Denne forespørselen er ikke lenger gyldig.",
   "portal.brief.backToBriefs": "Tilbake til briefer",
   "portal.brief.projectBriefing": "Prosjektbriefing",
   "portal.brief.projectNotes": "Prosjektnotater / brief",

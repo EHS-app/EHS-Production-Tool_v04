@@ -1421,7 +1421,7 @@ export const en = {
   "portal.availability.editor.close": "Close",
   "portal.brief.logistics.title": "Brief & Logistics",
   "portal.brief.notFound": "Brief not found",
-  "portal.brief.notFoundBody": "This briefing isn't in your portal. The share link may have expired or been imported in a different account.",
+  "portal.brief.notFoundBody": "This request is no longer valid.",
   "portal.brief.backToBriefs": "Back to briefs",
   "portal.brief.projectBriefing": "Project briefing",
   "portal.brief.projectNotes": "Project Notes / Brief",

@@ -23,6 +23,10 @@ import {
   type RoomShare,
 } from "../lib/roomPairing";
 import { dispatchBriefRequestEmails } from "../lib/briefEmail";
+import {
+  canCancelBriefAssignment,
+  removeCancelledAssignmentFromBriefData,
+} from "../lib/briefAssignmentCancellation";
 import { autoAssignedDatesFor } from "../lib/roleSchedule";
 import { rollupItinerary } from "../lib/itineraryRollup";
 import {
@@ -642,6 +646,24 @@ router.get("/portal/briefs/:id", requireSignedIn, async (req, res) => {
       if (assigned.length > 0) {
         freelancerView = true;
       } else {
+        const [priorDispatch] = await db
+          .select({ id: briefDispatchesTable.id })
+          .from(briefDispatchesTable)
+          .where(
+            and(
+              eq(briefDispatchesTable.briefId, id),
+              eq(briefDispatchesTable.freelancerUserId, userId),
+            ),
+          )
+          .limit(1);
+        if (priorDispatch) {
+          res.status(410).json({
+            ok: false,
+            code: "request_cancelled",
+            error: "Denne forespørselen er ikke lenger gyldig.",
+          });
+          return;
+        }
         if (!brief.projectId) {
           res.status(403).json({ ok: false, error: "Not your brief." });
           return;
@@ -981,6 +1003,114 @@ router.get(
       res
         .status(500)
         .json({ ok: false, error: "Could not load assignments." });
+    }
+  },
+);
+
+/** DELETE /api/portal/briefs/:id/assignments/:crewId
+ * Producer-only cancellation of one exact unanswered freelancer role slot.
+ * The brief row lock serializes this with freelancer responses, so a request
+ * cannot be accepted while it is being cancelled. */
+router.delete(
+  "/portal/briefs/:id/assignments/:crewId",
+  requireEmployee,
+  requireUnarchivedBriefProject,
+  async (req, res) => {
+    const userId = (req as unknown as { _userId: string })._userId;
+    const briefId = String(req.params.id ?? "");
+    const crewId = String(req.params.crewId ?? "");
+    const body = (req.body ?? {}) as { freelancerUserId?: unknown };
+    const freelancerUserId =
+      typeof body.freelancerUserId === "string"
+        ? body.freelancerUserId.trim()
+        : "";
+    if (
+      !crewId ||
+      crewId.length > 255 ||
+      !freelancerUserId ||
+      freelancerUserId.length > 255
+    ) {
+      res.status(400).json({ ok: false, error: "Invalid assignment identity." });
+      return;
+    }
+    try {
+      const result = await db.transaction(async (tx) => {
+        const [brief] = await tx
+          .select({
+            ownerUserId: projectBriefsTable.ownerUserId,
+            data: projectBriefsTable.data,
+          })
+          .from(projectBriefsTable)
+          .where(eq(projectBriefsTable.id, briefId))
+          .for("update")
+          .limit(1);
+        if (!brief) return { kind: "no_brief" as const };
+        if (brief.ownerUserId !== userId) return { kind: "forbidden" as const };
+        const [assignment] = await tx
+          .select({
+            id: briefAssignmentsTable.id,
+            decision: briefAssignmentsTable.decision,
+            acceptedGigId: briefAssignmentsTable.acceptedGigId,
+          })
+          .from(briefAssignmentsTable)
+          .where(
+            and(
+              eq(briefAssignmentsTable.briefId, briefId),
+              eq(briefAssignmentsTable.crewId, crewId),
+              eq(
+                briefAssignmentsTable.freelancerUserId,
+                freelancerUserId,
+              ),
+            ),
+          )
+          .limit(1);
+        if (!assignment) return { kind: "no_assignment" as const };
+        if (!canCancelBriefAssignment(assignment)) {
+          return { kind: "not_pending" as const };
+        }
+        const nextBrief = removeCancelledAssignmentFromBriefData(
+          brief.data,
+          crewId,
+          freelancerUserId,
+        );
+        await tx
+          .delete(briefAssignmentsTable)
+          .where(eq(briefAssignmentsTable.id, assignment.id));
+        await tx
+          .update(projectBriefsTable)
+          .set({ data: nextBrief.data, updatedAt: sql`now()` })
+          .where(eq(projectBriefsTable.id, briefId));
+        return { kind: "cancelled" as const };
+      });
+      if (result.kind === "no_brief" || result.kind === "no_assignment") {
+        res.status(404).json({ ok: false, error: "Assignment not found." });
+        return;
+      }
+      if (result.kind === "forbidden") {
+        res.status(403).json({ ok: false, error: "Not your brief." });
+        return;
+      }
+      if (result.kind === "not_pending") {
+        res.status(409).json({
+          ok: false,
+          error: "Only pending requests can be cancelled.",
+        });
+        return;
+      }
+      res.json({ ok: true, cancelled: true, briefId, crewId });
+    } catch (err) {
+      logger.error(
+        {
+          briefId,
+          crewId,
+          freelancerUserId,
+          err: err instanceof Error ? err.message : String(err),
+        },
+        "portal assignment cancellation failed",
+      );
+      res
+        .status(500)
+        .json({ ok: false, error: "Could not cancel assignment." });
     }
   },
 );

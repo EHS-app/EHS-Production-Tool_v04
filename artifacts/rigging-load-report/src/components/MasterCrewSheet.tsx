@@ -276,6 +276,61 @@ export function MasterCrewSheet({
     return json;
   }, [briefId, getToken, baseUrl]);
 
+  const cancelPendingRequest = useCallback(
+    async (member: CrewMember) => {
+      if (!briefId || !member.freelancerUserId) return;
+      if (
+        !window.confirm(
+          `Avbryt forespørselen til ${member.name || "denne frilanseren"}?`,
+        )
+      ) {
+        return;
+      }
+      const key = `cancel:${member.id}`;
+      setSavingByKey((current) => ({ ...current, [key]: true }));
+      try {
+        const token = await getToken();
+        const response = await fetch(
+          `${baseUrl}api/portal/briefs/${encodeURIComponent(briefId)}/assignments/${encodeURIComponent(member.id)}`,
+          {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              freelancerUserId: member.freelancerUserId,
+            }),
+          },
+        );
+        const result = (await response.json().catch(() => null)) as {
+          ok?: boolean;
+          error?: string;
+        } | null;
+        if (!response.ok || !result?.ok) {
+          throw new Error(
+            result?.error ?? `Kunne ikke avbryte forespørselen (${response.status}).`,
+          );
+        }
+        onRemove(member.id);
+        toast.success("Forespørselen er avbrutt.");
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Kunne ikke avbryte forespørselen.",
+        );
+      } finally {
+        setSavingByKey((current) => {
+          const next = { ...current };
+          delete next[key];
+          return next;
+        });
+      }
+    },
+    [baseUrl, briefId, getToken, onRemove],
+  );
+
   // Fetch the structured directory once so selecting a suggestion can
   // link the row to an exact Clerk user id. Free text remains available
   // when the directory is unavailable or no candidate is selected.
@@ -1260,6 +1315,21 @@ export function MasterCrewSheet({
                         ? () => onRemove(local.id)
                         : undefined
                     }
+                    onCancelRequest={
+                      local &&
+                      row.source === "local" &&
+                      local.freelancerUserId &&
+                      (local.requestStatus === "requested" ||
+                        local.requestStatus === "no-reply") &&
+                      briefId
+                        ? () => void cancelPendingRequest(local)
+                        : undefined
+                    }
+                    cancelSaving={
+                      local
+                        ? Boolean(savingByKey[`cancel:${local.id}`])
+                        : false
+                    }
                     onLocalDuplicate={
                       local
                         ? () => onDuplicate(local.id)
@@ -1554,6 +1624,8 @@ function MasterRow({
   onLocalUpdate,
   onLocalDayToggle,
   onLocalRemove,
+  onCancelRequest,
+  cancelSaving,
   onLocalDuplicate,
   phaseDays,
   phaseShiftTimes,
@@ -1583,6 +1655,8 @@ function MasterRow({
    *  gig rows (those use `onDayToggle` against the gig endpoint). */
   onLocalDayToggle?: (date: string) => void;
   onLocalRemove?: () => void;
+  onCancelRequest?: () => void;
+  cancelSaving?: boolean;
   onLocalDuplicate?: () => void;
   /** Days covered by each schedule phase. Drives the per-phase
    *  quick-pick buttons rendered next to the day chips on local
@@ -1975,14 +2049,24 @@ function MasterRow({
         </>
       ) : null}
       <td className="led-actions">
-        {onLocalRemove ? (
+        {onCancelRequest ? (
+          <button
+            type="button"
+            className="btn btn-danger btn-sm"
+            onClick={onCancelRequest}
+            disabled={cancelSaving}
+            title="Avbryt ventende forespørsel"
+          >
+            {cancelSaving ? "Avbryter…" : "Avbryt forespørsel"}
+          </button>
+        ) : onLocalRemove ? (
           <button
             type="button"
             className="btn btn-danger btn-sm"
             onClick={onLocalRemove}
             title="Remove from local call sheet"
           >
-            Delete
+            Fjern
           </button>
         ) : null}
       </td>

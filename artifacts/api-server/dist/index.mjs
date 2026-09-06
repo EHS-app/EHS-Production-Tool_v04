@@ -78425,6 +78425,33 @@ async function dispatchBriefRequestEmails(args, dependencies = defaultDependenci
   }
 }
 
+// src/lib/briefAssignmentCancellation.ts
+function removeCancelledAssignmentFromBriefData(data, crewId, freelancerUserId) {
+  const source = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  if (!Array.isArray(source.assignments)) {
+    return { data: { ...source }, removed: false };
+  }
+  let removed = false;
+  const assignments = source.assignments.filter((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return true;
+    const row = value;
+    const matches2 = row.crewId === crewId && row.freelancerUserId === freelancerUserId;
+    if (matches2) removed = true;
+    return !matches2;
+  });
+  return {
+    data: {
+      ...source,
+      assignments,
+      ...source.recipientCrewId === crewId ? { recipientCrewId: null } : {}
+    },
+    removed
+  };
+}
+function canCancelBriefAssignment(assignment) {
+  return assignment.decision === "pending" && !assignment.acceptedGigId;
+}
+
 // src/lib/roleSchedule.ts
 var ALL_PHASES = [
   "setup",
@@ -79202,6 +79229,20 @@ router7.get("/portal/briefs/:id", requireSignedIn5, async (req, res) => {
       if (assigned.length > 0) {
         freelancerView = true;
       } else {
+        const [priorDispatch] = await db.select({ id: briefDispatchesTable.id }).from(briefDispatchesTable).where(
+          and(
+            eq(briefDispatchesTable.briefId, id),
+            eq(briefDispatchesTable.freelancerUserId, userId2)
+          )
+        ).limit(1);
+        if (priorDispatch) {
+          res.status(410).json({
+            ok: false,
+            code: "request_cancelled",
+            error: "Denne foresp\xF8rselen er ikke lenger gyldig."
+          });
+          return;
+        }
         if (!brief.projectId) {
           res.status(403).json({ ok: false, error: "Not your brief." });
           return;
@@ -79439,6 +79480,85 @@ router7.get(
         "portal briefs/:id/assignments GET failed"
       );
       res.status(500).json({ ok: false, error: "Could not load assignments." });
+    }
+  }
+);
+router7.delete(
+  "/portal/briefs/:id/assignments/:crewId",
+  requireEmployee,
+  requireUnarchivedBriefProject,
+  async (req, res) => {
+    const userId2 = req._userId;
+    const briefId = String(req.params.id ?? "");
+    const crewId = String(req.params.crewId ?? "");
+    const body = req.body ?? {};
+    const freelancerUserId = typeof body.freelancerUserId === "string" ? body.freelancerUserId.trim() : "";
+    if (!crewId || crewId.length > 255 || !freelancerUserId || freelancerUserId.length > 255) {
+      res.status(400).json({ ok: false, error: "Invalid assignment identity." });
+      return;
+    }
+    try {
+      const result = await db.transaction(async (tx) => {
+        const [brief] = await tx.select({
+          ownerUserId: projectBriefsTable.ownerUserId,
+          data: projectBriefsTable.data
+        }).from(projectBriefsTable).where(eq(projectBriefsTable.id, briefId)).for("update").limit(1);
+        if (!brief) return { kind: "no_brief" };
+        if (brief.ownerUserId !== userId2) return { kind: "forbidden" };
+        const [assignment] = await tx.select({
+          id: briefAssignmentsTable.id,
+          decision: briefAssignmentsTable.decision,
+          acceptedGigId: briefAssignmentsTable.acceptedGigId
+        }).from(briefAssignmentsTable).where(
+          and(
+            eq(briefAssignmentsTable.briefId, briefId),
+            eq(briefAssignmentsTable.crewId, crewId),
+            eq(
+              briefAssignmentsTable.freelancerUserId,
+              freelancerUserId
+            )
+          )
+        ).limit(1);
+        if (!assignment) return { kind: "no_assignment" };
+        if (!canCancelBriefAssignment(assignment)) {
+          return { kind: "not_pending" };
+        }
+        const nextBrief = removeCancelledAssignmentFromBriefData(
+          brief.data,
+          crewId,
+          freelancerUserId
+        );
+        await tx.delete(briefAssignmentsTable).where(eq(briefAssignmentsTable.id, assignment.id));
+        await tx.update(projectBriefsTable).set({ data: nextBrief.data, updatedAt: sql`now()` }).where(eq(projectBriefsTable.id, briefId));
+        return { kind: "cancelled" };
+      });
+      if (result.kind === "no_brief" || result.kind === "no_assignment") {
+        res.status(404).json({ ok: false, error: "Assignment not found." });
+        return;
+      }
+      if (result.kind === "forbidden") {
+        res.status(403).json({ ok: false, error: "Not your brief." });
+        return;
+      }
+      if (result.kind === "not_pending") {
+        res.status(409).json({
+          ok: false,
+          error: "Only pending requests can be cancelled."
+        });
+        return;
+      }
+      res.json({ ok: true, cancelled: true, briefId, crewId });
+    } catch (err) {
+      logger.error(
+        {
+          briefId,
+          crewId,
+          freelancerUserId,
+          err: err instanceof Error ? err.message : String(err)
+        },
+        "portal assignment cancellation failed"
+      );
+      res.status(500).json({ ok: false, error: "Could not cancel assignment." });
     }
   }
 );

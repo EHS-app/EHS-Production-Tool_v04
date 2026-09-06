@@ -97,7 +97,7 @@ export function recipientsFromBriefData(data: unknown): BriefRecipient[] {
   if (!data || typeof data !== "object" || Array.isArray(data)) return [];
   const assignments = (data as Record<string, unknown>).assignments;
   if (!Array.isArray(assignments)) return [];
-  const recipients = new Map<string, string>();
+  const recipients = new Map<string, BriefRecipient>();
   for (const value of assignments) {
     if (!value || typeof value !== "object" || Array.isArray(value)) continue;
     const row = value as Record<string, unknown>;
@@ -108,14 +108,10 @@ export function recipientsFromBriefData(data: unknown): BriefRecipient[] {
       row.freelancerUserId.length > 255
     ) continue;
     const crewId = typeof row.crewId === "string" ? row.crewId.slice(0, 255) : "";
-    if (!recipients.has(row.freelancerUserId)) {
-      recipients.set(row.freelancerUserId, crewId);
-    }
+    const key = `${row.freelancerUserId}\u0000${crewId}`;
+    if (!recipients.has(key)) recipients.set(key, { freelancerUserId: row.freelancerUserId, crewId });
   }
-  return [...recipients].map(([freelancerUserId, crewId]) => ({
-    freelancerUserId,
-    crewId,
-  }));
+  return [...recipients.values()];
 }
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -147,18 +143,12 @@ export async function synchronizeBriefAssignments(
         target: [
           briefAssignmentsTable.briefId,
           briefAssignmentsTable.freelancerUserId,
+          briefAssignmentsTable.crewId,
         ],
       })
       .returning({ id: briefAssignmentsTable.id });
     if (inserted.length > 0) newRecipientUserIds.push(recipient.freelancerUserId);
     else existingRecipientCount += 1;
-    await tx
-      .update(briefAssignmentsTable)
-      .set({ crewId: recipient.crewId, updatedAt: sql`now()` })
-      .where(and(
-        eq(briefAssignmentsTable.briefId, briefId),
-        eq(briefAssignmentsTable.freelancerUserId, recipient.freelancerUserId),
-      ));
     await tx
       .insert(briefDispatchesTable)
       .values({

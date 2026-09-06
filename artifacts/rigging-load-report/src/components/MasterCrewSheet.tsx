@@ -14,6 +14,12 @@ import {
 } from "../lib/crew";
 import { NumberField } from "./NumberField";
 import { openMasterSheet, type MasterSheetRow } from "../lib/masterSheetExport";
+import { exportDailyCallSheet } from "../lib/dailyCallSheetExport";
+import {
+  crewWorkAlertsForSources,
+  formatWorkHours,
+  type CrewWorkAlert,
+} from "../lib/crewRestAlerts";
 import {
   assignedDatesFromShiftPhases,
   crewShiftAssignmentKey,
@@ -151,7 +157,14 @@ export function MasterCrewSheet({
    *  venue. We pull these from the roster response when present, and
    *  fall back to whatever the parent threads in (so the print
    *  button is useful even before the brief is fetched once). */
-  brief?: { projectName: string; venue: string };
+  brief?: {
+    projectName: string;
+    venue: string;
+    /** Optional call-sheet contacts. Existing name/venue-only callers remain valid. */
+    clientContact?: { name?: string; phone?: string };
+    productionContact?: { name?: string; phone?: string };
+    venueContact?: { name?: string; phone?: string };
+  };
   onAdd: () => void;
   onUpdate: (id: string, patch: Partial<CrewMember>) => void;
   onRemove: (id: string) => void;
@@ -396,6 +409,34 @@ export function MasterCrewSheet({
       }),
     [rows, timelineDate],
   );
+  const workAlertIdentity = useCallback(
+    (row: RosterRow) =>
+      row.freelancerUserId
+        ? `user:${row.freelancerUserId}`
+        : `row:${row.source}:${row.id}`,
+    [],
+  );
+  const workAlertsByPerson = useMemo(() => {
+    const rowsByPerson = new Map<string, RosterRow[]>();
+    for (const row of rows) {
+      const key = workAlertIdentity(row);
+      const personRows = rowsByPerson.get(key) ?? [];
+      personRows.push(row);
+      rowsByPerson.set(key, personRows);
+    }
+    const alerts = new Map<string, CrewWorkAlert[]>();
+    for (const [key, personRows] of rowsByPerson) {
+      const applicable = crewWorkAlertsForSources(personRows).filter(
+        (alert) => alert.date === timelineDate,
+      );
+      if (applicable.length) alerts.set(key, applicable);
+    }
+    return alerts;
+  }, [rows, timelineDate, workAlertIdentity]);
+  const timelineWarningCount = useMemo(
+    () => [...workAlertsByPerson.values()].reduce((total, alerts) => total + alerts.length, 0),
+    [workAlertsByPerson],
+  );
 
   // Bubble the merged roles up to CrewReportView so the AdequacyPanel
   // counts the SAME headcount the producer sees in the table. Without
@@ -509,26 +550,11 @@ export function MasterCrewSheet({
     setSavingByKey((m) => ({ ...m, [key]: true }));
     setData((prev) => {
       if (!prev) return prev;
-      // Server-side, hotel + dates PATCHes cascade to ALL gigs that
-      // share the same freelancerUserId on this brief (a freelancer
-      // can hold multiple role-tagged gigs on one show — e.g.
-      // "Stagehand" + "Lighting tech"). The merged roster shown on
-      // screen also dedupes by freelancerUserId, so if we only
-      // update the targeted gigId here the union the merge takes
-      // would still surface the stale sibling — making it look like
-      // the toggle "didn't stick" until the refetch lands. Mirror
-      // the cascade locally so the UI feels instant and correct.
-      const targetGig = prev.crew.find((g) => g.gigId === gigId);
-      const targetUserId = targetGig?.freelancerUserId ?? null;
       return {
         ...prev,
-        crew: prev.crew.map((g) => {
-          const isSibling =
-            g.gigId === gigId ||
-            (targetUserId !== null && g.freelancerUserId === targetUserId);
-          if (!isSibling) return g;
-          return { ...g, ...optimistic };
-        }),
+        crew: prev.crew.map((g) =>
+          g.gigId === gigId ? { ...g, ...optimistic } : g,
+        ),
       };
     });
     try {
@@ -653,6 +679,21 @@ export function MasterCrewSheet({
     localCrew,
     resolveLocalIdFor,
   ]);
+  const handleExportDailyCallSheet = useCallback(() => {
+    if (!timelineDate) return;
+    const contacts = [
+      { label: "Client", ...brief?.clientContact },
+      { label: "Production", ...brief?.productionContact },
+      { label: "Venue", ...brief?.venueContact },
+    ].filter((contact) => contact.name || contact.phone);
+    void exportDailyCallSheet({
+      date: timelineDate,
+      projectName: briefName,
+      venue,
+      contacts,
+      rows,
+    });
+  }, [brief, briefName, rows, timelineDate, venue]);
 
   const totalCount = rows.length;
   const linkedOwnerByUserId = useMemo(() => {
@@ -929,6 +970,27 @@ export function MasterCrewSheet({
               <strong>Daily shift timeline</strong>
               <small>All assigned crew · overlaps and site coverage</small>
             </div>
+            {timelineWarningCount > 0 ? (
+              <span
+                className="crew-daily-warning-summary"
+                title="Rest: less than 11 hours from the prior shift end. Daily: more than 12 worked hours on this calendar date."
+              >
+                ⚠ {timelineWarningCount} rest/daily warning{timelineWarningCount === 1 ? "" : "s"} · Rest &lt;11h · Daily &gt;12h
+              </span>
+            ) : (
+              <span className="crew-daily-warning-summary crew-daily-warning-clear">
+                No rest/daily warnings
+              </span>
+            )}
+            <button
+              type="button"
+              className="btn btn-soft"
+              onClick={handleExportDailyCallSheet}
+              disabled={!timelineDate}
+              title="Download the selected date as an A4 landscape PDF"
+            >
+              Export Daily Call Sheet
+            </button>
             <select
               value={timelineDate}
               onChange={(event) => setTimelineDate(event.target.value)}
@@ -952,13 +1014,33 @@ export function MasterCrewSheet({
           </div>
           <div className="crew-daily-rows">
             {timelineRows.length > 0 ? (
-              timelineRows.map(({ row, windows }) => (
+              timelineRows.map(({ row, windows }) => {
+                const alerts = workAlertsByPerson.get(workAlertIdentity(row)) ?? [];
+                return (
                 <div
                   className="crew-daily-row"
                   key={`${row.source}:${row.id}`}
                 >
                   <span>
-                    <strong>{row.name}</strong>
+                    <strong>
+                      {row.name}
+                      {alerts.map((alert, index) => {
+                        const text =
+                          alert.kind === "turnaround"
+                            ? `Rest ${formatWorkHours(alert.restMinutes)} after ${alert.previousEnd.endTime}; minimum is 11h`
+                            : `Daily work ${formatWorkHours(alert.workedMinutes)}; maximum is 12h`;
+                        return (
+                          <em
+                            className="crew-daily-warning-badge"
+                            key={`${alert.kind}-${index}`}
+                            title={text}
+                            aria-label={text}
+                          >
+                            ⚠ {alert.kind === "turnaround" ? "Rest" : "Daily"}
+                          </em>
+                        );
+                      })}
+                    </strong>
                     <small>{row.role}</small>
                   </span>
                   <div className="crew-daily-track">
@@ -991,7 +1073,8 @@ export function MasterCrewSheet({
                     })}
                   </div>
                 </div>
-              ))
+                );
+              })
             ) : (
               <p>No assigned shifts on this date.</p>
             )}

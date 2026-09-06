@@ -6,7 +6,6 @@ import { ItinerarySection } from "./ItinerarySection";
 import { useT } from "../../lib/i18n/I18nContext";
 import {
   buildAcceptedSnapshot,
-  findBrief,
   gigFromBrief,
   updateBrief,
   type BriefDecision,
@@ -204,7 +203,22 @@ export function BriefDetail({
   const t = useT();
   const { getToken } = useAuth();
   const [, setLocation] = useLocation();
-  const entry = findBrief(data, briefId);
+  // One project URL can contain several independently-bookable role slots.
+  // The assignment id is the active mutation identity; legacy imported
+  // entries have no id and naturally remain a one-entry view.
+  const entries = useMemo(
+    () => data.briefs.filter((candidate) => candidate.briefId === briefId),
+    [data.briefs, briefId],
+  );
+  const [activeAssignmentId, setActiveAssignmentId] = useState<string | undefined>();
+  const entry =
+    entries.find((candidate) => candidate.assignmentId === activeAssignmentId) ??
+    entries[0];
+  useEffect(() => {
+    if (!entries.some((candidate) => candidate.assignmentId === activeAssignmentId)) {
+      setActiveAssignmentId(entries[0]?.assignmentId);
+    }
+  }, [entries, activeAssignmentId]);
 
   /** Inline banner shown below the project hero when the most recent
    *  accept/decline POST failed (network blip, 5xx, etc.). The local
@@ -255,6 +269,7 @@ export function BriefDetail({
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({
+            ...(entry?.assignmentId ? { assignmentId: entry.assignmentId } : {}),
             decision,
             acceptedSnapshot: extras?.acceptedSnapshot ?? null,
             acceptedGigId: extras?.acceptedGigId ?? null,
@@ -403,7 +418,7 @@ export function BriefDetail({
         acceptedSnapshot: snapshot,
         shiftResponses,
         decidedLocallyAt: Date.now(),
-      });
+      }, entry.assignmentId);
       return createdGig
         ? { ...next, gigs: [createdGig, ...next.gigs] }
         : next;
@@ -423,7 +438,7 @@ export function BriefDetail({
           acceptedSnapshot: undefined,
           shiftResponses: undefined,
           decidedLocallyAt: Date.now(),
-        });
+        }, entry.assignmentId);
         return createdGigId
           ? { ...next, gigs: next.gigs.filter((g) => g.id !== createdGigId) }
           : next;
@@ -439,7 +454,7 @@ export function BriefDetail({
           acceptedSnapshot: prevAcceptedSnapshot,
           shiftResponses: prevShiftResponses,
           decidedLocallyAt: undefined,
-        });
+        }, entry.assignmentId);
         return createdGigId
           ? { ...next, gigs: next.gigs.filter((g) => g.id !== createdGigId) }
           : next;
@@ -463,7 +478,7 @@ export function BriefDetail({
       setData((prev) => {
         const next = updateBrief(prev, briefId, {
           acceptedGigId: serverId,
-        });
+        }, entry.assignmentId);
         const filtered = createdGigId
           ? next.gigs.filter((g) => g.id !== createdGigId)
           : next.gigs;
@@ -480,7 +495,7 @@ export function BriefDetail({
       updateBrief(prev, briefId, {
         acceptedSnapshot: snapshot,
         decidedLocallyAt: Date.now(),
-      }),
+      }, entry.assignmentId),
     );
     setSyncError(null);
     // Acknowledging a change is still an "accepted" decision on the
@@ -498,7 +513,7 @@ export function BriefDetail({
           acceptedGigId: undefined,
           acceptedSnapshot: undefined,
           decidedLocallyAt: Date.now(),
-        }),
+        }, entry.assignmentId),
       );
       return;
     }
@@ -507,7 +522,7 @@ export function BriefDetail({
         updateBrief(prev, briefId, {
           acceptedSnapshot: prevSnapshot,
           decidedLocallyAt: undefined,
-        }),
+        }, entry.assignmentId),
       );
       setSyncError(
         "Could not acknowledge the changes — please try again in a moment.",
@@ -540,7 +555,7 @@ export function BriefDetail({
         acceptedSnapshot: undefined,
         shiftResponses,
         decidedLocallyAt: Date.now(),
-      });
+      }, entry.assignmentId);
       return prevAcceptedGigId
         ? { ...next, gigs: next.gigs.filter((g) => g.id !== prevAcceptedGigId) }
         : next;
@@ -555,7 +570,7 @@ export function BriefDetail({
           acceptedSnapshot: prevAcceptedSnapshot,
           shiftResponses: prevShiftResponses,
           decidedLocallyAt: undefined,
-        });
+        }, entry.assignmentId);
         return removedGig
           ? { ...next, gigs: [removedGig, ...next.gigs] }
           : next;
@@ -587,7 +602,7 @@ export function BriefDetail({
         acceptedSnapshot: undefined,
         shiftResponses: undefined,
         decidedLocallyAt: Date.now(),
-      });
+      }, entry.assignmentId);
       return prevAcceptedGigId
         ? { ...next, gigs: next.gigs.filter((g) => g.id !== prevAcceptedGigId) }
         : next;
@@ -602,7 +617,7 @@ export function BriefDetail({
           acceptedSnapshot: prevAcceptedSnapshot,
           shiftResponses: prevShiftResponses,
           decidedLocallyAt: undefined,
-        });
+        }, entry.assignmentId);
         return removedGig
           ? { ...next, gigs: [removedGig, ...next.gigs] }
           : next;
@@ -756,6 +771,56 @@ export function BriefDetail({
           ) : null}
         </div>
       </section>
+
+      {entries.length > 1 ? (
+        <section
+          style={{
+            background: c.cardBg,
+            border: `1px solid ${c.border}`,
+            borderRadius: 12,
+            padding: 14,
+            boxShadow: c.shadowSoft,
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 800, color: c.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>
+            Your role bookings
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {entries.map((roleEntry, index) => {
+              const assignment = roleEntry.brief.assignments.find(
+                (candidate) => candidate.crewId === roleEntry.brief.recipientCrewId,
+              );
+              const label = assignment?.role || `Booking ${index + 1}`;
+              const state = roleEntry.decision === "accepted" &&
+                Object.values(roleEntry.shiftResponses ?? {}).includes("declined")
+                ? "Partially accepted"
+                : roleEntry.decision === "too_late"
+                  ? "Position filled"
+                  : roleEntry.decision[0].toUpperCase() + roleEntry.decision.slice(1);
+              const active = roleEntry.assignmentId === entry.assignmentId;
+              return (
+                <button
+                  key={roleEntry.assignmentId ?? `legacy-${index}`}
+                  type="button"
+                  onClick={() => {
+                    setActiveAssignmentId(roleEntry.assignmentId);
+                    setSyncError(null);
+                  }}
+                  style={{
+                    textAlign: "left", cursor: "pointer", padding: "8px 10px",
+                    borderRadius: 9, border: `1px solid ${active ? c.accent : c.border}`,
+                    background: active ? "rgba(248,128,0,0.12)" : c.cardBgSubtle,
+                    color: c.text,
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 800 }}>{label}</div>
+                  <div style={{ fontSize: 11, color: active ? c.accent : c.muted, marginTop: 2 }}>{state}</div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       {/* Producer's free-text note for the crew, written in the
           Share-with-crew modal just before sharing. Plain text — we

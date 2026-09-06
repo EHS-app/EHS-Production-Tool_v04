@@ -117,12 +117,12 @@ export const briefAssignmentsTable = pgTable(
   (t) => [
     index("brief_assignments_freelancer_idx").on(t.freelancerUserId),
     index("brief_assignments_brief_idx").on(t.briefId),
-    /** Hard guarantee: at most one assignment row per (brief, freelancer).
-     *  Lets the POST /briefs handler use a simple insert-on-conflict-do-nothing
-     *  upsert without a fragile DELETE-USING dedup pass. */
-    uniqueIndex("brief_assignments_brief_freelancer_unique").on(
+    /** A crewId is the immutable role-slot identity. One freelancer can hold
+     * multiple slots on a brief, but a slot can only be addressed once. */
+    uniqueIndex("brief_assignments_brief_freelancer_crew_unique").on(
       t.briefId,
       t.freelancerUserId,
+      t.crewId,
     ),
   ],
 );

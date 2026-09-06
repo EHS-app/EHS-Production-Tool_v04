@@ -11245,6 +11245,7 @@ html[data-shell="linear"] .container {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .crew-daily-timeline-head > div,
@@ -11269,6 +11270,31 @@ html[data-shell="linear"] .container {
 }
 .crew-daily-track i { position: absolute; top: 3px; height: 14px; border-radius: 4px; }
 .crew-daily-rows > p { margin: 8px 0 0; color: var(--text-muted); font-size: 12px; }
+.crew-daily-warning-summary {
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--warning) 55%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warning) 12%, var(--card-bg));
+  color: var(--text-main);
+  font-size: 10px;
+  font-weight: 700;
+}
+.crew-daily-warning-clear {
+  border-color: color-mix(in srgb, var(--success) 40%, var(--border));
+  background: color-mix(in srgb, var(--success) 9%, var(--card-bg));
+}
+.crew-daily-warning-badge {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--warning) 15%, var(--card-bg));
+  color: #9a6300;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+  vertical-align: 1px;
+}
 
 .crew-shift-day-actions {
   display: flex;

@@ -378,6 +378,7 @@ function serverRowToSharedBrief(row: ServerBriefRow): SharedBrief | null {
   })();
   return {
     briefId: row.briefId,
+    assignmentId: row.assignmentId,
     receivedAt,
     decision: row.decision,
     shiftResponses:
@@ -695,12 +696,13 @@ function mergeServerBriefs(
   prev: PortalData,
   server: SharedBrief[],
 ): PortalData {
+  const keyOf = (b: SharedBrief) => b.assignmentId ?? `legacy:${b.briefId}`;
   const byId = new Map<string, SharedBrief>();
-  for (const b of prev.briefs) byId.set(b.briefId, b);
+  for (const b of prev.briefs) byId.set(keyOf(b), b);
   for (const s of server) {
-    const local = byId.get(s.briefId);
+    const local = byId.get(keyOf(s));
     if (!local) {
-      byId.set(s.briefId, s);
+      byId.set(keyOf(s), s);
       continue;
     }
     // Default: server wins on every field, but `decidedLocallyAt`
@@ -727,7 +729,7 @@ function mergeServerBriefs(
         acceptedSnapshot: local.acceptedSnapshot,
       };
     }
-    byId.set(s.briefId, merged);
+    byId.set(keyOf(s), merged);
   }
   const merged = Array.from(byId.values()).sort(
     (a, b) => b.receivedAt - a.receivedAt,

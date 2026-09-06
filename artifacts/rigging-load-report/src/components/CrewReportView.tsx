@@ -59,6 +59,14 @@ type Props = {
   >;
   /** Exact project schedule times keyed by date+phase. */
   phaseShiftTimes?: CrewShiftTimeMap;
+  /** Optional context used by the downloadable daily call sheet. */
+  brief?: {
+    projectName: string;
+    venue: string;
+    clientContact?: { name?: string; phone?: string };
+    productionContact?: { name?: string; phone?: string };
+    venueContact?: { name?: string; phone?: string };
+  };
   readOnly?: boolean;
 };
 
@@ -85,6 +93,7 @@ export function CrewReportView({
   getTimesForDates,
   phaseDays,
   phaseShiftTimes,
+  brief,
   readOnly = false,
 }: Props) {
   // Headcount source for the adequacy meter: the merged roster the
@@ -184,6 +193,7 @@ export function CrewReportView({
             briefId={activeBriefId ?? null}
             getToken={tokenResolver}
             localCrew={crew}
+            brief={brief}
             onAdd={onAdd}
             onUpdate={onUpdate}
             onRemove={onRemove}

@@ -7,10 +7,11 @@ import {
   numeric,
   index,
   boolean,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { projectBriefsTable } from "./projectBriefs";
+import { briefAssignmentsTable, projectBriefsTable } from "./projectBriefs";
 
 /** A gig in the freelancer's logbook. Created either manually in the
  *  Portal or automatically when a freelancer accepts a project brief.
@@ -29,6 +30,13 @@ export const gigsTable = pgTable(
     briefId: text("brief_id").references(() => projectBriefsTable.id, {
       onDelete: "set null",
     }),
+    /** Exact role-slot that produced this gig. `briefId` remains populated for
+     * legacy rows and old links, while this prevents two roles for one person
+     * from sharing a booking. */
+    briefAssignmentId: text("brief_assignment_id").references(
+      () => briefAssignmentsTable.id,
+      { onDelete: "set null" },
+    ),
     projectName: text("project_name").notNull().default(""),
     client: text("client").notNull().default(""),
     venue: text("venue").notNull().default(""),
@@ -84,6 +92,8 @@ export const gigsTable = pgTable(
   (t) => [
     index("gigs_freelancer_idx").on(t.freelancerUserId),
     index("gigs_brief_idx").on(t.briefId),
+    index("gigs_brief_assignment_idx").on(t.briefAssignmentId),
+    uniqueIndex("gigs_brief_assignment_unique").on(t.briefAssignmentId),
   ],
 );
 

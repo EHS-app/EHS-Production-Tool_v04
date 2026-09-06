@@ -80,6 +80,9 @@ export type RosterRow = {
   /** Server gig id, when this row is gig-backed. Required by the
    *  inline-edit endpoints in Slice 2. */
   gigId: string | null;
+  /** Exact server assignment / producer role slot when available. */
+  briefAssignmentId?: string | null;
+  crewId?: string | null;
   /** Clerk user id of the freelancer. Null for purely-manual rows. */
   freelancerUserId: string | null;
   name: string;
@@ -155,6 +158,8 @@ export type RosterRow = {
  *  shape produced in `portalBriefs.ts` — keep in sync. */
 export type RosterGig = {
   gigId: string;
+  briefAssignmentId?: string | null;
+  crewId?: string | null;
   freelancerUserId: string;
   name: string;
   role: string;
@@ -226,120 +231,20 @@ export function mergeRoster(
 
   const out: RosterRow[] = [];
 
-  // Gig-vs-gig dedupe: a freelancer can hold multiple gigs on the
-  // same brief (e.g. one filed as "Stagehand" and another as
-  // "Lighting tech"). The unified roster shows them as ONE person —
-  // the dates PATCH and hotel PATCH already cascade across all of
-  // their gigs by `freelancerUserId`, so the gigs stay in lockstep
-  // and merging into a single row matches reality. We pick the
-  // first gig as the canonical row (deterministic — server returns
-  // them sorted) and union/escalate fields from the rest.
-  const gigRowByFreelancerId = new Map<string, RosterRow>();
-  // Status priority — higher means later in the gig lifecycle. When
-  // a freelancer has both a `confirmed` gig and a `paid` gig on the
-  // same brief we surface "paid" because it's the most informative
-  // state for the producer ("we already paid them, no follow-up").
-  const STATUS_RANK: Record<RosterGigStatus, number> = {
-    invited: 0,
-    confirmed: 1,
-    done: 2,
-    invoiced: 3,
-    paid: 4,
-  };
-
   for (const g of gigs) {
-    const matchedLocal =
-      localById.get(g.freelancerUserId) ??
+    const matchedLocal = localCrew.find((m) =>
+      (g.briefAssignmentId && m.briefAssignmentId === g.briefAssignmentId) ||
+      (g.crewId && m.id === g.crewId),
+    ) ?? localById.get(g.freelancerUserId) ??
       (g.name ? localByName.get(normName(g.name)) : undefined);
     if (matchedLocal) consumedLocalIds.add(matchedLocal.id);
-
-    const existing = gigRowByFreelancerId.get(g.freelancerUserId);
-    if (existing) {
-      // Fold this extra gig into the existing roster row.
-      // assignedDates: union + sort (cascade keeps them in sync but
-      // a partial-write or legacy data might differ).
-      if (g.assignedDates.length > 0) {
-        const merged = new Set(existing.assignedDates);
-        for (const d of g.assignedDates) merged.add(d);
-        existing.assignedDates = [...merged].sort();
-      }
-      // hotelRequired: any-true wins (a "yes" on any gig means we
-      // need a room).
-      existing.hotelRequired = existing.hotelRequired || g.hotelRequired;
-      // hotelDates: union across sibling gigs, then sort. The PATCH
-      // cascade keeps siblings in sync, but a stale value from a
-      // legacy gig might still differ — be defensive.
-      if (g.hotelDates.length > 0) {
-        const merged = new Set(existing.hotelDates);
-        for (const d of g.hotelDates) merged.add(d);
-        existing.hotelDates = [...merged].sort();
-      }
-      // Status: keep the one further along the lifecycle.
-      if (STATUS_RANK[g.status] > STATUS_RANK[existing.status as RosterGigStatus]) {
-        existing.status = g.status;
-      }
-      // Brief assignment timing is server-authoritative. A second gig can
-      // repair a legacy empty first gig, but never replaces a present value.
-      if (!existing.callTime && g.callTime) existing.callTime = g.callTime;
-      if (!existing.offTime && g.offTime) existing.offTime = g.offTime;
-      if (
-        existing.assignedShiftPhases.length === 0 &&
-        g.assignedShiftPhases.length > 0
-      ) {
-        existing.assignedShiftPhases = [...g.assignedShiftPhases];
-      }
-      if (
-        Object.keys(existing.assignedShiftTimes).length === 0 &&
-        Object.keys(g.assignedShiftTimes).length > 0
-      ) {
-        existing.assignedShiftTimes = { ...g.assignedShiftTimes };
-      }
-      if (
-        Object.keys(existing.assignedShiftWindows).length === 0 &&
-        Object.keys(g.assignedShiftWindows).length > 0
-      ) {
-        existing.assignedShiftWindows = Object.fromEntries(
-          Object.entries(g.assignedShiftWindows).map(([key, windows]) => [
-            key,
-            windows.map((window) => ({ ...window })),
-          ]),
-        );
-      }
-      if (
-        Object.keys(existing.assignedShiftTasks).length === 0 &&
-        Object.keys(g.assignedShiftTasks).length > 0
-      ) {
-        existing.assignedShiftTasks = Object.fromEntries(
-          Object.entries(g.assignedShiftTasks).map(([key, tasks]) => [
-            key,
-            [...tasks],
-          ]),
-        );
-      }
-      existing.shiftResponses = {
-        ...existing.shiftResponses,
-        ...(g.shiftResponses ?? {}),
-      };
-      if (
-        Object.values(existing.shiftResponses).includes("accepted") &&
-        Object.values(existing.shiftResponses).includes("declined")
-      ) {
-        existing.status = "partially_accepted";
-      }
-      // dietaryTags / allergens / phone / room come from the
-      // freelancer profile + pairing engine (same person → same
-      // data) so we don't bother merging; the first gig's copy is
-      // authoritative.
-      // profileless: any gig saying "no profile" implies no profile
-      // exists for this person, period. Logical OR.
-      existing.profileless = existing.profileless || g.profileless;
-      continue;
-    }
 
     const row: RosterRow = {
       source: "gig",
       id: g.gigId,
       gigId: g.gigId,
+      briefAssignmentId: g.briefAssignmentId ?? null,
+      crewId: g.crewId ?? null,
       freelancerUserId: g.freelancerUserId,
       name: g.name,
       // Producer's typed role wins when present — they may have
@@ -354,21 +259,21 @@ export function mergeRoster(
         Object.values(g.shiftResponses ?? {}).includes("declined")
           ? "partially_accepted"
           : g.status,
-      assignedDates: g.assignedDates,
+      assignedDates: [...(g.assignedDates ?? [])],
       callTime: g.callTime || matchedLocal?.callTime || "",
       offTime: g.offTime || matchedLocal?.offTime || "",
       assignedShiftPhases:
-        g.assignedShiftPhases.length > 0
-          ? [...g.assignedShiftPhases]
+        (g.assignedShiftPhases ?? []).length > 0
+          ? [...(g.assignedShiftPhases ?? [])]
           : [...(matchedLocal?.assignedShiftPhases ?? [])],
       assignedShiftTimes:
-        Object.keys(g.assignedShiftTimes).length > 0
-          ? { ...g.assignedShiftTimes }
+        Object.keys(g.assignedShiftTimes ?? {}).length > 0
+          ? { ...(g.assignedShiftTimes ?? {}) }
           : { ...(matchedLocal?.assignedShiftTimes ?? {}) },
       assignedShiftWindows:
-        Object.keys(g.assignedShiftWindows).length > 0
+        Object.keys(g.assignedShiftWindows ?? {}).length > 0
           ? Object.fromEntries(
-              Object.entries(g.assignedShiftWindows).map(([key, windows]) => [
+              Object.entries(g.assignedShiftWindows ?? {}).map(([key, windows]) => [
                 key,
                 windows.map((window) => ({ ...window })),
               ]),
@@ -382,9 +287,9 @@ export function mergeRoster(
               ),
             ),
       assignedShiftTasks:
-        Object.keys(g.assignedShiftTasks).length > 0
+        Object.keys(g.assignedShiftTasks ?? {}).length > 0
           ? Object.fromEntries(
-              Object.entries(g.assignedShiftTasks).map(([key, tasks]) => [
+              Object.entries(g.assignedShiftTasks ?? {}).map(([key, tasks]) => [
                 key,
                 [...tasks],
               ]),
@@ -395,18 +300,17 @@ export function mergeRoster(
               ),
             ),
       shiftResponses: { ...(g.shiftResponses ?? {}) },
-      hotelRequired: g.hotelRequired,
-      hotelDates: g.hotelDates,
-      dietaryTags: g.dietaryTags,
-      allergens: g.allergens,
-      profileless: g.profileless,
-      phone: g.phone,
-      roomKey: g.roomKey,
-      roommateName: g.roommateName,
+      hotelRequired: g.hotelRequired ?? false,
+      hotelDates: [...(g.hotelDates ?? [])],
+      dietaryTags: [...(g.dietaryTags ?? [])],
+      allergens: [...(g.allergens ?? [])],
+      profileless: g.profileless ?? false,
+      phone: g.phone ?? "",
+      roomKey: g.roomKey ?? null,
+      roommateName: g.roommateName ?? null,
       dayRate: matchedLocal?.dayRate ?? 0,
       notes: matchedLocal?.notes ?? "",
     };
-    gigRowByFreelancerId.set(g.freelancerUserId, row);
     out.push(row);
   }
 

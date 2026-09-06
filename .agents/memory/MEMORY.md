@@ -18,5 +18,5 @@
 - [Recurring availability overrides](recurring-availability-overrides.md) — day/range replacement suppresses overlapping weekly occurrences by owner-scoped local-date exceptions in the same transaction.
 - [Clerk freelancer backfill](clerk-freelancer-backfill.md) — sync missing legacy freelancers insert-only; never overwrite local profiles, and degrade safely when Clerk is unavailable.
 - [Ephemeral team broadcasts](ephemeral-team-broadcasts.md) — use Postgres NOTIFY plus authenticated SSE across autoscale; bound listener and slow-client resources.
-- [Multi-role crew bookings](multi-role-crew-bookings.md) — secondary role rows stay local unless portal assignments gain per-role slot identity; never duplicate recipient identity blindly.
+- [Multi-role crew bookings](multi-role-crew-bookings.md) — crewId is the immutable role-slot identity; one account may hold independent assignments and gigs under one brief.
 - [Per-window crew acceptance](per-window-crew-acceptance.md) — responses are authoritative per date/phase/window; derive booking dates/status from them while preserving map-less legacy decisions.

@@ -3727,7 +3727,7 @@ function App() {
         };
         if (cancelled || !json.ok || !Array.isArray(json.assignments)) return;
         const now = Date.now();
-        const byUser = new Map<
+        const byRoleSlot = new Map<
           string,
           {
             id: string;
@@ -3753,7 +3753,10 @@ function App() {
           )
             status = "no-reply";
           else status = "requested";
-          byUser.set(a.freelancerUserId, {
+          // crewId is the immutable producer row / role-slot identity.
+          // Never collapse a second role merely because it belongs to the
+          // same freelancer account.
+          byRoleSlot.set(`${a.freelancerUserId}\u0000${a.crewId ?? ""}`, {
             id: a.id,
             status,
             shiftResponses:
@@ -3763,14 +3766,14 @@ function App() {
                 : undefined,
           });
         }
-        // Patch in-place. Only crew rows whose freelancerUserId
-        // matches a server assignment are touched; manual in-house
+        // Patch in-place by the producer crew row, not account identity.
+        // Manual in-house
         // rows are left exactly as the producer entered them.
         setCrew((all) => {
           let changed = false;
           const next = all.map((m) => {
             if (!m.freelancerUserId) return m;
-            const sa = byUser.get(m.freelancerUserId);
+            const sa = byRoleSlot.get(`${m.freelancerUserId}\u0000${m.id}`);
             if (!sa) return m;
             if (
               m.requestStatus === sa.status &&
@@ -7645,6 +7648,24 @@ function App() {
           getTimesForDates={getCrewTimesForDates}
           phaseDays={phaseDays}
           phaseShiftTimes={phaseShiftTimes}
+          brief={{
+            projectName,
+            venue,
+            clientContact: {
+              name: clientContact || client,
+            },
+            productionContact: {
+              name: engineer,
+            },
+            venueContact: {
+              name:
+                venuesOptions.find((option) => option.id === venueId)
+                  ?.technicalContactName ?? "",
+              phone:
+                venuesOptions.find((option) => option.id === venueId)
+                  ?.technicalContactPhone ?? "",
+            },
+          }}
           directorySidebar={
             <AvailableCrewSidebar
               briefId={activeBriefId || undefined}

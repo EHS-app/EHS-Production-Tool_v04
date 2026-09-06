@@ -1,6 +1,6 @@
 import { Router, type IRouter, type RequestHandler } from "express";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import {
   db,
   projectBriefsTable,
@@ -486,18 +486,20 @@ function responseSlotsForAssignment(
  *     directory. Provides forward compatibility once the brief itself
  *     starts carrying the id alongside the name.
  *
- *  Both sources are merged and de-duplicated by `freelancerUserId`,
- *  keeping the first `crewId` we see for that user. */
+ *  Both sources are merged and de-duplicated by the immutable role slot
+ *  `(freelancerUserId, crewId)`. A freelancer may legitimately hold more
+ *  than one role on the same brief. */
 function readRecipients(
   data: Record<string, unknown>,
   topLevelRecipients: unknown,
 ): { crewId: string; freelancerUserId: string }[] {
-  const seen = new Map<string, string>();
+  const seen = new Map<string, { crewId: string; freelancerUserId: string }>();
   const push = (rawCrew: unknown, rawUid: unknown): void => {
     const crewId = typeof rawCrew === "string" ? rawCrew : "";
     const freelancerUserId = typeof rawUid === "string" ? rawUid : "";
     if (!freelancerUserId) return;
-    if (!seen.has(freelancerUserId)) seen.set(freelancerUserId, crewId);
+    const key = `${freelancerUserId}\u0000${crewId}`;
+    if (!seen.has(key)) seen.set(key, { freelancerUserId, crewId });
   };
   if (Array.isArray(topLevelRecipients)) {
     for (const r of topLevelRecipients) {
@@ -514,10 +516,7 @@ function readRecipients(
       push(ar.crewId, ar.freelancerUserId);
     }
   }
-  return Array.from(seen.entries()).map(([freelancerUserId, crewId]) => ({
-    freelancerUserId,
-    crewId,
-  }));
+  return Array.from(seen.values());
 }
 
 /** GET /api/portal/briefs/mine
@@ -949,6 +948,7 @@ router.post(
     const body = (req.body ?? {}) as {
       decision?: unknown;
       shiftResponses?: unknown;
+      assignmentId?: unknown;
     };
     const requestedDecision =
       typeof body.decision === "string" ? body.decision : "";
@@ -1007,11 +1007,51 @@ router.post(
             freelancerUserId: briefAssignmentsTable.freelancerUserId,
             decision: briefAssignmentsTable.decision,
             crewId: briefAssignmentsTable.crewId,
+            acceptedGigId: briefAssignmentsTable.acceptedGigId,
+            acceptedSnapshotTrusted:
+              briefAssignmentsTable.acceptedSnapshotTrusted,
           })
           .from(briefAssignmentsTable)
           .where(eq(briefAssignmentsTable.briefId, briefId));
-        const myRow = siblings.find((s) => s.freelancerUserId === userId);
+        const ownRows = siblings.filter((s) => s.freelancerUserId === userId);
+        const requestedAssignmentId =
+          typeof body.assignmentId === "string" && body.assignmentId
+            ? body.assignmentId
+            : null;
+        // Old single-role links do not carry assignmentId. Do not silently
+        // select one when this account now holds multiple role slots.
+        const myRow = requestedAssignmentId
+          ? ownRows.find((s) => s.id === requestedAssignmentId)
+          : ownRows.length === 1 ? ownRows[0] : undefined;
         if (!myRow) return { kind: "no_assignment" as const };
+        const slotSiblings = siblings.filter((s) => s.crewId === myRow.crewId);
+        // Older server-created assignments can have a trusted snapshot and
+        // acceptedGigId but no exact gig link. Adopt only that exact,
+        // same-user, same-brief unlinked row. Never scan broadly by
+        // (brief,user): manually linked gigs must not be overwritten/deleted.
+        if (
+          myRow.acceptedSnapshotTrusted &&
+          myRow.acceptedGigId
+        ) {
+          await tx
+            .update(gigsTable)
+            .set({
+              briefAssignmentId: myRow.id,
+              updatedAt: sql`now()`,
+            })
+            .where(
+              and(
+                eq(gigsTable.id, myRow.acceptedGigId),
+                eq(gigsTable.briefId, briefId),
+                eq(gigsTable.freelancerUserId, userId),
+                isNull(gigsTable.briefAssignmentId),
+              ),
+            );
+        }
+        const ownedGigCondition = eq(
+          gigsTable.briefAssignmentId,
+          myRow.id,
+        );
         const shiftResponses = hasShiftResponses
           ? submittedShiftResponses as ShiftResponses
           : null;
@@ -1069,6 +1109,7 @@ router.post(
                 and(
                   eq(briefAssignmentsTable.briefId, briefId),
                   eq(briefAssignmentsTable.decision, "too_late"),
+                  eq(briefAssignmentsTable.crewId, myRow.crewId),
                 ),
               );
           }
@@ -1096,12 +1137,7 @@ router.post(
           if (myRow.decision === "accepted") {
             await tx
               .delete(gigsTable)
-              .where(
-                and(
-                  eq(gigsTable.briefId, briefId),
-                  eq(gigsTable.freelancerUserId, userId),
-                ),
-              );
+              .where(ownedGigCondition);
           }
           return {
             kind: "ok" as const,
@@ -1115,7 +1151,7 @@ router.post(
         // already accepted" check so a no-op double-accept by the same
         // freelancer (e.g. a stale tab or a retried request) is treated
         // as success, not as a too-late race against themselves.
-        const winner = siblings.find(
+        const winner = slotSiblings.find(
           (s) =>
             s.decision === "accepted" && s.freelancerUserId !== userId,
         );
@@ -1158,20 +1194,19 @@ router.post(
             and(
               eq(briefAssignmentsTable.briefId, briefId),
               eq(briefAssignmentsTable.decision, "pending"),
-              // Don't accidentally sweep ourselves — myRow may still be
-              // in the `pending` state at this point.
+              eq(briefAssignmentsTable.crewId, myRow.crewId),
             ),
           );
         // Materialise the booking. The gig row is the source of truth
         // for the freelancer's calendar, the producer's booked roster
         // (via the brief link), and the directory's `booked` status
-        // pill. Idempotency is keyed on (briefId, freelancerUserId)
+        // pill. Idempotency is keyed on the exact brief assignment
         // — *not* on the client-supplied `acceptedGigId` — so a
         // retried accept (or an "acknowledge changes" re-confirm) can
         // never produce duplicate rows or overwrite somebody else's
         // gig via a guessed id (IDOR). The FOR UPDATE lock on the
         // brief row earlier in this transaction serialises every
-        // accept attempt for the same (brief, freelancer) pair, so
+        // accept attempt for the same role slot, so
         // the SELECT-then-INSERT/UPDATE pattern below cannot race.
         const baseGigFields = gigFieldsFromBrief(briefRow, myRow.crewId);
         const acceptedDates = Array.from(
@@ -1188,12 +1223,7 @@ router.post(
         const existingGig = await tx
           .select({ id: gigsTable.id, status: gigsTable.status })
           .from(gigsTable)
-          .where(
-            and(
-              eq(gigsTable.briefId, briefId),
-              eq(gigsTable.freelancerUserId, userId),
-            ),
-          )
+          .where(ownedGigCondition)
           .limit(1);
         let gigRow;
         if (existingGig.length > 0) {
@@ -1206,6 +1236,7 @@ router.post(
           );
           const setClause: Record<string, unknown> = {
             ...gigFields,
+            briefAssignmentId: myRow.id,
             updatedAt: sql`now()`,
           };
           if (!preserveStatus) setClause.status = "confirmed";
@@ -1229,6 +1260,7 @@ router.post(
               id: newId,
               freelancerUserId: userId,
               briefId,
+              briefAssignmentId: myRow.id,
               ...gigFields,
               status: "confirmed",
             })
@@ -1994,61 +2026,24 @@ router.patch(
         res.status(403).json({ ok: false, error: "Not your brief." });
         return;
       }
-      // Cascade the patch to ALL gigs of the same freelancer on this
-      // brief — not just the targeted gigId. The GET endpoint above
-      // collapses multiple gigs for the same person into one
-      // consolidated row (a freelancer can hold two roles on one
-      // brief), so the producer's toggle / date override is
-      // semantically a per-PERSON edit and must persist that way.
-      // Without this cascade, an OR-aggregated `hotelRequired` flag
-      // would re-appear true on the next refresh because a sibling
-      // gig still has it true, making the toggle look broken.
-      //
-      // We do the lookup-then-update inside a transaction so a
-      // concurrent gig deletion can't race the cascade into a
-      // partial state. The lookup also serves as the membership /
-      // existence check (replacing the old `WHERE id = ... AND
-      // briefId = ...` predicate that returned 404 on miss).
-      const result = await db.transaction(async (tx) => {
-        const targetRows = await tx
-          .select({ freelancerUserId: gigsTable.freelancerUserId })
-          .from(gigsTable)
-          .where(and(eq(gigsTable.id, gigId), eq(gigsTable.briefId, briefId)))
-          .limit(1);
-        const target = targetRows[0];
-        if (!target) return { ok: false as const };
-        const updated = await tx
-          .update(gigsTable)
-          .set(patch)
-          .where(
-            and(
-              eq(gigsTable.briefId, briefId),
-              eq(gigsTable.freelancerUserId, target.freelancerUserId),
-            ),
-          )
-          .returning({
-            id: gigsTable.id,
-            hotelRequired: gigsTable.hotelRequired,
-            hotelDates: gigsTable.hotelDates,
-            checkInDate: gigsTable.checkInDate,
-            checkOutDate: gigsTable.checkOutDate,
-          });
-        return { ok: true as const, updated };
-      });
-      if (!result.ok) {
+      const updated = await db
+        .update(gigsTable)
+        .set(patch)
+        .where(and(eq(gigsTable.id, gigId), eq(gigsTable.briefId, briefId)))
+        .returning({
+          id: gigsTable.id,
+          hotelRequired: gigsTable.hotelRequired,
+          hotelDates: gigsTable.hotelDates,
+          checkInDate: gigsTable.checkInDate,
+          checkOutDate: gigsTable.checkOutDate,
+        });
+      if (updated.length === 0) {
         res
           .status(404)
           .json({ ok: false, error: "Gig not found on this brief." });
         return;
       }
-      // Return the row matching the targeted gigId for caller
-      // convenience (UI optimistic update keys off it). All sibling
-      // gigs receive the same field values, so picking the targeted
-      // one rather than the first is purely cosmetic but matches
-      // producer expectation.
-      const targetedGig =
-        result.updated.find((g) => g.id === gigId) ?? result.updated[0];
-      res.json({ ok: true, gig: targetedGig });
+      res.json({ ok: true, gig: updated[0] });
     } catch (err) {
       logger.error(
         {
@@ -2081,12 +2076,7 @@ router.patch(
  *  date in 2099. Briefs without a startDate/endDate skip the
  *  window check (we can't validate against a missing window).
  *
- *  Side-effect: like the hotel PATCH, the new date list is
- *  cascaded to every gig the same freelancer holds on this brief
- *  so a person with two roles (e.g. "Rigger" + "Stage") doesn't
- *  drift between two different schedules. The roster GET above
- *  already shows them as one row; producers expect the same edit
- *  to update both gigs at once. */
+ *  Role slots are independent: only the targeted gig is updated. */
 router.patch(
   "/portal/briefs/:id/roster/:gigId/dates",
   requireEmployee,
@@ -2183,38 +2173,21 @@ router.patch(
         }
       }
 
-      const result = await db.transaction(async (tx) => {
-        const targetRows = await tx
-          .select({ freelancerUserId: gigsTable.freelancerUserId })
-          .from(gigsTable)
-          .where(and(eq(gigsTable.id, gigId), eq(gigsTable.briefId, briefId)))
-          .limit(1);
-        const target = targetRows[0];
-        if (!target) return { ok: false as const };
-        const updated = await tx
-          .update(gigsTable)
-          .set({ assignedDates: parsed, updatedAt: sql`now()` })
-          .where(
-            and(
-              eq(gigsTable.briefId, briefId),
-              eq(gigsTable.freelancerUserId, target.freelancerUserId),
-            ),
-          )
-          .returning({
-            id: gigsTable.id,
-            assignedDates: gigsTable.assignedDates,
-          });
-        return { ok: true as const, updated };
-      });
-      if (!result.ok) {
+      const updated = await db
+        .update(gigsTable)
+        .set({ assignedDates: parsed, updatedAt: sql`now()` })
+        .where(and(eq(gigsTable.id, gigId), eq(gigsTable.briefId, briefId)))
+        .returning({
+          id: gigsTable.id,
+          assignedDates: gigsTable.assignedDates,
+        });
+      if (updated.length === 0) {
         res
           .status(404)
           .json({ ok: false, error: "Gig not found on this brief." });
         return;
       }
-      const targetedGig =
-        result.updated.find((g) => g.id === gigId) ?? result.updated[0];
-      res.json({ ok: true, gig: targetedGig });
+      res.json({ ok: true, gig: updated[0] });
     } catch (err) {
       logger.error(
         {
@@ -2499,7 +2472,7 @@ router.get(
         res.status(403).json({ ok: false, error: "Not your brief." });
         return;
       }
-      const assignmentTimingByFreelancerId = new Map<
+      const assignmentTimingByCrewId = new Map<
         string,
         ReturnType<typeof rosterAssignmentTiming>
       >();
@@ -2513,12 +2486,9 @@ router.get(
             continue;
           }
           const rawAssignment = assignment as Record<string, unknown>;
-          if (
-            typeof rawAssignment.freelancerUserId === "string" &&
-            rawAssignment.freelancerUserId
-          ) {
-            assignmentTimingByFreelancerId.set(
-              rawAssignment.freelancerUserId,
+          if (typeof rawAssignment.crewId === "string" && rawAssignment.crewId) {
+            assignmentTimingByCrewId.set(
+              rawAssignment.crewId,
               rosterAssignmentTiming(rawAssignment),
             );
           }
@@ -2539,6 +2509,7 @@ router.get(
       const rows = await db
         .select({
           gigId: gigsTable.id,
+          briefAssignmentId: gigsTable.briefAssignmentId,
           gigRole: gigsTable.role,
           assignedDates: gigsTable.assignedDates,
           status: gigsTable.status,
@@ -2547,6 +2518,7 @@ router.get(
           checkInDate: gigsTable.checkInDate,
           checkOutDate: gigsTable.checkOutDate,
           freelancerUserId: gigsTable.freelancerUserId,
+          crewId: briefAssignmentsTable.crewId,
           shiftResponses: briefAssignmentsTable.shiftResponses,
           profileFullName: freelancerProfilesTable.fullName,
           profileDietary: freelancerProfilesTable.dietary,
@@ -2563,8 +2535,7 @@ router.get(
         .leftJoin(
           briefAssignmentsTable,
           and(
-            eq(briefAssignmentsTable.briefId, gigsTable.briefId),
-            eq(briefAssignmentsTable.freelancerUserId, gigsTable.freelancerUserId),
+            eq(briefAssignmentsTable.id, gigsTable.briefAssignmentId),
           ),
         )
         .where(eq(gigsTable.briefId, id));
@@ -2634,10 +2605,12 @@ router.get(
               ? r.checkOutDate.slice(0, 10)
               : null;
           const timing =
-            assignmentTimingByFreelancerId.get(r.freelancerUserId) ??
+            (r.crewId ? assignmentTimingByCrewId.get(r.crewId) : undefined) ??
             rosterAssignmentTiming(null);
           return {
             gigId: r.gigId,
+            briefAssignmentId: r.briefAssignmentId,
+            crewId: r.crewId,
             freelancerUserId: r.freelancerUserId,
             name,
             role: r.gigRole ?? "",

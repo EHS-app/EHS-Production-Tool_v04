@@ -59,6 +59,23 @@ export declare const gigsTable: import("drizzle-orm/pg-core").PgTableWithColumns
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        briefAssignmentId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "brief_assignment_id";
+            tableName: "gigs";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         projectName: import("drizzle-orm/pg-core").PgColumn<{
             name: "project_name";
             tableName: "gigs";
@@ -439,6 +456,7 @@ export declare const gigsTable: import("drizzle-orm/pg-core").PgTableWithColumns
 }>;
 export declare const insertGigSchema: z.ZodObject<{
     id: z.ZodString;
+    freelancerUserId: z.ZodString;
     venue: z.ZodOptional<z.ZodString>;
     client: z.ZodOptional<z.ZodString>;
     status: z.ZodOptional<z.ZodString>;
@@ -446,7 +464,7 @@ export declare const insertGigSchema: z.ZodObject<{
     startDate: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     endDate: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     briefId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    freelancerUserId: z.ZodString;
+    briefAssignmentId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     role: z.ZodOptional<z.ZodString>;
     assignedDates: z.ZodOptional<z.ZodArray<z.ZodString>>;
     hotelRequired: z.ZodOptional<z.ZodBoolean>;

@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { Link } from "wouter";
 import { PALETTE, type ThemeMode } from "../lib/portalTheme";
 import type { PortalData, SharedBrief, BriefDecision } from "../lib/portalStorage";
-import { formatCrewDayRate } from "../../lib/crew";
 import { useI18n, useT } from "../../lib/i18n/I18nContext";
 import type { TranslationKey } from "../../lib/i18n/types";
 
@@ -80,11 +79,14 @@ export function Briefs({
   const { locale } = useI18n();
 
   const sorted = useMemo(
-    () => [...data.briefs].sort((a, b) => b.receivedAt - a.receivedAt),
+    () => Object.values(data.briefs.reduce<Record<string, SharedBrief[]>>((groups, brief) => {
+      (groups[brief.briefId] ??= []).push(brief);
+      return groups;
+    }, {})).sort((a, b) => Math.max(...b.map((x) => x.receivedAt)) - Math.max(...a.map((x) => x.receivedAt))),
     [data.briefs],
   );
-  const pending = sorted.filter((b) => b.decision === "pending");
-  const others = sorted.filter((b) => b.decision !== "pending");
+  const pending = sorted.filter((group) => group.some((b) => b.decision === "pending"));
+  const others = sorted.filter((group) => !group.some((b) => b.decision === "pending"));
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -128,7 +130,7 @@ export function Briefs({
             <Section theme={theme} title={t("portal.briefs.section.awaiting")}>
               {pending.map((b) => (
                 <BriefRow
-                  key={b.briefId}
+                  key={b[0].briefId}
                   theme={theme}
                   brief={b}
                   locale={locale}
@@ -140,7 +142,7 @@ export function Briefs({
             <Section theme={theme} title={t("portal.briefs.section.history")}>
               {others.map((b) => (
                 <BriefRow
-                  key={b.briefId}
+                  key={b[0].briefId}
                   theme={theme}
                   brief={b}
                   locale={locale}
@@ -211,20 +213,22 @@ function Section({
 
 function BriefRow({
   theme,
-  brief,
+  brief: entries,
   locale,
 }: {
   theme: ThemeMode;
-  brief: SharedBrief;
+  brief: SharedBrief[];
   locale: string;
 }) {
   const c = PALETTE[theme];
   const t = useT();
-  const colors = decisionPillColors(brief.decision);
-  const pillLabel = t(DECISION_KEY[brief.decision]);
-  const myAssignment = brief.brief.assignments.find(
-    (a) => a.crewId === brief.brief.recipientCrewId,
-  );
+  const brief = entries[0];
+  const roles = entries.map((entry, index) => ({
+    label: entry.brief.assignments.find((a) => a.crewId === entry.brief.recipientCrewId)?.role || `Booking ${index + 1}`,
+    decision: entry.decision,
+  }));
+  const colors = decisionPillColors(roles.some((role) => role.decision === "pending") ? "pending" : roles[0].decision);
+  const pillLabel = roles.map((role) => `${role.label}: ${t(DECISION_KEY[role.decision])}`).join(" · ");
   return (
     <Link
       href={`/portal/briefs/${brief.briefId}`}
@@ -280,30 +284,10 @@ function BriefRow({
               ? `${formatDate(brief.brief.project.date, locale)} → ${formatDate(brief.brief.project.endDate, locale)}`
               : formatDate(brief.brief.project.date, locale)}
           </span>
-          {myAssignment ? (
+          {roles.length > 0 ? (
             <>
               <span aria-hidden>·</span>
-              <span style={{ color: c.text, fontWeight: 600 }}>
-                {myAssignment.role}
-              </span>
-              {myAssignment.callTime ? (
-                <>
-                  <span aria-hidden>·</span>
-                  <span>
-                    {t("portal.briefs.callPrefix", {
-                      time: myAssignment.callTime,
-                    })}
-                  </span>
-                </>
-              ) : null}
-              {myAssignment.dayRate > 0 ? (
-                <>
-                  <span aria-hidden>·</span>
-                  <span style={{ color: c.text, fontWeight: 600 }}>
-                    {formatCrewDayRate(myAssignment.dayRate)}
-                  </span>
-                </>
-              ) : null}
+              <span style={{ color: c.text, fontWeight: 600 }}>{roles.map((role) => role.label).join(" · ")}</span>
             </>
           ) : (
             <>
@@ -312,7 +296,7 @@ function BriefRow({
             </>
           )}
           <span aria-hidden>·</span>
-          <span>{formatRelative(brief.receivedAt, t, locale)}</span>
+          <span>{formatRelative(Math.max(...entries.map((entry) => entry.receivedAt)), t, locale)}</span>
         </div>
       </div>
       <span

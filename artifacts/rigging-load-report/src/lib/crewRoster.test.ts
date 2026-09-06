@@ -273,11 +273,9 @@ test("buildDayChips falls back to assigned-only when no project window", () => {
   assert.ok(chips.every((c) => c.on));
 });
 
-test("mergeRoster collapses two gigs for the same freelancer into one row", () => {
-  // A freelancer holds two gigs on the same brief — e.g. one filed
-  // as Stagehand and another as Lighting tech. The unified roster
-  // must show them as ONE person with merged dates / hotel state /
-  // status, not two duplicate rows.
+test("mergeRoster preserves two role gigs for the same freelancer", () => {
+  // Each gig is an independently bookable role slot with its own
+  // schedule, hotel state and lifecycle status.
   const out = mergeRoster(
     [],
     makeResponse([
@@ -301,23 +299,15 @@ test("mergeRoster collapses two gigs for the same freelancer into one row", () =
       }),
     ]),
   );
-  assert.equal(out.length, 1, "should produce ONE row, not two");
-  const row = out[0]!;
-  // Canonical row keeps the first gig's id (deterministic, server
-  // returns gigs sorted) so PATCHes target a stable target; the
-  // server's PATCH cascades to all gigs of the same freelancer.
-  assert.equal(row.gigId, "g1");
-  assert.equal(row.freelancerUserId, "user-multi");
-  // Dates: union + sort.
-  assert.deepEqual(row.assignedDates, [
-    "2026-05-10",
-    "2026-05-11",
-    "2026-05-12",
-  ]);
-  // Hotel: any-true wins.
-  assert.equal(row.hotelRequired, true);
-  // Status: most-advanced wins (paid > confirmed).
-  assert.equal(row.status, "paid");
+  assert.equal(out.length, 2);
+  const stagehand = out.find((row) => row.role === "Stagehand");
+  const lighting = out.find((row) => row.role === "Lighting tech");
+  assert.deepEqual(stagehand?.assignedDates, ["2026-05-10", "2026-05-11"]);
+  assert.equal(stagehand?.hotelRequired, false);
+  assert.equal(stagehand?.status, "confirmed");
+  assert.deepEqual(lighting?.assignedDates, ["2026-05-11", "2026-05-12"]);
+  assert.equal(lighting?.hotelRequired, true);
+  assert.equal(lighting?.status, "paid");
 });
 
 test("mergeRoster keeps two gigs separate when freelancerUserIds differ", () => {
@@ -341,7 +331,7 @@ test("mergeRoster keeps two gigs separate when freelancerUserIds differ", () => 
   assert.equal(out.length, 2);
 });
 
-test("mergeRoster gig-vs-gig merge: any profileless flag wins", () => {
+test("mergeRoster keeps profile state independent across role gigs", () => {
   const out = mergeRoster(
     [],
     makeResponse([
@@ -357,8 +347,9 @@ test("mergeRoster gig-vs-gig merge: any profileless flag wins", () => {
       }),
     ]),
   );
-  assert.equal(out.length, 1);
-  assert.equal(out[0]?.profileless, true);
+  assert.equal(out.length, 2);
+  assert.equal(out.find((row) => row.gigId === "g1")?.profileless, false);
+  assert.equal(out.find((row) => row.gigId === "g2")?.profileless, true);
 });
 
 test("mergeRoster passes phone, roomKey and roommateName through to the gig row", () => {

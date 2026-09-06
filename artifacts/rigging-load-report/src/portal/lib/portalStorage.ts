@@ -90,6 +90,8 @@ export type AcceptedSnapshot = {
 
 export type SharedBrief = {
   briefId: string;
+  /** Server assignment identity. Undefined is a legacy shared-link entry. */
+  assignmentId?: string;
   receivedAt: number;
   decision: BriefDecision;
   /** Per-window response keyed by YYYY-MM-DD::phase::windowIndex.
@@ -418,6 +420,10 @@ function normalizeSharedBrief(raw: unknown): SharedBrief | null {
     : "pending";
   return {
     briefId: b.briefId,
+    assignmentId:
+      typeof b.assignmentId === "string" && b.assignmentId
+        ? b.assignmentId
+        : undefined,
     receivedAt:
       typeof b.receivedAt === "number" && isFinite(b.receivedAt)
         ? b.receivedAt
@@ -604,11 +610,14 @@ export function updateBrief(
   data: PortalData,
   briefId: string,
   patch: Partial<Omit<SharedBrief, "briefId" | "brief">>,
+  assignmentId?: string,
 ): PortalData {
   return {
     ...data,
     briefs: data.briefs.map((b) =>
-      b.briefId === briefId ? { ...b, ...patch } : b,
+      b.briefId === briefId && (!assignmentId || b.assignmentId === assignmentId)
+        ? { ...b, ...patch }
+        : b,
     ),
   };
 }

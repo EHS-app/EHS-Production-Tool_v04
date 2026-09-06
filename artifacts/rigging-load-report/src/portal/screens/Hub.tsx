@@ -162,10 +162,13 @@ export function Hub({ theme, data }: { theme: ThemeMode; data: PortalData }) {
   const availabilityCount = Object.keys(data.availability).length;
 
   const pendingBriefs = useMemo(
-    () =>
-      [...data.briefs]
-        .filter((b) => b.decision === "pending")
-        .sort((a, b) => b.receivedAt - a.receivedAt),
+    () => Object.values(data.briefs.reduce<Record<string, typeof data.briefs>>(
+      (groups, brief) => {
+        if (brief.decision === "pending") (groups[brief.briefId] ??= []).push(brief);
+        return groups;
+      },
+      {},
+    )).sort((a, b) => Math.max(...b.map((x) => x.receivedAt)) - Math.max(...a.map((x) => x.receivedAt))),
     [data.briefs],
   );
 
@@ -199,7 +202,7 @@ export function Hub({ theme, data }: { theme: ThemeMode; data: PortalData }) {
         <Link
           href={
             pendingBriefs.length === 1
-              ? `/portal/briefs/${pendingBriefs[0].briefId}`
+              ? `/portal/briefs/${pendingBriefs[0][0].briefId}`
               : "/portal/briefs"
           }
           style={{
@@ -220,8 +223,8 @@ export function Hub({ theme, data }: { theme: ThemeMode; data: PortalData }) {
             {pendingBriefs.length === 1
               ? t("portal.hub.banner.singleNew", {
                   venue:
-                    pendingBriefs[0].brief.project.projectName ||
-                    pendingBriefs[0].brief.project.venue ||
+                     pendingBriefs[0][0].brief.project.projectName ||
+                     pendingBriefs[0][0].brief.project.venue ||
                     t("portal.hub.untitledShow"),
                 })
               : t("portal.hub.banner.manyNew", {

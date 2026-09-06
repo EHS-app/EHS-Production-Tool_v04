@@ -74590,12 +74590,12 @@ var briefAssignmentsTable = pgTable(
   (t) => [
     index("brief_assignments_freelancer_idx").on(t.freelancerUserId),
     index("brief_assignments_brief_idx").on(t.briefId),
-    /** Hard guarantee: at most one assignment row per (brief, freelancer).
-     *  Lets the POST /briefs handler use a simple insert-on-conflict-do-nothing
-     *  upsert without a fragile DELETE-USING dedup pass. */
-    uniqueIndex("brief_assignments_brief_freelancer_unique").on(
+    /** A crewId is the immutable role-slot identity. One freelancer can hold
+     * multiple slots on a brief, but a slot can only be addressed once. */
+    uniqueIndex("brief_assignments_brief_freelancer_crew_unique").on(
       t.briefId,
-      t.freelancerUserId
+      t.freelancerUserId,
+      t.crewId
     )
   ]
 );
@@ -74619,6 +74619,13 @@ var gigsTable = pgTable(
     briefId: text("brief_id").references(() => projectBriefsTable.id, {
       onDelete: "set null"
     }),
+    /** Exact role-slot that produced this gig. `briefId` remains populated for
+     * legacy rows and old links, while this prevents two roles for one person
+     * from sharing a booking. */
+    briefAssignmentId: text("brief_assignment_id").references(
+      () => briefAssignmentsTable.id,
+      { onDelete: "set null" }
+    ),
     projectName: text("project_name").notNull().default(""),
     client: text("client").notNull().default(""),
     venue: text("venue").notNull().default(""),
@@ -74667,7 +74674,9 @@ var gigsTable = pgTable(
   },
   (t) => [
     index("gigs_freelancer_idx").on(t.freelancerUserId),
-    index("gigs_brief_idx").on(t.briefId)
+    index("gigs_brief_idx").on(t.briefId),
+    index("gigs_brief_assignment_idx").on(t.briefAssignmentId),
+    uniqueIndex("gigs_brief_assignment_unique").on(t.briefAssignmentId)
   ]
 );
 var insertGigSchema = createInsertSchema(gigsTable).omit({
@@ -78537,14 +78546,10 @@ function recipientsFromBriefData(data) {
     const row = value;
     if (typeof row.freelancerUserId !== "string" || !row.freelancerUserId.trim() || row.freelancerUserId !== row.freelancerUserId.trim() || row.freelancerUserId.length > 255) continue;
     const crewId = typeof row.crewId === "string" ? row.crewId.slice(0, 255) : "";
-    if (!recipients.has(row.freelancerUserId)) {
-      recipients.set(row.freelancerUserId, crewId);
-    }
+    const key2 = `${row.freelancerUserId}\0${crewId}`;
+    if (!recipients.has(key2)) recipients.set(key2, { freelancerUserId: row.freelancerUserId, crewId });
   }
-  return [...recipients].map(([freelancerUserId, crewId]) => ({
-    freelancerUserId,
-    crewId
-  }));
+  return [...recipients.values()];
 }
 async function synchronizeBriefAssignments(tx, briefId, recipients) {
   const newRecipientUserIds = [];
@@ -78558,15 +78563,12 @@ async function synchronizeBriefAssignments(tx, briefId, recipients) {
     }).onConflictDoNothing({
       target: [
         briefAssignmentsTable.briefId,
-        briefAssignmentsTable.freelancerUserId
+        briefAssignmentsTable.freelancerUserId,
+        briefAssignmentsTable.crewId
       ]
     }).returning({ id: briefAssignmentsTable.id });
     if (inserted.length > 0) newRecipientUserIds.push(recipient.freelancerUserId);
     else existingRecipientCount += 1;
-    await tx.update(briefAssignmentsTable).set({ crewId: recipient.crewId, updatedAt: sql`now()` }).where(and(
-      eq(briefAssignmentsTable.briefId, briefId),
-      eq(briefAssignmentsTable.freelancerUserId, recipient.freelancerUserId)
-    ));
     await tx.insert(briefDispatchesTable).values({
       briefId,
       freelancerUserId: recipient.freelancerUserId,
@@ -78901,7 +78903,8 @@ function readRecipients(data, topLevelRecipients) {
     const crewId = typeof rawCrew === "string" ? rawCrew : "";
     const freelancerUserId = typeof rawUid === "string" ? rawUid : "";
     if (!freelancerUserId) return;
-    if (!seen.has(freelancerUserId)) seen.set(freelancerUserId, crewId);
+    const key2 = `${freelancerUserId}\0${crewId}`;
+    if (!seen.has(key2)) seen.set(key2, { freelancerUserId, crewId });
   };
   if (Array.isArray(topLevelRecipients)) {
     for (const r of topLevelRecipients) {
@@ -78918,10 +78921,7 @@ function readRecipients(data, topLevelRecipients) {
       push(ar.crewId, ar.freelancerUserId);
     }
   }
-  return Array.from(seen.entries()).map(([freelancerUserId, crewId]) => ({
-    freelancerUserId,
-    crewId
-  }));
+  return Array.from(seen.values());
 }
 router7.get("/portal/briefs/mine", requireSignedIn5, async (req, res) => {
   const userId2 = req._userId;
@@ -79241,10 +79241,32 @@ router7.post(
           id: briefAssignmentsTable.id,
           freelancerUserId: briefAssignmentsTable.freelancerUserId,
           decision: briefAssignmentsTable.decision,
-          crewId: briefAssignmentsTable.crewId
+          crewId: briefAssignmentsTable.crewId,
+          acceptedGigId: briefAssignmentsTable.acceptedGigId,
+          acceptedSnapshotTrusted: briefAssignmentsTable.acceptedSnapshotTrusted
         }).from(briefAssignmentsTable).where(eq(briefAssignmentsTable.briefId, briefId));
-        const myRow = siblings.find((s2) => s2.freelancerUserId === userId2);
+        const ownRows = siblings.filter((s2) => s2.freelancerUserId === userId2);
+        const requestedAssignmentId = typeof body.assignmentId === "string" && body.assignmentId ? body.assignmentId : null;
+        const myRow = requestedAssignmentId ? ownRows.find((s2) => s2.id === requestedAssignmentId) : ownRows.length === 1 ? ownRows[0] : void 0;
         if (!myRow) return { kind: "no_assignment" };
+        const slotSiblings = siblings.filter((s2) => s2.crewId === myRow.crewId);
+        if (myRow.acceptedSnapshotTrusted && myRow.acceptedGigId) {
+          await tx.update(gigsTable).set({
+            briefAssignmentId: myRow.id,
+            updatedAt: sql`now()`
+          }).where(
+            and(
+              eq(gigsTable.id, myRow.acceptedGigId),
+              eq(gigsTable.briefId, briefId),
+              eq(gigsTable.freelancerUserId, userId2),
+              isNull(gigsTable.briefAssignmentId)
+            )
+          );
+        }
+        const ownedGigCondition = eq(
+          gigsTable.briefAssignmentId,
+          myRow.id
+        );
         const shiftResponses = hasShiftResponses ? submittedShiftResponses : null;
         const responseSlots = responseSlotsForAssignment(briefRow, myRow.crewId);
         if (shiftResponses) {
@@ -79274,7 +79296,8 @@ router7.post(
             }).where(
               and(
                 eq(briefAssignmentsTable.briefId, briefId),
-                eq(briefAssignmentsTable.decision, "too_late")
+                eq(briefAssignmentsTable.decision, "too_late"),
+                eq(briefAssignmentsTable.crewId, myRow.crewId)
               )
             );
           }
@@ -79289,12 +79312,7 @@ router7.post(
           }).where(eq(briefAssignmentsTable.id, myRow.id)).returning();
           if (updated2.length === 0) return { kind: "no_assignment" };
           if (myRow.decision === "accepted") {
-            await tx.delete(gigsTable).where(
-              and(
-                eq(gigsTable.briefId, briefId),
-                eq(gigsTable.freelancerUserId, userId2)
-              )
-            );
+            await tx.delete(gigsTable).where(ownedGigCondition);
           }
           return {
             kind: "ok",
@@ -79303,7 +79321,7 @@ router7.post(
             gig: null
           };
         }
-        const winner = siblings.find(
+        const winner = slotSiblings.find(
           (s2) => s2.decision === "accepted" && s2.freelancerUserId !== userId2
         );
         if (winner) {
@@ -79330,9 +79348,8 @@ router7.post(
         }).where(
           and(
             eq(briefAssignmentsTable.briefId, briefId),
-            eq(briefAssignmentsTable.decision, "pending")
-            // Don't accidentally sweep ourselves — myRow may still be
-            // in the `pending` state at this point.
+            eq(briefAssignmentsTable.decision, "pending"),
+            eq(briefAssignmentsTable.crewId, myRow.crewId)
           )
         );
         const baseGigFields = gigFieldsFromBrief(briefRow, myRow.crewId);
@@ -79345,12 +79362,7 @@ router7.post(
           ...baseGigFields,
           ...shiftResponses ? { assignedDates: acceptedDates } : {}
         };
-        const existingGig = await tx.select({ id: gigsTable.id, status: gigsTable.status }).from(gigsTable).where(
-          and(
-            eq(gigsTable.briefId, briefId),
-            eq(gigsTable.freelancerUserId, userId2)
-          )
-        ).limit(1);
+        const existingGig = await tx.select({ id: gigsTable.id, status: gigsTable.status }).from(gigsTable).where(ownedGigCondition).limit(1);
         let gigRow;
         if (existingGig.length > 0) {
           const preserveStatus = TERMINAL_GIG_STATUSES.has(
@@ -79358,6 +79370,7 @@ router7.post(
           );
           const setClause = {
             ...gigFields,
+            briefAssignmentId: myRow.id,
             updatedAt: sql`now()`
           };
           if (!preserveStatus) setClause.status = "confirmed";
@@ -79369,6 +79382,7 @@ router7.post(
             id: newId,
             freelancerUserId: userId2,
             briefId,
+            briefAssignmentId: myRow.id,
             ...gigFields,
             status: "confirmed"
           }).returning();
@@ -79823,30 +79837,18 @@ router7.patch(
         res.status(403).json({ ok: false, error: "Not your brief." });
         return;
       }
-      const result = await db.transaction(async (tx) => {
-        const targetRows = await tx.select({ freelancerUserId: gigsTable.freelancerUserId }).from(gigsTable).where(and(eq(gigsTable.id, gigId), eq(gigsTable.briefId, briefId))).limit(1);
-        const target = targetRows[0];
-        if (!target) return { ok: false };
-        const updated = await tx.update(gigsTable).set(patch).where(
-          and(
-            eq(gigsTable.briefId, briefId),
-            eq(gigsTable.freelancerUserId, target.freelancerUserId)
-          )
-        ).returning({
-          id: gigsTable.id,
-          hotelRequired: gigsTable.hotelRequired,
-          hotelDates: gigsTable.hotelDates,
-          checkInDate: gigsTable.checkInDate,
-          checkOutDate: gigsTable.checkOutDate
-        });
-        return { ok: true, updated };
+      const updated = await db.update(gigsTable).set(patch).where(and(eq(gigsTable.id, gigId), eq(gigsTable.briefId, briefId))).returning({
+        id: gigsTable.id,
+        hotelRequired: gigsTable.hotelRequired,
+        hotelDates: gigsTable.hotelDates,
+        checkInDate: gigsTable.checkInDate,
+        checkOutDate: gigsTable.checkOutDate
       });
-      if (!result.ok) {
+      if (updated.length === 0) {
         res.status(404).json({ ok: false, error: "Gig not found on this brief." });
         return;
       }
-      const targetedGig = result.updated.find((g) => g.id === gigId) ?? result.updated[0];
-      res.json({ ok: true, gig: targetedGig });
+      res.json({ ok: true, gig: updated[0] });
     } catch (err) {
       logger.error(
         {
@@ -79937,27 +79939,15 @@ router7.patch(
           }
         }
       }
-      const result = await db.transaction(async (tx) => {
-        const targetRows = await tx.select({ freelancerUserId: gigsTable.freelancerUserId }).from(gigsTable).where(and(eq(gigsTable.id, gigId), eq(gigsTable.briefId, briefId))).limit(1);
-        const target = targetRows[0];
-        if (!target) return { ok: false };
-        const updated = await tx.update(gigsTable).set({ assignedDates: parsed, updatedAt: sql`now()` }).where(
-          and(
-            eq(gigsTable.briefId, briefId),
-            eq(gigsTable.freelancerUserId, target.freelancerUserId)
-          )
-        ).returning({
-          id: gigsTable.id,
-          assignedDates: gigsTable.assignedDates
-        });
-        return { ok: true, updated };
+      const updated = await db.update(gigsTable).set({ assignedDates: parsed, updatedAt: sql`now()` }).where(and(eq(gigsTable.id, gigId), eq(gigsTable.briefId, briefId))).returning({
+        id: gigsTable.id,
+        assignedDates: gigsTable.assignedDates
       });
-      if (!result.ok) {
+      if (updated.length === 0) {
         res.status(404).json({ ok: false, error: "Gig not found on this brief." });
         return;
       }
-      const targetedGig = result.updated.find((g) => g.id === gigId) ?? result.updated[0];
-      res.json({ ok: true, gig: targetedGig });
+      res.json({ ok: true, gig: updated[0] });
     } catch (err) {
       logger.error(
         {
@@ -80106,7 +80096,7 @@ router7.get(
         res.status(403).json({ ok: false, error: "Not your brief." });
         return;
       }
-      const assignmentTimingByFreelancerId = /* @__PURE__ */ new Map();
+      const assignmentTimingByCrewId = /* @__PURE__ */ new Map();
       const briefData = brief.data && typeof brief.data === "object" && !Array.isArray(brief.data) ? brief.data : {};
       if (Array.isArray(briefData.assignments)) {
         for (const assignment of briefData.assignments) {
@@ -80114,9 +80104,9 @@ router7.get(
             continue;
           }
           const rawAssignment = assignment;
-          if (typeof rawAssignment.freelancerUserId === "string" && rawAssignment.freelancerUserId) {
-            assignmentTimingByFreelancerId.set(
-              rawAssignment.freelancerUserId,
+          if (typeof rawAssignment.crewId === "string" && rawAssignment.crewId) {
+            assignmentTimingByCrewId.set(
+              rawAssignment.crewId,
               rosterAssignmentTiming(rawAssignment)
             );
           }
@@ -80124,6 +80114,7 @@ router7.get(
       }
       const rows = await db.select({
         gigId: gigsTable.id,
+        briefAssignmentId: gigsTable.briefAssignmentId,
         gigRole: gigsTable.role,
         assignedDates: gigsTable.assignedDates,
         status: gigsTable.status,
@@ -80132,6 +80123,7 @@ router7.get(
         checkInDate: gigsTable.checkInDate,
         checkOutDate: gigsTable.checkOutDate,
         freelancerUserId: gigsTable.freelancerUserId,
+        crewId: briefAssignmentsTable.crewId,
         shiftResponses: briefAssignmentsTable.shiftResponses,
         profileFullName: freelancerProfilesTable.fullName,
         profileDietary: freelancerProfilesTable.dietary,
@@ -80145,8 +80137,7 @@ router7.get(
       ).leftJoin(
         briefAssignmentsTable,
         and(
-          eq(briefAssignmentsTable.briefId, gigsTable.briefId),
-          eq(briefAssignmentsTable.freelancerUserId, gigsTable.freelancerUserId)
+          eq(briefAssignmentsTable.id, gigsTable.briefAssignmentId)
         )
       ).where(eq(gigsTable.briefId, id));
       const lockRows = await db.select({
@@ -80177,9 +80168,11 @@ router7.get(
         }
         const ci = typeof r.checkInDate === "string" ? r.checkInDate.slice(0, 10) : null;
         const co = typeof r.checkOutDate === "string" ? r.checkOutDate.slice(0, 10) : null;
-        const timing = assignmentTimingByFreelancerId.get(r.freelancerUserId) ?? rosterAssignmentTiming(null);
+        const timing = (r.crewId ? assignmentTimingByCrewId.get(r.crewId) : void 0) ?? rosterAssignmentTiming(null);
         return {
           gigId: r.gigId,
+          briefAssignmentId: r.briefAssignmentId,
+          crewId: r.crewId,
           freelancerUserId: r.freelancerUserId,
           name,
           role: r.gigRole ?? "",

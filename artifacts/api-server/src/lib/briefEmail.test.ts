@@ -164,4 +164,31 @@ describe("brief email dispatch", () => {
     assert.match(content.htmlBody, /Prosjekt/);
     assert.match(content.htmlBody, /https:\/\/app\.ehs\.no\/logo\.png/);
   });
+
+  it("changes only the requested copy for Share Brief notifications", () => {
+    const shared = buildBriefEmailContent({
+      recipientName: "Kari",
+      producerName: "Ola Nordmann",
+      link: "https://app.ehs.no/?view=portal&brief=brief-1",
+      projectName: "Nobelkonserten",
+      venue: "Oslo Spektrum",
+      startDate: "2026-12-10",
+      endDate: "2026-12-12",
+      role: "Lydtekniker",
+      notificationType: "share_brief",
+    });
+
+    assert.equal(shared.subject, "Prosjektbrief: Nobelkonserten");
+    assert.match(
+      shared.textBody,
+      /Ola Nordmann har delt en prosjektbrief med deg\./,
+    );
+    assert.match(shared.textBody, /Se prosjektbrief:/);
+    assert.match(shared.htmlBody, />Se prosjektbrief</);
+    assert.doesNotMatch(shared.htmlBody, />Åpne brief i portal</);
+    assert.match(shared.htmlBody, /Prosjekt/);
+    assert.match(shared.htmlBody, /Dato/);
+    assert.match(shared.htmlBody, /Rolle/);
+    assert.match(shared.htmlBody, /Sted/);
+  });
 });

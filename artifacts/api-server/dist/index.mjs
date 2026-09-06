@@ -78229,19 +78229,22 @@ function buildBriefEmailContent(args) {
   const venue = displayValue(args.venue);
   const role = displayValue(args.role);
   const dates = formatDateRange(args.startDate ?? null, args.endDate ?? null);
-  const subject = `Ny foresp\xF8rsel: ${projectName}`;
+  const isSharedBrief = args.notificationType === "share_brief";
+  const subject = isSharedBrief ? `Prosjektbrief: ${projectName}` : `Ny foresp\xF8rsel: ${projectName}`;
+  const intro = isSharedBrief ? `${producerName} har delt en prosjektbrief med deg.` : `Du har f\xE5tt en ny foresp\xF8rsel fra ${producerName}.`;
+  const cta = isSharedBrief ? "Se prosjektbrief" : "\xC5pne brief i portal";
   const fallback = "Hvis knappen over ikke fungerer, lim inn denne lenken i nettleseren:";
   const textBody = [
     `Hei ${recipientName},`,
     "",
-    `Du har f\xE5tt en ny foresp\xF8rsel fra ${producerName}.`,
+    intro,
     "",
     `Prosjekt: ${projectName}`,
     `Dato: ${dates}`,
     `Rolle: ${role}`,
     `Sted: ${venue}`,
     "",
-    "\xC5pne brief i portal:",
+    `${cta}:`,
     args.link,
     "",
     fallback,
@@ -78278,7 +78281,7 @@ function buildBriefEmailContent(args) {
         </tr>
         <tr><td style="padding:30px 28px 14px;font-family:Arial,sans-serif;color:#0f172a;">
           <p style="margin:0 0 14px;font-size:18px;line-height:26px;font-weight:700;">Hei ${escapeHtml(recipientName)},</p>
-          <p style="margin:0;font-size:15px;line-height:24px;color:#334155;">Du har f\xE5tt en ny foresp\xF8rsel fra ${escapeHtml(producerName)}.</p>
+          <p style="margin:0;font-size:15px;line-height:24px;color:#334155;">${escapeHtml(intro)}</p>
         </td></tr>
         <tr><td style="padding:10px 28px 22px;">
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
@@ -78287,7 +78290,7 @@ function buildBriefEmailContent(args) {
         </td></tr>
         <tr><td align="center" style="padding:2px 28px 26px;">
           <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td bgcolor="#111827" style="border-radius:8px;">
-            <a href="${escapeHtml(args.link)}" style="display:inline-block;padding:14px 24px;font-family:Arial,sans-serif;font-size:15px;line-height:20px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:8px;">\xC5pne brief i portal</a>
+            <a href="${escapeHtml(args.link)}" style="display:inline-block;padding:14px 24px;font-family:Arial,sans-serif;font-size:15px;line-height:20px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:8px;">${cta}</a>
           </td></tr></table>
         </td></tr>
         <tr><td style="padding:0 28px 30px;font-family:Arial,sans-serif;font-size:12px;line-height:18px;color:#64748b;">
@@ -78344,7 +78347,8 @@ async function dispatchBriefRequestEmails(args, dependencies = defaultDependenci
         venue: summary?.venue,
         startDate: summary?.startDate,
         endDate: summary?.endDate,
-        role: summary?.rolesByUserId[p.userId]?.join(" / ")
+        role: summary?.rolesByUserId[p.userId]?.join(" / "),
+        notificationType: args.notificationType
       });
       const result = await dependencies.send({
         to,
@@ -79234,6 +79238,7 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
     body.recipients
   );
   const explicitEmailDispatch = body.send_email === true;
+  const notificationType = body.notification_type === "share_brief" ? "share_brief" : "send_request";
   try {
     const nestedProject = data.project && typeof data.project === "object" && !Array.isArray(data.project) ? data.project : {};
     const rawProjectId = body.project_id ?? nestedProject.project_id ?? nestedProject.projectId;
@@ -79328,7 +79333,8 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
       const delivery = result.dispatch.newRecipientUserIds.length ? await dispatchBriefRequestEmails({
         briefId: id,
         ownerUserId: userId2,
-        newRecipientUserIds: result.dispatch.newRecipientUserIds
+        newRecipientUserIds: result.dispatch.newRecipientUserIds,
+        notificationType
       }) : { sent: 0, skipped: 0, outcomes: [] };
       if (delivery.outcomes.length > 0) {
         await completeBriefDispatches(id, delivery.outcomes);
@@ -79345,7 +79351,8 @@ router7.post("/portal/briefs", requireEmployee, async (req, res) => {
         const delivery = await dispatchBriefRequestEmails({
           briefId: id,
           ownerUserId: userId2,
-          newRecipientUserIds: result.dispatch.newRecipientUserIds
+          newRecipientUserIds: result.dispatch.newRecipientUserIds,
+          notificationType
         });
         await completeBriefDispatches(id, delivery.outcomes);
       })().catch((err) => logger.error(

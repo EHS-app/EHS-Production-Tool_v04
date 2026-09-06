@@ -717,6 +717,7 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
     project_id?: unknown;
     venue_id?: unknown;
     send_email?: unknown;
+    notification_type?: unknown;
   };
   const submittedData = body.data;
   if (!submittedData || typeof submittedData !== "object" || Array.isArray(submittedData)) {
@@ -739,6 +740,10 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
     body.recipients,
   );
     const explicitEmailDispatch = body.send_email === true;
+    const notificationType =
+      body.notification_type === "share_brief"
+        ? "share_brief" as const
+        : "send_request" as const;
   try {
     const nestedProject =
       data.project && typeof data.project === "object" && !Array.isArray(data.project)
@@ -881,6 +886,7 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
             briefId: id,
             ownerUserId: userId,
             newRecipientUserIds: result.dispatch.newRecipientUserIds,
+            notificationType,
           })
         : { sent: 0, skipped: 0, outcomes: [] };
       if (delivery.outcomes.length > 0) {
@@ -898,6 +904,7 @@ router.post("/portal/briefs", requireEmployee, async (req, res) => {
         const delivery = await dispatchBriefRequestEmails({
           briefId: id, ownerUserId: userId,
           newRecipientUserIds: result.dispatch!.newRecipientUserIds,
+          notificationType,
         });
         await completeBriefDispatches(id, delivery.outcomes);
       })().catch((err: unknown) => logger.error(

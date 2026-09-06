@@ -3432,6 +3432,7 @@ function App() {
     async (
       data: ReturnType<typeof buildBrief>,
       recipients: { crewId: string; freelancerUserId: string }[],
+      notificationType: "send_request" | "share_brief",
     ) => {
       const token = await getToken();
       if (!token) throw new Error("Sign in to send requests.");
@@ -3453,6 +3454,7 @@ function App() {
             data,
             recipients,
             send_email: true,
+            notification_type: notificationType,
           }),
         });
         const json = (await response.json().catch(() => null)) as {
@@ -3633,7 +3635,7 @@ function App() {
           crewId: m.id,
           freelancerUserId: m.freelancerUserId!,
         }));
-        await dispatchBriefEmails(data, recipients);
+        await dispatchBriefEmails(data, recipients, "send_request");
       } catch (e) {
         const msg =
           e instanceof Error ? e.message : "Could not send requests";
@@ -3710,7 +3712,7 @@ function App() {
         crew,
         recipientCrewId: null,
       });
-      await dispatchBriefEmails(data, recipients);
+      await dispatchBriefEmails(data, recipients, "share_brief");
       const linkedIds = new Set(recipients.map((recipient) => recipient.crewId));
       setCrew((members) =>
         members.map((member) =>

@@ -56,6 +56,8 @@ export type BriefEmailSummary = {
   rolesByUserId: Record<string, string[]>;
 };
 
+export type BriefNotificationType = "send_request" | "share_brief";
+
 const defaultDependencies: BriefEmailDependencies = {
   lookupProducerName,
   loadProfiles: async (userIds) =>
@@ -178,6 +180,7 @@ export function buildBriefEmailContent(args: {
   startDate?: string | null;
   endDate?: string | null;
   role?: string | null;
+  notificationType?: BriefNotificationType;
 }): { subject: string; textBody: string; htmlBody: string } {
   const recipientName = args.recipientName.trim() || "der";
   const producerName = displayValue(args.producerName);
@@ -185,20 +188,27 @@ export function buildBriefEmailContent(args: {
   const venue = displayValue(args.venue);
   const role = displayValue(args.role);
   const dates = formatDateRange(args.startDate ?? null, args.endDate ?? null);
-  const subject = `Ny forespørsel: ${projectName}`;
+  const isSharedBrief = args.notificationType === "share_brief";
+  const subject = isSharedBrief
+    ? `Prosjektbrief: ${projectName}`
+    : `Ny forespørsel: ${projectName}`;
+  const intro = isSharedBrief
+    ? `${producerName} har delt en prosjektbrief med deg.`
+    : `Du har fått en ny forespørsel fra ${producerName}.`;
+  const cta = isSharedBrief ? "Se prosjektbrief" : "Åpne brief i portal";
   const fallback =
     "Hvis knappen over ikke fungerer, lim inn denne lenken i nettleseren:";
   const textBody = [
     `Hei ${recipientName},`,
     "",
-    `Du har fått en ny forespørsel fra ${producerName}.`,
+    intro,
     "",
     `Prosjekt: ${projectName}`,
     `Dato: ${dates}`,
     `Rolle: ${role}`,
     `Sted: ${venue}`,
     "",
-    "Åpne brief i portal:",
+    `${cta}:`,
     args.link,
     "",
     fallback,
@@ -237,7 +247,7 @@ export function buildBriefEmailContent(args: {
         </tr>
         <tr><td style="padding:30px 28px 14px;font-family:Arial,sans-serif;color:#0f172a;">
           <p style="margin:0 0 14px;font-size:18px;line-height:26px;font-weight:700;">Hei ${escapeHtml(recipientName)},</p>
-          <p style="margin:0;font-size:15px;line-height:24px;color:#334155;">Du har fått en ny forespørsel fra ${escapeHtml(producerName)}.</p>
+          <p style="margin:0;font-size:15px;line-height:24px;color:#334155;">${escapeHtml(intro)}</p>
         </td></tr>
         <tr><td style="padding:10px 28px 22px;">
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
@@ -246,7 +256,7 @@ export function buildBriefEmailContent(args: {
         </td></tr>
         <tr><td align="center" style="padding:2px 28px 26px;">
           <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td bgcolor="#111827" style="border-radius:8px;">
-            <a href="${escapeHtml(args.link)}" style="display:inline-block;padding:14px 24px;font-family:Arial,sans-serif;font-size:15px;line-height:20px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:8px;">Åpne brief i portal</a>
+            <a href="${escapeHtml(args.link)}" style="display:inline-block;padding:14px 24px;font-family:Arial,sans-serif;font-size:15px;line-height:20px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:8px;">${cta}</a>
           </td></tr></table>
         </td></tr>
         <tr><td style="padding:0 28px 30px;font-family:Arial,sans-serif;font-size:12px;line-height:18px;color:#64748b;">
@@ -265,6 +275,7 @@ export async function dispatchBriefRequestEmails(args: {
   briefId: string;
   ownerUserId: string;
   newRecipientUserIds: string[];
+  notificationType?: BriefNotificationType;
 }, dependencies: BriefEmailDependencies = defaultDependencies): Promise<{ sent: number; skipped: number; outcomes: { freelancerUserId: string; sent: boolean }[] }> {
   const recipientUserIds = [...new Set(args.newRecipientUserIds)];
   if (recipientUserIds.length === 0) return { sent: 0, skipped: 0, outcomes: [] };
@@ -312,6 +323,7 @@ export async function dispatchBriefRequestEmails(args: {
         startDate: summary?.startDate,
         endDate: summary?.endDate,
         role: summary?.rolesByUserId[p.userId]?.join(" / "),
+        notificationType: args.notificationType,
       });
       const result = await dependencies.send({
         to,

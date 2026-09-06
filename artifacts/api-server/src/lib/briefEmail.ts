@@ -1,6 +1,11 @@
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { createClerkClient } from "@clerk/express";
-import { db, freelancerProfilesTable } from "@workspace/db";
+import {
+  briefAssignmentsTable,
+  db,
+  freelancerProfilesTable,
+  projectBriefsTable,
+} from "@workspace/db";
 import { logger } from "./logger";
 import { sendGmail } from "./gmail";
 import { buildPortalBriefUrl } from "./portalUrl";
@@ -39,7 +44,16 @@ export type BriefEmailProfile = {
 export type BriefEmailDependencies = {
   lookupProducerName: (userId: string) => Promise<string>;
   loadProfiles: (userIds: string[]) => Promise<BriefEmailProfile[]>;
+  loadBriefSummary: (briefId: string) => Promise<BriefEmailSummary | null>;
   send: typeof sendGmail;
+};
+
+export type BriefEmailSummary = {
+  projectName: string | null;
+  venue: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  rolesByUserId: Record<string, string[]>;
 };
 
 const defaultDependencies: BriefEmailDependencies = {
@@ -53,6 +67,59 @@ const defaultDependencies: BriefEmailDependencies = {
       })
       .from(freelancerProfilesTable)
       .where(inArray(freelancerProfilesTable.userId, userIds)),
+  loadBriefSummary: async (briefId) => {
+    const [briefRows, assignments] = await Promise.all([
+      db
+        .select({
+          projectName: projectBriefsTable.projectName,
+          venue: projectBriefsTable.venue,
+          startDate: projectBriefsTable.startDate,
+          endDate: projectBriefsTable.endDate,
+          data: projectBriefsTable.data,
+        })
+        .from(projectBriefsTable)
+        .where(eq(projectBriefsTable.id, briefId))
+        .limit(1),
+      db
+        .select({
+          freelancerUserId: briefAssignmentsTable.freelancerUserId,
+          crewId: briefAssignmentsTable.crewId,
+        })
+        .from(briefAssignmentsTable)
+        .where(eq(briefAssignmentsTable.briefId, briefId)),
+    ]);
+    const brief = briefRows[0];
+    if (!brief) return null;
+    const data =
+      brief.data && typeof brief.data === "object"
+        ? (brief.data as Record<string, unknown>)
+        : {};
+    const crewRows = Array.isArray(data.assignments)
+      ? (data.assignments as Record<string, unknown>[])
+      : [];
+    const roleByCrewId = new Map(
+      crewRows.flatMap((row) =>
+        typeof row.crewId === "string" && typeof row.role === "string"
+          ? [[row.crewId, row.role.trim()] as const]
+          : [],
+      ),
+    );
+    const rolesByUserId: Record<string, string[]> = {};
+    for (const assignment of assignments) {
+      const role = roleByCrewId.get(assignment.crewId);
+      if (!role) continue;
+      const roles = rolesByUserId[assignment.freelancerUserId] ?? [];
+      if (!roles.includes(role)) roles.push(role);
+      rolesByUserId[assignment.freelancerUserId] = roles;
+    }
+    return {
+      projectName: brief.projectName || null,
+      venue: brief.venue || null,
+      startDate: brief.startDate,
+      endDate: brief.endDate,
+      rolesByUserId,
+    };
+  },
   send: sendGmail,
 };
 
@@ -60,11 +127,138 @@ export function isValidBriefRecipientEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-function buildBody(args: {
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[character]!,
+  );
+}
+
+function displayValue(value: string | null | undefined): string {
+  return value?.trim() || "Ikke oppgitt";
+}
+
+function formatNorwegianDate(value: string | null | undefined): string | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat("nb-NO", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function formatDateRange(
+  startDate: string | null,
+  endDate: string | null,
+): string {
+  const start = formatNorwegianDate(startDate);
+  const end = formatNorwegianDate(endDate);
+  if (!start && !end) return "Ikke oppgitt";
+  if (!start) return end!;
+  if (!end || endDate === startDate) return start;
+  return `${start} – ${end}`;
+}
+
+export function buildBriefEmailContent(args: {
+  recipientName: string;
   producerName: string;
   link: string;
-}): string {
-  return `Du har fått en ny forespørsel fra ${args.producerName}\n${args.link}`;
+  projectName?: string | null;
+  venue?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  role?: string | null;
+}): { subject: string; textBody: string; htmlBody: string } {
+  const recipientName = args.recipientName.trim() || "der";
+  const producerName = displayValue(args.producerName);
+  const projectName = displayValue(args.projectName);
+  const venue = displayValue(args.venue);
+  const role = displayValue(args.role);
+  const dates = formatDateRange(args.startDate ?? null, args.endDate ?? null);
+  const subject = `Ny forespørsel: ${projectName}`;
+  const fallback =
+    "Hvis knappen over ikke fungerer, lim inn denne lenken i nettleseren:";
+  const textBody = [
+    `Hei ${recipientName},`,
+    "",
+    `Du har fått en ny forespørsel fra ${producerName}.`,
+    "",
+    `Prosjekt: ${projectName}`,
+    `Dato: ${dates}`,
+    `Rolle: ${role}`,
+    `Sted: ${venue}`,
+    "",
+    "Åpne brief i portal:",
+    args.link,
+    "",
+    fallback,
+    args.link,
+  ].join("\n");
+  const summaryRows = [
+    ["Prosjekt", projectName],
+    ["Dato", dates],
+    ["Rolle", role],
+    ["Sted", venue],
+  ]
+    .map(
+      ([label, value]) => `
+        <tr>
+          <td style="padding:7px 12px 7px 0;font-family:Arial,sans-serif;font-size:14px;line-height:20px;font-weight:700;color:#334155;vertical-align:top;white-space:nowrap;">${escapeHtml(label)}:</td>
+          <td style="padding:7px 0;font-family:Arial,sans-serif;font-size:14px;line-height:20px;color:#0f172a;vertical-align:top;">${escapeHtml(value)}</td>
+        </tr>`,
+    )
+    .join("");
+  const htmlBody = `<!doctype html>
+<html lang="no">
+<head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#f1f5f9;">
+    <tr><td align="center" style="padding:24px 12px;">
+      <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+        <tr>
+          <td style="padding:22px 28px;background:#111827;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+              <tr>
+                <td style="font-family:Arial,sans-serif;font-size:30px;line-height:34px;font-weight:900;letter-spacing:2px;color:#f97316;"><img src="https://app.ehs.no/logo.png" width="112" alt="EHS" style="display:block;width:112px;max-width:112px;height:auto;border:0;color:#f97316;font-family:Arial,sans-serif;font-size:24px;font-weight:900;"></td>
+                <td align="right" style="font-family:Arial,sans-serif;font-size:13px;line-height:18px;font-weight:700;color:#ffffff;">Crew Management System</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr><td style="padding:30px 28px 14px;font-family:Arial,sans-serif;color:#0f172a;">
+          <p style="margin:0 0 14px;font-size:18px;line-height:26px;font-weight:700;">Hei ${escapeHtml(recipientName)},</p>
+          <p style="margin:0;font-size:15px;line-height:24px;color:#334155;">Du har fått en ny forespørsel fra ${escapeHtml(producerName)}.</p>
+        </td></tr>
+        <tr><td style="padding:10px 28px 22px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
+            <tr><td style="padding:14px 18px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">${summaryRows}</table></td></tr>
+          </table>
+        </td></tr>
+        <tr><td align="center" style="padding:2px 28px 26px;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td bgcolor="#111827" style="border-radius:8px;">
+            <a href="${escapeHtml(args.link)}" style="display:inline-block;padding:14px 24px;font-family:Arial,sans-serif;font-size:15px;line-height:20px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:8px;">Åpne brief i portal</a>
+          </td></tr></table>
+        </td></tr>
+        <tr><td style="padding:0 28px 30px;font-family:Arial,sans-serif;font-size:12px;line-height:18px;color:#64748b;">
+          <p style="margin:0 0 6px;">${fallback}</p>
+          <p style="margin:0;word-break:break-all;"><a href="${escapeHtml(args.link)}" style="color:#475569;text-decoration:underline;">${escapeHtml(args.link)}</a></p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+  return { subject, textBody, htmlBody };
 }
 
 export async function dispatchBriefRequestEmails(args: {
@@ -76,8 +270,10 @@ export async function dispatchBriefRequestEmails(args: {
   if (recipientUserIds.length === 0) return { sent: 0, skipped: 0, outcomes: [] };
   try {
     const link = buildPortalBriefUrl(args.briefId);
-    const producerName = await dependencies.lookupProducerName(args.ownerUserId);
-    const subject = `Ny forespørsel fra ${producerName}`;
+    const [producerName, summary] = await Promise.all([
+      dependencies.lookupProducerName(args.ownerUserId),
+      dependencies.loadBriefSummary(args.briefId),
+    ]);
 
     const profiles = await dependencies.loadProfiles(recipientUserIds);
 
@@ -107,15 +303,22 @@ export async function dispatchBriefRequestEmails(args: {
         continue;
       }
       const recipientName = (p.fullName ?? "").trim();
-      const body = buildBody({
+      const content = buildBriefEmailContent({
+        recipientName,
         producerName,
         link,
+        projectName: summary?.projectName,
+        venue: summary?.venue,
+        startDate: summary?.startDate,
+        endDate: summary?.endDate,
+        role: summary?.rolesByUserId[p.userId]?.join(" / "),
       });
       const result = await dependencies.send({
         to,
         toName: recipientName || undefined,
-        subject,
-        textBody: body,
+        subject: content.subject,
+        textBody: content.textBody,
+        htmlBody: content.htmlBody,
       });
       if (result.ok) {
         sent += 1;

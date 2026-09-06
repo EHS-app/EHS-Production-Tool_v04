@@ -44,11 +44,37 @@ function buildRfc822(args: {
   toName?: string;
   subject: string;
   textBody: string;
+  htmlBody?: string;
 }): string {
   const toHeader = args.toName
     ? `${encodeRfc2047(args.toName)} <${args.to}>`
     : args.to;
   const bodyB64 = chunk76(Buffer.from(args.textBody, "utf8").toString("base64"));
+  const htmlBodyB64 = args.htmlBody
+    ? chunk76(Buffer.from(args.htmlBody, "utf8").toString("base64"))
+    : null;
+  const boundary = "ehs-alt-9f4b25f0";
+  if (htmlBodyB64) {
+    return [
+      `To: ${toHeader}`,
+      `Subject: ${encodeRfc2047(args.subject)}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      ``,
+      `--${boundary}`,
+      `Content-Type: text/plain; charset=UTF-8`,
+      `Content-Transfer-Encoding: base64`,
+      ``,
+      bodyB64,
+      `--${boundary}`,
+      `Content-Type: text/html; charset=UTF-8`,
+      `Content-Transfer-Encoding: base64`,
+      ``,
+      htmlBodyB64,
+      `--${boundary}--`,
+      ``,
+    ].join("\r\n");
+  }
   return [
     `To: ${toHeader}`,
     `Subject: ${encodeRfc2047(args.subject)}`,
@@ -69,6 +95,7 @@ export async function sendGmail(args: {
   toName?: string;
   subject: string;
   textBody: string;
+  htmlBody?: string;
 }): Promise<SendGmailResult> {
   if (!isSafeEmailAddress(args.to)) {
     logger.warn(

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  buildBriefEmailContent,
   dispatchBriefRequestEmails,
   type BriefEmailDependencies,
   type BriefEmailProfile,
@@ -8,13 +9,30 @@ import {
 
 function dependencies(
   profiles: BriefEmailProfile[],
-  deliveries: Array<{ to: string; textBody: string }> = [],
+  deliveries: Array<{
+    to: string;
+    subject: string;
+    textBody: string;
+    htmlBody?: string;
+  }> = [],
 ): BriefEmailDependencies {
   return {
     lookupProducerName: async () => "Test Producer",
     loadProfiles: async () => profiles,
+    loadBriefSummary: async () => ({
+      projectName: "Nobelkonserten",
+      venue: "Oslo Spektrum",
+      startDate: "2026-12-10",
+      endDate: "2026-12-12",
+      rolesByUserId: { "freelancer-secret-id": ["Lydtekniker"] },
+    }),
     send: async (message) => {
-      deliveries.push({ to: message.to, textBody: message.textBody });
+      deliveries.push({
+        to: message.to,
+        subject: message.subject,
+        textBody: message.textBody,
+        htmlBody: message.htmlBody,
+      });
       return { ok: true, id: `message-${deliveries.length}` };
     },
   };
@@ -27,7 +45,7 @@ const baseArgs = {
 
 describe("brief email dispatch", () => {
   it("consolidates multiple role assignments into one email per freelancer", async () => {
-    const deliveries: Array<{ to: string; textBody: string }> = [];
+    const deliveries: Array<{ to: string; subject: string; textBody: string; htmlBody?: string }> = [];
     const result = await dispatchBriefRequestEmails(
       {
         ...baseArgs,
@@ -48,7 +66,7 @@ describe("brief email dispatch", () => {
   });
 
   it("skips missing and blank-email profiles with exact reporting", async () => {
-    const deliveries: Array<{ to: string; textBody: string }> = [];
+    const deliveries: Array<{ to: string; subject: string; textBody: string; htmlBody?: string }> = [];
     const result = await dispatchBriefRequestEmails(
       {
         ...baseArgs,
@@ -85,8 +103,8 @@ describe("brief email dispatch", () => {
     );
   });
 
-  it("sends only the producer notice and authenticated project brief link", async () => {
-    const deliveries: Array<{ to: string; textBody: string }> = [];
+  it("sends a Norwegian summary card and authenticated project brief link", async () => {
+    const deliveries: Array<{ to: string; subject: string; textBody: string; htmlBody?: string }> = [];
     await dispatchBriefRequestEmails(
       { ...baseArgs, newRecipientUserIds: ["freelancer-secret-id"] },
       dependencies(
@@ -105,10 +123,45 @@ describe("brief email dispatch", () => {
     assert.equal(url.searchParams.get("brief"), "project-brief-123");
     assert.equal(url.searchParams.has("freelancer"), false);
     assert.equal(url.toString().includes("freelancer-secret-id"), false);
-    assert.equal(
+    assert.equal(deliveries[0]?.subject, "Ny forespørsel: Nobelkonserten");
+    assert.match(body, /^Hei Crew,/);
+    assert.match(body, /Du har fått en ny forespørsel fra Test Producer\./);
+    assert.match(body, /Prosjekt: Nobelkonserten/);
+    assert.match(body, /Dato: 10\. desember 2026 – 12\. desember 2026/);
+    assert.match(body, /Rolle: Lydtekniker/);
+    assert.match(body, /Sted: Oslo Spektrum/);
+    assert.match(
       body,
-      `Du har fått en ny forespørsel fra Test Producer\n${link}`,
+      /Hvis knappen over ikke fungerer, lim inn denne lenken i nettleseren:/,
     );
-    assert.equal(body.split("\n").length, 2);
+    const html = deliveries[0]?.htmlBody ?? "";
+    assert.match(html, /Crew Management System/);
+    assert.match(html, />Åpne brief i portal</);
+    assert.match(html, /Nobelkonserten/);
+    assert.match(html, /Lydtekniker/);
+    assert.match(html, /Oslo Spektrum/);
+    assert.equal(html.includes("freelancer-secret-id"), false);
+  });
+
+  it("falls back cleanly when summary fields are missing", () => {
+    const content = buildBriefEmailContent({
+      recipientName: "",
+      producerName: "Prosjektleder",
+      link: "https://app.ehs.no/?view=portal&brief=brief-1",
+      projectName: null,
+      venue: null,
+      startDate: null,
+      endDate: null,
+      role: null,
+    });
+
+    assert.equal(content.subject, "Ny forespørsel: Ikke oppgitt");
+    assert.match(content.textBody, /Hei der,/);
+    assert.match(content.textBody, /Prosjekt: Ikke oppgitt/);
+    assert.match(content.textBody, /Dato: Ikke oppgitt/);
+    assert.match(content.textBody, /Rolle: Ikke oppgitt/);
+    assert.match(content.textBody, /Sted: Ikke oppgitt/);
+    assert.match(content.htmlBody, /Prosjekt/);
+    assert.match(content.htmlBody, /https:\/\/app\.ehs\.no\/logo\.png/);
   });
 });

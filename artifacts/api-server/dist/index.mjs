@@ -18420,8 +18420,8 @@ var require_escape_html = __commonJS({
   "../../node_modules/.pnpm/escape-html@1.0.3/node_modules/escape-html/index.js"(exports, module) {
     "use strict";
     var matchHtmlRegExp = /["'&<>]/;
-    module.exports = escapeHtml;
-    function escapeHtml(string4) {
+    module.exports = escapeHtml2;
+    function escapeHtml2(string4) {
       var str = "" + string4;
       var match2 = matchHtmlRegExp.exec(str);
       if (!match2) {
@@ -18552,13 +18552,13 @@ var require_finalhandler = __commonJS({
     "use strict";
     var debug = require_src()("finalhandler");
     var encodeUrl = require_encodeurl();
-    var escapeHtml = require_escape_html();
+    var escapeHtml2 = require_escape_html();
     var onFinished = require_on_finished();
     var parseUrl = require_parseurl();
     var statuses = require_statuses();
     var isFinished = onFinished.isFinished;
     function createHtmlDocument(message) {
-      var body = escapeHtml(message).replaceAll("\n", "<br>").replaceAll("  ", " &nbsp;");
+      var body = escapeHtml2(message).replaceAll("\n", "<br>").replaceAll("  ", " &nbsp;");
       return '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>Error</title>\n</head>\n<body>\n<pre>' + body + "</pre>\n</body>\n</html>\n";
     }
     module.exports = finalhandler;
@@ -22382,7 +22382,7 @@ var require_send = __commonJS({
     var createError = require_http_errors();
     var debug = require_src()("send");
     var encodeUrl = require_encodeurl();
-    var escapeHtml = require_escape_html();
+    var escapeHtml2 = require_escape_html();
     var etag = require_etag();
     var fresh = require_fresh();
     var fs2 = __require("fs");
@@ -22435,7 +22435,7 @@ var require_send = __commonJS({
       }
       var res = this.res;
       var msg = statuses.message[status] || String(status);
-      var doc = createHtmlDocument("Error", escapeHtml(msg));
+      var doc = createHtmlDocument("Error", escapeHtml2(msg));
       clearHeaders(res);
       if (err && err.headers) {
         setHeaders(res, err.headers);
@@ -22535,7 +22535,7 @@ var require_send = __commonJS({
         return;
       }
       var loc = encodeUrl(collapseLeadingSlashes(this.path + "/"));
-      var doc = createHtmlDocument("Redirecting", "Redirecting to " + escapeHtml(loc));
+      var doc = createHtmlDocument("Redirecting", "Redirecting to " + escapeHtml2(loc));
       res.statusCode = 301;
       res.setHeader("Content-Type", "text/html; charset=UTF-8");
       res.setHeader("Content-Length", Buffer.byteLength(doc));
@@ -22939,7 +22939,7 @@ var require_response = __commonJS({
     var createError = require_http_errors();
     var deprecate = require_depd()("express");
     var encodeUrl = require_encodeurl();
-    var escapeHtml = require_escape_html();
+    var escapeHtml2 = require_escape_html();
     var http = __require("node:http");
     var onFinished = require_on_finished();
     var mime = require_mime_types();
@@ -23278,7 +23278,7 @@ var require_response = __commonJS({
           body = statuses.message[status] + ". Redirecting to " + address;
         },
         html: function() {
-          var u = escapeHtml(address);
+          var u = escapeHtml2(address);
           body = "<p>" + statuses.message[status] + ". Redirecting to " + u + "</p>";
         },
         default: function() {
@@ -23406,7 +23406,7 @@ var require_serve_static = __commonJS({
   "../../node_modules/.pnpm/serve-static@2.2.1/node_modules/serve-static/index.js"(exports, module) {
     "use strict";
     var encodeUrl = require_encodeurl();
-    var escapeHtml = require_escape_html();
+    var escapeHtml2 = require_escape_html();
     var parseUrl = require_parseurl();
     var resolve = __require("path").resolve;
     var send = require_send();
@@ -23492,7 +23492,7 @@ var require_serve_static = __commonJS({
         originalUrl.path = null;
         originalUrl.pathname = collapseLeadingSlashes(originalUrl.pathname + "/");
         var loc = encodeUrl(url2.format(originalUrl));
-        var doc = createHtmlDocument("Redirecting", "Redirecting to " + escapeHtml(loc));
+        var doc = createHtmlDocument("Redirecting", "Redirecting to " + escapeHtml2(loc));
         res.statusCode = 301;
         res.setHeader("Content-Type", "text/html; charset=UTF-8");
         res.setHeader("Content-Length", Buffer.byteLength(doc));
@@ -44736,7 +44736,7 @@ function buildRequest(options) {
         });
       } else {
         headers.set("Content-Type", "application/json");
-        const buildBody2 = () => {
+        const buildBody = () => {
           const hasBody = method !== "GET" && bodyParams && Object.keys(bodyParams).length > 0;
           if (!hasBody) {
             return null;
@@ -44749,7 +44749,7 @@ function buildRequest(options) {
         res = await runtime.fetch(finalUrl.href, {
           method,
           headers,
-          ...buildBody2()
+          ...buildBody()
         });
       }
       const isJSONResponse = res?.headers && res.headers?.get(constants.Headers.ContentType) === constants.ContentTypes.Json;
@@ -78036,6 +78036,29 @@ function isSafeEmailAddress(value) {
 function buildRfc822(args) {
   const toHeader = args.toName ? `${encodeRfc2047(args.toName)} <${args.to}>` : args.to;
   const bodyB64 = chunk76(Buffer.from(args.textBody, "utf8").toString("base64"));
+  const htmlBodyB64 = args.htmlBody ? chunk76(Buffer.from(args.htmlBody, "utf8").toString("base64")) : null;
+  const boundary = "ehs-alt-9f4b25f0";
+  if (htmlBodyB64) {
+    return [
+      `To: ${toHeader}`,
+      `Subject: ${encodeRfc2047(args.subject)}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      ``,
+      `--${boundary}`,
+      `Content-Type: text/plain; charset=UTF-8`,
+      `Content-Transfer-Encoding: base64`,
+      ``,
+      bodyB64,
+      `--${boundary}`,
+      `Content-Type: text/html; charset=UTF-8`,
+      `Content-Transfer-Encoding: base64`,
+      ``,
+      htmlBodyB64,
+      `--${boundary}--`,
+      ``
+    ].join("\r\n");
+  }
   return [
     `To: ${toHeader}`,
     `Subject: ${encodeRfc2047(args.subject)}`,
@@ -78121,22 +78144,172 @@ var defaultDependencies = {
     email: freelancerProfilesTable.email,
     fullName: freelancerProfilesTable.fullName
   }).from(freelancerProfilesTable).where(inArray(freelancerProfilesTable.userId, userIds)),
+  loadBriefSummary: async (briefId) => {
+    const [briefRows, assignments] = await Promise.all([
+      db.select({
+        projectName: projectBriefsTable.projectName,
+        venue: projectBriefsTable.venue,
+        startDate: projectBriefsTable.startDate,
+        endDate: projectBriefsTable.endDate,
+        data: projectBriefsTable.data
+      }).from(projectBriefsTable).where(eq(projectBriefsTable.id, briefId)).limit(1),
+      db.select({
+        freelancerUserId: briefAssignmentsTable.freelancerUserId,
+        crewId: briefAssignmentsTable.crewId
+      }).from(briefAssignmentsTable).where(eq(briefAssignmentsTable.briefId, briefId))
+    ]);
+    const brief = briefRows[0];
+    if (!brief) return null;
+    const data = brief.data && typeof brief.data === "object" ? brief.data : {};
+    const crewRows = Array.isArray(data.assignments) ? data.assignments : [];
+    const roleByCrewId = new Map(
+      crewRows.flatMap(
+        (row) => typeof row.crewId === "string" && typeof row.role === "string" ? [[row.crewId, row.role.trim()]] : []
+      )
+    );
+    const rolesByUserId = {};
+    for (const assignment of assignments) {
+      const role = roleByCrewId.get(assignment.crewId);
+      if (!role) continue;
+      const roles = rolesByUserId[assignment.freelancerUserId] ?? [];
+      if (!roles.includes(role)) roles.push(role);
+      rolesByUserId[assignment.freelancerUserId] = roles;
+    }
+    return {
+      projectName: brief.projectName || null,
+      venue: brief.venue || null,
+      startDate: brief.startDate,
+      endDate: brief.endDate,
+      rolesByUserId
+    };
+  },
   send: sendGmail
 };
 function isValidBriefRecipientEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
-function buildBody(args) {
-  return `Du har f\xE5tt en ny foresp\xF8rsel fra ${args.producerName}
-${args.link}`;
+function escapeHtml(value) {
+  return value.replace(
+    /[&<>"']/g,
+    (character) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    })[character]
+  );
+}
+function displayValue(value) {
+  return value?.trim() || "Ikke oppgitt";
+}
+function formatNorwegianDate(value) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date7 = /* @__PURE__ */ new Date(`${value}T12:00:00Z`);
+  if (Number.isNaN(date7.getTime())) return null;
+  return new Intl.DateTimeFormat("nb-NO", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC"
+  }).format(date7);
+}
+function formatDateRange(startDate, endDate) {
+  const start = formatNorwegianDate(startDate);
+  const end = formatNorwegianDate(endDate);
+  if (!start && !end) return "Ikke oppgitt";
+  if (!start) return end;
+  if (!end || endDate === startDate) return start;
+  return `${start} \u2013 ${end}`;
+}
+function buildBriefEmailContent(args) {
+  const recipientName = args.recipientName.trim() || "der";
+  const producerName = displayValue(args.producerName);
+  const projectName = displayValue(args.projectName);
+  const venue = displayValue(args.venue);
+  const role = displayValue(args.role);
+  const dates = formatDateRange(args.startDate ?? null, args.endDate ?? null);
+  const subject = `Ny foresp\xF8rsel: ${projectName}`;
+  const fallback = "Hvis knappen over ikke fungerer, lim inn denne lenken i nettleseren:";
+  const textBody = [
+    `Hei ${recipientName},`,
+    "",
+    `Du har f\xE5tt en ny foresp\xF8rsel fra ${producerName}.`,
+    "",
+    `Prosjekt: ${projectName}`,
+    `Dato: ${dates}`,
+    `Rolle: ${role}`,
+    `Sted: ${venue}`,
+    "",
+    "\xC5pne brief i portal:",
+    args.link,
+    "",
+    fallback,
+    args.link
+  ].join("\n");
+  const summaryRows = [
+    ["Prosjekt", projectName],
+    ["Dato", dates],
+    ["Rolle", role],
+    ["Sted", venue]
+  ].map(
+    ([label, value]) => `
+        <tr>
+          <td style="padding:7px 12px 7px 0;font-family:Arial,sans-serif;font-size:14px;line-height:20px;font-weight:700;color:#334155;vertical-align:top;white-space:nowrap;">${escapeHtml(label)}:</td>
+          <td style="padding:7px 0;font-family:Arial,sans-serif;font-size:14px;line-height:20px;color:#0f172a;vertical-align:top;">${escapeHtml(value)}</td>
+        </tr>`
+  ).join("");
+  const htmlBody = `<!doctype html>
+<html lang="no">
+<head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#f1f5f9;">
+    <tr><td align="center" style="padding:24px 12px;">
+      <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+        <tr>
+          <td style="padding:22px 28px;background:#111827;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+              <tr>
+                <td style="font-family:Arial,sans-serif;font-size:30px;line-height:34px;font-weight:900;letter-spacing:2px;color:#f97316;"><img src="https://app.ehs.no/logo.png" width="112" alt="EHS" style="display:block;width:112px;max-width:112px;height:auto;border:0;color:#f97316;font-family:Arial,sans-serif;font-size:24px;font-weight:900;"></td>
+                <td align="right" style="font-family:Arial,sans-serif;font-size:13px;line-height:18px;font-weight:700;color:#ffffff;">Crew Management System</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr><td style="padding:30px 28px 14px;font-family:Arial,sans-serif;color:#0f172a;">
+          <p style="margin:0 0 14px;font-size:18px;line-height:26px;font-weight:700;">Hei ${escapeHtml(recipientName)},</p>
+          <p style="margin:0;font-size:15px;line-height:24px;color:#334155;">Du har f\xE5tt en ny foresp\xF8rsel fra ${escapeHtml(producerName)}.</p>
+        </td></tr>
+        <tr><td style="padding:10px 28px 22px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
+            <tr><td style="padding:14px 18px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">${summaryRows}</table></td></tr>
+          </table>
+        </td></tr>
+        <tr><td align="center" style="padding:2px 28px 26px;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td bgcolor="#111827" style="border-radius:8px;">
+            <a href="${escapeHtml(args.link)}" style="display:inline-block;padding:14px 24px;font-family:Arial,sans-serif;font-size:15px;line-height:20px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:8px;">\xC5pne brief i portal</a>
+          </td></tr></table>
+        </td></tr>
+        <tr><td style="padding:0 28px 30px;font-family:Arial,sans-serif;font-size:12px;line-height:18px;color:#64748b;">
+          <p style="margin:0 0 6px;">${fallback}</p>
+          <p style="margin:0;word-break:break-all;"><a href="${escapeHtml(args.link)}" style="color:#475569;text-decoration:underline;">${escapeHtml(args.link)}</a></p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+  return { subject, textBody, htmlBody };
 }
 async function dispatchBriefRequestEmails(args, dependencies = defaultDependencies) {
   const recipientUserIds = [...new Set(args.newRecipientUserIds)];
   if (recipientUserIds.length === 0) return { sent: 0, skipped: 0, outcomes: [] };
   try {
     const link = buildPortalBriefUrl(args.briefId);
-    const producerName = await dependencies.lookupProducerName(args.ownerUserId);
-    const subject = `Ny foresp\xF8rsel fra ${producerName}`;
+    const [producerName, summary] = await Promise.all([
+      dependencies.lookupProducerName(args.ownerUserId),
+      dependencies.loadBriefSummary(args.briefId)
+    ]);
     const profiles = await dependencies.loadProfiles(recipientUserIds);
     const profileIds = new Set(profiles.map((p) => p.userId));
     let sent = 0;
@@ -78163,15 +78336,22 @@ async function dispatchBriefRequestEmails(args, dependencies = defaultDependenci
         continue;
       }
       const recipientName = (p.fullName ?? "").trim();
-      const body = buildBody({
+      const content = buildBriefEmailContent({
+        recipientName,
         producerName,
-        link
+        link,
+        projectName: summary?.projectName,
+        venue: summary?.venue,
+        startDate: summary?.startDate,
+        endDate: summary?.endDate,
+        role: summary?.rolesByUserId[p.userId]?.join(" / ")
       });
       const result = await dependencies.send({
         to,
         toName: recipientName || void 0,
-        subject,
-        textBody: body
+        subject: content.subject,
+        textBody: content.textBody,
+        htmlBody: content.htmlBody
       });
       if (result.ok) {
         sent += 1;
